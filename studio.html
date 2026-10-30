@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Studio Layers</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="_.css">
+    <style>
+        html,
+        body {
+            margin: 0;
+            height: 100%;
+            background: #131217;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="layerStudioView" class="layer-view" aria-label="Layer studio">
+
+        <aside class="layer-sidebar">
+            <header class="layer-sidebar-header">
+                <div>
+                    <h2>Layers</h2>
+                    <p>Compose, animate, export.</p>
+                    <a class="layer-v2-link" href="studio-v2.html">Studio v2</a>
+                </div>
+                <button type="button" class="layer-icon-btn layer-collapse-btn" data-action="toggle-panel"
+                    data-side="sidebar" aria-expanded="true" aria-label="Collapse layer list">
+                    <i class="fas fa-chevron-left" aria-hidden="true"></i>
+                </button>
+            </header>
+            <div class="layer-sidebar-actions">
+                <button type="button" data-action="import-files">Add images</button>
+                <button type="button" data-action="import-folder">Add folder</button>
+                <button type="button" data-action="import-archive">Import ZIP + image</button>
+                <button type="button" data-action="open-saved">Saved projects</button>
+                <label class="layer-project-picker">Project
+                    <select id="layerProjectSelect">
+                        <option value="">Choose a project…</option>
+                    </select>
+                </label>
+                <button type="button" data-action="toggle-all-visibility">Hide all</button>
+                <button type="button" data-action="confirm-all">Confirm all positions</button>
+            </div>
+            <section class="layer-proposals" id="layerProposalsPanel" aria-label="Animation ideas">
+                <header class="layer-proposals-header">
+                    <div>
+                        <h3>Animation ideas</h3>
+                        <p id="layerProposalMeta">No ideas yet</p>
+                    </div>
+                    <button type="button" class="layer-icon-btn" data-action="open-director"
+                        aria-label="Animation director settings" title="Context and models">
+                        <i class="fas fa-sliders" aria-hidden="true"></i>
+                    </button>
+                </header>
+                <div class="layer-proposals-actions">
+                    <button type="button" id="layerProposeButton" data-action="propose-animations">Suggest animations</button>
+                    <button type="button" id="layerResetAnimations" data-action="reset-animations">Reset</button>
+                </div>
+                <p id="layerProposalContext" class="layer-proposal-context">Add a story or mood to tailor the ideas.</p>
+                <div id="layerProposalList" class="layer-proposal-list" aria-live="polite"></div>
+            </section>
+            <div id="layerList" class="layer-list" role="list"></div>
+            <div class="layer-sidebar-foot">
+                <button type="button" id="layerSaveProject" data-action="save-project" disabled>Save project</button>
+                <button type="button" data-action="clear">Clear all</button>
+            </div>
+        </aside>
+
+        <div class="layer-resizer" data-resize="sidebar" tabindex="0" role="separator" aria-orientation="vertical"
+            aria-label="Resize sidebar"></div>
+
+        <main class="layer-main">
+            <header class="layer-header">
+                <label class="layer-composition-picker">Composition
+                    <select id="layerCompositionSelect" disabled>
+                        <option value="">Choose a project first</option>
+                    </select>
+                </label>
+                <label class="layer-composition-name">Name
+                    <input id="layerCompositionName" type="text" value="Untitled Composition" maxlength="120">
+                </label>
+                <label class="layer-canvas-size">Canvas
+                    <select id="layerCanvasSize">
+                        <option value="1080x1080">1080 × 1080</option>
+                        <option value="1080x1350">1080 × 1350</option>
+                        <option value="1920x1080">1920 × 1080</option>
+                        <option value="1080x1920">1080 × 1920</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                </label>
+                <span id="layerStudioStatus" class="layer-status" role="status">Ready.</span>
+            </header>
+
+            <div class="layer-timeline-controls">
+                <button type="button" id="layerPlayBtn" data-action="toggle-play">Play</button>
+                <label>Duration (ms)
+                    <input id="layerDuration" type="number" value="3000" min="500" max="30000" step="100">
+                </label>
+                <button type="button" data-action="set-keyframe">Set keyframe</button>
+                <button type="button" data-action="delete-keyframe">Delete keyframe</button>
+                <span id="layerKeyframeCount" class="layer-status">0 keyframes</span>
+                <button type="button" data-action="export-json">Export JSON</button>
+                <button type="button" data-action="export-agent-spec">Export agent spec</button>
+                <button type="button" data-action="export-svg">Export SVG</button>
+                <button type="button" data-action="export-image" title="Export all layers without the final image reference">Export PNG</button>
+                <button type="button" data-action="export-webm">Export video</button>
+                <button type="button" data-action="export-gif">Export GIF</button>
+            </div>
+
+            <div class="layer-playhead-row">
+                <output id="layerPlayheadTime">0 ms</output>
+                <input id="layerPlayhead" type="range" min="0" max="3000" value="0" aria-label="Playhead">
+                <output id="layerPlayheadEnd">3000 ms</output>
+            </div>
+
+            <div id="layerExportProgress" class="layer-export-progress" hidden></div>
+
+            <div class="layer-stage">
+                <div id="layerCanvas" class="layer-canvas" tabindex="0" aria-label="Composition canvas"></div>
+            </div>
+        </main>
+
+        <div class="layer-resizer" data-resize="inspector" tabindex="0" role="separator" aria-orientation="vertical"
+            aria-label="Resize inspector"></div>
+
+        <aside class="layer-inspector-panel">
+            <header class="layer-inspector-header">
+                <span>Inspector</span>
+                <button type="button" class="layer-icon-btn layer-collapse-btn" data-action="toggle-panel"
+                    data-side="inspector" aria-expanded="true" aria-label="Collapse inspector">
+                    <i class="fas fa-chevron-right" aria-hidden="true"></i>
+                </button>
+            </header>
+            <div id="layerInspector" class="layer-inspector"></div>
+        </aside>
+
+        <dialog id="layerArchiveDialog" class="layer-dialog" aria-labelledby="layerArchiveTitle">
+            <div class="layer-dialog-form">
+                <header class="layer-dialog-header">
+                    <div>
+                        <h2 id="layerArchiveTitle">Import layered ZIP</h2>
+                        <p>Segments archive + final image</p>
+                    </div>
+                    <button type="button" class="layer-icon-btn" data-action="close-archive" aria-label="Close import dialog">
+                        <i class="fas fa-xmark" aria-hidden="true"></i>
+                    </button>
+                </header>
+
+                <p class="layer-dialog-copy">
+                    Upload the ZIP containing the cut-out segments and the final assembled image. The archive is
+                    stored on the studio backend; every segment becomes its own layer and is aligned to the final image.
+                </p>
+
+                <label class="layer-dialog-field">Segments ZIP
+                    <input id="layerArchiveZip" type="file" accept=".zip,application/zip,application/x-zip-compressed">
+                </label>
+                <label class="layer-dialog-field">Final image
+                    <input id="layerArchiveRef" type="file" accept="image/png,image/jpeg,image/webp,image/gif">
+                </label>
+                <label class="layer-dialog-field">Composition name
+                    <input id="layerArchiveName" type="text" maxlength="120" placeholder="Imported scene" autocomplete="off">
+                </label>
+
+                <p id="layerArchiveStatus" class="layer-dialog-status" role="status"></p>
+
+                <div class="layer-dialog-actions">
+                    <button type="button" id="layerArchiveSubmit" data-action="submit-archive">Import &amp; align</button>
+                    <button type="button" data-action="close-archive">Cancel</button>
+                </div>
+
+                <section class="layer-saved">
+                    <header class="layer-saved-header">
+                        <h3>Saved projects</h3>
+                        <button type="button" class="layer-link-btn" data-action="refresh-saved">Refresh</button>
+                    </header>
+                    <div id="layerSavedList" class="layer-saved-list"></div>
+                </section>
+            </div>
+        </dialog>
+
+        <dialog id="layerDirectorDialog" class="layer-dialog" aria-labelledby="layerDirectorTitle">
+            <div class="layer-dialog-form">
+                <header class="layer-dialog-header">
+                    <div>
+                        <h2 id="layerDirectorTitle">Animation director</h2>
+                        <p>Project context and local vision models</p>
+                    </div>
+                    <button type="button" class="layer-icon-btn" data-action="close-director"
+                        aria-label="Close animation director">
+                        <i class="fas fa-xmark" aria-hidden="true"></i>
+                    </button>
+                </header>
+
+                <p class="layer-dialog-copy">
+                    Give the director the story, audience, or mood of this project. The vision model looks at the
+                    final image, then the writing model proposes animation sets that only use this project's layers.
+                </p>
+
+                <label class="layer-dialog-field">Story / context
+                    <textarea id="layerProjectContext" rows="6" maxlength="8000"
+                        placeholder="e.g. A brave mermaid rises from a moonlit river to defend her kingdom. Children's storybook, gentle but heroic."></textarea>
+                </label>
+
+                <div class="layer-director-models">
+                    <label class="layer-dialog-field">Vision model
+                        <select id="layerVisionModel"></select>
+                    </label>
+                    <label class="layer-dialog-field">Writing model
+                        <select id="layerTextModel"></select>
+                    </label>
+                </div>
+
+                <p id="layerDirectorStatus" class="layer-dialog-status" role="status"></p>
+
+                <div class="layer-dialog-actions">
+                    <button type="button" data-action="generate-ideas">Generate ideas</button>
+                    <button type="button" data-action="save-context">Save context</button>
+                    <button type="button" data-action="close-director">Close</button>
+                </div>
+
+                <p class="layer-dialog-hint">
+                    Ideas run locally through Ollama. The first run can take about a minute while the vision model loads.
+                </p>
+            </div>
+        </dialog>
+
+        <input id="layerFilesInput" type="file" accept="image/*" multiple hidden>
+        <input id="layerFolderInput" type="file" accept="image/*" webkitdirectory multiple hidden>
+        <input id="layerProjectInput" type="file" accept="application/json,.json" hidden>
+    </div>
+
+    <script src="_.js"></script>
+    <script>
+        // The view is marked active in HTML; render once on load.
+        window.addEventListener('DOMContentLoaded', () => {
+            if (window.layerStudioShowView) window.layerStudioShowView();
+        });
+    </script>
+</body>
+
+</html><!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Studio Layers</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="_.css">
+    <style>
+        html,
+        body {
+            margin: 0;
+            height: 100%;
+            background: #131217;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="layerStudioView" class="layer-view" aria-label="Layer studio">
+
+        <aside class="layer-sidebar">
+            <header class="layer-sidebar-header">
+                <div>
+                    <h2>Layers</h2>
+                    <p>Compose, animate, export.</p>
+                    <a class="layer-v2-link" href="studio-v2.html">Studio v2</a>
+                </div>
+                <button type="button" class="layer-icon-btn layer-collapse-btn" data-action="toggle-panel"
+                    data-side="sidebar" aria-expanded="true" aria-label="Collapse layer list">
+                    <i class="fas fa-chevron-left" aria-hidden="true"></i>
+                </button>
+            </header>
+            <div class="layer-sidebar-actions">
+                <button type="button" data-action="import-files">Add images</button>
+                <button type="button" data-action="import-folder">Add folder</button>
+                <button type="button" data-action="import-archive">Import ZIP + image</button>
+                <button type="button" data-action="import-character">Import character</button>
+                <button type="button" data-action="open-saved">Saved projects</button>
+                <label class="layer-project-picker">Project
+                    <select id="layerProjectSelect">
+                        <option value="">Choose a project…</option>
+                    </select>
+                </label>
+                <button type="button" data-action="toggle-all-visibility">Hide all</button>
+                <button type="button" data-action="confirm-all">Confirm all positions</button>
+            </div>
+            <section class="layer-proposals" id="layerProposalsPanel" aria-label="Animation ideas">
+                <header class="layer-proposals-header">
+                    <div>
+                        <h3>Animation ideas</h3>
+                        <p id="layerProposalMeta">No ideas yet</p>
+                    </div>
+                    <button type="button" class="layer-icon-btn" data-action="open-director"
+                        aria-label="Animation director settings" title="Context and models">
+                        <i class="fas fa-sliders" aria-hidden="true"></i>
+                    </button>
+                </header>
+                <div class="layer-proposals-actions">
+                    <button type="button" id="layerProposeButton" data-action="propose-animations">Suggest animations</button>
+                    <button type="button" id="layerResetAnimations" data-action="reset-animations">Reset</button>
+                </div>
+                <p id="layerProposalContext" class="layer-proposal-context">Add a story or mood to tailor the ideas.</p>
+                <div id="layerProposalList" class="layer-proposal-list" aria-live="polite"></div>
+            </section>
+            <div id="layerList" class="layer-list" role="list"></div>
+            <div class="layer-sidebar-foot">
+                <button type="button" id="layerSaveProject" data-action="save-project" disabled>Save project</button>
+                <button type="button" data-action="clear">Clear all</button>
+            </div>
+        </aside>
+
+        <div class="layer-resizer" data-resize="sidebar" tabindex="0" role="separator" aria-orientation="vertical"
+            aria-label="Resize sidebar"></div>
+
+        <main class="layer-main">
+            <header class="layer-header">
+                <label class="layer-composition-picker">Composition
+                    <select id="layerCompositionSelect" disabled>
+                        <option value="">Choose a project first</option>
+                    </select>
+                </label>
+                <label class="layer-composition-name">Name
+                    <input id="layerCompositionName" type="text" value="Untitled Composition" maxlength="120">
+                </label>
+                <label class="layer-canvas-size">Canvas
+                    <select id="layerCanvasSize">
+                        <option value="1080x1080">1080 × 1080</option>
+                        <option value="1080x1350">1080 × 1350</option>
+                        <option value="1920x1080">1920 × 1080</option>
+                        <option value="1080x1920">1080 × 1920</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                </label>
+                <span id="layerStudioStatus" class="layer-status" role="status">Ready.</span>
+            </header>
+
+            <div class="layer-timeline-controls">
+                <button type="button" id="layerPlayBtn" data-action="toggle-play">Play</button>
+                <label>Duration (ms)
+                    <input id="layerDuration" type="number" value="3000" min="500" max="30000" step="100">
+                </label>
+                <button type="button" data-action="set-keyframe">Set keyframe</button>
+                <button type="button" data-action="delete-keyframe">Delete keyframe</button>
+                <span id="layerKeyframeCount" class="layer-status">0 keyframes</span>
+                <button type="button" data-action="export-json">Export JSON</button>
+                <button type="button" data-action="export-agent-spec">Export agent spec</button>
+                <button type="button" data-action="export-svg">Export SVG</button>
+                <button type="button" data-action="export-image" title="Export all layers without the final image reference">Export PNG</button>
+                <button type="button" data-action="export-webm">Export video</button>
+                <button type="button" data-action="export-gif">Export GIF</button>
+            </div>
+
+            <div class="layer-playhead-row">
+                <output id="layerPlayheadTime">0 ms</output>
+                <input id="layerPlayhead" type="range" min="0" max="3000" value="0" aria-label="Playhead">
+                <output id="layerPlayheadEnd">3000 ms</output>
+            </div>
+
+            <div id="layerExportProgress" class="layer-export-progress" hidden></div>
+
+            <div class="layer-stage">
+                <div id="layerCanvas" class="layer-canvas" tabindex="0" aria-label="Composition canvas"></div>
+            </div>
+        </main>
+
+        <div class="layer-resizer" data-resize="inspector" tabindex="0" role="separator" aria-orientation="vertical"
+            aria-label="Resize inspector"></div>
+
+        <aside class="layer-inspector-panel">
+            <header class="layer-inspector-header">
+                <span>Inspector</span>
+                <button type="button" class="layer-icon-btn layer-collapse-btn" data-action="toggle-panel"
+                    data-side="inspector" aria-expanded="true" aria-label="Collapse inspector">
+                    <i class="fas fa-chevron-right" aria-hidden="true"></i>
+                </button>
+            </header>
+            <div id="layerInspector" class="layer-inspector"></div>
+        </aside>
+
+        <dialog id="layerArchiveDialog" class="layer-dialog" aria-labelledby="layerArchiveTitle">
+            <div class="layer-dialog-form">
+                <header class="layer-dialog-header">
+                    <div>
+                        <h2 id="layerArchiveTitle">Import layered ZIP</h2>
+                        <p>Segments archive + final image</p>
+                    </div>
+                    <button type="button" class="layer-icon-btn" data-action="close-archive" aria-label="Close import dialog">
+                        <i class="fas fa-xmark" aria-hidden="true"></i>
+                    </button>
+                </header>
+
+                <p class="layer-dialog-copy">
+                    Upload the ZIP containing the cut-out segments and the final assembled image. The archive is
+                    stored on the studio backend; every segment becomes its own layer and is aligned to the final image.
+                </p>
+
+                <label class="layer-dialog-field">Segments ZIP
+                    <input id="layerArchiveZip" type="file" accept=".zip,application/zip,application/x-zip-compressed">
+                </label>
+                <label class="layer-dialog-field">Final image
+                    <input id="layerArchiveRef" type="file" accept="image/png,image/jpeg,image/webp,image/gif">
+                </label>
+                <label class="layer-dialog-field">Composition name
+                    <input id="layerArchiveName" type="text" maxlength="120" placeholder="Imported scene" autocomplete="off">
+                </label>
+
+                <p id="layerArchiveStatus" class="layer-dialog-status" role="status"></p>
+
+                <div class="layer-dialog-actions">
+                    <button type="button" id="layerArchiveSubmit" data-action="submit-archive">Import &amp; align</button>
+                    <button type="button" data-action="close-archive">Cancel</button>
+                </div>
+
+                <section class="layer-saved">
+                    <header class="layer-saved-header">
+                        <h3>Saved projects</h3>
+                        <button type="button" class="layer-link-btn" data-action="refresh-saved">Refresh</button>
+                    </header>
+                    <div id="layerSavedList" class="layer-saved-list"></div>
+                </section>
+            </div>
+        </dialog>
+
+        <dialog id="layerDirectorDialog" class="layer-dialog" aria-labelledby="layerDirectorTitle">
+            <div class="layer-dialog-form">
+                <header class="layer-dialog-header">
+                    <div>
+                        <h2 id="layerDirectorTitle">Animation director</h2>
+                        <p>Project context and local vision models</p>
+                    </div>
+                    <button type="button" class="layer-icon-btn" data-action="close-director"
+                        aria-label="Close animation director">
+                        <i class="fas fa-xmark" aria-hidden="true"></i>
+                    </button>
+                </header>
+
+                <p class="layer-dialog-copy">
+                    Give the director the story, audience, or mood of this project. The vision model looks at the
+                    final image, then the writing model proposes animation sets that only use this project's layers.
+                </p>
+
+                <label class="layer-dialog-field">Story / context
+                    <textarea id="layerProjectContext" rows="6" maxlength="8000"
+                        placeholder="e.g. A brave mermaid rises from a moonlit river to defend her kingdom. Children's storybook, gentle but heroic."></textarea>
+                </label>
+
+                <div class="layer-director-models">
+                    <label class="layer-dialog-field">Vision model
+                        <select id="layerVisionModel"></select>
+                    </label>
+                    <label class="layer-dialog-field">Writing model
+                        <select id="layerTextModel"></select>
+                    </label>
+                </div>
+
+                <p id="layerDirectorStatus" class="layer-dialog-status" role="status"></p>
+
+                <div class="layer-dialog-actions">
+                    <button type="button" data-action="generate-ideas">Generate ideas</button>
+                    <button type="button" data-action="save-context">Save context</button>
+                    <button type="button" data-action="close-director">Close</button>
+                </div>
+
+                <p class="layer-dialog-hint">
+                    Ideas run locally through Ollama. The first run can take about a minute while the vision model loads.
+                </p>
+            </div>
+        </dialog>
+
+        <input id="layerFilesInput" type="file" accept="image/*" multiple hidden>
+        <input id="layerFolderInput" type="file" accept="image/*" webkitdirectory multiple hidden>
+        <input id="layerProjectInput" type="file" accept="application/json,.json" hidden>
+        <input id="layerCharacterInput" type="file" accept=".zip,application/zip,application/x-zip-compressed" hidden>
+    </div>
+
+    <script src="_.js"></script>
+    <script>
+        // The view is marked active in HTML; render once on load.
+        window.addEventListener('DOMContentLoaded', () => {
+            if (window.layerStudioShowView) window.layerStudioShowView();
+        });
+    </script>
+</body>
+
+</html>
