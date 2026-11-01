@@ -1,0 +1,158 @@
+/* Loaded after brand-identity.css (see studio-v2.html). */
+
+/* Top row: two fields on the left, status and section chips on the right */
+.layer-main .bar-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 14px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--ls-line);
+}
+.layer-main .bar-top label,
+.layer-main .bar-panel label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--ls-muted);
+    font-size: 11px;
+}
+.layer-main .bar-top select,
+.layer-main .bar-top input,
+.layer-main .bar-panel select,
+.layer-main .bar-panel input[type="number"] {
+    min-height: 28px;
+    padding: 3px 8px;
+    border: 1px solid var(--ls-line);
+    border-radius: 6px;
+    background: var(--ls-bg);
+    color: var(--ls-text);
+    font-size: 12px;
+}
+.layer-main .bar-panel input[type="number"] { width: 68px; }
+.layer-main .bar-spacer { flex: 1 1 0; }
+.layer-main .bar-status {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 30ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--ls-muted);
+    font-size: 11px;
+}
+.layer-main .bar-panel .layer-locale-picker {
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+/* Section toggles: text only, a tiny caret, accent underline when open */
+.layer-main .bar-chips { display: flex; gap: 2px; margin-left: auto; }
+.layer-main .bar-chip {
+    padding: 5px 10px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--ls-muted);
+    font-size: 12px;
+    cursor: pointer;
+}
+.layer-main .bar-chip::after {
+    content: "";
+    display: inline-block;
+    margin-left: 6px;
+    vertical-align: middle;
+    border: 3px solid transparent;
+    border-top-color: currentColor;
+    border-bottom-width: 0;
+    transition: transform .15s;
+}
+.layer-main .bar-chip:hover { color: var(--ls-text); background: var(--ls-raised); }
+.layer-main .bar-chip[aria-expanded="true"] {
+    color: var(--ls-text);
+    background: var(--ls-raised);
+    box-shadow: inset 0 -2px 0 var(--ls-accent);
+}
+.layer-main .bar-chip[aria-expanded="true"]::after { transform: rotate(180deg); }
+.layer-main .bar-chip:focus-visible {
+    outline: 2px solid var(--ls-accent);
+    outline-offset: 1px;
+}
+
+/* Panels open one at a time under the top row */
+.layer-main .bar-panel {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 14px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--ls-line);
+    background: var(--ls-surface);
+}
+.layer-main .bar-panel[hidden] { display: none; }
+.layer-main .bar-group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.layer-main .bar-group[hidden] { display: none; }
+.layer-main .bar-panel button {
+    min-height: 28px;
+    padding: 3px 10px;
+    border: 1px solid var(--ls-line-hi);
+    border-radius: 6px;
+    background: var(--ls-raised);
+    color: var(--ls-text);
+    font-size: 12px;
+    cursor: pointer;
+}
+.layer-main .bar-panel button:hover:not(:disabled) { border-color: var(--ls-accent); }
+.layer-main .bar-panel button:disabled {
+    opacity: .45;
+    border-color: var(--ls-line);
+    cursor: not-allowed;
+}
+.layer-main .bar-top select:focus-visible,
+.layer-main .bar-top input:focus-visible,
+.layer-main .bar-panel select:focus-visible,
+.layer-main .bar-panel input:focus-visible {
+    outline: 2px solid var(--ls-accent);
+    outline-offset: 1px;
+}
+
+/* Playback row */
+.layer-main .bar-play {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--ls-line);
+}
+.layer-main .bar-play input[type="range"] { flex: 1; min-width: 0; }
+.layer-main .bar-play output {
+    min-width: 52px;
+    color: var(--ls-muted);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+.layer-main .bar-play button {
+    min-height: 28px;
+    padding: 3px 12px;
+    border: 1px solid var(--ls-line-hi);
+    border-radius: 6px;
+    background: var(--ls-raised);
+    color: var(--ls-text);
+    font-size: 12px;
+    cursor: pointer;
+}
+
+/* Sidebar: quieter header, tidier layer tools */
+.layer-sidebar-header p,
+.layer-sidebar-header .layer-v2-link {
+    color: var(--ls-muted);
+    font-size: 11px;
+}
+.layer-sidebar .layer-sidebar-actions { display: grid; gap: 6px; padding: 8px 12px 12px; }
+
+@media (prefers-reduced-motion: reduce) {
+    .layer-main .bar-chip::after { transition: none; }
+}

@@ -1723,3 +1723,887 @@
 .layer-character-group input:disabled {
     opacity: 0.45;
 }
+
+/* =====================================================================
+   Phase 1 — text layers
+   ===================================================================== */
+.layer-item[data-type="text"] {
+    cursor: move;
+}
+
+.ls-text-inner {
+    position: absolute;
+    left: 0;
+    top: 0;
+    transform-origin: 0 0;
+    overflow: hidden;
+    pointer-events: none;
+    user-select: text;
+    white-space: pre;
+    -webkit-font-smoothing: antialiased;
+}
+
+.ls-text-line {
+    position: absolute;
+    display: block;
+    margin: 0;
+    padding: 0;
+    white-space: pre;
+}
+
+.layer-text-thumb {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 36px;
+    border-radius: 3px;
+    background: var(--ls-raised);
+    color: var(--ls-accent);
+    font: 700 16px/1 var(--sans, system-ui, sans-serif);
+}
+
+.layer-meta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+}
+
+.layer-pin-badge {
+    display: inline-grid;
+    place-items: center;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 3px;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--ls-accent) 26%, transparent);
+    color: var(--ls-accent);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+.layer-type-line {
+    margin: -2px 0 6px;
+    color: var(--ls-muted);
+    font-size: 11px;
+}
+
+.layer-hint {
+    margin: 4px 0 0;
+    color: var(--ls-muted);
+    font-size: 11px;
+    line-height: 1.45;
+}
+
+.layer-hint-warn {
+    color: var(--ls-accent);
+}
+
+.layer-text-content textarea {
+    min-height: 64px;
+    padding: 6px 8px;
+    border: 1px solid var(--ls-line);
+    border-radius: 6px;
+    background: var(--ls-bg);
+    color: var(--ls-text);
+    font: inherit;
+    resize: vertical;
+}
+
+.layer-text-content textarea:disabled {
+    opacity: 0.55;
+}
+
+.layer-font-load {
+    align-self: flex-start;
+    margin: 2px 0 6px;
+    padding: 4px 8px;
+    border: 1px solid var(--ls-line-hi);
+    border-radius: 6px;
+    background: var(--ls-raised);
+    font-size: 11px;
+}
+
+.layer-font-load:hover {
+    border-color: var(--ls-accent);
+}
+
+.layer-binding-note {
+    color: var(--ls-accent);
+}
+
+/* =====================================================================
+   Phase 2 — format tab strip
+   ===================================================================== */
+.layer-format-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px;
+    border-bottom: 1px solid var(--ls-line);
+    background: var(--ls-surface);
+}
+
+.layer-format-tabs {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    gap: 4px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+
+.layer-format-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: none;
+    padding: 4px 8px;
+    border: 1px solid var(--ls-line);
+    border-radius: 6px;
+    background: var(--ls-raised);
+    color: var(--ls-muted);
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.layer-format-tab:hover {
+    border-color: var(--ls-line-hi);
+}
+
+.layer-format-tab[aria-selected="true"] {
+    border-color: var(--ls-accent);
+    background: color-mix(in srgb, var(--ls-accent) 16%, var(--ls-raised));
+    color: var(--ls-text);
+}
+
+.layer-format-tab-label {
+    font-weight: 600;
+}
+
+.layer-format-tab-size {
+    color: var(--ls-muted);
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+}
+
+.layer-format-master {
+    display: inline-grid;
+    place-items: center;
+    width: 13px;
+    height: 13px;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--ls-muted) 30%, transparent);
+    font-size: 9px;
+    font-weight: 700;
+}
+
+.layer-format-remove {
+    display: inline-grid;
+    place-items: center;
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    color: var(--ls-muted);
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.layer-format-remove:hover {
+    background: color-mix(in srgb, var(--ls-danger) 45%, transparent);
+    color: #fff;
+}
+
+.layer-format-bar-actions {
+    display: flex;
+    flex: none;
+    gap: 6px;
+}
+
+.layer-format-bar-actions button {
+    padding: 4px 9px;
+    border: 1px solid var(--ls-line);
+    border-radius: 6px;
+    background: var(--ls-raised);
+    font-size: 11px;
+}
+
+.layer-format-bar-actions button:hover:not(:disabled) {
+    border-color: var(--ls-accent);
+}
+
+.layer-format-bar-actions button:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.layer-timeline-controls-secondary {
+    border-top: 1px dashed var(--ls-line);
+    padding-top: 6px;
+}
+
+.layer-pin-action {
+    width: 100%;
+    padding: 5px 8px;
+    border: 1px solid var(--ls-line-hi);
+    border-radius: 6px;
+    background: var(--ls-raised);
+    font-size: 11px;
+}
+
+.layer-pin-action[aria-pressed="true"] {
+    border-color: var(--ls-accent);
+    color: var(--ls-accent);
+}
+
+/* =====================================================================
+   Phase 2 — contact sheet + batch export
+   ===================================================================== */
+.layer-dialog-wide {
+    width: min(880px, calc(100vw - 32px));
+}
+
+.layer-contact-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px;
+    overflow-y: auto;
+    max-height: min(520px, 60vh);
+    padding: 2px;
+}
+
+.layer-contact-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    padding: 8px;
+    border: 1px solid var(--ls-line);
+    border-radius: 8px;
+    background: var(--ls-raised);
+}
+
+.layer-contact-cell[data-active="true"] {
+    border-color: var(--ls-accent);
+}
+
+.layer-contact-cell[data-error="true"] {
+    border-color: var(--ls-danger);
+}
+
+.layer-contact-canvas {
+    width: 100%;
+    height: auto;
+    max-height: 180px;
+    object-fit: contain;
+    background: #fff;
+    border-radius: 4px;
+}
+
+.layer-contact-caption {
+    color: var(--ls-muted);
+    font-size: 11px;
+    text-align: left;
+}
+
+.layer-batch-outputs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin: 0;
+    padding: 8px 10px;
+    border: 1px solid var(--ls-line);
+    border-radius: 8px;
+}
+
+.layer-batch-outputs legend {
+    padding: 0 4px;
+    color: var(--ls-muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.layer-batch-outputs label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+}
+
+/* =====================================================================
+   Phase 3 — variables panel
+   ===================================================================== */
+.layer-variables {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-top: 1px solid var(--ls-line);
+}
+
+.layer-variables-header {
+    display: flex;
+    align-items: center;
+    padding: 4px 8px;
+}
+
+.layer-variables-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 0 8px 6px;
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.layer-variable-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 4px;
+}
+
+.layer-variable-name,
+.layer-variable-value {
+    min-width: 0;
+    width: 100%;
+    padding: 3px 6px;
+    border: 1px solid var(--ls-line);
+    border-radius: 4px;
+    background: var(--ls-bg);
+    font-size: 11px;
+}
+
+.layer-variable-value[type="color"] {
+    padding: 0;
+    height: 22px;
+}
+
+.layer-variable-kind {
+    padding: 2px 5px;
+    border-radius: 3px;
+    background: var(--ls-raised);
+    color: var(--ls-muted);
+    font-size: 9px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.layer-variable-format-chip {
+    grid-column: 1 / -1;
+    justify-self: start;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--ls-accent) 18%, transparent);
+    color: var(--ls-muted);
+    font-size: 9px;
+    letter-spacing: 0.03em;
+}
+
+.layer-variable-format-chip[data-override="true"] {
+    color: var(--ls-accent);
+}
+
+.layer-variable-lock,
+.layer-variable-remove {
+    width: 20px;
+    height: 20px;
+    border: 1px solid var(--ls-line);
+    border-radius: 4px;
+    background: var(--ls-raised);
+    font-size: 10px;
+    line-height: 1;
+}
+
+.layer-variable-remove:hover {
+    border-color: var(--ls-danger);
+    color: var(--ls-danger);
+}
+
+.layer-variables [data-action="add-variable"] {
+    margin: 0 8px 8px;
+    padding: 4px 8px;
+    border: 1px dashed var(--ls-line-hi);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--ls-muted);
+    font-size: 11px;
+}
+
+.layer-variables [data-action="add-variable"]:hover {
+    border-color: var(--ls-accent);
+    color: var(--ls-text);
+}
+
+/* =====================================================================
+   Phase 3 — brand kit + validation
+   ===================================================================== */
+.layer-brand-kit-body {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    max-height: min(480px, 56vh);
+    overflow-y: auto;
+    padding-right: 2px;
+}
+
+.layer-brand-kit-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.layer-brand-kit-section header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.layer-brand-kit-section h3 {
+    margin: 0;
+    color: var(--ls-muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.layer-brand-kit-section header button {
+    padding: 3px 8px;
+    border: 1px solid var(--ls-line);
+    border-radius: 6px;
+    background: var(--ls-raised);
+    font-size: 11px;
+}
+
+.layer-brand-kit-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)) 26px;
+    align-items: end;
+    gap: 6px;
+    padding: 6px;
+    border: 1px solid var(--ls-line);
+    border-radius: 8px;
+    background: var(--ls-raised);
+}
+
+.layer-brand-kit-field {
+    display: grid;
+    gap: 3px;
+    color: var(--ls-muted);
+    font-size: 10px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.layer-brand-kit-field input,
+.layer-brand-kit-field select {
+    padding: 3px 6px;
+    border: 1px solid var(--ls-line);
+    border-radius: 4px;
+    background: var(--ls-bg);
+    font-size: 11px;
+    text-transform: none;
+}
+
+.layer-brand-kit-field input[type="color"] {
+    height: 24px;
+    padding: 0;
+}
+
+.layer-brand-kit-remove {
+    width: 24px;
+    height: 24px;
+    border: 1px solid var(--ls-line);
+    border-radius: 4px;
+    background: var(--ls-bg);
+}
+
+.layer-brand-kit-remove:hover {
+    border-color: var(--ls-danger);
+    color: var(--ls-danger);
+}
+
+.layer-validation-report {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: min(480px, 56vh);
+    overflow-y: auto;
+}
+
+.layer-validation-summary {
+    margin: 0;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: var(--ls-raised);
+    font-weight: 600;
+}
+
+.layer-validation-summary[data-ok="true"] {
+    background: color-mix(in srgb, #3fb950 18%, var(--ls-raised));
+}
+
+.layer-validation-summary[data-ok="false"] {
+    background: color-mix(in srgb, var(--ls-danger) 18%, var(--ls-raised));
+}
+
+.layer-validation-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.layer-validation-group h3 {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.layer-validation-group[data-ok="true"] h3 {
+    color: #3fb950;
+}
+
+.layer-validation-group[data-ok="false"] h3 {
+    color: var(--ls-danger);
+}
+
+.layer-validation-entry {
+    margin: 0;
+    padding-left: 18px;
+    color: var(--ls-muted);
+    font-size: 11px;
+}
+
+.layer-validation-entry[data-ok="false"] {
+    color: var(--ls-text);
+}
+
+.seg-thumb-text {
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 4px;
+    background: var(--ls-raised);
+    color: var(--ls-accent);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+/* Sits above #layerStudioView as a normal block: body is a column flex box, so
+   it must not participate in the studio's row layout. */
+.layer-deprecation-banner {
+    flex: 0 0 auto;
+    margin: 0;
+    padding: 6px 12px;
+    background: #2a2118;
+    color: #f2f0ea;
+    font: 11px/1.5 var(--sans, system-ui, sans-serif);
+    border-bottom: 1px solid #2b2a34;
+}
+
+.layer-deprecation-banner a {
+    color: #e8803a;
+    font-weight: 600;
+}
+
+.seg-pin {
+    display: inline-grid;
+    place-items: center;
+    min-width: 14px;
+    height: 14px;
+    margin-left: 5px;
+    padding: 0 3px;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--ls-accent) 26%, transparent);
+    color: var(--ls-accent);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    vertical-align: middle;
+}
+
+/* Layout hardening for the sidebar sections added in Phase 3. */
+.layer-sidebar-foot {
+    margin-top: auto;
+}
+
+.layer-variables {
+    flex: 0 1 auto;
+    min-height: 0;
+}
+
+.layer-variables-list {
+    max-height: 132px;
+}
+
+.layer-section-content[data-section-content="variables"] {
+    min-height: 0;
+    overflow: hidden;
+}
+
+.layer-view select:disabled,
+.layer-view input:disabled,
+.layer-view textarea:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Editor-only cue: a text box that drops lines. Never part of an export. */
+.ls-text-clip-badge {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 2;
+    padding: 1px 5px;
+    border-radius: 0 3px 0 6px;
+    background: color-mix(in srgb, var(--ls-danger) 82%, black);
+    color: #fff;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.layer-item[data-type="text"][data-text-clipped="true"] {
+    border-color: var(--ls-danger);
+}
+
+.layer-locale-picker {
+    display: grid;
+    gap: 3px;
+    color: var(--ls-muted);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.layer-locale-picker select {
+    min-width: 96px;
+    padding: 5px 7px;
+    border: 1px solid var(--ls-line);
+    border-radius: 6px;
+    background: var(--ls-raised);
+    color: var(--ls-text);
+    font: 12px/1.2 var(--sans, system-ui, sans-serif);
+    text-transform: none;
+}
+
+/* =====================================================================
+   Phase 5 — brief ingestion
+   ===================================================================== */
+.layer-brief-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    padding: 7px 10px;
+    border: 1px solid var(--ls-line);
+    border-radius: 8px;
+    background: var(--ls-raised);
+    color: var(--ls-muted);
+    font-size: 11px;
+}
+
+.layer-brief-summary strong {
+    color: var(--ls-text);
+    font-weight: 600;
+}
+
+.layer-brief-mapping {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.layer-brief-map-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+}
+
+.layer-brief-map-row > span:first-child {
+    color: var(--ls-text);
+}
+
+.layer-brief-map-row .layer-variable-kind {
+    justify-self: start;
+}
+
+.layer-brief-map-row select {
+    min-width: 0;
+    padding: 3px 6px;
+    border: 1px solid var(--ls-line);
+    border-radius: 4px;
+    background: var(--ls-bg);
+    color: var(--ls-text);
+    font: inherit;
+}
+
+.layer-brief-map-row[data-unmapped="true"] select {
+    border-color: var(--ls-danger);
+}
+
+.layer-brief-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    max-height: min(260px, 34vh);
+    overflow-y: auto;
+}
+
+.layer-brief-row {
+    display: grid;
+    grid-template-columns: 26px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    font-size: 11px;
+}
+
+.layer-brief-row:nth-child(odd) {
+    background: color-mix(in srgb, var(--ls-raised) 60%, transparent);
+}
+
+.layer-brief-row[data-previewing="true"] {
+    border-color: var(--ls-accent);
+}
+
+.layer-brief-row-index {
+    color: var(--ls-muted);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.layer-brief-row-body {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--ls-muted);
+}
+
+.layer-brief-row-body strong {
+    color: var(--ls-text);
+    font-weight: 600;
+}
+
+.layer-brief-row button {
+    padding: 2px 8px;
+    border: 1px solid var(--ls-line);
+    border-radius: 4px;
+    background: var(--ls-raised);
+    font-size: 10px;
+}
+
+.layer-brief-row button:hover {
+    border-color: var(--ls-accent);
+}
+
+.layer-brief-empty {
+    margin: 0;
+    color: var(--ls-muted);
+    font-size: 11px;
+}
+
+/* =====================================================================
+   Phase 4 — safe zones, shared kits, guardrails
+   ===================================================================== */
+.ls-safe-zone {
+    position: absolute;
+    /* Layers use z-index 0..1000, so the guide must sit above every one. */
+    z-index: 9999;
+    border: 1px dashed color-mix(in srgb, #4ea3ff 80%, transparent);
+    border-radius: 2px;
+    box-shadow: 0 0 0 9999px rgb(8 12 20 / 22%);
+    pointer-events: none;
+}
+
+.layer-brand-kit-shared {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 10px;
+    border: 1px solid var(--ls-line);
+    border-radius: 8px;
+    background: var(--ls-raised);
+}
+
+.layer-brand-kit-shared-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.layer-brand-kit-shared-actions button {
+    padding: 3px 8px;
+    border: 1px solid var(--ls-line);
+    border-radius: 6px;
+    background: var(--ls-bg);
+    font-size: 11px;
+}
+
+.layer-brand-kit-shared-actions button:hover:not(:disabled) {
+    border-color: var(--ls-accent);
+}
+
+.layer-brand-kit-shared-actions button:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.layer-brand-kit-shared [data-error="true"] {
+    color: var(--ls-danger);
+}
+
+.layer-guardrails {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin: 0;
+    padding: 8px 10px;
+    border: 1px solid var(--ls-line);
+    border-radius: 8px;
+}
+
+.layer-guardrails legend {
+    padding: 0 4px;
+    color: var(--ls-muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.layer-guardrails label {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+}
+
+.layer-guardrails label:has(input:disabled) {
+    opacity: 0.55;
+}
+
+.layer-guardrail-summary[data-ok="true"] {
+    background: color-mix(in srgb, #3fb950 18%, var(--ls-raised));
+}
+
+.layer-guardrail-summary[data-ok="false"] {
+    background: color-mix(in srgb, var(--ls-danger) 18%, var(--ls-raised));
+}
+
+.layer-guardrail-summary[data-guardrail="state"] {
+    font-weight: 600;
+}

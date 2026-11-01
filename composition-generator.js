@@ -10,7 +10,15 @@
  *   node composition-generator.js <folder> "<Scene Name>" \
  *       [--reference atacama.png] \
  *       [--width 1080] [--height 1080] [--duration 10000] \
- *       [--out scene.composition.json]
+ *       [--text "Headline copy"] [--locale en] [--out scene.composition.json]
+ *
+ * Or, from a brief (one row per creative — CSV or .xlsx):
+ *
+ *   node composition-generator.js <folder> "<Scene Name>" --brief rows.csv [--out-dir out]
+ *   node composition-generator.js --brief rows.csv --template scene.composition.json
+ *
+ * Each row fills the template's variables and is written as its own
+ * .composition.json, ready for the studio or a batch export.
  */
 'use strict';
 const fs = require('fs');
@@ -31,10 +39,7 @@ for (let i = 0; i < args.length; i++) {
 }
 const rootDir = positional[0];
 const sceneName = positional[1] || path.basename(rootDir || 'scene');
-if (!rootDir || !fs.existsSync(rootDir)) {
-    console.error('usage: node composition-generator.js <folder> "<Scene Name>" [options]');
-    process.exit(1);
-}
+// Argument validation happens in Main: brief mode needs no folder.
 
 // ─── Image dimension parsing (pure Node) ──────────────────────────────
 function readImageSize(filePath) {
@@ -149,42 +154,18 @@ function groupByStem(files) {
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────
-const allFiles = walk(rootDir);
-if (!allFiles.length) { console.error('No images found in', rootDir); process.exit(1); }
+const Core = require('./studio-core.js');
 
-const fileInfo = new Map();
-for (const f of allFiles) fileInfo.set(f, readImageSize(f) || { width: 512, height: 512 });
+const briefPath = typeof flags.brief === 'string' ? flags.brief : '';
+const templatePath = typeof flags.template === 'string' ? flags.template : '';
+const outDir = typeof flags['out-dir'] === 'string' ? flags['out-dir'] : '';
 
-// Reference resolution
-let referenceFile = null;
-if (flags.reference) {
-    const wanted = path.basename(flags.reference);
-    referenceFile = allFiles.find((f) => path.basename(f) === wanted) || null;
-    if (!referenceFile) console.warn(`Reference "${wanted}" not found.`);
+const outId = (sceneName.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 60)) || 'scene';
+
+function usage() {
+    console.error('usage: node composition-generator.js <folder> "<Scene Name>" [options]');
+    console.error('       node composition-generator.js --brief rows.csv --template scene.composition.json [--out-dir out]');
 }
-if (!referenceFile) {
-    referenceFile = allFiles.find((f) => /atacama|reference|assembled|final/i.test(path.basename(f))) || null;
-}
-if (!referenceFile) {
-    let best = null;
-    for (const f of allFiles) {
-        const s = fileInfo.get(f);
-        const area = s.width * s.height;
-        if (!best || area > best.area) best = { file: f, area };
-    }
-    referenceFile = best?.file || null;
-}
-
-const refSize = referenceFile ? fileInfo.get(referenceFile) : null;
-const canvasWidth  = parseInt(flags.width, 10)  || refSize?.width  || 1080;
-const canvasHeight = parseInt(flags.height, 10) || refSize?.height || 1080;
-const duration     = parseInt(flags.duration, 10) || 10000;
-const rand = makeRng(sceneName + '|' + canvasWidth + 'x' + canvasHeight);
-
-const groups = groupByStem(allFiles);
-const layers = [];
-let layerZ = 0;
-let idCounter = 0;
 
 function readDataUrl(p) {
     const ext = path.extname(p).toLowerCase();
@@ -194,110 +175,330 @@ function readDataUrl(p) {
     return `data:${mime};base64,` + fs.readFileSync(p).toString('base64');
 }
 
-for (const [stem, entries] of groups) {
-    const role = classify(stem);
-    const fileList = entries.map((e) => e.file);
-    const urls = fileList.map(readDataUrl);
+/** Walks the folder and assembles one scaffolded composition. */
+function buildFromFolder() {
+    const allFiles = walk(rootDir);
+    if (!allFiles.length) {
+        console.error('No images found in', rootDir);
+        process.exit(1);
+    }
 
-    // Sprite: 2–8 sequential frames, character or character-part
-    const isSprite = fileList.length > 1 && fileList.length <= 8
-        && (role === 'character' || role === 'character-part')
-        && entries.every((e, i) => e.num === i + 1 || i === 0);
+    const fileInfo = new Map();
+    for (const f of allFiles) fileInfo.set(f, readImageSize(f) || { width: 512, height: 512 });
 
-    // Scatter: 3+ files, prop-like, not sprite
-    const isScatter = fileList.length > 1 && !isSprite
-        && ['prop', 'character-part'].includes(role)
-        && fileList.length >= 3;
+    // Reference resolution
+    let referenceFile = null;
+    if (flags.reference) {
+        const wanted = path.basename(flags.reference);
+        referenceFile = allFiles.find((f) => path.basename(f) === wanted) || null;
+        if (!referenceFile) console.warn(`Reference "${wanted}" not found.`);
+    }
+    if (!referenceFile) {
+        referenceFile = allFiles.find((f) => /atacama|reference|assembled|final/i.test(path.basename(f))) || null;
+    }
+    if (!referenceFile) {
+        let best = null;
+        for (const f of allFiles) {
+            const s = fileInfo.get(f);
+            const area = s.width * s.height;
+            if (!best || area > best.area) best = { file: f, area };
+        }
+        referenceFile = best ? best.file : null;
+    }
 
-    if (!isScatter) {
-        const base = placementFor(role, stem) || { x: 20, y: 20, w: 60, h: 60 };
-        const isRef = referenceFile && fileList[0] === referenceFile;
-        const box = isRef ? { x: 0, y: 0, w: 100, h: 100 } : base;
+    const refSize = referenceFile ? fileInfo.get(referenceFile) : null;
+    const canvasWidth = parseInt(flags.width, 10) || (refSize ? refSize.width : 0) || 1080;
+    const canvasHeight = parseInt(flags.height, 10) || (refSize ? refSize.height : 0) || 1080;
+    const duration = parseInt(flags.duration, 10) || 10000;
+    const locale = typeof flags.locale === 'string' && /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})?$/.test(flags.locale)
+        ? flags.locale
+        : 'en';
+    const rand = makeRng(sceneName + '|' + canvasWidth + 'x' + canvasHeight);
+
+    const groups = groupByStem(allFiles);
+    const layers = [];
+    let layerZ = 0;
+    let idCounter = 0;
+
+    for (const [stem, entries] of groups) {
+        const role = classify(stem);
+        const fileList = entries.map((e) => e.file);
+        const urls = fileList.map(readDataUrl);
+
+        // Sprite: 2–8 sequential frames, character or character-part
+        const isSprite = fileList.length > 1 && fileList.length <= 8
+            && (role === 'character' || role === 'character-part')
+            && entries.every((e, i) => e.num === i + 1 || i === 0);
+
+        // Scatter: 3+ files, prop-like, not sprite
+        const isScatter = fileList.length > 1 && !isSprite
+            && ['prop', 'character-part'].includes(role)
+            && fileList.length >= 3;
+
+        if (!isScatter) {
+            const base = placementFor(role, stem) || { x: 20, y: 20, w: 60, h: 60 };
+            const isRef = referenceFile && fileList[0] === referenceFile;
+            const box = isRef ? { x: 0, y: 0, w: 100, h: 100 } : base;
+            layers.push({
+                id: `layer-${(++idCounter).toString(36)}-${(stem.replace(/[^a-z0-9]+/gi, '-') || 'x').slice(0, 40)}`,
+                name: stem,
+                role,
+                url: urls[0],
+                frames: urls,
+                spriteFps: isSprite ? 8 : 1,
+                spriteMode: isSprite ? 'loop' : 'once',
+                x: box.x, y: box.y, w: box.w, h: box.h,
+                opacity: 1,
+                z: (Z_BASE[role] === undefined ? 400 : Z_BASE[role]) + layerZ++,
+                rotation: 0,
+                fit: 'contain',
+                visible: true,
+                locked: !!isRef,
+                positionConfirmed: !!isRef,
+                keyframes: [],
+            });
+        } else {
+            const refW = refSize ? refSize.width : canvasWidth;
+            for (const entry of entries) {
+                const info = fileInfo.get(entry.file);
+                const pxW = (info.width / refW) * 100;
+                const pxH = (info.height / refW) * 100;
+                const w = Math.max(2, Math.min(15, pxW));
+                const h = Math.max(2, Math.min(20, pxH * (canvasWidth / canvasHeight)));
+                const x = 5 + rand() * (95 - w);
+                const y = 20 + rand() * (75 - h);
+                const rot = +(rand() * 40 - 20).toFixed(1);
+                layers.push({
+                    id: `layer-${(++idCounter).toString(36)}-${path.basename(entry.file).replace(IMAGE_EXT, '').replace(/[^a-z0-9]+/gi, '-')}`,
+                    name: path.basename(entry.file).replace(IMAGE_EXT, ''),
+                    role: 'prop',
+                    url: readDataUrl(entry.file),
+                    frames: [readDataUrl(entry.file)],
+                    spriteFps: 1,
+                    spriteMode: 'once',
+                    x: +x.toFixed(2), y: +y.toFixed(2),
+                    w: +w.toFixed(2), h: +h.toFixed(2),
+                    opacity: 1,
+                    z: (Z_BASE.prop === undefined ? 400 : Z_BASE.prop) + layerZ++,
+                    rotation: rot,
+                    fit: 'contain',
+                    visible: true,
+                    locked: false,
+                    positionConfirmed: false,
+                    keyframes: [],
+                });
+            }
+        }
+    }
+
+    // Optional scaffolded headline layer (Phase 1 text support).
+    if (flags.text) {
+        const copy = typeof flags.text === 'string' ? flags.text : 'Your headline here';
         layers.push({
-            id: `layer-${(++idCounter).toString(36)}-${(stem.replace(/[^a-z0-9]+/gi, '-') || 'x').slice(0, 40)}`,
-            name: stem,
-            role,
-            url: urls[0],
-            frames: urls,
-            spriteFps: isSprite ? 8 : 1,
-            spriteMode: isSprite ? 'loop' : 'once',
-            x: box.x, y: box.y, w: box.w, h: box.h,
+            id: `text-${(++idCounter).toString(36)}-headline`,
+            type: 'text',
+            name: 'Headline',
+            role: 'foreground',
+            text: copy,
+            font: {
+                family: 'Inter',
+                weight: 700,
+                style: 'normal',
+                sizePct: 9,
+                lineHeight: 1.15,
+                letterSpacingEm: 0,
+                transform: 'none',
+            },
+            color: '#111111',
+            align: 'center',
+            verticalAlign: 'middle',
+            overflow: 'clip',
+            x: 8, y: 62, w: 84, h: 16,
             opacity: 1,
-            z: (Z_BASE[role] ?? 400) + layerZ++,
+            z: (Z_BASE.foreground === undefined ? 500 : Z_BASE.foreground) + layerZ++,
             rotation: 0,
             fit: 'contain',
             visible: true,
-            locked: !!isRef,
-            positionConfirmed: !!isRef,
+            locked: false,
+            positionConfirmed: false,
             keyframes: [],
         });
-    } else {
-        const refW = refSize?.width || canvasWidth;
-        for (const entry of entries) {
-            const info = fileInfo.get(entry.file);
-            const pxW = (info.width / refW) * 100;
-            const pxH = (info.height / refW) * 100;
-            const w = Math.max(2, Math.min(15, pxW));
-            const h = Math.max(2, Math.min(20, pxH * (canvasWidth / canvasHeight)));
-            const x = 5 + rand() * (95 - w);
-            const y = 20 + rand() * (75 - h);
-            const rot = +(rand() * 40 - 20).toFixed(1);
-            layers.push({
-                id: `layer-${(++idCounter).toString(36)}-${path.basename(entry.file).replace(IMAGE_EXT, '').replace(/[^a-z0-9]+/gi, '-')}`,
-                name: path.basename(entry.file).replace(IMAGE_EXT, ''),
-                role: 'prop',
-                url: readDataUrl(entry.file),
-                frames: [readDataUrl(entry.file)],
-                spriteFps: 1,
-                spriteMode: 'once',
-                x: +x.toFixed(2), y: +y.toFixed(2),
-                w: +w.toFixed(2), h: +h.toFixed(2),
-                opacity: 1,
-                z: (Z_BASE.prop ?? 400) + layerZ++,
-                rotation: rot,
-                fit: 'contain',
-                visible: true,
-                locked: false,
-                positionConfirmed: false,
-                keyframes: [],
-            });
+    }
+
+    // Reference layer placement
+    let referenceLayerId = null;
+    if (referenceFile) {
+        const refName = path.basename(referenceFile).replace(IMAGE_EXT, '');
+        const refLayer = layers.find((l) => l.name === refName);
+        if (refLayer) {
+            Object.assign(refLayer, { x: 0, y: 0, w: 100, h: 100, locked: true, positionConfirmed: true });
+            refLayer.z = Z_BASE.background;
+            referenceLayerId = refLayer.id;
         }
     }
+
+    // Normalize z
+    layers.sort((a, b) => a.z - b.z).forEach((l, i) => { l.z = i * 10; });
+
+    return {
+        version: 3,
+        id: outId,
+        name: sceneName,
+        width: canvasWidth,
+        height: canvasHeight,
+        duration,
+        defaultLocale: locale,
+        referenceLayerId,
+        // Emitting the master format explicitly avoids a silent upgrade on load.
+        formats: [{
+            id: 'master',
+            isMaster: true,
+            channel: 'custom',
+            label: 'Master',
+            width: canvasWidth,
+            height: canvasHeight,
+            layerOverrides: {},
+            variableValues: {},
+        }],
+        activeFormatId: 'master',
+        variables: [],
+        brandKit: null,
+        characters: [],
+        layers,
+    };
 }
 
-// Reference layer placement
-let referenceLayerId = null;
-if (referenceFile) {
-    const refName = path.basename(referenceFile).replace(IMAGE_EXT, '');
-    const refLayer = layers.find((l) => l.name === refName);
-    if (refLayer) {
-        Object.assign(refLayer, { x: 0, y: 0, w: 100, h: 100, locked: true, positionConfirmed: true });
-        refLayer.z = Z_BASE.background;
-        referenceLayerId = refLayer.id;
+/** `--template` wins; otherwise scaffold from the folder. */
+function loadTemplate() {
+    if (!templatePath) return buildFromFolder();
+    let raw;
+    try {
+        raw = JSON.parse(fs.readFileSync(templatePath, 'utf8'));
+    } catch (error) {
+        console.error(`Could not read the template ${templatePath}: ${error.message}`);
+        process.exit(1);
     }
+    // Accept a bare composition or a wrapper such as { composition: … }.
+    const composition = raw && typeof raw === 'object' && raw.composition ? raw.composition : raw;
+    if (!composition || !Array.isArray(composition.layers)) {
+        console.error(`Template ${templatePath} has no layers array.`);
+        process.exit(1);
+    }
+    return composition;
 }
 
-// Normalize z
-layers.sort((a, b) => a.z - b.z).forEach((l, i) => { l.z = i * 10; });
+function readBriefTable(file) {
+    const buffer = fs.readFileSync(file);
+    if (buffer.length > 3 && buffer[0] === 0x50 && buffer[1] === 0x4B) {
+        // Reuse the server's dependency-free XLSX reader.
+        const { parseBriefFile } = require('./server.js');
+        return parseBriefFile(path.basename(file), buffer);
+    }
+    return Object.assign({ source: 'csv', sheet: null, sheets: [] }, Core.parseDelimitedTable(buffer.toString('utf8')));
+}
 
-const outId = (sceneName.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 60)) || 'scene';
-const composition = {
-    version: 1,
-    id: outId,
-    name: sceneName,
-    width: canvasWidth,
-    height: canvasHeight,
-    duration,
-    referenceLayerId,
-    layers,
-};
+function briefSlug(value, fallback) {
+    const stem = String(value || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 60);
+    return stem || fallback;
+}
 
-const outPath = flags.out || path.resolve(process.cwd(), `${outId}.composition.json`);
-fs.writeFileSync(outPath, JSON.stringify(composition, null, 2));
+function writeBrief() {
+    if (!fs.existsSync(briefPath)) {
+        console.error(`Brief not found: ${briefPath}`);
+        process.exit(1);
+    }
+    const template = loadTemplate();
+    if (!Array.isArray(template.variables) || !template.variables.length) {
+        console.error('The template has no variables, so there is nothing for the brief to fill.');
+        process.exit(1);
+    }
 
-const spriteCount = layers.filter((l) => l.frames.length > 1).length;
-const charCount = layers.filter((l) => ['character', 'character-part'].includes(l.role)).length;
-console.log(`✓ ${path.basename(outPath)}`);
-console.log(`  ${layers.length} layers (${spriteCount} sprite groups, ${charCount} character parts)`);
-console.log(`  canvas ${canvasWidth}×${canvasHeight}, ${duration} ms`);
-console.log(`  reference: ${referenceFile ? path.basename(referenceFile) : '(none)'}`);
+    let brief;
+    try {
+        brief = readBriefTable(briefPath);
+    } catch (error) {
+        console.error(`Could not read the brief: ${error.message}`);
+        process.exit(1);
+    }
+    if (!brief.headers.length) {
+        console.error('The brief has no header row.');
+        process.exit(1);
+    }
+    if (!brief.rows.length) {
+        console.error('The brief has no data rows.');
+        process.exit(1);
+    }
+
+    const mapping = Core.suggestBriefMapping(template, brief.headers);
+    const unmapped = template.variables.filter((variable) => mapping[variable.id] === undefined);
+    if (unmapped.length) {
+        console.warn(`No column matched: ${unmapped.map((v) => v.name).join(', ')} (kept the template value).`);
+    }
+    if (!Object.keys(mapping).length) {
+        console.error('No brief column matches a template variable. Rename a column to match (e.g. "Headline").');
+        process.exit(1);
+    }
+
+    const dir = outDir || process.cwd();
+    fs.mkdirSync(dir, { recursive: true });
+
+    const written = [];
+    let skipped = 0;
+    brief.rows.forEach((row, index) => {
+        const resolved = Core.resolveBriefRow(template, mapping, row);
+        if (!resolved.ok) {
+            skipped += 1;
+            console.warn(`row ${index + 2} skipped: ${resolved.errors.map((e) => `${e.variable}: ${e.error}`).join('; ')}`);
+            return;
+        }
+        const label = Core.briefRowLabel(row, brief.headers, mapping, index);
+        const composition = Core.composeBriefRow(template, resolved.values, { label });
+        const file = path.join(dir, `${briefSlug(label, `row-${index + 1}`)}.composition.json`);
+        fs.writeFileSync(file, JSON.stringify(composition, null, 2));
+        written.push({ file, label });
+    });
+
+    console.log(`✓ ${written.length} composition${written.length === 1 ? '' : 's'} from ${path.basename(briefPath)} (${String(brief.source).toUpperCase()})`);
+    if (skipped) console.log(`  ${skipped} row${skipped === 1 ? '' : 's'} skipped`);
+    console.log(`  template: ${templatePath || `scanned from ${path.basename(rootDir)}`}`);
+    console.log(`  columns: ${brief.headers.join(' | ')}`);
+    console.log(`  mapped: ${Object.keys(mapping).map((id) => {
+        const variable = template.variables.find((item) => item.id === id);
+        return `${variable ? variable.name : id} ← ${brief.headers[mapping[id]]}`;
+    }).join(', ')}`);
+    console.log(`  output: ${path.resolve(dir)}`);
+    written.slice(0, 10).forEach((entry) => console.log(`    ${path.basename(entry.file)}  ← ${entry.label}`));
+    if (written.length > 10) console.log(`    … and ${written.length - 10} more`);
+    if (!written.length) process.exit(1);
+}
+
+function writeScaffold() {
+    const composition = buildFromFolder();
+    const outPath = flags.out || path.resolve(process.cwd(), `${composition.id}.composition.json`);
+    fs.writeFileSync(outPath, JSON.stringify(composition, null, 2));
+
+    // Text layers have no frames; the summary must not assume images.
+    const spriteCount = composition.layers.filter((l) => Array.isArray(l.frames) && l.frames.length > 1).length;
+    const charCount = composition.layers.filter((l) => ['character', 'character-part'].includes(l.role)).length;
+    const textCount = composition.layers.filter((l) => l.type === 'text').length;
+    console.log(`✓ ${path.basename(outPath)}`);
+    console.log(`  ${composition.layers.length} layers (${spriteCount} sprite groups, ${charCount} character parts${textCount ? `, ${textCount} text` : ''})`);
+    console.log(`  canvas ${composition.width}×${composition.height}, ${composition.duration} ms, locale ${composition.defaultLocale}`);
+    console.log(`  reference: ${composition.referenceLayerId ? 'yes' : '(none)'}`);
+}
+
+if (!rootDir && !(briefPath && templatePath)) {
+    usage();
+    process.exit(1);
+}
+if (rootDir && !fs.existsSync(rootDir)) {
+    usage();
+    process.exit(1);
+}
+
+if (briefPath) writeBrief();
+else writeScaffold();

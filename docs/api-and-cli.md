@@ -1,0 +1,308 @@
+# API, CLI and briefs
+
+Everything the backend exposes, the command-line generator, and the table →
+creatives flow.
+
+---
+
+## 1. Running the server
+
+```bash
+node server.js                 # or: npm start
+PORT=8010 HOST=127.0.0.1 node server.js
+```
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `PORT` | `8008` | HTTP port |
+| `HOST` | `127.0.0.1` | Bind address |
+| `STUDIO_VISION_MODEL` | `granite3.2-vision:2b` | Director vision model |
+| `STUDIO_TEXT_MODEL` | `qwen3.5:9b` | Director writing model |
+| `STUDIO_OLLAMA_URL` / `OLLAMA_HOST` | auto-detect `127.0.0.1:11434`, `:11436` | Ollama endpoint |
+| `STUDIO_OPENAI_API_KEY` | — | Enables the remote vision provider for *Organize with AI* |
+| `STUDIO_OPENAI_MODEL` | — | That provider's vision model |
+| `STUDIO_OPENAI_BASE_URL` | `https://api.openai.com/v1` | Any OpenAI-compatible endpoint |
+
+The server serves the pages and `/data/` statically, and handles `/api/*`.
+Requests are JSON unless stated. Binary payloads travel as **base64 data
+URLs**. Errors are `{ "error": "…" }` with 400/404/413/415/500 as
+appropriate.
+
+`/` serves `studio-v2.html`; `/studio.html` (classic) and
+`/asset-studio.html` remain reachable.
+
+---
+
+## 2. Endpoints
+
+### Health and models
+
+| Method | Path | Returns |
+|---|---|---|
+| `GET` | `/api/health` | `{ ok: true }` |
+| `GET` | `/api/llm/models` | `{ available, url, models: [{id,size,parameterSize,vision}], defaults: {vision,text}, error }` |
+| `GET` | `/api/llm/organizer-models` | Local + configured remote vision models for segment organisation |
+
+### Imports and projects
+
+| Method | Path | Body / result |
+|---|---|---|
+| `GET` | `/api/projects` | `{ projects }` — repository and saved projects with their compositions |
+| `GET` | `/api/projects/:project/compositions/:composition` | One repository composition |
+| `POST` | `/api/imports` | `{ name, zip, zipName?, reference, referenceName? }` → `{ project, composition }` |
+| `GET` | `/api/imports` | `{ projects }` — saved imports |
+| `GET` | `/api/imports/:id/composition.json` | The saved composition |
+| `PUT` | `/api/imports/:id/composition.json` | `{ composition, meta? }` → saved document |
+| `POST` | `/api/imports/copy` | `{ sourceProjectId: "repo-…", sourceCompositionId, composition }` → an editable copy |
+| `POST` | `/api/imports/character` | `{ bundle }` (ZIP with `character.json`) → a rigged character project |
+| `GET` | `/api/imports/:id/animations` | The saved animation library |
+| `PUT` | `/api/imports/:id/animations` | Replace the animation library |
+
+`zip` and `reference` are base64 **data URLs**. Importing extracts the ZIP,
+creates one layer per image plus a locked reference layer, and saves the
+composition. Limits: 220 MB ZIP, 60 MB reference, 500 layers, reference
+≤ 10000 px.
+
+### Animation director
+
+| Method | Path | Body / result |
+|---|---|---|
+| `GET` | `/api/imports/:id/proposals` | `{ context, generatedAt, models, analysis, proposals }` |
+| `POST` | `/api/imports/:id/proposals` | `{ context, visionModel, textModel, count, image? }` → generated ideas |
+| `PUT` | `/api/imports/:id/context` | `{ context, director }` → saved on the composition meta |
+
+Proposals are validated against real layer ids and the preset vocabulary,
+deduplicated per layer, and parameter-normalised per preset; invalid output is
+retried once, then fails with a reason.
+
+### Segment organiser
+
+| Method | Path | Body |
+|---|---|---|
+| `POST` | `/api/segments/organize` | `{ provider?, model, layers: [{ id, name, image }], reference? }` → suggested name/group/role per segment |
+
+Thumbnails are capped at 220 KB each; the request body at 32 MB.
+
+### Briefs
+
+| Method | Path | Body / result |
+|---|---|---|
+| `POST` | `/api/briefs/parse` | `{ name, dataUrl, sheet? }` → `{ source, sheet, sheets, headers, rows }` |
+
+The `.xlsx` reader is built on the ZIP reader and a small sheet-XML parser:
+shared strings, inline strings, booleans, numbers and formula results are
+read; `workbook.xml.rels` finds the right worksheet. Legacy `.xls` is
+rejected with a clear message. Limit: 8 MB.
+
+### Fonts
+
+| Method | Path | Body / result |
+|---|---|---|
+| `POST` | `/api/fonts` | `{ name, dataUrl }` → `{ id, family, url, format, bytes, weights }` |
+| `GET` | `/api/fonts` | `{ fonts: [{ id, family, url, format }] }` |
+| `GET` | `/api/fonts/<file>` | Font bytes with the right `Content-Type`, immutable cache |
+
+WOFF2, WOFF, TTF and OTF; ≤ 2 MB; validated by magic bytes. Fonts are global,
+not per project.
+
+### Brand packs and kits
+
+| Method | Path | Body / result |
+|---|---|---|
+| `GET` | `/api/brand-packs` | `{ packs: [{ id, name, description, brandCount, brands, createdAt, storage }] }` |
+| `POST` | `/api/brand-packs/import` | `{ zip, zipName?, name? }` → `{ pack, summary }` |
+| `GET` | `/api/brand-packs/:id` | `{ pack, updatedAt }` |
+| `DELETE` | `/api/brand-packs/:id` | `{ deleted: true }` |
+| `GET` | `/api/brand-packs/:id/files/:brand/*` | An asset or guide with its content type |
+| `POST` | `/api/brand-packs/:id/templates` | `{ brandId, templateId, name? }` → `{ project, composition }` |
+| `GET` | `/api/brand-kits` | `{ kits }` |
+| `GET`/`PUT`/`DELETE` | `/api/brand-kits/:id` | Read / save / delete a shared kit |
+
+See [brand-packs.md](brand-packs.md) for structure, inference and limits.
+
+---
+
+## 3. Limits
+
+| Area | Limit |
+|---|---|
+| Request body | 320 MB |
+| Layers per composition | 500 |
+| Formats per composition | 24 |
+| Variables per composition | 60 |
+| Sprite frames per layer | 60 |
+| Text length (per value) | 4,000 characters |
+| Segment ZIP / reference | 220 MB / 60 MB |
+| Reference dimensions | ≤ 10,000 px each side |
+| Brief file | 8 MB, 500 rows, 64 columns |
+| Font upload | 2 MB |
+| Brand kit | 512 KB, 200 kits |
+| Brand pack ZIP / extracted | 160 MB / 480 MB |
+| Brand pack files / assets | 4,000 files, 240 assets per brand, 40 MB per asset, 50 packs |
+| Organizer body / thumbnail | 32 MB / 220 KB |
+
+---
+
+## 4. CLI — `composition-generator.js`
+
+Zero dependencies; parses PNG/JPEG/GIF headers itself. Exits non-zero and
+prints usage on bad input.
+
+### Scaffold from a folder
+
+```bash
+node composition-generator.js <folder> "<Scene Name>" [options]
+```
+
+| Flag | Meaning |
+|---|---|
+| `--reference <file>` | Reference image (else auto-detect by name, then largest image) |
+| `--width`, `--height` | Canvas size in px (else reference size, else 1080²) |
+| `--duration <ms>` | Composition duration (default 10000) |
+| `--text "Headline"` | Adds a headline text layer on top |
+| `--locale <tag>` | Default locale (default `en`) |
+| `--out <file>` | Output path (default `<id>.composition.json`) |
+
+What it does:
+
+1. Walks the folder recursively for PNG/JPEG/GIF/WebP.
+2. Classifies each by filename into a semantic `role`, groups numbered
+   variants into sprite sequences.
+3. Places layers, assigns z-order, detects the reference.
+4. Emits a **v3** composition: layers, one master format, variables and
+   `activeFormatId` already present, so the studio loads it without a silent
+   upgrade.
+
+Example:
+
+```bash
+node composition-generator.js ./scene-cutouts "Scene 4 — The lake" \
+    --reference ./scene-cutouts/final.png \
+    --text "Master the night" \
+    --out data/projects/My-Film/compositions/scene-4.composition.json
+```
+
+To appear in the studio's project picker, save under
+`data/projects/<project>/compositions/`.
+
+### Brief mode
+
+```bash
+# Fill an existing template from a table
+node composition-generator.js --brief rows.csv --template scene.composition.json [--out-dir out]
+
+# Scaffold from a folder and fill it in one go
+node composition-generator.js ./scene-cutouts "Winter campaign" --brief rows.xlsx --out-dir out
+```
+
+- One row → one `<row-label>.composition.json`.
+- The label prefers a `Name`/`Title`/`Label`/`Key`/`Slug` column, then the
+  first mapped value, then `row N`.
+- Row values become the derived composition's **variable defaults** (cleared
+  from per-format values), so a `locked` variable still takes the row value
+  and every format inherits it.
+- The template is never modified.
+- Invalid rows are skipped with a message naming the column; the rest are
+  written. If no row survives, the process exits non-zero.
+- No `--out-dir` writes to the current directory.
+
+---
+
+## 5. Briefs in detail
+
+A brief is a table: **one row per creative, one column per template
+variable**.
+
+| Step | Studio | CLI |
+|---|---|---|
+| Choose the file | Tools → Brief… | `--brief` |
+| Map columns | automatic by name, adjustable | automatic by name |
+| Check | *Preview* one row (reversible, never saved) | — |
+| Produce | *Export all rows* → ZIP of formats × locales × outputs | one JSON per row |
+
+**Coercion is per cell:**
+
+| Kind | Accepts |
+|---|---|
+| `text` | Any string, capped at 4,000 characters |
+| `color` | `#rgb`, `#rrggbb`, bare `rrggbb` |
+| `url` / `image` | https, relative or data image URLs |
+
+Unmatched columns are ignored; unmatched variables keep the template value.
+
+```bash
+# Parse a brief without generating anything
+curl -s localhost:8008/api/briefs/parse \
+  -H 'content-type: application/json' \
+  -d "{\"name\":\"rows.xlsx\",\"dataUrl\":\"data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,$(base64 -i rows.xlsx)\"}"
+```
+
+---
+
+## 6. `tools/` — one-off pipelines
+
+These built the Beards character reference implementation and are useful as
+examples, not part of the app:
+
+| Script | Purpose |
+|---|---|
+| `tools/build-beards-assets.py` | Rebuild the placeholder asset pack from the final image |
+| `tools/build-beards-sheets.py` | Build contact sheets for QA |
+| `tools/apply-beards-rig.js` | Wire the pack into the composition and agent spec |
+| `tools/render-beards-preview.js` | Render previews through the studio export renderer |
+| `tools/export-beards-animations.js` | Re-bake the ten named animations |
+| `tools/place-character.js` | Place a rigged character into a new scene |
+
+```bash
+python3 tools/build-beards-assets.py --preview   # optional placeholders
+node tools/apply-beards-rig.js                   # wire / re-wire
+PORT=8123 node server.js &
+node tools/render-beards-preview.js --server-port 8123
+node tools/export-beards-animations.js           # bake the Beards animations
+```
+
+They are not required to run the studio.
+
+---
+
+## 7. Recipes with `curl`
+
+### Import a ZIP + reference
+
+```bash
+node -e '
+const fs = require("fs");
+const b64 = (p) => fs.readFileSync(p).toString("base64");
+const body = {
+  name: "Lake scene",
+  zipName: "segments.zip",
+  zip: "data:application/zip;base64," + b64("segments.zip"),
+  reference: "data:image/png;base64," + b64("final.png"),
+};
+fs.writeFileSync("/tmp/import.json", JSON.stringify(body));
+'
+curl -s localhost:8008/api/imports -H 'content-type: application/json' --data-binary @/tmp/import.json
+```
+
+### Read a composition
+
+```bash
+curl -s localhost:8008/api/projects/repo-Giovanni-Senza-Paura/compositions/scene-1-road-at-dusk
+```
+
+### Create a brand template
+
+```bash
+curl -s localhost:8008/api/brand-packs/<packId>/templates \
+  -H 'content-type: application/json' \
+  -d '{"brandId":"the-physician","templateId":"menu","name":"Physician winter menu"}'
+```
+
+### Detect what the local LLM offers
+
+```bash
+curl -s localhost:8008/api/llm/models
+```
+
+If `available` is false, start `ollama serve` and pull the models; `error`
+says why.

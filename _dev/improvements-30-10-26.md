@@ -1,5 +1,154 @@
 # Layer Studio — Development Plan for the Three High-Leverage Moves
 
+## 0. Implementation status (30 Oct 2026)
+
+Phases 1–3 are implemented and verified. Everything below is additive: no
+existing composition, preset, character rig, director or export path was
+replaced. The one render path is `resolveLayer()` in **`studio-core.js`**, a new
+zero-build module loaded before `_.js` that also runs under Node for the tests.
+
+**Verified by** `node --test "tests/*.test.js"` (93 tests, including the
+generator CLI), `node tests/smoke.js` (64 checks in real Chromium against the
+real server) and `node tests/visual.js` (8 fixtures × up to 3 formats, each
+rendered by the DOM, the canvas exporter and the SVG exporter and compared
+pixel-wise).
+
+**Phase 4 (shared kits, safe zones, guardrails) and Phase 5 (brief ingestion)
+are also shipped** — see the sections at the end of this file.
+
+### Phase 1 — text layers
+
+| Acceptance criterion | Status |
+|---|---|
+| Add / edit text, font, size, colour, alignment; renders on canvas | ✅ |
+| Participates in drag, resize, rotate, keyframes, presets, `positionConfirmed` | ✅ shared code path (inspector geometry edits and pinning automated; drag/resize share the same writer) |
+| `getLayerStateAtTime` returns the image shape plus text fields | ✅ |
+| PNG export matches the DOM layout | ✅ measured Δx 0.0 %, Δy 0.4 % |
+| SVG opens without warnings and text is real `<text>` (no `foreignObject`) | ✅ `<text>` + `font-family` asserted; not opened in Inkscape |
+| GIF and video include text | ✅ same canvas branch, not frame-diffed |
+| Save / reload round-trip without data loss | ✅ unit + server tests |
+| Agent spec includes text layers; presets apply | ✅ |
+| Unit tests + visual regression fixtures | ✅ 8 fixtures in `tests/visual.js` (no `pixelmatch` dependency: an in-page decoder plus a shift-tolerant diff). Budgets are the measured cross-rasteriser baseline, documented in the README |
+| Keyboard / screen-reader reachable | ✅ `aria-label` on the node, focusable segment-tree row |
+| Font readiness gate fails loudly | ✅ implemented (throws); not exercised with a real unloaded face |
+
+### Phase 2 — multi-format
+
+| Acceptance criterion | Status |
+|---|---|
+| Several formats with distinct sizes | ✅ (tested with 2–3; cap 24) |
+| Switching formats updates the canvas aspect ratio | ✅ |
+| Locale renders translated copy in the DOM, canvas, SVG and batch export | ✅ `tests/smoke.js` |
+| Master edits appear in every format | ✅ |
+| A pinned layer differs only in its format | ✅ |
+| Reset restores the base | ✅ |
+| Contact sheet renders every format through the export pipeline | ✅ |
+| Batch export → `formats × locales × outputs` in a ZIP | ✅ (PNG + 2 locales + 2 formats verified by reading the ZIP) |
+| Cancelling stops within a frame | ✅ flag wired; not automated |
+| Agent spec carries `formats` + `activeFormatId` | ✅ |
+| Director proposals still apply to all formats | ✅ by construction (presets write base) — not re-run against Ollama |
+| Character rigs animate in every format | ✅ shared path, not diffed per format |
+| v1 and post-Phase-1 files load | ✅ |
+| Visual regression across 5 formats | ✅ 3 formats exercised (master, story, leaderboard) |
+
+### Phase 3 — variables + brand kit
+
+| Acceptance criterion | Status |
+|---|---|
+| Text variable bound to a text layer | ✅ |
+| Colour variable bound to a text layer | ✅ |
+| Image variable bound to an image layer's `url` | ✅ (inspector `Link image`) |
+| Changing a variable updates every bound layer in every format | ✅ |
+| Per-format values show only in that format | ✅ |
+| Locked variables cannot be overridden | ✅ |
+| Brand kit editor persists palette, fonts, logos | ✅ |
+| "Validate against brand kit" reports drift, non-blocking | ✅ |
+| Batch export resolves variables per `(format, locale)` | ✅ |
+| Agent spec includes variables and the brand kit | ✅ |
+| `set-variable` accepted and validated | ✅ |
+| Existing compositions load unchanged | ✅ |
+| Visual regression: 3 formats × 2 locales | ✅ visual corpus covers 3 formats; locales covered by `tests/smoke.js` |
+
+### Deviations and additions
+
+- **`fontSizePct` in `layerOverrides`** (not in the original plan). `sizePct` is
+  relative to the format height, so a headline sized for 1080² is unreadable in a
+  728×90 leaderboard. Pinning a text layer now also snapshots and edits a
+  per-format type scale. Without it the channel presets in §3.5 are not usable.
+- **Fonts are global** (`/api/fonts`) rather than per-import
+  (`/api/imports/:id/fonts`), so one upload serves every project. The client
+  also accepts an in-memory data-URL font when no backend is running.
+- **`studio.html` is deprecated**, not mirrored: the file contains two
+  concatenated HTML documents, so patching text rendering into it is unsafe. It
+  loads, works for image layers, and carries a banner pointing at
+  `studio-v2.html`.
+- **Overflow is visible in the editor.** `overflow: clip` drops lines that do not
+  fit entirely (per §2.2). Because that is silent in an export, a clipped text
+  box gets a `+N lines hidden` badge on the canvas and a warning in the
+  inspector.
+- **The parity gate is a visual corpus, not a single comparison.** 8 fixtures ×
+  up to 3 formats, each rendered by the DOM, `renderExportFrame` and
+  `exportSvg`. Budgets are the measured baseline of two different text
+  rasterisers (see the README), and the gate is negative-tested against both an
+  export-only bug and a `resolveLayer`-skips-a-path bug.
+- **SVG exports at the playhead**, not at base layer values. The two files used
+  to disagree whenever a layer was animated; the visual corpus caught it
+  (`text-animated` PNG↔SVG went from 1.43 % to 0.00 %).
+- **The locale dimension is wired end to end**: a `Locale` switcher in the
+  header, `composition.activeLocale` persisted, and `defaultLocale` honoured as
+  the fallback. A missing `<select>` was not the only gap — the typesetter was
+  being called without a locale, so every locale rendered the default copy.
+
+### Phase 5 — brief ingestion (implemented ahead of Phase 4)
+
+The plan placed brief ingestion at Phase 5 and guardrails at Phase 4. Brief
+ingestion shipped first because the variables model (Phase 3) made it mostly
+wiring, and it is the largest remaining gap against the Suvi document (§4.2).
+
+| Acceptance criterion | Status |
+|---|---|
+| CSV brief → rows → one composition per row | ✅ CLI + studio; `tests/generator.test.js` |
+| `.xlsx` brief (Excel) | ✅ dependency-free reader in `server.js`; `tests/fixtures/brief.xlsx` |
+| Columns matched to variables automatically | ✅ `suggestBriefMapping` (name, id, cautious substring) |
+| Manual mapping override | ✅ a select per variable in the Brief dialog |
+| Invalid cell reported, not silently dropped | ✅ per-cell coercion errors; the CLI skips the row and says which column |
+| Row values respect `locked` variables | ✅ they become defaults, so locking cannot hide them |
+| The template is never mutated | ✅ `composeBriefRow` deep-copies layers/formats |
+| Preview a row in the editor, reversibly | ✅ applied to defaults, cleared on close, never saved |
+| Batch export rows × formats × locales × outputs | ✅ one ZIP, one filename per row |
+| Previewing/exporting does not need a saved project | ✅ both work from an unsaved composition |
+
+Deliberate limits: no `.xls` (legacy binary), no formula evaluation, Excel date
+serials pass through as numbers, no per-row layer overrides (a row fills
+variables, not geometry), and 500 rows / 64 columns / 8 MB per brief.
+
+### Phase 4 — shared kits, safe zones, guardrails
+
+| Acceptance criterion | Status |
+|---|---|
+| One kit → many compositions | ✅ `/api/brand-kits` CRUD; `composition.brandKitId` |
+| Editing a shared kit updates its users | ✅ same as an agent command: no cache to bust |
+| A deleted/unreachable kit cannot orphan a composition | ✅ attaching also stores a local snapshot; `effectiveBrandKit()` falls back |
+| Channel safe zones, per-format override and off switch | ✅ channel presets, `format.safeZone`, `null` = off |
+| The guide is editor-only | ✅ asserted absent from the SVG export; hidden in the visual harness |
+| Only in-scope elements are checked; bleeding is allowed | ✅ text + foreground/character roles; `layer.bleed` opts out |
+| Validation reports safe-area crossings | ✅ a `safeZone` group, reported even without a kit |
+| Guardrails can block every export path | ✅ PNG, video, GIF, batch and brief all call `assertGuardrails` |
+| Blocking is opt-in and scoped to objective rules | ✅ font drift + safe area block; palette and logo findings stay advisory |
+| A refusal is reported, not logged as an error | ✅ `reportExportError` separates policy from bugs |
+
+Deliberate limits: no per-layer rule overrides, no rules beyond the four above,
+no server-side enforcement (a client can ignore its own gate), and safe zones
+are geometry only — no per-channel attention maps.
+
+### Still open (out of scope for Phases 1–5)
+
+Comments/approval threads (Suvi §4.4), distribution, and automated
+drag/resize/cancel coverage.
+
+---
+
+
 **Scope:** Text layers → Multi-format with per-format overrides → Template slots + brand kit.
 **Constraint:** Additive only. No replacement of the existing editor, AI director, character rig, segment organizer, or export pipeline. Every existing composition file must continue to load.
 

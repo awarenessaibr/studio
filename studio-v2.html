@@ -4,9 +4,12 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23e8803a'/%3E%3Cpath d='M9 24V8h4v12h6v4z' fill='%23131317'/%3E%3C/svg%3E">
     <title>Studio Layers</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link rel="stylesheet" href="_.css">
+    <link rel="stylesheet" href="brand-identity.css">
+    <link rel="stylesheet" href="studio-minimal/studio-minimal.css">
     <style>
         html, body { margin: 0; height: 100%; background: #131217; }
         body { display: flex; flex-direction: column; }
@@ -166,6 +169,7 @@
                 <div>
                     <h2>Segments</h2>
                     <p>Pick, group, animate.</p>
+                    <a class="layer-v2-link" href="asset-studio.html">Asset Studio</a>
                     <a class="layer-v2-link" href="studio.html">Classic studio</a>
                 </div>
                 <button type="button" class="layer-icon-btn layer-collapse-btn" data-action="toggle-panel"
@@ -188,6 +192,21 @@
                         <button type="button" data-action="import-files">Add images</button>
                         <button type="button" data-action="import-folder">Add folder</button>
                         <button type="button" data-action="confirm-all">Confirm all positions</button>
+                    </div>
+                </div>
+            </section>
+
+            <section class="layer-brand" id="layerBrandPanel" aria-label="Brand identity">
+                <button type="button" class="layer-section-toggle" data-action="toggle-section" data-section="brand"
+                    aria-expanded="true" aria-controls="layerBrandContent">
+                    <span>Brand identity</span><i class="fas fa-chevron-down" aria-hidden="true"></i>
+                </button>
+                <div id="layerBrandContent" class="layer-section-content" data-section-content="brand">
+                    <p id="brandSidebarSummary" class="layer-hint brand-sidebar-empty">No brand pack imported yet.</p>
+                    <div id="brandSidebarChips" class="brand-sidebar-chips"></div>
+                    <div class="brand-sidebar-actions">
+                        <button type="button" class="brand-primary" data-brand-action="open">Open brand identity</button>
+                        <button type="button" data-brand-action="import">Import brand ZIP</button>
                     </div>
                 </div>
             </section>
@@ -232,6 +251,20 @@
             </div>
             <div id="layerList" class="layer-list" role="list"></div>
 
+            <section class="layer-variables" id="layerVariablesPanel" aria-label="Variables">
+                <header class="layer-variables-header">
+                    <button type="button" class="layer-section-toggle" data-action="toggle-section" data-section="variables"
+                        aria-expanded="true" aria-controls="layerVariablesContent">
+                        <span>Variables</span><i class="fas fa-chevron-down" aria-hidden="true"></i>
+                    </button>
+                </header>
+                <div id="layerVariablesContent" class="layer-section-content" data-section-content="variables">
+                    <p class="layer-hint">A composition with variables and bindings is a template.</p>
+                    <div id="layerVariablesList" class="layer-variables-list"></div>
+                    <button type="button" data-action="add-variable">Add variable</button>
+                </div>
+            </section>
+
             <div class="layer-sidebar-foot">
                 <button type="button" id="layerSaveProject" data-action="save-project" disabled>Save project</button>
                 <button type="button" data-action="toggle-all-visibility">Hide all</button>
@@ -243,14 +276,29 @@
             aria-label="Resize sidebar"></div>
 
         <main class="layer-main">
-            <header class="layer-header layer-header-v2">
+            <!-- Minimal studio toolbar. studio-minimal/studio-minimal.js drives the
+                 chips and the panels below; this markup is the source of truth. -->
+            <header class="layer-header layer-header-v2 bar-top">
                 <label class="layer-composition-picker">Composition
                     <select id="layerCompositionSelect" disabled><option value="">Choose a project first</option></select>
                 </label>
                 <label class="layer-composition-name">Name
                     <input id="layerCompositionName" type="text" value="Untitled Composition" maxlength="120">
                 </label>
-                <label class="layer-canvas-size">Canvas
+                <span class="bar-spacer"></span>
+                <span id="layerStudioStatus" class="layer-status bar-status" role="status">Ready.</span>
+                <nav class="bar-chips" aria-label="Toolbar sections">
+                    <button type="button" class="bar-chip" data-bar-toggle aria-expanded="false" aria-controls="barCanvas">Canvas</button>
+                    <button type="button" class="bar-chip" data-bar-toggle aria-expanded="false" aria-controls="barCharacter">Character</button>
+                    <button type="button" class="bar-chip" data-bar-toggle aria-expanded="false" aria-controls="barKeyframes">Keyframes</button>
+                    <button type="button" class="bar-chip" data-bar-toggle aria-expanded="false" aria-controls="barExport">Export</button>
+                    <button type="button" class="bar-chip" data-bar-toggle aria-expanded="false" aria-controls="barTools">Tools</button>
+                </nav>
+            </header>
+
+            <!-- Canvas + locale -->
+            <div id="barCanvas" class="bar-panel" hidden>
+                <label class="layer-canvas-size">Size
                     <select id="layerCanvasSize">
                         <option value="1080x1080">1080 × 1080</option>
                         <option value="1080x1350">1080 × 1350</option>
@@ -259,19 +307,26 @@
                         <option value="custom">Custom dimensions…</option>
                     </select>
                 </label>
-                <div id="layerCanvasCustomControls" class="layer-canvas-custom" hidden>
+                <div id="layerCanvasCustomControls" class="layer-canvas-custom bar-group" hidden>
                     <label>W <input id="layerCanvasWidth" type="number" min="1" max="10000" step="1" inputmode="numeric" aria-label="Canvas width in pixels"></label>
                     <label>H <input id="layerCanvasHeight" type="number" min="1" max="10000" step="1" inputmode="numeric" aria-label="Canvas height in pixels"></label>
                     <button type="button" data-action="apply-canvas-size">Apply</button>
                 </div>
-                <div class="layer-character-scale">
-                    <label for="layerCharacterScale">Scale character</label>
+                <label class="layer-locale-picker">Locale
+                    <select id="layerLocale" aria-label="Preview locale"></select>
+                </label>
+            </div>
+
+            <!-- Scale + move character -->
+            <div id="barCharacter" class="bar-panel" hidden>
+                <div class="layer-character-scale bar-group">
+                    <label for="layerCharacterScale">Scale</label>
                     <input id="layerCharacterScale" type="number" min="10" max="500" step="5" value="100" title="Scales all non-reference layers together around the canvas center" aria-label="Scale all non-reference layers by percent">
                     <span>%</span>
                     <button type="button" data-action="scale-artwork" title="Scale all non-reference layers together">Apply</button>
                 </div>
-                <div class="layer-character-move">
-                    <label for="layerCharacterOffsetX">Move character</label>
+                <div class="layer-character-move bar-group">
+                    <label for="layerCharacterOffsetX">Move</label>
                     <label class="layer-character-offset">X
                         <input id="layerCharacterOffsetX" type="number" min="-10000" max="10000" step="1" value="0" aria-label="Horizontal character offset in pixels">
                         <span>px</span>
@@ -282,26 +337,56 @@
                     </label>
                     <button type="button" data-action="move-artwork" title="Move all non-reference layers together">Move</button>
                 </div>
-                <span id="layerStudioStatus" class="layer-status" role="status">Ready.</span>
-            </header>
+            </div>
 
-            <div class="layer-timeline-controls">
-                <button type="button" id="layerPlayBtn" data-action="toggle-play">Play</button>
+            <!-- Keyframes -->
+            <div id="barKeyframes" class="bar-panel" hidden>
                 <label>Duration (ms)
                     <input id="layerDuration" type="number" value="3000" min="500" max="30000" step="100">
                 </label>
                 <button type="button" data-action="set-keyframe">Set keyframe</button>
                 <button type="button" data-action="delete-keyframe">Delete keyframe</button>
                 <span id="layerKeyframeCount" class="layer-status">0 keyframes</span>
-                <button type="button" data-action="export-json">Export JSON</button>
-                <button type="button" data-action="export-agent-spec">Export agent spec</button>
-                <button type="button" data-action="export-svg">Export SVG</button>
-                <button type="button" data-action="export-image" title="Export all layers without the final image reference">Export PNG</button>
-                <button type="button" data-action="export-webm">Export video</button>
-                <button type="button" data-action="export-gif">Export GIF</button>
             </div>
 
-            <div class="layer-playhead-row">
+            <!-- Export -->
+            <div id="barExport" class="bar-panel" hidden>
+                <div class="bar-group">
+                    <button type="button" data-action="export-image" title="Export all layers without the final image reference">PNG</button>
+                    <button type="button" data-action="export-svg">SVG</button>
+                    <button type="button" data-action="export-gif">GIF</button>
+                    <button type="button" data-action="export-webm">Video</button>
+                </div>
+                <div class="bar-group">
+                    <button type="button" data-action="export-json">JSON</button>
+                    <button type="button" data-action="export-agent-spec">Agent spec</button>
+                </div>
+                <button type="button" data-action="export-all-formats" title="Render every format and locale into one ZIP">All formats (ZIP)</button>
+            </div>
+
+            <!-- Tools -->
+            <div id="barTools" class="bar-panel" hidden>
+                <button type="button" data-action="add-text-layer" title="Insert a text layer">Add text</button>
+                <button type="button" data-action="open-brief" title="Fill this template from a CSV or .xlsx brief">Brief…</button>
+                <button type="button" data-action="open-brand-kit" title="Edit the palette, fonts and logos">Brand kit</button>
+                <button type="button" data-action="validate-brand" title="Check the composition against the brand kit">Validate brand</button>
+                <button type="button" data-action="load-fonts" title="Load every font referenced by a text layer">Load fonts</button>
+                <button type="button" data-action="toggle-safe-zones" aria-pressed="true"
+                    title="Show or hide the channel safe-area guide (never exported)">Safe zones on</button>
+            </div>
+
+            <!-- Formats (always visible, slim) -->
+            <div class="layer-format-bar">
+                <div id="layerFormatTabs" class="layer-format-tabs" role="tablist" aria-label="Formats"></div>
+                <div class="layer-format-bar-actions">
+                    <button type="button" data-action="add-format" title="Add a channel format to this composition">+ Format</button>
+                    <button type="button" data-action="open-contact-sheet" title="Preview every format">Contact sheet</button>
+                </div>
+            </div>
+
+            <!-- Playback (always visible) -->
+            <div class="bar-play layer-playhead-row">
+                <button type="button" id="layerPlayBtn" data-action="toggle-play">Play</button>
                 <output id="layerPlayheadTime">0 ms</output>
                 <input id="layerPlayhead" type="range" min="0" max="3000" value="0" aria-label="Playhead">
                 <output id="layerPlayheadEnd">3000 ms</output>
@@ -338,6 +423,54 @@
             </header>
             <div id="layerInspector" class="layer-inspector"></div>
         </aside>
+
+        <dialog id="brandIdentityDialog" class="layer-dialog brand-dialog" aria-labelledby="brandIdentityTitle">
+            <div class="brand-dialog-shell">
+                <header class="brand-dialog-header">
+                    <div>
+                        <h2 id="brandIdentityTitle">Brand identity</h2>
+                        <p id="brandIdentitySummary">Import a brand-kit ZIP to read its palettes, type, guidelines and templates.</p>
+                    </div>
+                    <div class="brand-dialog-header-actions">
+                        <button type="button" class="brand-primary" data-brand-action="import">Import brand ZIP</button>
+                        <button type="button" class="layer-icon-btn" data-brand-action="close" aria-label="Close brand identity">
+                            <i class="fas fa-xmark" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                </header>
+                <div class="brand-dialog-toolbar">
+                    <label>Pack
+                        <select id="brandPackSelect"><option value="">No packs imported</option></select>
+                    </label>
+                    <span id="brandPackMeta" class="brand-meta"></span>
+                </div>
+                <div id="brandEmptyState" class="brand-empty">
+                    <h3>Import a brand-kit folder</h3>
+                    <p>
+                        Upload the ZIP that was generated by the scraping and brand-identity step. The importer
+                        recognises the structure below and creates one brand identity per folder, with the
+                        palette, type system, logo cuts, photography and Word guide read from the pack.
+                    </p>
+                    <pre>brand-kit/
+├── README.md
+├── tokens/&lt;group&gt;.tokens.json
+├── 00-portfolio/&lt;Group&gt;-Overview.docx
+├── 01-&lt;brand&gt;/
+│   ├── &lt;Brand&gt;-Brand-Guide.docx
+│   ├── tokens/&lt;brand&gt;.tokens.json
+│   └── assets/{logos,colors,type,photography}
+└── 02-&lt;brand&gt;/…</pre>
+                    <div class="brand-actions" style="display:flex;gap:8px;justify-content:center">
+                        <button type="button" class="brand-primary" data-brand-action="import">Choose brand-kit ZIP</button>
+                    </div>
+                </div>
+                <div id="brandWorkspace" class="brand-workspace" hidden>
+                    <nav id="brandTabs" class="brand-tabs" role="tablist" aria-label="Brands"></nav>
+                    <div id="brandDetail" class="brand-detail"></div>
+                </div>
+                <p id="brandStatus" class="layer-dialog-status" role="status"></p>
+            </div>
+        </dialog>
 
         <dialog id="layerArchiveDialog" class="layer-dialog" aria-labelledby="layerArchiveTitle">
             <div class="layer-dialog-form">
@@ -405,529 +538,212 @@
             </div>
         </dialog>
 
+        <dialog id="layerBriefDialog" class="layer-dialog layer-dialog-wide" aria-labelledby="layerBriefTitle">
+            <div class="layer-dialog-form">
+                <header class="layer-dialog-header">
+                    <div>
+                        <h2 id="layerBriefTitle">Brief</h2>
+                        <p>One row per creative — CSV or .xlsx</p>
+                    </div>
+                    <button type="button" class="layer-icon-btn" data-action="close-brief" aria-label="Close brief dialog">
+                        <i class="fas fa-xmark" aria-hidden="true"></i>
+                    </button>
+                </header>
+                <p class="layer-dialog-copy">
+                    Each row fills this composition's variables. Columns are matched to variable
+                    names automatically; adjust them below. Nothing changes in the template.
+                </p>
+                <label class="layer-dialog-field">Brief file
+                    <input id="layerBriefFile" type="file"
+                        accept=".csv,.tsv,.txt,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+                </label>
+                <p id="layerBriefStatus" class="layer-dialog-status" role="status"></p>
+                <div id="layerBriefSummary" class="layer-brief-summary" hidden></div>
+                <div id="layerBriefMapping" class="layer-brief-mapping"></div>
+                <div id="layerBriefRows" class="layer-brief-rows"></div>
+                <fieldset class="layer-batch-outputs layer-brief-outputs">
+                    <legend>Outputs</legend>
+                    <label><input type="checkbox" value="png" checked> PNG</label>
+                    <label><input type="checkbox" value="gif"> GIF</label>
+                    <label><input type="checkbox" value="svg"> SVG</label>
+                    <label><input type="checkbox" value="video"> Video</label>
+                </fieldset>
+                <label class="layer-dialog-field">Locales (comma separated)
+                    <input id="layerBriefLocales" type="text" placeholder="en" autocomplete="off">
+                </label>
+                <p class="layer-hint">Video is recorded in real time per row, so it is the slow option.</p>
+                <div class="layer-dialog-actions">
+                    <button type="button" data-action="export-brief">Export all rows</button>
+                    <button type="button" data-action="clear-brief-preview">Clear preview</button>
+                    <button type="button" data-action="close-brief">Close</button>
+                </div>
+            </div>
+        </dialog>
+
+        <dialog id="layerFormatDialog" class="layer-dialog" aria-labelledby="layerFormatTitle">
+            <div class="layer-dialog-form">
+                <header class="layer-dialog-header">
+                    <div>
+                        <h2 id="layerFormatTitle">Add format</h2>
+                        <p>One composition, many sizes</p>
+                    </div>
+                    <button type="button" class="layer-icon-btn" data-action="close-format" aria-label="Close format dialog">
+                        <i class="fas fa-xmark" aria-hidden="true"></i>
+                    </button>
+                </header>
+                <label class="layer-dialog-field">Channel
+                    <select id="layerFormatChannel"></select>
+                </label>
+                <label class="layer-dialog-field">Preset
+                    <select id="layerFormatPreset"></select>
+                </label>
+                <div id="layerFormatCustom" class="layer-canvas-custom" hidden>
+                    <label>W <input id="layerFormatWidth" type="number" min="1" max="10000" step="1" inputmode="numeric" aria-label="Format width"></label>
+                    <label>H <input id="layerFormatHeight" type="number" min="1" max="10000" step="1" inputmode="numeric" aria-label="Format height"></label>
+                </div>
+                <label class="layer-dialog-field">Label
+                    <input id="layerFormatLabel" type="text" maxlength="80" placeholder="Meta Feed" autocomplete="off">
+                </label>
+                <label class="layer-dialog-field">Copy overrides from
+                    <select id="layerFormatCopyFrom"></select>
+                </label>
+                <p id="layerFormatStatus" class="layer-dialog-status" role="status"></p>
+                <div class="layer-dialog-actions">
+                    <button type="button" data-action="submit-format">Add format</button>
+                    <button type="button" data-action="close-format">Cancel</button>
+                </div>
+            </div>
+        </dialog>
+
+        <dialog id="layerContactSheet" class="layer-dialog layer-dialog-wide" aria-labelledby="layerContactSheetTitle">
+            <div class="layer-dialog-form">
+                <header class="layer-dialog-header">
+                    <div>
+                        <h2 id="layerContactSheetTitle">Contact sheet</h2>
+                        <p>Every format, rendered by the export pipeline</p>
+                    </div>
+                    <button type="button" class="layer-icon-btn" data-action="close-contact-sheet" aria-label="Close contact sheet">
+                        <i class="fas fa-xmark" aria-hidden="true"></i>
+                    </button>
+                </header>
+                <div id="layerContactSheetGrid" class="layer-contact-grid"></div>
+                <div class="layer-dialog-actions">
+                    <button type="button" data-action="close-contact-sheet">Close</button>
+                </div>
+            </div>
+        </dialog>
+
+        <dialog id="layerBatchDialog" class="layer-dialog" aria-labelledby="layerBatchTitle">
+            <div class="layer-dialog-form">
+                <header class="layer-dialog-header">
+                    <div>
+                        <h2 id="layerBatchTitle">Export all formats</h2>
+                        <p>Formats × locales × outputs, packaged as one ZIP</p>
+                    </div>
+                    <button type="button" class="layer-icon-btn" data-action="close-batch" aria-label="Close batch dialog">
+                        <i class="fas fa-xmark" aria-hidden="true"></i>
+                    </button>
+                </header>
+                <fieldset class="layer-batch-outputs">
+                    <legend>Outputs</legend>
+                    <label><input type="checkbox" value="png" checked> PNG</label>
+                    <label><input type="checkbox" value="gif"> GIF</label>
+                    <label><input type="checkbox" value="svg"> SVG</label>
+                    <label><input type="checkbox" value="video"> Video</label>
+                </fieldset>
+                <label class="layer-dialog-field">Locales (comma separated)
+                    <input id="layerBatchLocales" type="text" placeholder="en" autocomplete="off">
+                </label>
+                <p class="layer-hint">Video is recorded in real time per format, so it is the slowest option.</p>
+                <p id="layerBatchStatus" class="layer-dialog-status" role="status"></p>
+                <div class="layer-dialog-actions">
+                    <button type="button" data-action="submit-batch">Start batch</button>
+                    <button type="button" data-action="cancel-batch" hidden>Cancel batch</button>
+                    <button type="button" data-action="close-batch">Close</button>
+                </div>
+            </div>
+        </dialog>
+
+        <dialog id="layerBrandKitDialog" class="layer-dialog layer-dialog-wide" aria-labelledby="layerBrandKitTitle">
+            <div class="layer-dialog-form">
+                <header class="layer-dialog-header">
+                    <div>
+                        <h2 id="layerBrandKitTitle">Brand kit</h2>
+                        <p id="layerBrandKitSummary">No brand kit attached</p>
+                    </div>
+                    <button type="button" class="layer-icon-btn" data-action="close-brand-kit" aria-label="Close brand kit">
+                        <i class="fas fa-xmark" aria-hidden="true"></i>
+                    </button>
+                </header>
+                <label class="layer-dialog-field">Kit name
+                    <input id="layerBrandKitName" type="text" maxlength="80" placeholder="Acme brand kit" autocomplete="off">
+                </label>
+                <section class="layer-brand-kit-shared" aria-label="Shared brand kit">
+                    <label class="layer-dialog-field">Shared kit
+                        <select id="layerBrandKitShared">
+                            <option value="">This composition's own kit</option>
+                        </select>
+                    </label>
+                    <div class="layer-brand-kit-shared-actions">
+                        <button type="button" data-action="attach-shared-kit">Attach</button>
+                        <button type="button" data-action="detach-shared-kit">Detach</button>
+                        <button type="button" data-action="save-shared-kit">Save as shared kit</button>
+                        <button type="button" data-action="delete-shared-kit">Delete shared kit</button>
+                    </div>
+                    <p id="layerBrandKitSharedStatus" class="layer-hint"></p>
+                </section>
+                <div id="layerBrandKitBody" class="layer-brand-kit-body"></div>
+                <p id="layerBrandKitStatus" class="layer-dialog-status" role="status"></p>
+                <div class="layer-dialog-actions">
+                    <button type="button" data-action="save-brand-kit">Save kit</button>
+                    <button type="button" data-action="export-brand-kit">Export JSON</button>
+                    <button type="button" data-action="import-brand-kit">Import JSON</button>
+                    <button type="button" data-action="close-brand-kit">Close</button>
+                </div>
+                <input id="layerBrandKitFile" type="file" accept="application/json,.json" hidden>
+            </div>
+        </dialog>
+
+        <dialog id="layerValidationDialog" class="layer-dialog" aria-labelledby="layerValidationTitle">
+            <div class="layer-dialog-form">
+                <header class="layer-dialog-header">
+                    <div>
+                        <h2 id="layerValidationTitle">Brand validation</h2>
+                        <p>Non-blocking drift report</p>
+                    </div>
+                    <button type="button" class="layer-icon-btn" data-action="close-validation" aria-label="Close validation">
+                        <i class="fas fa-xmark" aria-hidden="true"></i>
+                    </button>
+                </header>
+                <div id="layerBrandValidation" class="layer-validation-report" role="region" aria-live="polite"></div>
+                <fieldset class="layer-guardrails">
+                    <legend>Guardrails</legend>
+                    <label><input type="checkbox" id="layerGuardrailEnabled"> Enable guardrail rules at export</label>
+                    <label><input type="checkbox" id="layerGuardrailBlock"> Refuse exports while blocking issues remain</label>
+                    <p class="layer-hint">
+                        Only objective rules block: a text layer using a font outside the kit, and
+                        a foreground element crossing the safe area. Palette and logo findings stay advisory.
+                    </p>
+                </fieldset>
+                <div class="layer-dialog-actions">
+                    <button type="button" data-action="close-validation">Close</button>
+                </div>
+            </div>
+        </dialog>
+
+        <input id="layerFontInput" type="file" accept=".woff2,.woff,.ttf,.otf,font/woff2,font/woff,font/ttf,font/otf" hidden>
         <input id="layerFilesInput" type="file" accept="image/*" multiple hidden>
         <input id="layerFolderInput" type="file" accept="image/*" webkitdirectory multiple hidden>
         <input id="layerProjectInput" type="file" accept="application/json,.json" hidden>
+        <input id="brandPackZipInput" type="file" accept=".zip,application/zip,application/x-zip-compressed" hidden>
     </div>
 
+    <script src="studio-core.js"></script>
+    <script src="brand-pack.js"></script>
     <script src="_.js"></script>
-    <script>
-        window.addEventListener('DOMContentLoaded', () => {
-            if (window.layerStudioShowView) window.layerStudioShowView();
-            const studio = window.layerStudio;
-            if (!studio) return;
-
-            const $ = (id) => document.getElementById(id);
-            const tree = $('segTree');
-            const canvas = $('layerCanvas');
-            const viewport = $('layerCanvasViewport');
-            const stage = canvas.closest('.layer-stage');
-            const PRESETS = ['breathe', 'idle', 'sway', 'walk', 'float', 'flicker', 'drift', 'pulse', 'fadeIn', 'parallax'];
-            const open = new Set();
-            let organizerModels = [];
-            let organizerSuggestions = [];
-            let organizerThumbnails = new Map();
-            let organizerTargetComposition = null;
-            let filter = '';
-            let allOpen = false;
-            let zoom = 1;
-            let fitSize = null;
-            const minZoom = 0.1;
-            const maxZoom = 4;
-            const zoomStep = 0.1;
-
-            function renderZoom() {
-                canvas.style.setProperty('--ls-canvas-zoom', String(zoom));
-                if (fitSize) {
-                    viewport.style.width = `${fitSize.width * zoom}px`;
-                    viewport.style.height = `${fitSize.height * zoom}px`;
-                }
-                $('layerZoomValue').value = `${Math.round(zoom * 100)}%`;
-                $('layerZoomValue').textContent = `${Math.round(zoom * 100)}%`;
-                $('layerZoomOut').disabled = zoom <= minZoom;
-                $('layerZoomIn').disabled = zoom >= maxZoom;
-            }
-
-            function fitCanvas() {
-                const stageStyle = getComputedStyle(stage);
-                const availableWidth = stage.clientWidth
-                    - Number.parseFloat(stageStyle.paddingLeft)
-                    - Number.parseFloat(stageStyle.paddingRight);
-                const availableHeight = stage.clientHeight
-                    - Number.parseFloat(stageStyle.paddingTop)
-                    - Number.parseFloat(stageStyle.paddingBottom);
-                const ratio = studio.composition.width / studio.composition.height;
-                if (!(availableWidth > 0 && availableHeight > 0 && ratio > 0)) return;
-                const width = Math.max(1, Math.floor(Math.min(availableWidth, availableHeight * ratio)));
-                fitSize = { width, height: Math.max(1, Math.floor(width / ratio)) };
-                canvas.style.width = `${fitSize.width}px`;
-                canvas.style.height = `${fitSize.height}px`;
-                renderZoom();
-            }
-
-            function setZoom(value) {
-                zoom = Math.min(maxZoom, Math.max(minZoom, Math.round(value * 100) / 100));
-                renderZoom();
-            }
-
-            $('layerZoomOut').addEventListener('click', () => setZoom(zoom - zoomStep));
-            $('layerZoomIn').addEventListener('click', () => setZoom(zoom + zoomStep));
-            $('layerZoomFit').addEventListener('click', () => setZoom(1));
-            stage.addEventListener('wheel', (event) => {
-                if (!event.ctrlKey && !event.metaKey) return;
-                event.preventDefault();
-                setZoom(zoom + (event.deltaY < 0 ? zoomStep : -zoomStep));
-            }, { passive: false });
-            fitCanvas();
-            new ResizeObserver(fitCanvas).observe(stage);
-
-            const stem = (name) => String(name).replace(/[\s_-]*\d+$/, '').trim() || String(name);
-            const el = (tag, props = {}, ...kids) => {
-                const node = Object.assign(document.createElement(tag), props);
-                kids.forEach((kid) => node.append(kid));
-                return node;
-            };
-
-            function model() {
-                const comp = studio.composition;
-                const real = comp.layers.filter((layer) => layer.rig !== true);
-                const reference = real.find((layer) => layer.id === comp.referenceLayerId) || null;
-                const map = new Map();
-                real.forEach((layer) => {
-                    if (layer === reference) return;
-                    const label = layer.segmentGroup || stem(layer.name);
-                    const key = label.toLowerCase();
-                    if (!map.has(key)) map.set(key, { key, label, items: [] });
-                    map.get(key).items.push(layer);
-                });
-                const groups = [...map.values()].map((group) => {
-                    group.items.sort((a, b) => b.z - a.z);
-                    group.z = group.items[0].z;
-                    return group;
-                }).sort((a, b) => b.z - a.z);
-                return { reference, groups, total: real.length - (reference ? 1 : 0) };
-            }
-
-            function thumb(layer) {
-                return el('img', { className: 'seg-thumb', src: layer.url, alt: '', loading: 'lazy' });
-            }
-
-            function button(icon, label, act, data = {}) {
-                const b = el('button', { type: 'button', title: label });
-                b.setAttribute('aria-label', label);
-                b.dataset.act = act;
-                Object.assign(b.dataset, data);
-                b.append(el('i', { className: `fas ${icon}` }));
-                return b;
-            }
-
-            function leafRow(layer, child) {
-                const row = el('div', { className: 'seg-row', role: 'treeitem', tabIndex: 0 });
-                row.dataset.child = String(child);
-                row.dataset.act = 'select';
-                row.dataset.id = layer.id;
-                row.dataset.ids = layer.id;
-                row.dataset.selected = String(layer.id === studio.selectedLayerId);
-                row.dataset.hidden = String(!layer.visible);
-                row.setAttribute('aria-selected', row.dataset.selected);
-                const name = el('span', { className: 'seg-name', textContent: layer.name });
-                if (!layer.positionConfirmed) name.append(el('small', { className: 'seg-sub', textContent: 'Needs review' }));
-                const acts = el('span', { className: 'seg-acts' },
-                    button(layer.visible ? 'fa-eye' : 'fa-eye-slash', `${layer.visible ? 'Hide' : 'Show'} ${layer.name}`, 'eye', { ids: layer.id }),
-                    button('fa-download', `Download ${layer.name}`, 'download', { id: layer.id }),
-                    button('fa-trash', `Delete ${layer.name}`, 'delete', { id: layer.id }));
-                row.append(el('span', { className: 'seg-dot' }), thumb(layer), name, acts);
-                return row;
-            }
-
-            function groupRows(group) {
-                const frag = document.createDocumentFragment();
-                const isOpen = open.has(group.key) || Boolean(filter);
-                const ids = group.items.map((layer) => layer.id);
-                const selected = group.items.some((layer) => layer.id === studio.selectedLayerId);
-                const row = el('div', { className: 'seg-row', role: 'treeitem', tabIndex: 0 });
-                row.dataset.child = 'false';
-                row.dataset.act = 'group';
-                row.dataset.key = group.key;
-                row.dataset.ids = ids.join(' ');
-                row.dataset.open = String(isOpen);
-                row.dataset.partial = String(selected);
-                row.dataset.hidden = String(group.items.every((layer) => !layer.visible));
-                row.setAttribute('aria-expanded', String(isOpen));
-                const name = el('span', { className: 'seg-name', textContent: group.label });
-                name.append(el('small', { className: 'seg-sub', textContent: `${group.items.length} segments` }));
-                const select = el('select', { title: `Animate all ${group.label}` });
-                select.dataset.key = group.key;
-                select.setAttribute('aria-label', `Animate all ${group.label}`);
-                select.append(new Option('Animate…', ''), ...PRESETS.map((p) => new Option(p, p)));
-                const acts = el('span', { className: 'seg-acts' },
-                    select,
-                    button(group.items.every((layer) => layer.visible) ? 'fa-eye' : 'fa-eye-slash', `Toggle ${group.label}`, 'eye', { ids: ids.join(' ') }),
-                    button('fa-download', `Download ${group.label} as transparent and with-final images`, 'download-group', { key: group.key }),
-                    button('fa-chevron-down seg-caret', `${isOpen ? 'Collapse' : 'Expand'} ${group.label}`, 'group', { key: group.key }));
-                row.append(el('span', { className: 'seg-dot' }), thumb(group.items[0]), name, acts);
-                frag.append(row);
-                if (isOpen) group.items.forEach((layer) => frag.append(leafRow(layer, true)));
-                return frag;
-            }
-
-            function render() {
-                const { reference, groups, total } = model();
-                $('segCount').textContent = `${total} segment${total === 1 ? '' : 's'} · ${groups.length} group${groups.length === 1 ? '' : 's'}`;
-                const keepScroll = tree.scrollTop;
-                tree.replaceChildren();
-                if (reference) {
-                    const ref = el('button', { type: 'button', className: 'seg-ref' }, thumb(reference), el('span', { className: 'seg-name', textContent: 'Final image' }));
-                    ref.dataset.act = 'select';
-                    ref.dataset.id = reference.id;
-                    ref.dataset.selected = String(reference.id === studio.selectedLayerId);
-                    ref.querySelector('img').style.cssText = 'width:36px;height:26px';
-                    const visibility = el('button', { type: 'button', className: 'seg-reference-visibility' });
-                    visibility.dataset.act = 'eye';
-                    visibility.dataset.ids = reference.id;
-                    visibility.setAttribute('aria-pressed', String(reference.visible));
-                    visibility.setAttribute('aria-label', `${reference.visible ? 'Hide' : 'Show'} final image`);
-                    visibility.title = `${reference.visible ? 'Hide' : 'Show'} final image`;
-                    visibility.append(el('i', {
-                        className: `fas ${reference.visible ? 'fa-eye' : 'fa-eye-slash'}`,
-                        ariaHidden: 'true',
-                    }));
-                    const referenceRow = el('div', { className: 'seg-reference-row' }, ref, visibility);
-                    referenceRow.dataset.hidden = String(!reference.visible);
-                    tree.append(referenceRow);
-                }
-                const needle = filter.toLowerCase();
-                const shown = groups.filter((group) => !needle
-                    || group.label.toLowerCase().includes(needle)
-                    || group.items.some((layer) => layer.name.toLowerCase().includes(needle)));
-                shown.forEach((group) => {
-                    const view = needle ? { ...group, items: group.items.filter((layer) => layer.name.toLowerCase().includes(needle) || group.label.toLowerCase().includes(needle)) } : group;
-                    tree.append(groupRows(view));
-                });
-                if (!shown.length) {
-                    tree.append(el('p', {
-                        className: 'seg-empty',
-                        textContent: total ? 'No segment matches that search.' : 'No segments yet. Pick a project above, or import a ZIP with its final image.',
-                    }));
-                }
-                tree.scrollTop = keepScroll;
-            }
-
-            function highlight(ids) {
-                canvas.querySelectorAll('.ls-hover').forEach((node) => node.classList.remove('ls-hover'));
-                ids.forEach((id) => {
-                    const node = canvas.querySelector(`.layer-item[data-id="${CSS.escape(id)}"]`);
-                    const layer = studio.getLayer(id);
-                    if (!node || !layer) return;
-                    node.dataset.label = layer.name;
-                    node.classList.add('ls-hover');
-                });
-            }
-
-            function select(id) {
-                studio.selectedLayerId = id;
-                studio.render();
-            }
-
-            function download(layer) {
-                const link = el('a', { href: layer.url, download: `${layer.name.replace(/[^\w.-]+/g, '-')}.png` });
-                document.body.append(link);
-                link.click();
-                link.remove();
-            }
-
-            function animateGroup(key, preset) {
-                const group = model().groups.find((item) => item.key === key);
-                if (!group || !preset) return;
-                const keep = studio.selectedLayerId;
-                group.items.forEach((layer, i) => {
-                    const v = 0.7 + ((i * 37) % 7) / 10;
-                    studio.selectedLayerId = layer.id;
-                    studio.applyPreset(preset, { amplitude: 2 * v, tilt: 3 * v, distance: preset === 'drift' ? 12 * v : (preset === 'parallax' ? 4 * v : 2 * v) });
-                });
-                studio.selectedLayerId = keep;
-                studio.render();
-                studio.setStatus(`"${preset}" applied to ${group.items.length} ${group.label} segments.`);
-            }
-
-            tree.addEventListener('click', (event) => {
-                if (event.target.closest('select')) return;
-                const target = event.target.closest('[data-act]');
-                if (!target) return;
-                const { act } = target.dataset;
-                if (act === 'select') return select(target.dataset.id);
-                if (act === 'download-group') {
-                    studio.exportSegmentGroup(target.dataset.key).catch((error) => {
-                        console.error('[layer-studio] segment group export failed:', error);
-                        studio.setStatus(error.message || 'Could not export the segment group.', true);
-                    });
-                    return;
-                }
-                if (act === 'group') {
-                    const key = target.dataset.key;
-                    const toggling = event.target.closest('.seg-caret') || event.target.closest('button');
-                    if (open.has(key)) open.delete(key); else open.add(key);
-                    if (!toggling) {
-                        const group = model().groups.find((item) => item.key === key);
-                        if (group && open.has(key)) return select(group.items[0].id);
-                    }
-                    return render();
-                }
-                if (act === 'eye') {
-                    const layers = target.dataset.ids.split(' ').map((id) => studio.getLayer(id)).filter(Boolean);
-                    const show = layers.some((layer) => !layer.visible);
-                    layers.forEach((layer) => { layer.visible = show; });
-                    studio.render();
-                    return studio.scheduleSave();
-                }
-                if (act === 'download') return download(studio.getLayer(target.dataset.id));
-                if (act === 'delete') {
-                    select(target.dataset.id);
-                    studio.removeSelected();
-                }
-            });
-
-            tree.addEventListener('keydown', (event) => {
-                if ((event.key === 'Enter' || event.key === ' ') && event.target.matches('.seg-row')) {
-                    event.preventDefault();
-                    event.target.click();
-                }
-            });
-            tree.addEventListener('change', (event) => {
-                if (!event.target.matches('select')) return;
-                animateGroup(event.target.dataset.key, event.target.value);
-                event.target.value = '';
-            });
-            tree.addEventListener('mouseover', (event) => {
-                const row = event.target.closest('[data-ids]');
-                highlight(row ? row.dataset.ids.split(' ') : []);
-            });
-            tree.addEventListener('mouseleave', () => highlight([]));
-
-            canvas.addEventListener('pointerover', (event) => {
-                tree.querySelectorAll('[data-hot="true"]').forEach((row) => { row.dataset.hot = 'false'; });
-                const node = event.target.closest('.layer-item');
-                if (!node) return;
-                const rows = tree.querySelectorAll(`[data-ids~="${CSS.escape(node.dataset.id)}"]`);
-                rows.forEach((row) => { row.dataset.hot = 'true'; });
-                if (rows.length) rows[rows.length - 1].scrollIntoView({ block: 'nearest' });
-            });
-
-            $('segSearch').addEventListener('input', (event) => { filter = event.target.value.trim(); render(); });
-            $('segExpand').addEventListener('click', (event) => {
-                allOpen = !allOpen;
-                open.clear();
-                if (allOpen) model().groups.forEach((group) => open.add(group.key));
-                event.target.textContent = allOpen ? 'Collapse' : 'Expand';
-                render();
-            });
-            $('segDownloadAll').addEventListener('click', () => {
-                studio.exportAllSegments(model().groups);
-            });
-
-            const organizerDialog = $('segmentOrganizerDialog');
-            const organizerStatus = $('segmentOrganizerStatus');
-            const organizerModelSelect = $('segmentOrganizerModel');
-            const organizerResults = $('segmentOrganizerResults');
-            const organizerApply = $('segmentOrganizerApply');
-
-            function setOrganizerStatus(message, { error = false, busy = false } = {}) {
-                organizerStatus.textContent = message;
-                organizerStatus.dataset.error = String(error);
-                organizerStatus.dataset.busy = String(busy);
-            }
-
-            function loadThumbnail(layer) {
-                return new Promise((resolve, reject) => {
-                    const image = new Image();
-                    image.onload = () => {
-                        const thumbnail = document.createElement('canvas');
-                        const edge = 160;
-                        const scale = Math.min(edge / image.naturalWidth, edge / image.naturalHeight, 1);
-                        thumbnail.width = Math.max(1, Math.round(image.naturalWidth * scale));
-                        thumbnail.height = Math.max(1, Math.round(image.naturalHeight * scale));
-                        const context = thumbnail.getContext('2d');
-                        if (!context) {
-                            reject(new Error(`Could not prepare a thumbnail for "${layer.name}".`));
-                            return;
-                        }
-                        context.fillStyle = '#e8e8e8';
-                        context.fillRect(0, 0, thumbnail.width, thumbnail.height);
-                        context.drawImage(image, 0, 0, thumbnail.width, thumbnail.height);
-                        resolve(thumbnail.toDataURL('image/jpeg', 0.75));
-                    };
-                    image.onerror = () => reject(new Error(`Could not load the image for "${layer.name}".`));
-                    if (!layer.url.startsWith('data:')) image.crossOrigin = 'anonymous';
-                    image.src = layer.url;
-                });
-            }
-
-            function renderOrganizerSuggestions() {
-                organizerResults.replaceChildren();
-                organizerSuggestions.forEach((suggestion) => {
-                    const row = el('div', { className: 'segment-organizer-row' });
-                    row.dataset.id = suggestion.id;
-                    const image = el('img', {
-                        src: organizerThumbnails.get(suggestion.id) || '',
-                        alt: '',
-                        loading: 'lazy',
-                    });
-                    const nameLabel = el('label', {}, document.createTextNode('Layer name'));
-                    const nameInput = el('input', { type: 'text', value: suggestion.name, maxLength: 100 });
-                    nameInput.dataset.field = 'name';
-                    nameLabel.append(nameInput);
-                    const groupLabel = el('label', {}, document.createTextNode('Group'));
-                    const groupInput = el('input', { type: 'text', value: suggestion.group, maxLength: 80 });
-                    groupInput.dataset.field = 'group';
-                    groupLabel.append(groupInput);
-                    row.append(image, nameLabel, groupLabel);
-                    organizerResults.append(row);
-                });
-                organizerResults.hidden = organizerSuggestions.length === 0;
-                organizerApply.disabled = organizerSuggestions.length === 0;
-            }
-
-            $('segOrganize').addEventListener('click', async () => {
-                const segments = model().groups.flatMap((group) => group.items);
-                if (!segments.length) {
-                    studio.setStatus('Add or import segments before organizing them.', true);
-                    return;
-                }
-                if (segments.length > 120) {
-                    studio.setStatus('AI organization supports up to 120 segments per request.', true);
-                    return;
-                }
-                organizerSuggestions = [];
-                organizerThumbnails = new Map();
-                organizerTargetComposition = studio.composition;
-                organizerResults.replaceChildren();
-                organizerResults.hidden = true;
-                organizerApply.disabled = true;
-                organizerModelSelect.replaceChildren(new Option('Loading available models…', ''));
-                $('segmentOrganizerAnalyze').disabled = true;
-                setOrganizerStatus('Loading available vision models…', { busy: true });
-                organizerDialog.showModal();
-                try {
-                    const catalog = await studio.requestBackend('api/llm/organizer-models');
-                    organizerModels = Array.isArray(catalog.models) ? catalog.models : [];
-                    organizerModelSelect.replaceChildren(...organizerModels.map((entry) => new Option(
-                        `${entry.id} · ${entry.provider === 'ollama' ? 'local' : 'remote'}`,
-                        `${entry.provider}|${entry.id}`,
-                    )));
-                    $('segmentOrganizerAnalyze').disabled = organizerModels.length === 0;
-                    if (!organizerModels.length) {
-                        setOrganizerStatus(
-                            catalog.error || 'No vision model is available. Start Ollama or configure a remote model on the server.',
-                            { error: true },
-                        );
-                        return;
-                    }
-                    setOrganizerStatus(`${segments.length} segments ready. Choose a model and analyze.`);
-                } catch (error) {
-                    setOrganizerStatus(error.message || 'Could not load vision models.', { error: true });
-                }
-            });
-
-            $('segmentOrganizerAnalyze').addEventListener('click', async () => {
-                if (studio.composition !== organizerTargetComposition) {
-                    setOrganizerStatus('The open project changed. Close and reopen the organizer for the current project.', { error: true });
-                    return;
-                }
-                const [provider, ...modelParts] = (organizerModelSelect.selectedOptions[0]?.value || '').split('|');
-                const selectedModel = modelParts.join('|');
-                if (!selectedModel) {
-                    setOrganizerStatus('Choose an available vision model.', { error: true });
-                    return;
-                }
-                const layers = model().groups.flatMap((group) => group.items);
-                const reference = model().reference;
-                $('segmentOrganizerAnalyze').disabled = true;
-                organizerApply.disabled = true;
-                setOrganizerStatus('Preparing thumbnails and asking the model to review the segments…', { busy: true });
-                try {
-                    const layerImages = await Promise.all(layers.map(async (layer) => ({
-                        id: layer.id,
-                        name: layer.name,
-                        image: await loadThumbnail(layer),
-                    })));
-                    organizerThumbnails = new Map(layerImages.map((item) => [item.id, item.image]));
-                    const referenceImage = reference ? await loadThumbnail(reference) : null;
-                    if (studio.composition !== organizerTargetComposition) {
-                        throw new Error('The open project changed while preparing the segment thumbnails.');
-                    }
-                    setOrganizerStatus('Analyzing segment contents and proposing meaningful groups…', { busy: true });
-                    const result = await studio.requestBackend('api/segments/organize', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            provider,
-                            model: selectedModel,
-                            layers: layerImages,
-                            reference: referenceImage,
-                        }),
-                    });
-                    if (studio.composition !== organizerTargetComposition) {
-                        throw new Error('The open project changed before the suggestions returned. Nothing was applied.');
-                    }
-                    organizerSuggestions = Array.isArray(result.layers) ? result.layers : [];
-                    renderOrganizerSuggestions();
-                    setOrganizerStatus(
-                        `Review and edit ${organizerSuggestions.length} of ${layers.length} suggestions from ${result.model?.id || selectedModel} before applying.`,
-                    );
-                } catch (error) {
-                    setOrganizerStatus(error.message || 'Could not organize the segments.', { error: true });
-                } finally {
-                    $('segmentOrganizerAnalyze').disabled = organizerModels.length === 0;
-                }
-            });
-
-            organizerResults.addEventListener('input', (event) => {
-                const row = event.target.closest('.segment-organizer-row');
-                const suggestion = organizerSuggestions.find((entry) => entry.id === row?.dataset.id);
-                if (suggestion && event.target.dataset.field) suggestion[event.target.dataset.field] = event.target.value;
-            });
-
-            organizerApply.addEventListener('click', () => {
-                if (studio.composition !== organizerTargetComposition) {
-                    setOrganizerStatus('The open project changed. Close and reopen the organizer before applying.', { error: true });
-                    return;
-                }
-                let applied = 0;
-                organizerSuggestions.forEach((suggestion) => {
-                    const layer = studio.getLayer(suggestion.id);
-                    if (!layer) return;
-                    const name = suggestion.name.trim();
-                    const group = suggestion.group.trim();
-                    if (name) layer.name = name;
-                    if (group) layer.segmentGroup = group;
-                    layer.role = suggestion.role;
-                    applied += 1;
-                });
-                studio.render();
-                render();
-                studio.scheduleSave();
-                organizerDialog.close();
-                studio.setStatus(
-                    `Applied names and groups to ${applied} layers. Save the project or export JSON to keep the organization.`,
-                );
-            });
-
-            $('segmentOrganizerClose').addEventListener('click', () => organizerDialog.close());
-            $('segmentOrganizerCancel').addEventListener('click', () => organizerDialog.close());
-            organizerDialog.addEventListener('click', (event) => {
-                if (event.target === organizerDialog) organizerDialog.close();
-            });
-
-            // _.js re-renders its hidden list on every change; use that as the redraw signal.
-            let queued = false;
-            new MutationObserver(() => {
-                if (queued) return;
-                queued = true;
-                requestAnimationFrame(() => { queued = false; fitCanvas(); render(); });
-            }).observe($('layerList'), { childList: true });
-            render();
-        });
-    </script>
+    <script src="brand-identity.js"></script>
+    <script src="studio-minimal/studio-minimal.js"></script>
+    <script src="studio-v2.js"></script>
 </body>
 
 </html>

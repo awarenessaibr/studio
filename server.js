@@ -22,11 +22,17 @@ const fsp = fs.promises;
 const path = require('path');
 const zlib = require('zlib');
 const crypto = require('crypto');
+const Core = require('./studio-core.js');
+const StudioBrand = require('./brand-pack.js');
+const { parseBrandDocx } = require('./brand-docx.js');
 
 const ROOT = __dirname;
 const DATA_DIR = path.join(ROOT, 'data');
 const IMPORTS_DIR = path.join(DATA_DIR, 'imports');
 const PROJECTS_DIR = path.join(DATA_DIR, 'projects');
+const FONTS_DIR = path.join(DATA_DIR, 'fonts');
+const BRAND_KITS_DIR = path.join(DATA_DIR, 'brand-kits');
+const BRAND_PACKS_DIR = path.join(DATA_DIR, 'brand-packs');
 const PORT = Number(process.env.PORT) || 8008;
 const HOST = process.env.HOST || '127.0.0.1';
 
@@ -36,6 +42,17 @@ const MAX_REFERENCE = 60 * 1024 * 1024;
 const MAX_EXTRACTED = 640 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 80 * 1024 * 1024;
 const MAX_COMPOSITION_BYTES = 24 * 1024 * 1024;
+const MAX_FONT_BYTES = 2 * 1024 * 1024;
+const MAX_BRIEF_BYTES = 8 * 1024 * 1024;
+const MAX_BRAND_KIT_BYTES = 512 * 1024;
+const MAX_BRAND_KITS = 200;
+const MAX_BRAND_PACK_ZIP = 160 * 1024 * 1024;
+const MAX_BRAND_PACKS = 50;
+const MAX_BRAND_ASSET_BYTES = 40 * 1024 * 1024;
+const MAX_BRAND_EXTRACTED_BYTES = 480 * 1024 * 1024;
+const MAX_BRAND_FILES = 4000;
+const MAX_BRAND_ASSETS = 240;
+const BRAND_KIT_ID = /^[A-Za-z0-9_-]{1,80}$/;
 const MAX_LAYERS = 500;
 const MAX_SEGMENTS = MAX_LAYERS - 1;
 const DEFAULT_DURATION = 10000;
@@ -96,6 +113,7 @@ const MIME = {
     '.css': 'text/css; charset=utf-8',
     '.json': 'application/json; charset=utf-8',
     '.md': 'text/markdown; charset=utf-8',
+    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     '.png': 'image/png',
     '.jpg': 'image/jpeg',
     '.jpeg': 'image/jpeg',
@@ -722,13 +740,28 @@ function buildComposition({ id, name, reference, segments, meta }) {
     });
 
     const composition = {
-        version: 1,
+        version: 3,
         id,
         name,
         width: reference.width,
         height: reference.height,
         duration: DEFAULT_DURATION,
+        defaultLocale: 'en',
         referenceLayerId: 'reference',
+        // Emit the master format explicitly so imports need no silent upgrade.
+        formats: [{
+            id: 'master',
+            isMaster: true,
+            channel: 'custom',
+            label: 'Master',
+            width: reference.width,
+            height: reference.height,
+            layerOverrides: {},
+            variableValues: {},
+        }],
+        activeFormatId: 'master',
+        variables: [],
+        brandKit: null,
         layers,
         meta,
     };
@@ -1236,12 +1269,24 @@ async function saveComposition(id, payload) {
         if (!layer || typeof layer !== 'object') return layer;
         const prior = existingLayers.get(layer.id);
         if (!prior) return layer;
-        return {
+        const merged = {
             ...layer,
+            type: layer.type || prior.type || 'image',
             part: layer.part || prior.part || '',
             group: layer.group || prior.group || '',
             variant: layer.variant || prior.variant || '',
         };
+        // Text metadata must survive a round-trip from a pre-text client.
+        ['text', 'font', 'color', 'align', 'verticalAlign', 'overflow'].forEach((key) => {
+            if (merged[key] === undefined && prior[key] !== undefined) merged[key] = prior[key];
+        });
+        // A current client always sends `bindings`; a stale one omits the key
+        // entirely. Preserve only in the second case, so an intentional unlink
+        // (an empty object) is never resurrected.
+        if (!('bindings' in layer) && prior.bindings) merged.bindings = prior.bindings;
+        // Phase 4: a client that predates safe zones must not strip the flag.
+        if (!('bleed' in layer) && prior.bleed !== undefined) merged.bleed = prior.bleed;
+        return merged;
     });
     // A stale v2 client must not downgrade a v3 rig that already exists.
     const existingCharacters = Array.isArray(existing.characters) ? existing.characters : [];
@@ -1253,15 +1298,44 @@ async function saveComposition(id, payload) {
         : incomingCharacters.slice(0, 12);
     const composition = {
         ...incoming,
-        version: 1,
+        // Never downgrade a file's schema version on save.
+        version: Math.max(Number(incoming.version) || 1, Number(existing.version) || 1),
         id,
         name: sanitizeLabel(incoming.name, existing.name || 'Imported scene'),
         width: Number(incoming.width) || existing.width,
         height: Number(incoming.height) || existing.height,
         duration: Number(incoming.duration) || existing.duration || DEFAULT_DURATION,
+        defaultLocale: typeof incoming.defaultLocale === 'string'
+            ? incoming.defaultLocale
+            : (existing.defaultLocale || 'en'),
         referenceLayerId: typeof incoming.referenceLayerId === 'string' ? incoming.referenceLayerId : null,
         characters,
         layers,
+        // Stale-client protection for the additive Phase 2/3 fields: a client
+        // that predates them omits the key, so the stored value wins.
+        formats: (Array.isArray(incoming.formats) && incoming.formats.length)
+            ? incoming.formats
+            : (Array.isArray(existing.formats) && existing.formats.length ? existing.formats : []),
+        activeFormatId: typeof incoming.activeFormatId === 'string'
+            ? incoming.activeFormatId
+            : (existing.activeFormatId || 'master'),
+        variables: Array.isArray(incoming.variables)
+            ? incoming.variables
+            : (Array.isArray(existing.variables) ? existing.variables : []),
+        brandKit: incoming.brandKit !== undefined
+            ? incoming.brandKit
+            : (existing.brandKit !== undefined ? existing.brandKit : null),
+        // Phase 4 fields: a stale client omits the key entirely, so keep what
+        // is stored rather than silently detaching the shared kit.
+        brandKitId: incoming.brandKitId !== undefined
+            ? incoming.brandKitId
+            : (existing.brandKitId !== undefined ? existing.brandKitId : null),
+        guardrails: incoming.guardrails && typeof incoming.guardrails === 'object'
+            ? incoming.guardrails
+            : (existing.guardrails || { enabled: false, block: false }),
+        showSafeZones: incoming.showSafeZones !== undefined
+            ? incoming.showSafeZones !== false
+            : (existing.showSafeZones !== false),
         meta,
     };
     await fsp.mkdir(projectDir, { recursive: true });
@@ -1794,17 +1868,27 @@ function buildDirectorCatalog(composition) {
             return (b.z ?? 0) - (a.z ?? 0);
         })
         .slice(0, MAX_PROMPT_LAYERS);
-    return layers.map((layer, index) => ({
-        alias: `L${String(index + 1).padStart(2, '0')}`,
-        id: layer.id,
-        name: layer.name,
-        role: layer.role || 'prop',
-        z: layer.z ?? index,
-        x: Number(layer.x ?? 0),
-        y: Number(layer.y ?? 0),
-        w: Number(layer.w ?? 0),
-        h: Number(layer.h ?? 0),
-    }));
+    return layers.map((layer, index) => {
+        const entry = {
+            alias: `L${String(index + 1).padStart(2, '0')}`,
+            id: layer.id,
+            name: layer.name,
+            type: layer.type === 'text' ? 'text' : 'image',
+            role: layer.role || 'prop',
+            z: layer.z ?? index,
+            x: Number(layer.x ?? 0),
+            y: Number(layer.y ?? 0),
+            w: Number(layer.w ?? 0),
+            h: Number(layer.h ?? 0),
+        };
+        if (entry.type === 'text') {
+            const copy = typeof layer.text === 'string'
+                ? layer.text
+                : (layer.text && typeof layer.text === 'object' ? Object.values(layer.text).find((v) => typeof v === 'string') : '') || '';
+            entry.text = String(copy).slice(0, 120);
+        }
+        return entry;
+    });
 }
 
 function buildVisionPrompt(composition, context, catalog) {
@@ -1829,7 +1913,7 @@ Keep every value short. Do not invent elements that are not in the image.`;
 
 function buildWriterPrompt({ composition, context, analysis, catalog, count, retry }) {
     const inventory = catalog
-        .map((layer) => `${layer.alias} | ${layer.name} | ${layer.role} | z=${layer.z} | box=${layer.x.toFixed(1)},${layer.y.toFixed(1)},${layer.w.toFixed(1)},${layer.h.toFixed(1)}`)
+        .map((layer) => `${layer.alias} | ${layer.name}${layer.type === 'text' ? ' (text)' : ''} | ${layer.role} | z=${layer.z} | box=${layer.x.toFixed(1)},${layer.y.toFixed(1)},${layer.w.toFixed(1)},${layer.h.toFixed(1)}`)
         .join('\n');
     const characters = Array.isArray(composition.characters) ? composition.characters : [];
     const characterInventory = characters.map((character) => {
@@ -1882,6 +1966,8 @@ RULES:
 - Allowed presets ONLY: ${PRESET_NAMES.join(', ')}.
 - Every proposal MUST contain ${characters.length ? 'character settings and/or 6-10 layer commands' : '6-10 commands'} on DIFFERENT layers. Never animate the same layer twice in one proposal.
 - Do not animate the final reference image; it is not in the inventory.
+- Layers marked (text) are readable copy: animate them with fadeIn, fadeOut, zoom, or pulse only. Never sway, spin, shake, or hop a headline.
+- The composition may have multiple formats; every proposal applies to all of them, so animate the base layer and do not assume one size.
 - background/cloud layers -> drift, parallax, or fadeOut; water/waves -> float or sway; vegetation/reeds/cattails -> sway or swing; character/mermaid -> breathe, idle, hop, or float; sparkles/stars -> flicker, pulse, or blinkIn; sword/shield -> float, spin, or idle; lettering -> fadeIn, fadeOut, zoom, or pulse.
 - Use params that belong to the preset:
   sway -> {amplitude: 0.5-3, tilt: 1-5}
@@ -1910,7 +1996,7 @@ ${characterSection}
 VISUAL ANALYSIS:
 ${JSON.stringify(analysis, null, 2)}
 
-LAYER INVENTORY (alias | name | role | z | x,y,w,h):
+LAYER INVENTORY (alias | name | role | z | x,y,w,h) — layers marked (text) are readable copy:
 ${inventory}`;
 }
 
@@ -2210,6 +2296,1135 @@ async function generateDirectorIdeas(id, payload = {}) {
 
 // ─── Routing ──────────────────────────────────────────────────────────
 
+// ─── Fonts (Phase 1) ──────────────────────────────────────────────────
+const FONT_FORMATS = [
+    { ext: 'woff2', mime: 'font/woff2', magic: [0x77, 0x4F, 0x46, 0x32] },
+    { ext: 'woff', mime: 'font/woff', magic: [0x77, 0x4F, 0x46, 0x46] },
+    { ext: 'ttf', mime: 'font/ttf', magic: [0x00, 0x01, 0x00, 0x00] },
+    { ext: 'otf', mime: 'font/otf', magic: [0x4F, 0x54, 0x54, 0x4F] },
+];
+const FONT_NAME = /^[A-Za-z0-9_-]{1,120}\.(?:woff2?|ttf|otf)$/i;
+
+function detectFontFormat(buffer) {
+    if (!buffer || buffer.length < 4) return null;
+    return FONT_FORMATS.find((format) => format.magic.every((byte, index) => buffer[index] === byte)) || null;
+}
+
+function fontFamilyFromName(name) {
+    const base = String(name || '')
+        .replace(/\.[^.]+$/, '')
+        .replace(/[-_]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 80);
+    return base || 'Uploaded font';
+}
+
+async function saveFont(payload) {
+    const name = typeof payload?.name === 'string' ? payload.name : '';
+    const dataUrl = typeof payload?.dataUrl === 'string' ? payload.dataUrl : '';
+    const match = dataUrl.match(/^data:[^;,]+;base64,([A-Za-z0-9+/=]+)$/);
+    if (!match) throw httpError(400, 'Send the font as a base64 data URL.');
+    const buffer = Buffer.from(match[1], 'base64');
+    if (!buffer.length) throw httpError(400, 'The font file is empty.');
+    if (buffer.length > MAX_FONT_BYTES) throw httpError(413, 'Fonts are limited to 2 MB.');
+    const format = detectFontFormat(buffer);
+    if (!format) throw httpError(415, 'Unsupported font format. Use WOFF2, WOFF, TTF or OTF.');
+    await fsp.mkdir(FONTS_DIR, { recursive: true });
+    const family = fontFamilyFromName(name);
+    const id = `${slugify(family) || 'font'}-${crypto.randomBytes(3).toString('hex')}`;
+    await fsp.writeFile(path.join(FONTS_DIR, `${id}.${format.ext}`), buffer);
+    return {
+        id,
+        family,
+        // Data URLs keep the studio usable offline; the served URL is preferred.
+        url: `/api/fonts/${id}.${format.ext}`,
+        format: format.ext,
+        bytes: buffer.length,
+        weights: [400],
+    };
+}
+
+async function listFonts() {
+    try {
+        const entries = await fsp.readdir(FONTS_DIR, { withFileTypes: true });
+        return entries
+            .filter((entry) => entry.isFile() && FONT_NAME.test(entry.name))
+            .map((entry) => {
+                const id = entry.name.replace(/\.[^.]+$/, '');
+                const family = id.replace(/-[0-9a-f]{6}$/i, '').replace(/-+/g, ' ').trim() || id;
+                const format = FONT_FORMATS.find((item) => entry.name.toLowerCase().endsWith(`.${item.ext}`));
+                return {
+                    id,
+                    family,
+                    url: `/api/fonts/${encodeURIComponent(entry.name)}`,
+                    format: format ? format.ext : 'bin',
+                };
+            })
+            .sort((a, b) => a.family.localeCompare(b.family));
+    } catch (error) {
+        if (error.code === 'ENOENT') return [];
+        throw error;
+    }
+}
+
+// ─── Shared brand kits (Phase 4) ─────────────────────────────────────
+// One kit → many compositions. Each kit is a single JSON file; a composition
+// references it by `brandKitId` and falls back to its embedded kit.
+
+function brandKitFile(id) {
+    if (!BRAND_KIT_ID.test(String(id || ''))) throw httpError(400, 'Invalid brand kit id.');
+    return path.join(BRAND_KITS_DIR, `${id}.json`);
+}
+
+async function readBrandKit(id) {
+    let raw;
+    try {
+        raw = await fsp.readFile(brandKitFile(id), 'utf8');
+    } catch (error) {
+        if (error.code === 'ENOENT') throw httpError(404, 'Brand kit not found.');
+        throw error;
+    }
+    let parsed;
+    try {
+        parsed = JSON.parse(raw);
+    } catch {
+        throw httpError(500, `Brand kit ${id} is not valid JSON.`);
+    }
+    const kit = Core.normalizeBrandKit(parsed.kit || parsed);
+    if (!kit) throw httpError(500, `Brand kit ${id} could not be read.`);
+    return { kit, updatedAt: parsed.updatedAt || null };
+}
+
+async function listBrandKits() {
+    let entries;
+    try {
+        entries = await fsp.readdir(BRAND_KITS_DIR, { withFileTypes: true });
+    } catch (error) {
+        if (error.code === 'ENOENT') return [];
+        throw error;
+    }
+    const ids = entries
+        .filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
+        .map((entry) => entry.name.replace(/\.json$/, ''))
+        .filter((id) => BRAND_KIT_ID.test(id));
+    const kits = [];
+    for (const id of ids) {
+        try {
+            const { kit, updatedAt } = await readBrandKit(id);
+            kits.push({ ...kit, updatedAt });
+        } catch {
+            // A corrupt kit must not hide the rest.
+        }
+    }
+    return kits.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+async function saveBrandKit(id, payload) {
+    const kitId = String(id || '').trim();
+    if (!BRAND_KIT_ID.test(kitId)) {
+        throw httpError(400, 'A brand kit id must be 1-80 letters, digits, dashes or underscores.');
+    }
+    const incoming = payload && typeof payload === 'object' && payload.kit ? payload.kit : payload;
+    const kit = Core.normalizeBrandKit({ ...incoming, id: kitId });
+    if (!kit) throw httpError(400, 'The request must include a brand kit with a name, palette, fonts or logos.');
+    const encoded = JSON.stringify({ kit, updatedAt: new Date().toISOString() }, null, 2);
+    if (encoded.length > MAX_BRAND_KIT_BYTES) throw httpError(413, 'The brand kit is too large to save.');
+
+    const existing = await listBrandKits();
+    if (existing.length >= MAX_BRAND_KITS && !existing.some((entry) => entry.id === kitId)) {
+        throw httpError(409, `There are already ${MAX_BRAND_KITS} brand kits. Delete one first.`);
+    }
+    await fsp.mkdir(BRAND_KITS_DIR, { recursive: true });
+    await writeFileAtomic(brandKitFile(kitId), encoded);
+    const saved = await readBrandKit(kitId);
+    return { kit: saved.kit, updatedAt: saved.updatedAt };
+}
+
+async function deleteBrandKit(id) {
+    try {
+        await fsp.unlink(brandKitFile(id));
+    } catch (error) {
+        if (error.code === 'ENOENT') throw httpError(404, 'Brand kit not found.');
+        throw error;
+    }
+    return { deleted: true };
+}
+
+// ─── Brand packs (Phase 6) ───────────────────────────────────────────
+// A brand pack is the structured import of a scraped brand-kit folder: one
+// group (portfolio) plus N brands, each with tokens, a Word guide, logos,
+// photography and a generated studio brand kit. Template projects are built
+// from the shared brand-pack module, so the browser and the CLI agree.
+const BRAND_PACK_ID = /^[A-Za-z0-9_-]{1,80}$/;
+const BRAND_ASSET_EXT = /\.(png|jpe?g|gif|webp|svg)$/i;
+
+function brandPackDir(id) {
+    if (!BRAND_PACK_ID.test(String(id || ''))) throw httpError(400, 'Invalid brand pack id.');
+    return path.join(BRAND_PACKS_DIR, id);
+}
+
+function brandPackFile(id) {
+    return path.join(brandPackDir(id), 'pack.json');
+}
+
+function brandPackSummary(pack) {
+    return {
+        id: pack.id,
+        name: pack.name,
+        description: pack.description,
+        brandCount: pack.brands.length,
+        brands: pack.brands.map((brand) => ({
+            id: brand.id,
+            name: brand.name,
+            tagline: brand.tagline,
+            cover: brand.cover,
+            swatches: brand.palette.slice(0, 5).map((entry) => entry.hex),
+        })),
+        createdAt: pack.createdAt,
+        updatedAt: pack.updatedAt,
+        storage: pack.storage,
+    };
+}
+
+async function readBrandPack(id) {
+    let raw;
+    try {
+        raw = await fsp.readFile(brandPackFile(id), 'utf8');
+    } catch (error) {
+        if (error.code === 'ENOENT') throw httpError(404, 'Brand pack not found.');
+        throw error;
+    }
+    let parsed;
+    try {
+        parsed = JSON.parse(raw);
+    } catch {
+        throw httpError(500, `Brand pack ${id} is not valid JSON.`);
+    }
+    const pack = StudioBrand.normalizeBrandPack(parsed.pack || parsed);
+    if (!pack) throw httpError(500, `Brand pack ${id} could not be read.`);
+    pack.id = id;
+    return { pack, updatedAt: parsed.updatedAt || pack.updatedAt || null };
+}
+
+async function listBrandPacks() {
+    let entries;
+    try {
+        entries = await fsp.readdir(BRAND_PACKS_DIR, { withFileTypes: true });
+    } catch (error) {
+        if (error.code === 'ENOENT') return [];
+        throw error;
+    }
+    const summaries = [];
+    for (const entry of entries) {
+        if (!entry.isDirectory() || !BRAND_PACK_ID.test(entry.name)) continue;
+        try {
+            const { pack } = await readBrandPack(entry.name);
+            summaries.push(brandPackSummary(pack));
+        } catch {
+            // A corrupt pack must not hide the rest.
+        }
+    }
+    return summaries.sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+}
+
+async function deleteBrandPack(id) {
+    const dir = brandPackDir(id);
+    try {
+        await fsp.stat(dir);
+    } catch (error) {
+        if (error.code === 'ENOENT') throw httpError(404, 'Brand pack not found.');
+        throw error;
+    }
+    // Remove the shared kits this pack created; any composition that attached
+    // one keeps its embedded snapshot and falls back to it.
+    const { pack } = await readBrandPack(id).catch(() => ({ pack: null }));
+    await fsp.rm(dir, { recursive: true, force: true });
+    for (const brand of pack?.brands || []) {
+        if (brand.brandKitId) await deleteBrandKit(brand.brandKitId).catch(() => {});
+    }
+    return { deleted: true };
+}
+
+// --- Import helpers -------------------------------------------------
+
+function stripCommonRoot(files) {
+    if (!files.length) return files;
+    const parts = files.map((file) => String(file.raw || '').split('/').filter(Boolean));
+    const root = parts[0][0];
+    if (!root) return files;
+    // Only strip a wrapper when every file sits inside it. A folder that is
+    // itself a brand keeps its files one level down, so this is safe.
+    if (!parts.every((segments) => segments.length > 1 && segments[0] === root)) return files;
+    return files.map((file) => ({
+        ...file,
+        raw: String(file.raw || '').split('/').filter(Boolean).slice(1).join('/'),
+    }));
+}
+
+function baseNameOf(relative) {
+    const value = String(relative || '');
+    return value.slice(value.lastIndexOf('/') + 1);
+}
+
+function dirOf(relative) {
+    const value = String(relative || '');
+    const at = value.lastIndexOf('/');
+    return at < 0 ? '' : value.slice(0, at);
+}
+
+function topLevelOf(relative) {
+    return String(relative || '').split('/')[0] || '';
+}
+
+function dirBeforeTokens(relative) {
+    const value = String(relative || '');
+    if (!/\.tokens\.json$/i.test(baseNameOf(value))) return null;
+    let dir = dirOf(value);
+    if (/(^|\/)tokens$/i.test(dir)) dir = dir.replace(/(^|\/)tokens$/i, '');
+    return dir.replace(/\/$/, '');
+}
+
+function parseTokensJson(raw) {
+    let parsed;
+    try {
+        parsed = JSON.parse(raw);
+    } catch {
+        return null;
+    }
+    if (!parsed || typeof parsed !== 'object') return null;
+    if (parsed.brand || parsed.color || parsed.typography) return parsed;
+    const keys = Object.keys(parsed).filter((key) => parsed[key] && typeof parsed[key] === 'object');
+    if (!keys.length) return null;
+    const single = keys.find((key) => parsed[key].brand);
+    return single ? parsed[single] : parsed;
+}
+
+function combinedTokensFor(json, dir, fallbackName) {
+    if (!json || typeof json !== 'object') return null;
+    if (json.brand || json.color) return json;
+    const slug = String(dir || '')
+        .replace(/^\d+[-_]?/, '')
+        .toLowerCase();
+    const wanted = new Set([slug, slug.replace(/^the-/, ''), String(fallbackName || '').toLowerCase()]);
+    const candidates = Object.entries(json).filter(([, value]) => value && typeof value === 'object' && (value.brand || value.color));
+    if (!candidates.length) return null;
+    const match = candidates.find(([key, value]) => {
+        const names = [key, value.brand?.name, value.brand?.wordmark]
+            .filter(Boolean)
+            .map((name) => String(name).toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''));
+        return names.some((name) => wanted.has(name) || slug.includes(name) || name.includes(slug.replace(/^the-/, '')));
+    });
+    if (match) return match[1];
+    return candidates.length === 1 ? candidates[0][1] : null;
+}
+
+function readReadme(files, zipBuffer) {
+    const entry = files.find((file) => /^readme\.md$/i.test(baseNameOf(file.relative)) && !dirOf(file.relative))
+        || files.find((file) => /^readme\.md$/i.test(baseNameOf(file.relative)));
+    if (!entry) return { name: '', description: '' };
+    let raw = '';
+    try {
+        raw = extractZipEntry(zipBuffer, entry.entry).toString('utf8');
+    } catch {
+        return { name: '', description: '' };
+    }
+    const h1 = raw.match(/^#\s+(.+)$/m);
+    const name = h1
+        ? String(h1[1]).split(/\s+[—–]\s+/)[0].trim()
+        : '';
+    const paragraphs = raw
+        .split(/\n{2,}/)
+        .map((line) => {
+            const trimmed = line.trim();
+            return {
+                heading: /^#+\s/.test(trimmed),
+                text: trimmed.replace(/^#+\s*/, '').replace(/\s+/g, ' ').trim(),
+            };
+        })
+        .filter((paragraph) => paragraph.text && paragraph.text.length > 40 && !paragraph.heading && !/^[-|`]/.test(paragraph.text))
+        .map((paragraph) => paragraph.text);
+    return { name, description: paragraphs[0] || '' };
+}
+
+function safeBrandAssetName(relative) {
+    const value = String(relative || '').replace(/\\/g, '/');
+    if (!value || value.length > 300) return null;
+    const parts = value.split('/').filter(Boolean);
+    if (!parts.length) return null;
+    for (const part of parts) {
+        if (part === '.' || part === '..' || part.startsWith('.')) return null;
+        if (!/^[A-Za-z0-9][A-Za-z0-9._~ ()\-]{0,180}$/.test(part)) return null;
+    }
+    return parts.join('/');
+}
+
+function svgAsset(buffer) {
+    const head = buffer.subarray(0, 1200).toString('utf8').toLowerCase();
+    return head.includes('<svg');
+}
+
+/**
+ * Brand-kit SVGs are generated artwork and occasionally carry duplicate
+ * attributes (a recoloured path keeps the original `fill`). Browsers refuse to
+ * decode such a file, so repair the start tags before storing it: keep the
+ * first value of each attribute, drop event handlers and scripts, and make sure
+ * the root carries the SVG namespace.
+ */
+function sanitizeSvgBuffer(buffer) {
+    let source = buffer.toString('utf8');
+    if (source.charCodeAt(0) === 0xFEFF) source = source.slice(1);
+    source = source.replace(/<script\b[\s\S]*?<\/script>/gi, '');
+    source = source.replace(/\s+on[a-z]+\s*=\s*("[^"]*"|'[^']*')/gi, '');
+    let repaired = 0;
+    source = source.replace(/<([A-Za-z][\w:.-]*)((?:\s+[^<>]*?)?)(\/?)>/g, (match, tag, attrText, slash) => {
+        const attrs = [];
+        const seen = new Set();
+        const attrPattern = /([A-Za-z_:][-A-Za-z0-9_:.]*)\s*=\s*("([^"]*)"|'([^']*)')/g;
+        let attribute;
+        while ((attribute = attrPattern.exec(attrText))) {
+            const name = attribute[1];
+            const lower = name.toLowerCase();
+            if (seen.has(lower) || /^on/.test(lower)) {
+                repaired += 1;
+                continue;
+            }
+            seen.add(lower);
+            const value = attribute[3] !== undefined ? attribute[3] : attribute[4];
+            attrs.push(`${name}="${String(value).replace(/"/g, '&quot;')}"`);
+        }
+        if (tag.toLowerCase() === 'svg' && !seen.has('xmlns')) {
+            attrs.unshift('xmlns="http://www.w3.org/2000/svg"');
+            repaired += 1;
+        }
+        return `<${tag}${attrs.length ? ` ${attrs.join(' ')}` : ''}${slash}>`;
+    });
+    return { data: Buffer.from(source, 'utf8'), repaired };
+}
+
+function assetKind(relative) {
+    const value = String(relative || '').toLowerCase();
+    if (/(^|\/)logos?\//.test(value) || /(?:^|\/)(logo|wordmark|monogram|icon|symbol|lockup|mark)[^/]*\.(png|jpe?g|webp|svg)$/.test(value)) return 'logo';
+    if (/(^|\/)colou?rs?\//.test(value) || /palette/.test(value)) return 'palette';
+    if (/(^|\/)type\//.test(value) || /specimen/.test(value)) return 'type';
+    if (/(^|\/)photography\//.test(value)) return 'photo';
+    if (/(^|\/)cover\.(png|jpe?g|webp)$/.test(value)) return 'cover';
+    return 'photo';
+}
+
+function assetLabel(relative) {
+    return baseNameOf(relative).replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim();
+}
+
+async function writeBrandAsset(filesDir, brandKey, relative, buffer) {
+    const safe = safeBrandAssetName(relative);
+    if (!safe) return null;
+    const target = path.join(filesDir, brandKey, ...safe.split('/'));
+    const root = path.join(filesDir, brandKey) + path.sep;
+    if (!path.resolve(target).startsWith(root)) return null;
+    await fsp.mkdir(path.dirname(target), { recursive: true });
+    await fsp.writeFile(target, buffer);
+    return safe;
+}
+
+function chargeBrandBudget(budget, bytes) {
+    if (!budget) return;
+    budget.bytes += Number(bytes) || 0;
+    if (budget.bytes > MAX_BRAND_EXTRACTED_BYTES) {
+        throw httpError(413, 'The extracted brand kit is too large (480 MB maximum).');
+    }
+}
+
+async function brandFromDirectory(options) {
+    const {
+        files, zipBuffer, brandDir, fallbackName, packId, packSlug, filesDir, warnings, budget,
+    } = options;
+    const dirPrefix = brandDir ? `${brandDir}/` : '';
+    // A root-level brand (tokens at the ZIP root) owns every file, including
+    // assets/; a folder brand owns only its own subtree.
+    const inDir = files.filter((file) => (brandDir ? file.relative.startsWith(dirPrefix) : true));
+    const relativeToBrand = (file) => (brandDir ? file.relative.slice(dirPrefix.length) : file.relative);
+
+    // Tokens: the brand's own file wins over the group file.
+    let tokens = null;
+    let tokensPath = '';
+    for (const file of inDir) {
+        const tokenRelative = relativeToBrand(file);
+        if (!/(^|\/)tokens\/[^/]+\.tokens\.json$/i.test(tokenRelative) && !/^[^/]+\.tokens\.json$/i.test(tokenRelative)) continue;
+        try {
+            tokens = parseTokensJson(extractZipEntry(zipBuffer, file.entry).toString('utf8'));
+            tokensPath = relativeToBrand(file);
+        } catch {
+            warnings.push(`Could not read ${file.relative}.`);
+        }
+        break;
+    }
+    if (!tokens && options.rootTokens) {
+        tokens = combinedTokensFor(options.rootTokens, brandDir, fallbackName);
+        if (tokens) tokensPath = 'tokens (combined file)';
+    }
+    if (!tokens) {
+        warnings.push(`${brandDir || 'The root folder'} has no readable tokens file.`);
+        tokens = {};
+    }
+
+    const brandMeta = tokens.brand && typeof tokens.brand === 'object' ? tokens.brand : {};
+    const name = (typeof brandMeta.name === 'string' && brandMeta.name.trim())
+        || titleCaseBrand(brandDir || fallbackName)
+        || 'Brand';
+    const id = slugify((brandDir || name || fallbackName).replace(/^\d+[-_]?/, '')) || slugify(name) || 'brand';
+
+    // Guide: prefer a file whose name says brand guide.
+    const docxFiles = inDir.filter((file) => /\.docx$/i.test(relativeToBrand(file)) && !/^assets\//i.test(relativeToBrand(file)));
+    const docx = docxFiles.find((file) => /brand[-_ ]?guide/i.test(baseNameOf(file.relative))) || docxFiles[0] || null;
+    let doc = null;
+    let docPath = '';
+    let docUrl = '';
+    if (docx) {
+        try {
+            const docBuffer = extractZipEntry(zipBuffer, docx.entry);
+            chargeBrandBudget(budget, docBuffer.length);
+            doc = parseBrandDocx(docBuffer, {
+                readZipEntries,
+                extractZipEntry,
+            }, { name: `${name} brand guide` });
+            docPath = relativeToBrand(docx);
+            const storedDoc = await writeBrandAsset(filesDir, id, docPath, docBuffer);
+            if (storedDoc) {
+                docUrl = urlPath('api', 'brand-packs', packId, 'files', id, storedDoc);
+            }
+        } catch (error) {
+            warnings.push(`Could not read ${docx.relative}: ${error.message}`);
+        }
+    }
+
+    // Assets.
+    const logos = [];
+    const photography = [];
+    const paletteImages = [];
+    const typeSpecimens = [];
+    let cover = null;
+    let coverRank = 99;
+    let assetCount = 0;
+    for (const file of inDir) {
+        const relative = relativeToBrand(file);
+        if (!BRAND_ASSET_EXT.test(relative)) continue;
+        if (assetCount >= MAX_BRAND_ASSETS) {
+            warnings.push(`Skipped the remaining assets in ${brandDir || 'the root'}: the ${MAX_BRAND_ASSETS}-asset limit was reached.`);
+            break;
+        }
+        assetCount += 1;
+        let buffer;
+        try {
+            buffer = extractZipEntry(zipBuffer, file.entry);
+        } catch (error) {
+            warnings.push(`Could not extract ${file.relative}: ${error.message}`);
+            continue;
+        }
+        if (buffer.length > MAX_BRAND_ASSET_BYTES) {
+            warnings.push(`Skipped ${fileNameForWarning(file.relative)}: the asset exceeds 40 MB.`);
+            continue;
+        }
+        chargeBrandBudget(budget, buffer.length);
+        const isSvg = /\.svg$/i.test(relative) && svgAsset(buffer);
+        const format = isSvg ? { format: 'svg', extension: 'svg', mime: 'image/svg+xml' } : detectImageFormat(buffer);
+        if (!format) continue;
+        let size = null;
+        if (!isSvg) {
+            try {
+                size = readImageSize(buffer, format.format);
+            } catch {
+                size = null;
+            }
+        } else {
+            const sanitized = sanitizeSvgBuffer(buffer);
+            if (sanitized.repaired) warnings.push(`Repaired ${fileNameForWarning(relative)} (invalid SVG attributes).`);
+            buffer = sanitized.data;
+        }
+        const stored = await writeBrandAsset(filesDir, id, relative, buffer);
+        if (!stored) {
+            warnings.push(`Skipped ${file.relative}: unsafe file name.`);
+            continue;
+        }
+        const url = urlPath('api', 'brand-packs', packId, 'files', id, stored);
+        const kind = assetKind(relative);
+        const asset = {
+            name: assetLabel(relative),
+            url,
+            path: stored,
+            width: size ? size.width : null,
+            height: size ? size.height : null,
+            format: format.extension,
+        };
+        if (kind === 'logo') {
+            logos.push({ ...asset, variant: undefined, kind: undefined, presentation: undefined });
+        } else if (kind === 'palette') {
+            paletteImages.push(asset);
+            if (coverRank > 1) {
+                cover = url;
+                coverRank = 1;
+            }
+        } else if (kind === 'type') {
+            typeSpecimens.push(asset);
+        } else if (kind === 'cover') {
+            // A brand cover is artwork, not reportage; it never enters the
+            // photography pool used by the flyer template.
+            cover = url;
+            coverRank = 0;
+        } else {
+            photography.push(asset);
+            if (coverRank > 2) {
+                cover = url;
+                coverRank = 2;
+            }
+        }
+    }
+
+    const brand = {
+        id,
+        name,
+        wordmark: brandMeta.wordmark || '',
+        tagline: brandMeta.tagline || '',
+        url: brandMeta.url || '',
+        version: brandMeta.version || '',
+        captured: brandMeta.captured || '',
+        dir: brandDir,
+        tokensPath,
+        docPath,
+        palette: tokens.color || {},
+        typography: tokens.typography || {},
+        voice: tokens.voice || {},
+        logos,
+        photography,
+        paletteImages,
+        typeSpecimens,
+        cover,
+        brandKitId: null,
+        guidelines: doc ? {
+            positioning: doc.positioning,
+            applications: doc.applications,
+            printSpec: doc.printSpec,
+            contact: doc.contact,
+            facts: doc.facts,
+            typeHierarchy: doc.typeHierarchy,
+            logoRules: doc.logoRules,
+            docTitle: doc.title,
+            docUrl,
+            sections: doc.sections,
+        } : {},
+        tokens: tokens.logo || null,
+    };
+
+    const normalized = StudioBrand.normalizeBrand(brand, 0);
+    if (!normalized) return null;
+
+    // Save the studio kit so every template composition can attach it by id.
+    const kitId = slugify(`${packSlug}-${normalized.id}`).slice(0, 80);
+    if (BRAND_KIT_ID.test(kitId)) {
+        try {
+            const kit = StudioBrand.brandKitFor(normalized, kitId);
+            if (kit) {
+                await saveBrandKit(kitId, { kit });
+                normalized.brandKitId = kitId;
+            }
+        } catch (error) {
+            warnings.push(`Could not save the shared kit for ${normalized.name}: ${error.message}`);
+        }
+    }
+    return { brand: normalized, docPath, docUrl };
+}
+
+function titleCaseBrand(value) {
+    const text = String(value || '').replace(/^\d+[-_]?/, '').replace(/[-_]+/g, ' ').trim();
+    return text.replace(/\b[a-z]/g, (char) => char.toUpperCase());
+}
+
+function fileNameForWarning(relative) {
+    return baseNameOf(relative) || relative;
+}
+
+async function createBrandPackImport(payload) {
+    const zipBuffer = decodeBase64(payload?.zip, 'Brand kit ZIP');
+    if (zipBuffer.length > MAX_BRAND_PACK_ZIP) throw httpError(413, 'The brand kit ZIP is too large (160 MB maximum).');
+    const zipEntries = readZipEntries(zipBuffer).filter((entry) => !entry.name.endsWith('/'));
+    if (!zipEntries.length) throw httpError(400, 'The ZIP is empty.');
+    if (zipEntries.length > MAX_BRAND_FILES) {
+        throw httpError(413, `The ZIP contains more than ${MAX_BRAND_FILES} files.`);
+    }
+
+    let declared = 0;
+    zipEntries.forEach((entry) => {
+        declared += Number(entry.uncompressedSize) || 0;
+    });
+    if (declared > MAX_BRAND_EXTRACTED_BYTES) {
+        throw httpError(413, 'The extracted brand kit is too large (480 MB maximum).');
+    }
+
+    const allFiles = stripCommonRoot(zipEntries.map((entry) => ({
+        entry,
+        raw: String(entry.name || '').replace(/\\/g, '/').replace(/^\/+/, ''),
+    })));
+    const files = [];
+    for (const file of allFiles) {
+        const relative = safeRelativePath(file.raw);
+        if (!relative) continue;
+        files.push({ ...file, relative });
+    }
+    if (!files.length) throw httpError(400, 'The ZIP does not contain any readable files.');
+
+    const readme = readReadme(files, zipBuffer);
+    const requestedName = sanitizeLabel(payload?.name, '').trim();
+    const packName = requestedName || readme.name || titleCaseBrand(topLevelOf(files[0].relative)) || 'Brand pack';
+    const packSlug = slugify(packName) || 'brand-pack';
+    const stamp = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14);
+    const packId = `${packSlug.slice(0, 40)}-${stamp}-${crypto.randomBytes(2).toString('hex')}`;
+    const packDir = path.join(BRAND_PACKS_DIR, packId);
+    const filesDir = path.join(packDir, 'files');
+    const warnings = [];
+    const budget = { bytes: 0 };
+    const savedKitIds = [];
+    const existingPacks = await listBrandPacks();
+    if (existingPacks.length >= MAX_BRAND_PACKS) {
+        throw httpError(409, `There are already ${MAX_BRAND_PACKS} brand packs. Delete one first.`);
+    }
+
+    await fsp.mkdir(filesDir, { recursive: true });
+    try {
+        const tokenFiles = files
+            .map((file) => ({ ...file, dir: dirBeforeTokens(file.relative) }))
+            .filter((file) => file.dir !== null);
+        // Keep only brand directories that own the tokens file (dir/tokens/*.json).
+        const ownedBrandDirs = [...new Set(tokenFiles
+            .map((file) => file.dir)
+            .filter((dir) => dir && dir.split('/').length >= 1))];
+        let candidates = ownedBrandDirs.filter((dir) => !/portfolio/i.test(dir));
+        // Numbered folders carry the intended reading order.
+        candidates.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+        if (!candidates.length) {
+            const guideDirs = [...new Set(files
+                .filter((file) => /brand[-_ ]?guide\.docx$/i.test(baseNameOf(file.relative)))
+                .map((file) => dirOf(file.relative))
+                .filter((dir) => dir && !/portfolio/i.test(dir)))];
+            candidates = guideDirs.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+        }
+        if (!candidates.length) {
+            const docxDirs = [...new Set(files
+                .filter((file) => /\.docx$/i.test(file.relative))
+                .map((file) => dirOf(file.relative))
+                .filter((dir) => dir && !/portfolio/i.test(dir)))];
+            candidates = docxDirs.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+        }
+        // A pack with tokens at the root is a single brand.
+        const rootTokensFile = files.find((file) => /^tokens\/[^/]+\.tokens\.json$/i.test(file.relative))
+            || files.find((file) => /^[^/]+\.tokens\.json$/i.test(file.relative));
+        const rootTokens = rootTokensFile
+            ? parseTokensJson(extractZipEntry(zipBuffer, rootTokensFile.entry).toString('utf8'))
+            : null;
+        if (!candidates.length && rootTokens) {
+            // Tokens live at the root: the pack is a single brand.
+            candidates = [''];
+        }
+
+        const brands = [];
+        for (const dir of candidates) {
+            const built = await brandFromDirectory({
+                files,
+                zipBuffer,
+                brandDir: dir,
+                fallbackName: packName,
+                packId,
+                packSlug,
+                filesDir,
+                warnings,
+                rootTokens,
+            });
+            if (built && !brands.some((brand) => brand.id === built.brand.id)) {
+                brands.push(built.brand);
+                if (built.brand.brandKitId) savedKitIds.push(built.brand.brandKitId);
+            }
+        }
+        if (!brands.length) {
+            throw httpError(400, 'No brands were found. Expected a folder per brand, each with tokens/*.tokens.json and an optional *Brand-Guide.docx.');
+        }
+
+        // Portfolio: any folder that says so, otherwise the top-level docs.
+        const portfolioDir = [...new Set(files.map((file) => topLevelOf(file.relative)))]
+            .find((dir) => /portfolio/i.test(dir)) || '';
+        let portfolio = { name: packName, summary: readme.description, assets: [] };
+        if (portfolioDir) {
+            const portfolioAssets = [];
+            let portfolioDoc = null;
+            let portfolioDocPath = '';
+            for (const file of files) {
+                if (!file.relative.startsWith(`${portfolioDir}/`)) continue;
+                const relative = file.relative.slice(portfolioDir.length + 1);
+                if (/\.docx$/i.test(relative) && !portfolioDoc) {
+                    try {
+                        const docBuffer = extractZipEntry(zipBuffer, file.entry);
+                        chargeBrandBudget(budget, docBuffer.length);
+                        portfolioDoc = parseBrandDocx(docBuffer, {
+                            readZipEntries,
+                            extractZipEntry,
+                        }, { name: 'Portfolio brand overview' });
+                        const storedDoc = await writeBrandAsset(filesDir, 'portfolio', relative, docBuffer);
+                        portfolioDocPath = storedDoc ? relative : '';
+                    } catch (error) {
+                        warnings.push(`Could not read ${file.relative}: ${error.message}`);
+                    }
+                }
+                if (!BRAND_ASSET_EXT.test(relative)) continue;
+                if (portfolioAssets.length >= MAX_BRAND_ASSETS) continue;
+                let buffer;
+                try {
+                    buffer = extractZipEntry(zipBuffer, file.entry);
+                } catch {
+                    continue;
+                }
+                if (buffer.length > MAX_BRAND_ASSET_BYTES) continue;
+                chargeBrandBudget(budget, buffer.length);
+                const isSvg = /\.svg$/i.test(relative) && svgAsset(buffer);
+                const format = isSvg ? { format: 'svg', extension: 'svg' } : detectImageFormat(buffer);
+                if (!format) continue;
+                if (isSvg) buffer = sanitizeSvgBuffer(buffer).data;
+                const stored = await writeBrandAsset(filesDir, 'portfolio', relative, buffer);
+                if (!stored) continue;
+                portfolioAssets.push({
+                    name: assetLabel(relative),
+                    url: urlPath('api', 'brand-packs', packId, 'files', 'portfolio', stored),
+                    path: stored,
+                });
+            }
+            portfolio = {
+                name: portfolioDoc?.title || titleCaseBrand(portfolioDir),
+                summary: portfolioDoc?.summary || readme.description,
+                docTitle: portfolioDoc?.title || '',
+                docUrl: portfolioDocPath
+                    ? urlPath('api', 'brand-packs', packId, 'files', 'portfolio', safeBrandAssetName(portfolioDocPath) || baseNameOf(portfolioDocPath))
+                    : '',
+                assets: portfolioAssets,
+                guidelines: portfolioDoc ? {
+                    applications: portfolioDoc.applications,
+                    printSpec: portfolioDoc.printSpec,
+                    contact: portfolioDoc.contact,
+                    facts: portfolioDoc.facts,
+                    logoRules: portfolioDoc.logoRules,
+                    typeHierarchy: portfolioDoc.typeHierarchy,
+                    docTitle: portfolioDoc.title,
+                    sections: portfolioDoc.sections,
+                } : {},
+            };
+        }
+
+        const createdAt = new Date().toISOString();
+        const pack = StudioBrand.normalizeBrandPack({
+            schema: StudioBrand.PACK_SCHEMA,
+            id: packId,
+            name: packName,
+            description: readme.description,
+            source: 'zip',
+            storage: `data/brand-packs/${packId}`,
+            createdAt,
+            updatedAt: createdAt,
+            brands,
+            portfolio,
+            meta: {
+                source: 'zip',
+                zipName: sanitizeFilename(payload?.zipName, 'brand-kit.zip'),
+                fileCount: files.length,
+                declaredBytes: declared,
+                warnings: warnings.slice(0, 60),
+                readme: readme.name,
+                createdAt,
+            },
+        });
+        if (!pack) throw httpError(500, 'The brand pack could not be built.');
+        await writeFileAtomic(brandPackFile(packId), JSON.stringify({ pack, updatedAt: createdAt }, null, 2));
+        return { pack, summary: brandPackSummary(pack) };
+    } catch (error) {
+        await fsp.rm(packDir, { recursive: true, force: true }).catch(() => {});
+        throw error;
+    }
+}
+
+/**
+ * Copies the pack assets a template actually references into its own import
+ * project and rewrites the URLs. A created menu or card then survives the pack
+ * being deleted, and the existing static /data/ route serves the files.
+ */
+async function localiseBrandAssets(packId, projectId, projectDir, composition) {
+    const prefix = `/api/brand-packs/${packId}/files/`;
+    const copied = new Set();
+    const copy = async (url) => {
+        if (typeof url !== 'string' || !url.startsWith(prefix)) return url;
+        const relative = safeRelativePath(url.slice(prefix.length));
+        if (!relative) return url;
+        const source = path.join(BRAND_PACKS_DIR, packId, 'files', ...relative.split('/'));
+        const target = path.join(projectDir, 'assets', ...relative.split('/'));
+        try {
+            await fsp.mkdir(path.dirname(target), { recursive: true });
+            if (!copied.has(target)) {
+                await fsp.copyFile(source, target);
+                copied.add(target);
+            }
+        } catch {
+            return url;
+        }
+        return urlPath('data', 'imports', projectId, 'assets', relative);
+    };
+    for (const layer of composition.layers || []) {
+        if (typeof layer.url === 'string' && layer.url.startsWith(prefix)) {
+            layer.url = await copy(layer.url);
+            if (Array.isArray(layer.frames)) {
+                layer.frames = await Promise.all(layer.frames.map((frame) => copy(frame)));
+            }
+        }
+    }
+    if (composition.brandKit && Array.isArray(composition.brandKit.logos)) {
+        for (const logo of composition.brandKit.logos) {
+            logo.url = await copy(logo.url);
+        }
+    }
+    if (copied.size) composition.meta = { ...(composition.meta || {}), localAssets: copied.size };
+}
+
+async function createBrandTemplateProject(packId, payload) {
+    const { pack } = await readBrandPack(packId);
+    const brandId = String(payload?.brandId || '');
+    const brand = pack.brands.find((entry) => entry.id === brandId);
+    if (!brand) throw httpError(404, `The brand “${brandId || '?'}” is not in this pack.`);
+    const templateId = String(payload?.templateId || '');
+    const template = StudioBrand.templateById(templateId);
+    if (!template) throw httpError(400, `Unknown template “${templateId}”.`);
+
+    const stamp = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14);
+    const base = slugify(`${brand.id}-${template.id}`) || 'brand-template';
+    const id = `${base.slice(0, 48)}-${stamp}-${crypto.randomBytes(2).toString('hex')}`;
+    const projectDir = path.join(IMPORTS_DIR, id);
+    const name = sanitizeLabel(payload?.name, `${brand.name} — ${template.label}`);
+    const createdAt = new Date().toISOString();
+    let composition;
+    try {
+        composition = StudioBrand.createTemplateComposition({
+            packId: pack.id,
+            packName: pack.name,
+            brand,
+            templateId: template.id,
+            projectId: id,
+            name,
+        });
+    } catch (error) {
+        throw httpError(500, error.message || 'The template could not be built.');
+    }
+    composition.id = id;
+    composition.name = name;
+    composition.meta = {
+        ...(composition.meta || {}),
+        source: 'brand-template',
+        storage: `data/imports/${id}`,
+        createdAt,
+        updatedAt: createdAt,
+    };
+    // The shared kit points at the pack's own asset URLs. A created template is
+    // self-contained, so it keeps its localized kit snapshot instead; the shared
+    // kit id is recorded for reference and can still be attached manually.
+    composition.meta = { ...(composition.meta || {}), sharedKitId: brand.brandKitId || null };
+    composition.brandKitId = null;
+    await fsp.mkdir(projectDir, { recursive: true });
+    try {
+        await localiseBrandAssets(pack.id, id, projectDir, composition);
+        await writeFileAtomic(path.join(projectDir, 'composition.json'), JSON.stringify(composition, null, 2));
+    } catch (error) {
+        await fsp.rm(projectDir, { recursive: true, force: true }).catch(() => {});
+        throw error;
+    }
+    return {
+        project: {
+            id,
+            name,
+            createdAt,
+            updatedAt: createdAt,
+            width: composition.width,
+            height: composition.height,
+            layerCount: composition.layers.length,
+            referenceUrl: null,
+            packId: pack.id,
+            brandId: brand.id,
+            templateId: template.id,
+        },
+        composition,
+    };
+}
+
+// ─── Brief ingestion (Phase 5) ───────────────────────────────────────
+// A brief is a CSV or an .xlsx table: one row per creative, one column per
+// template variable. The XLSX reader is built on the ZIP reader above, so the
+// server stays dependency-free.
+const OLE2_MAGIC = Buffer.from([0xD0, 0xCF, 0x11, 0xE0]);
+
+function decodeXmlEntities(value) {
+    return String(value ?? '').replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (match, entity) => {
+        if (entity[0] === '#') {
+            const hex = entity[1] === 'x' || entity[1] === 'X';
+            const code = Number.parseInt(hex ? entity.slice(2) : entity.slice(1), hex ? 16 : 10);
+            if (!Number.isFinite(code)) return match;
+            try {
+                return String.fromCodePoint(code);
+            } catch {
+                return match;
+            }
+        }
+        const named = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
+        return Object.prototype.hasOwnProperty.call(named, entity) ? named[entity] : match;
+    });
+}
+
+function parseSharedStrings(xml) {
+    const strings = [];
+    const entry = /<si\b[^>]*>([\s\S]*?)<\/si>/g;
+    let match;
+    while ((match = entry.exec(String(xml || '')))) {
+        const text = [...match[1].matchAll(/<t\b[^>]*>([\s\S]*?)<\/t>/g)]
+            .map((run) => decodeXmlEntities(run[1]))
+            .join('');
+        strings.push(text);
+    }
+    return strings;
+}
+
+function columnIndexFromRef(ref) {
+    const letters = String(ref || '').match(/^[A-Z]+/i);
+    if (!letters) return null;
+    let index = 0;
+    for (const char of letters[0].toUpperCase()) {
+        index = index * 26 + (char.charCodeAt(0) - 64);
+    }
+    return index - 1;
+}
+
+function parseWorksheetRows(xml, sharedStrings) {
+    const rows = [];
+    const rowPattern = /<row\b[^>]*>([\s\S]*?)<\/row>/g;
+    let rowMatch;
+    while ((rowMatch = rowPattern.exec(String(xml || '')))) {
+        const cells = [];
+        const cellPattern = /<c\b([^>]*?)\/>|<c\b([^>]*?)>([\s\S]*?)<\/c>/g;
+        let cellMatch;
+        while ((cellMatch = cellPattern.exec(rowMatch[1]))) {
+            const attrs = cellMatch[1] || cellMatch[2] || '';
+            const body = cellMatch[3] || '';
+            const ref = (attrs.match(/\br="([^"]+)"/) || [])[1] || '';
+            const type = (attrs.match(/\bt="([^"]+)"/) || [])[1] || 'n';
+            const position = columnIndexFromRef(ref);
+            let value = '';
+            if (type === 'inlineStr') {
+                value = [...body.matchAll(/<t\b[^>]*>([\s\S]*?)<\/t>/g)]
+                    .map((run) => decodeXmlEntities(run[1]))
+                    .join('');
+            } else {
+                const raw = (body.match(/<v\b[^>]*>([\s\S]*?)<\/v>/) || [])[1];
+                const text = raw === undefined ? '' : decodeXmlEntities(raw);
+                if (type === 's') {
+                    const index = Number(text);
+                    value = Number.isInteger(index) ? (sharedStrings[index] ?? '') : '';
+                } else if (type === 'b') {
+                    value = text === '1' ? 'TRUE' : 'FALSE';
+                } else {
+                    // Numbers, ISO dates and formula results all arrive as text;
+                    // Excel date serials are left as-is.
+                    value = text;
+                }
+            }
+            const index = position === null || position < 0 ? cells.length : position;
+            cells[index] = value;
+        }
+        rows.push(Array.from(cells, (cell) => (cell === undefined ? '' : cell)));
+    }
+    return rows;
+}
+
+function readXlsxSheet(buffer, options) {
+    const entries = readZipEntries(buffer);
+    const byName = new Map(entries.map((entry) => [entry.name, entry]));
+    const readText = (name) => {
+        const entry = byName.get(name);
+        if (!entry) return null;
+        return extractZipEntry(buffer, entry).toString('utf8');
+    };
+
+    const workbook = readText('xl/workbook.xml');
+    if (!workbook) throw httpError(400, 'This workbook is missing xl/workbook.xml.');
+
+    const sheets = [];
+    const sheetPattern = /<sheet\b([^>]*?)\/?>/g;
+    let match;
+    while ((match = sheetPattern.exec(workbook))) {
+        const attrs = match[1];
+        const name = decodeXmlEntities((attrs.match(/\bname="([^"]*)"/) || [])[1] || '');
+        const relId = (attrs.match(/\br:id="([^"]+)"/) || [])[1] || '';
+        if (name) sheets.push({ name, relId });
+    }
+    if (!sheets.length) throw httpError(400, 'This workbook has no sheets.');
+
+    const rels = readText('xl/_rels/workbook.xml.rels') || '';
+    const targets = new Map();
+    const relPattern = /<Relationship\b([^>]*?)\/?>/g;
+    while ((match = relPattern.exec(rels))) {
+        const attrs = match[1];
+        const id = (attrs.match(/\bId="([^"]+)"/) || [])[1];
+        const target = (attrs.match(/\bTarget="([^"]+)"/) || [])[1];
+        if (id && target) targets.set(id, target);
+    }
+
+    const wanted = options && options.sheet ? String(options.sheet) : '';
+    const chosen = (wanted && sheets.find((sheet) => sheet.name === wanted)) || sheets[0];
+
+    // NB: `path` is the Node module here; the sheet part is `sheetPath`.
+    let sheetPath = '';
+    const target = targets.get(chosen.relId);
+    if (target) {
+        sheetPath = target.startsWith('/')
+            ? path.posix.normalize(target.slice(1))
+            : path.posix.normalize(`xl/${target}`);
+    }
+    if (!sheetPath || !byName.has(sheetPath)) {
+        const conventional = `xl/worksheets/sheet${sheets.indexOf(chosen) + 1}.xml`;
+        if (byName.has(conventional)) sheetPath = conventional;
+        else if (byName.has('xl/worksheets/sheet1.xml')) sheetPath = 'xl/worksheets/sheet1.xml';
+        else sheetPath = '';
+    }
+    const worksheet = sheetPath ? readText(sheetPath) : null;
+    if (!worksheet) throw httpError(400, 'The selected worksheet could not be read.');
+
+    const shared = parseSharedStrings(readText('xl/sharedStrings.xml') || '');
+    return {
+        sheet: chosen.name,
+        sheets: sheets.map((sheet) => sheet.name),
+        matrix: parseWorksheetRows(worksheet, shared),
+    };
+}
+
+/** Parses a CSV or XLSX brief into `{ headers, rows, source, sheet }`. */
+function parseBriefFile(name, buffer, options) {
+    if (!buffer || !buffer.length) throw httpError(400, 'The brief file is empty.');
+    if (buffer.length > MAX_BRIEF_BYTES) throw httpError(413, 'Brief files are limited to 8 MB.');
+    const label = String(name || '');
+    if (buffer.subarray(0, 4).equals(OLE2_MAGIC)) {
+        throw httpError(415, 'Legacy .xls files are not supported. Save the sheet as .xlsx or .csv.');
+    }
+    if (buffer[0] === 0x50 && buffer[1] === 0x4B) {
+        const sheet = readXlsxSheet(buffer, options);
+        const table = Core.normalizeTable(sheet.matrix);
+        if (!table.headers.length) throw httpError(400, `The sheet “${sheet.sheet}” is empty.`);
+        return { source: 'xlsx', sheet: sheet.sheet, sheets: sheet.sheets, ...table };
+    }
+    if (/\.(xlsx|xlsm|xls)$/i.test(label)) {
+        throw httpError(415, 'That file is not a readable .xlsx workbook. Re-save it as .xlsx or .csv.');
+    }
+    const table = Core.parseDelimitedTable(buffer.toString('utf8'));
+    if (!table.headers.length) throw httpError(400, 'The brief file has no header row.');
+    return { source: 'csv', sheet: null, sheets: [], ...table };
+}
+
 async function handleApi(req, res, pathname) {
     if (pathname === '/api/health' && req.method === 'GET') {
         sendJson(res, 200, { ok: true });
@@ -2223,6 +3438,158 @@ async function handleApi(req, res, pathname) {
 
     if (pathname === '/api/llm/organizer-models' && req.method === 'GET') {
         sendJson(res, 200, await getOrganizerModelCatalog());
+        return;
+    }
+
+    if (pathname === '/api/brand-packs' && req.method === 'GET') {
+        sendJson(res, 200, { packs: await listBrandPacks() });
+        return;
+    }
+
+    if (pathname === '/api/brand-packs/import' && req.method === 'POST') {
+        const body = await readBody(req, MAX_BRAND_PACK_ZIP * 2);
+        let payload;
+        try {
+            payload = JSON.parse(body.toString('utf8'));
+        } catch {
+            throw httpError(400, 'The brand pack import must be valid JSON.');
+        }
+        sendJson(res, 201, await createBrandPackImport(payload || {}));
+        return;
+    }
+
+    const brandPackFileMatch = pathname.match(/^\/api\/brand-packs\/([A-Za-z0-9_-]{1,80})\/files\/(.+)$/);
+    if (brandPackFileMatch && req.method === 'GET') {
+        const packId = brandPackFileMatch[1];
+        const relative = safeRelativePath(brandPackFileMatch[2]);
+        if (!relative) throw httpError(400, 'Invalid brand pack asset path.');
+        const filesRoot = path.join(BRAND_PACKS_DIR, packId, 'files') + path.sep;
+        const target = path.join(filesRoot, ...relative.split('/'));
+        if (!path.resolve(target).startsWith(filesRoot)) throw httpError(400, 'Invalid brand pack asset path.');
+        let data;
+        try {
+            data = await fsp.readFile(target);
+        } catch (error) {
+            if (error.code === 'ENOENT') throw httpError(404, 'Brand pack asset not found.');
+            throw error;
+        }
+        const extension = path.extname(target).toLowerCase();
+        res.writeHead(200, {
+            'Content-Type': MIME[extension] || 'application/octet-stream',
+            'Content-Length': data.length,
+            'Cache-Control': 'public, max-age=3600',
+        });
+        res.end(data);
+        return;
+    }
+
+    const brandPackTemplateMatch = pathname.match(/^\/api\/brand-packs\/([A-Za-z0-9_-]{1,80})\/templates$/);
+    if (brandPackTemplateMatch && req.method === 'POST') {
+        const body = await readBody(req, 4 * 1024 * 1024);
+        let payload;
+        try {
+            payload = JSON.parse(body.toString('utf8'));
+        } catch {
+            throw httpError(400, 'The template request must be valid JSON.');
+        }
+        sendJson(res, 201, await createBrandTemplateProject(brandPackTemplateMatch[1], payload || {}));
+        return;
+    }
+
+    const brandPackMatch = pathname.match(/^\/api\/brand-packs\/([A-Za-z0-9_-]{1,80})$/);
+    if (brandPackMatch) {
+        const packId = brandPackMatch[1];
+        if (req.method === 'GET') {
+            sendJson(res, 200, await readBrandPack(packId));
+            return;
+        }
+        if (req.method === 'DELETE') {
+            sendJson(res, 200, await deleteBrandPack(packId));
+            return;
+        }
+    }
+
+    if (pathname === '/api/brand-kits' && req.method === 'GET') {
+        sendJson(res, 200, { kits: await listBrandKits() });
+        return;
+    }
+
+    const brandKitMatch = pathname.match(/^\/api\/brand-kits\/([A-Za-z0-9_-]{1,80})$/);
+    if (brandKitMatch) {
+        const kitId = brandKitMatch[1];
+        if (req.method === 'GET') {
+            sendJson(res, 200, await readBrandKit(kitId));
+            return;
+        }
+        if (req.method === 'PUT') {
+            const body = await readBody(req, MAX_BRAND_KIT_BYTES * 2);
+            let payload;
+            try {
+                payload = JSON.parse(body.toString('utf8'));
+            } catch {
+                throw httpError(400, 'The brand kit must be valid JSON.');
+            }
+            sendJson(res, 200, await saveBrandKit(kitId, payload));
+            return;
+        }
+        if (req.method === 'DELETE') {
+            sendJson(res, 200, await deleteBrandKit(kitId));
+            return;
+        }
+    }
+
+    if (pathname === '/api/briefs/parse' && req.method === 'POST') {
+        const body = await readBody(req, MAX_BRIEF_BYTES * 2);
+        let payload;
+        try {
+            payload = JSON.parse(body.toString('utf8'));
+        } catch {
+            throw httpError(400, 'The brief upload must be valid JSON.');
+        }
+        const dataUrl = typeof payload?.dataUrl === 'string' ? payload.dataUrl : '';
+        const match = dataUrl.match(/^data:[^;,]*;base64,([A-Za-z0-9+/=]+)$/);
+        if (!match) throw httpError(400, 'Send the brief as a base64 data URL.');
+        sendJson(res, 200, parseBriefFile(
+            payload?.name,
+            Buffer.from(match[1], 'base64'),
+            { sheet: typeof payload?.sheet === 'string' ? payload.sheet : '' },
+        ));
+        return;
+    }
+
+    if (pathname === '/api/fonts' && req.method === 'POST') {
+        const body = await readBody(req, MAX_FONT_BYTES * 2);
+        let payload;
+        try {
+            payload = JSON.parse(body.toString('utf8'));
+        } catch {
+            throw httpError(400, 'The font upload must be valid JSON.');
+        }
+        sendJson(res, 201, await saveFont(payload || {}));
+        return;
+    }
+
+    if (pathname === '/api/fonts' && req.method === 'GET') {
+        sendJson(res, 200, { fonts: await listFonts() });
+        return;
+    }
+
+    if (pathname.startsWith('/api/fonts/') && req.method === 'GET') {
+        const relative = decodeURIComponent(pathname.slice('/api/fonts/'.length));
+        if (!FONT_NAME.test(relative)) throw httpError(400, 'Invalid font path.');
+        let data;
+        try {
+            data = await fsp.readFile(path.join(FONTS_DIR, relative));
+        } catch {
+            throw httpError(404, 'Font not found.');
+        }
+        const format = FONT_FORMATS.find((item) => relative.toLowerCase().endsWith(`.${item.ext}`));
+        res.writeHead(200, {
+            'Content-Type': format ? format.mime : 'application/octet-stream',
+            'Content-Length': data.length,
+            'Cache-Control': 'public, max-age=31536000, immutable',
+        });
+        res.end(data);
         return;
     }
 
@@ -2405,8 +3772,10 @@ function serveStatic(req, res, pathname) {
         sendText(res, 405, 'Method not allowed.');
         return;
     }
-    let relative = pathname === '/' ? 'studio.html' : pathname.replace(/^\/+/, '');
-    if (!relative) relative = 'studio.html';
+    // The current studio is the v2 page; the classic one stays reachable at
+    // /studio.html and final assets at /asset-studio.html.
+    let relative = pathname === '/' ? 'studio-v2.html' : pathname.replace(/^\/+/, '');
+    if (!relative) relative = 'studio-v2.html';
     let target;
     try {
         target = path.resolve(ROOT, relative);
@@ -2471,6 +3840,8 @@ async function handle(req, res) {
 
 async function main() {
     await fsp.mkdir(IMPORTS_DIR, { recursive: true });
+    await fsp.mkdir(BRAND_PACKS_DIR, { recursive: true });
+    await fsp.mkdir(BRAND_KITS_DIR, { recursive: true });
     const server = http.createServer((req, res) => { handle(req, res); });
     server.on('error', (error) => {
         if (error.code === 'EADDRINUSE') {
@@ -2482,7 +3853,9 @@ async function main() {
     });
     server.listen(PORT, HOST, () => {
         console.log(`[studio] LayerStudio running at http://${HOST}:${PORT}/studio.html`);
+        console.log(`[studio] Asset Studio running at http://${HOST}:${PORT}/asset-studio.html`);
         console.log(`[studio] imports stored in ${IMPORTS_DIR}`);
+        console.log(`[studio] brand packs stored in ${BRAND_PACKS_DIR}`);
     });
 }
 
@@ -2512,6 +3885,20 @@ module.exports = {
     saveAnimations,
     getLlmCatalog,
     buildDirectorCatalog,
+    detectFontFormat,
+    saveFont,
+    listFonts,
+    parseBriefFile,
+    readXlsxSheet,
+    listBrandPacks,
+    readBrandPack,
+    deleteBrandPack,
+    createBrandPackImport,
+    createBrandTemplateProject,
+    listBrandKits,
+    readBrandKit,
+    saveBrandKit,
+    deleteBrandKit,
     normalizeDirectorProposals,
     generateDirectorIdeas,
 };

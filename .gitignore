@@ -1,1 +1,25 @@
-/data
+# ─── Local studio data ───────────────────────────────────────────────
+# Everything the running studio writes lives under data/: imported ZIP
+# projects, repository compositions, brand packs, shared kits and uploaded
+# fonts. It is per-machine state, not source.
+/data/
+
+# ─── Dependencies and build output ───────────────────────────────────
+# The project itself has no build step; keep these ignored in case a tool is
+# ever installed alongside it.
+node_modules/
+dist/
+out/
+
+# ─── Generated screenshots and visual-regression output ──────────────
+# tests/smoke.js, tests/asset-studio.js and tests/visual.js write here.
+_dev/screenshots/
+_dev/visual/
+
+# ─── Python bytecode from tools/ ─────────────────────────────────────
+__pycache__/
+*.pyc
+
+# ─── OS cruft ────────────────────────────────────────────────────────
+.DS_Store
+**/.DS_Store
