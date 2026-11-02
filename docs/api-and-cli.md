@@ -24,10 +24,11 @@ PORT=8010 HOST=127.0.0.1 node server.js
 | `STUDIO_OPENAI_BASE_URL` | `https://api.openai.com/v1` | Any OpenAI-compatible endpoint |
 | `STUDIO_PYTHON` | `.venv/bin/python` → `python3` | Interpreter used by the intake crawler |
 
-The server serves the pages and `/data/` statically, and handles `/api/*`.
-Requests are JSON unless stated. Binary payloads travel as **base64 data
-URLs**. Errors are `{ "error": "…" }` with 400/404/413/415/500 as
-appropriate.
+The server serves the pages and the repository-project asset route, and
+handles `/api/*`. The raw `data/` tree is **not** static: it also holds
+imports, brand packs and secrets. Requests are JSON unless stated. Binary
+payloads travel as **base64 data URLs**. Errors are `{ "error": "…" }` with
+400/404/413/415/500 as appropriate.
 
 `/` serves `studio-v2.html`; `/studio.html` (classic) and
 `/asset-studio.html` remain reachable.
@@ -50,6 +51,7 @@ appropriate.
 |---|---|---|
 | `GET` | `/api/projects` | `{ projects }` — repository and saved projects with their compositions |
 | `GET` | `/api/projects/:project/compositions/:composition` | One repository composition |
+| `GET` | `/api/projects/:project/assets/*` | A file under `data/projects/:project/assets/` — the only way a repository composition's own PNGs/JSON are served. `..` and dotfiles are rejected. |
 | `POST` | `/api/imports` | `{ name, zip, zipName?, reference, referenceName? }` → `{ project, composition }` |
 | `GET` | `/api/imports` | `{ projects }` — saved imports |
 | `GET` | `/api/imports/:id/composition.json` | The saved composition |
@@ -63,6 +65,15 @@ appropriate.
 creates one layer per image plus a locked reference layer, and saves the
 composition. Limits: 220 MB ZIP, 60 MB reference, 500 layers, reference
 ≤ 10000 px.
+
+Repository compositions can point their layers at their own files with
+`/api/projects/:project/assets/<path>`. The route resolves under
+`data/projects/<project>/assets/`, passes through `safeRelativePath()`, and
+returns 403 for a path that would escape. It exists because `/data/…` is
+deliberately not served statically; a project that hard-codes `/data/…` will
+404 even though the file exists. See
+[`data/projects/the-physician-snake/README.md`](../data/projects/the-physician-snake/README.md)
+for a worked example.
 
 ### Animation director
 
@@ -115,7 +126,13 @@ not per project.
 | `GET` | `/api/brand-packs/:id` | `{ pack, updatedAt }` |
 | `DELETE` | `/api/brand-packs/:id` | `{ deleted: true }` |
 | `GET` | `/api/brand-packs/:id/files/:brand/*` | An asset or guide with its content type |
-| `POST` | `/api/brand-packs/:id/templates` | `{ brandId, templateId, name? }` → `{ project, composition }` |
+| `POST` | `/api/brand-packs/:id/templates` | `{ brandId, templateId, name? }` → `{ project, composition }` (Create) |
+| `GET` | `/api/brand-packs/:id/templates?brandId=…` | `{ templates, projects }` (published + in-progress) |
+| `POST` | `/api/brand-packs/:id/templates/save` | `{ brandId, name?, composition?, projectId? }` → `{ template, composition }` |
+| `POST` | `/api/brand-packs/:id/templates/:brand/:template/open` | `{ name? }` → `{ project, composition }` |
+| `DELETE` | `/api/brand-packs/:id/templates/:brand/:template` | `{ deleted: true }` |
+| `GET` | `/api/brand-packs/:id/templates/:brand/:template/files/*` | Copied template image/video |
+| `POST` | `/api/video/transcode` | Raw video → H.264 MP4 (`501` without ffmpeg) |
 | `GET` | `/api/brand-kits` | `{ kits }` |
 | `GET`/`PUT`/`DELETE` | `/api/brand-kits/:id` | Read / save / delete a shared kit |
 

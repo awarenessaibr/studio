@@ -414,14 +414,21 @@ Export panel:
 |---|---|---|
 | **PNG** | one frame | All layers except the final-image reference; capped at 4096 px / 24 MP |
 | **SVG** | vector + real `<text>` | Text stays selectable; raster layers reference their image URL (data URLs are embedded) |
-| **GIF** | animated GIF | Longest side capped at 480 px, ~10 fps |
-| **Video** | MP4 where supported, else WebM | `MediaRecorder` real time, 8 Mbps; needs HTTP |
+| **GIF** | animated GIF | Longest side capped at 480 px, ~10 fps; works from keyframes or a v3 character rig |
+| **MP4** | H.264 MP4 | `MediaRecorder` real time at 30 fps, 8 Mbps; the client posts the recording to `/api/video/transcode` when `ffmpeg` is available so the file is H.264/AVC rather than VP9-in-MP4. Without ffmpeg the browser's MP4/WebM is kept |
+| **Save to brand…** | a published brand template | Snapshots the current composition into its brand pack; available again from Brand identity → Templates |
 | **JSON** | the composition | Round-trippable document |
 | **Agent spec** | `layer-studio/agent/v1` | Layer/format/variable/character inventory |
-| **All formats (ZIP)** | formats × locales × outputs | Outputs: PNG, GIF, SVG, Video; video is the slow path |
+| **All formats (ZIP)** | formats × locales × outputs | Outputs: PNG, GIF, SVG, Video; video is the slow path and is transcoded per clip |
 
 Guardrails can refuse any of these (§8). Exports that need pixels or fonts
 report specific reasons (e.g. `Load "Brand Sans" before exporting`).
+
+Brand identity template cards can export a composition that is **not** the one
+open in the editor (initial, saved or in-progress) through
+`studio.exportCompositionAs(composition, 'gif' | 'video' | 'png')`. It uses the
+same snapshot, font gate, guardrail, asset loader and encoders, so a card export
+and an editor export cannot drift.
 
 ---
 

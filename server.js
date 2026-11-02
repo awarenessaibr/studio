@@ -20,8 +20,10 @@ const http = require('http');
 const fs = require('fs');
 const fsp = fs.promises;
 const path = require('path');
+const os = require('os');
 const zlib = require('zlib');
 const crypto = require('crypto');
+const { execFile } = require('child_process');
 const Core = require('./src/shared/studio-core.js');
 const StudioBrand = require('./src/shared/brand-pack.js');
 const { parseBrandDocx } = require('./src/server/brand-docx.js');
@@ -213,6 +215,97 @@ function decodeBase64(value, label) {
     return buffer;
 }
 
+/**
+ * MediaRecorder on some Chromium builds writes VP9 inside an MP4 container,
+ * which browsers and Instagram do not universally accept. The browser prefers
+ * MP4 but cannot always request H.264. When ffmpeg is available we transcode
+ * the recorded blob to a broadly playable H.264 MP4; when it is not, the
+ * client keeps the browser recording and says so. This is the only optional
+ * binary dependency in the project.
+ */
+const FFMPEG_BINARY = String(process.env.STUDIO_FFMPEG || 'ffmpeg').trim() || 'ffmpeg';
+const MAX_TRANSCODE_BYTES = 320 * 1024 * 1024;
+const MAX_TRANSCODE_CONCURRENCY = 2;
+const TRANSCODE_TIMEOUT_MS = 180_000;
+let transcodeActive = 0;
+let ffmpegChecked = false;
+let ffmpegAvailable = false;
+
+function runFfmpeg(args) {
+    return new Promise((resolve, reject) => {
+        execFile(FFMPEG_BINARY, args, {
+            timeout: TRANSCODE_TIMEOUT_MS,
+            maxBuffer: 8 * 1024 * 1024,
+            windowsHide: true,
+        }, (error, stdout, stderr) => {
+            if (error) {
+                error.stderr = String(stderr || '');
+                reject(error);
+                return;
+            }
+            resolve(stdout);
+        });
+    });
+}
+
+async function ffmpegExists() {
+    if (ffmpegChecked) return ffmpegAvailable;
+    ffmpegChecked = true;
+    try {
+        await runFfmpeg(['-hide_banner', '-version']);
+        ffmpegAvailable = true;
+    } catch {
+        ffmpegAvailable = false;
+    }
+    return ffmpegAvailable;
+}
+
+async function transcodeVideoToMp4(buffer, contentType = '') {
+    if (!buffer?.length) throw httpError(400, 'The video upload is empty.');
+    if (buffer.length > MAX_TRANSCODE_BYTES) {
+        throw httpError(413, 'The video is too large to transcode.');
+    }
+    if (!(await ffmpegExists())) {
+        throw httpError(501, 'MP4 transcoding is unavailable. Install ffmpeg or set STUDIO_FFMPEG.');
+    }
+    if (transcodeActive >= MAX_TRANSCODE_CONCURRENCY) {
+        throw httpError(429, 'The MP4 transcoder is busy. Try again in a moment.');
+    }
+    const extension = /webm/i.test(String(contentType)) ? 'webm' : 'mp4';
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'studio-video-'));
+    const input = path.join(dir, `input.${extension}`);
+    const output = path.join(dir, 'output.mp4');
+    transcodeActive += 1;
+    try {
+        await fsp.writeFile(input, buffer);
+        await runFfmpeg([
+            '-hide_banner', '-loglevel', 'error', '-y',
+            '-i', input,
+            '-c:v', 'libx264',
+            '-preset', 'veryfast',
+            '-crf', '20',
+            '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2',
+            '-pix_fmt', 'yuv420p',
+            '-movflags', '+faststart',
+            '-an',
+            output,
+        ]);
+        const data = await fsp.readFile(output);
+        if (!data.length) throw new Error('ffmpeg produced an empty file.');
+        return data;
+    } catch (error) {
+        if (error.code === 'ENOENT') {
+            throw httpError(501, 'MP4 transcoding is unavailable. Install ffmpeg or set STUDIO_FFMPEG.');
+        }
+        if (error.status) throw error;
+        const detail = String(error.stderr || error.message || '').trim().slice(0, 400);
+        throw httpError(502, `The video could not be transcoded to MP4${detail ? `: ${detail}` : '.'}`);
+    } finally {
+        transcodeActive = Math.max(0, transcodeActive - 1);
+        await fsp.rm(dir, { recursive: true, force: true }).catch(() => {});
+    }
+}
+
 function slugify(value) {
     return String(value || '')
         .toLowerCase()
@@ -250,6 +343,22 @@ function safeRelativePath(name) {
 
 function urlPath(...parts) {
     return `/${parts.map((part) => String(part).split('/').map(encodeURIComponent).join('/')).join('/')}`;
+}
+
+/**
+ * Absolute path for a repository project's own asset, or null when the
+ * project id / relative path would escape data/projects/<project>/assets.
+ * `safeRelativePath` already rejects `..`, dotfiles and empty paths; the
+ * prefix check is the belt-and-braces guard for the resolved path.
+ */
+function resolveProjectAssetPath(projectId, assetPath) {
+    if (!/^[A-Za-z0-9_-]{1,80}$/.test(String(projectId || ''))) return null;
+    const relative = safeRelativePath(assetPath);
+    if (!relative) return null;
+    const root = path.join(PROJECTS_DIR, projectId, 'assets');
+    const target = path.resolve(root, relative);
+    if (!target.startsWith(root + path.sep)) return null;
+    return target;
 }
 
 // ─── Image format detection ───────────────────────────────────────────
@@ -3503,6 +3612,426 @@ async function createBrandTemplateProject(packId, payload) {
     };
 }
 
+// ─── Saved brand templates ───────────────────────────────────────────
+// An initial template becomes a project when the user presses Create. When the
+// work is finished they can publish that composition back to the brand: the
+// snapshot below is independent of the project, so later edits never rewrite a
+// template someone already published. Saved templates live beside the pack so
+// they travel with it and can be exported as PNG, GIF or MP4 without the pack's
+// original files.
+const MAX_SAVED_BRAND_TEMPLATES = 60;
+const SAVED_TEMPLATE_ID = /^[A-Za-z0-9_-]{1,100}$/;
+
+function brandTemplatesRoot(packId, brandId) {
+    return path.join(BRAND_PACKS_DIR, packId, 'templates', brandId);
+}
+
+function savedTemplateDir(packId, brandId, templateId) {
+    return path.join(brandTemplatesRoot(packId, brandId), templateId);
+}
+
+function savedTemplateFile(packId, brandId, templateId) {
+    return path.join(savedTemplateDir(packId, brandId, templateId), 'template.json');
+}
+
+function savedTemplateSummary(record) {
+    const composition = record.composition || {};
+    return {
+        id: record.id,
+        name: record.name,
+        source: record.source || 'saved',
+        sourceTemplateId: record.sourceTemplateId || composition.meta?.templateId || null,
+        sourceProjectId: record.sourceProjectId || null,
+        packId: record.packId,
+        brandId: record.brandId,
+        width: Number(record.width) || Number(composition.width) || 0,
+        height: Number(record.height) || Number(composition.height) || 0,
+        channel: record.channel || composition.formats?.[0]?.channel || 'custom',
+        duration: Number(record.duration) || Number(composition.duration) || 0,
+        layerCount: Number(record.layerCount) || (composition.layers || []).length,
+        variableCount: Number(record.variableCount) || (composition.variables || []).length,
+        formats: Array.isArray(record.formats) ? record.formats : [],
+        createdAt: record.createdAt,
+        updatedAt: record.updatedAt,
+        composition,
+    };
+}
+
+function projectTemplateSummary(projectId, composition, savedTemplateId = null) {
+    const meta = composition.meta || {};
+    return {
+        id: `project-${projectId}`,
+        projectId,
+        name: composition.name || meta.templateLabel || projectId,
+        source: 'project',
+        sourceTemplateId: meta.templateId || null,
+        savedTemplateId,
+        packId: meta.packId || null,
+        brandId: meta.brandId || null,
+        width: Number(composition.width) || 0,
+        height: Number(composition.height) || 0,
+        channel: composition.formats?.[0]?.channel || 'custom',
+        duration: Number(composition.duration) || 0,
+        layerCount: (composition.layers || []).length,
+        variableCount: (composition.variables || []).length,
+        formats: (composition.formats || []).map((format) => format.label || format.id),
+        createdAt: meta.createdAt || null,
+        updatedAt: meta.updatedAt || meta.createdAt || null,
+        composition,
+    };
+}
+
+async function readSavedBrandTemplateRecord(packId, brandId, templateId) {
+    if (!SAVED_TEMPLATE_ID.test(templateId)) throw httpError(400, 'Invalid template id.');
+    try {
+        const record = JSON.parse(await fsp.readFile(savedTemplateFile(packId, brandId, templateId), 'utf8'));
+        if (!record || typeof record !== 'object' || !record.composition) {
+            throw httpError(500, 'The saved template file is incomplete.');
+        }
+        return record;
+    } catch (error) {
+        if (error.code === 'ENOENT') throw httpError(404, 'Saved template not found.');
+        throw error;
+    }
+}
+
+/**
+ * Lists every saved snapshot for one brand plus the in-progress projects that
+ * were created from that brand's templates. The projects explain "we already
+ * made these"; the saved snapshots are the published, exportable versions.
+ */
+async function listBrandTemplates(packId, payload = {}) {
+    const { pack } = await readBrandPack(packId);
+    const brandId = String(payload.brandId || '');
+    const brand = pack.brands.find((entry) => entry.id === brandId);
+    if (!brand) throw httpError(404, `The brand “${brandId || '?'}” is not in this pack.`);
+
+    const templates = [];
+    const dir = brandTemplatesRoot(packId, brandId);
+    let entries = [];
+    try {
+        entries = await fsp.readdir(dir, { withFileTypes: true });
+    } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+    }
+    for (const entry of entries) {
+        if (!entry.isDirectory() || !SAVED_TEMPLATE_ID.test(entry.name)) continue;
+        try {
+            const record = await readSavedBrandTemplateRecord(packId, brandId, entry.name);
+            templates.push(savedTemplateSummary(record));
+        } catch (error) {
+            if (error.status === 404) continue;
+            // A corrupt snapshot must not hide the others.
+            console.warn(`[studio] could not read saved template ${entry.name}:`, error.message);
+        }
+    }
+    templates.sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+
+    const savedByProject = new Map(templates
+        .filter((template) => template.sourceProjectId)
+        .map((template) => [template.sourceProjectId, template.id]));
+    const projects = [];
+    let projectEntries = [];
+    try {
+        projectEntries = await fsp.readdir(IMPORTS_DIR, { withFileTypes: true });
+    } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+    }
+    for (const entry of projectEntries) {
+        if (!entry.isDirectory() || !SAVED_TEMPLATE_ID.test(entry.name)) continue;
+        let composition;
+        try {
+            composition = JSON.parse(await fsp.readFile(path.join(IMPORTS_DIR, entry.name, 'composition.json'), 'utf8'));
+        } catch {
+            continue;
+        }
+        const meta = composition?.meta || {};
+        if (meta.packId !== packId || meta.brandId !== brandId) continue;
+        if (meta.source !== 'brand-template') continue;
+        projects.push(projectTemplateSummary(entry.name, composition, savedByProject.get(entry.name) || null));
+    }
+    projects.sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+
+    return {
+        packId,
+        brandId,
+        brandName: brand.name,
+        templates: templates.slice(0, MAX_SAVED_BRAND_TEMPLATES),
+        projects: projects.slice(0, MAX_SAVED_BRAND_TEMPLATES),
+    };
+}
+
+/** Copies the pack assets a saved template references into its own folder. */
+async function localiseSavedTemplateAssets(packId, brandId, templateId, composition) {
+    const packPrefix = `/api/brand-packs/${packId}/files/`;
+    const templatePrefix = new RegExp(`^/api/brand-packs/${packId}/templates/([A-Za-z0-9_-]{1,80})/([A-Za-z0-9_-]{1,100})/files/`);
+    const publicPrefix = `/api/brand-packs/${packId}/templates/${brandId}/${templateId}/files/`;
+    const root = savedTemplateDir(packId, brandId, templateId);
+    const copied = new Set();
+    const copy = async (url) => {
+        if (typeof url !== 'string') return url;
+        let source = null;
+        let relative = null;
+        if (url.startsWith(packPrefix)) {
+            relative = safeRelativePath(url.slice(packPrefix.length));
+            if (relative) source = path.join(BRAND_PACKS_DIR, packId, 'files', ...relative.split('/'));
+        } else {
+            const match = url.match(templatePrefix);
+            const imported = url.match(/^\/data\/imports\/([A-Za-z0-9_-]{1,80})\/(.+)$/);
+            if (match) {
+                relative = safeRelativePath(url.slice(match[0].length));
+                if (relative) source = path.join(savedTemplateDir(packId, match[1], match[2]), 'files', ...relative.split('/'));
+            } else if (imported) {
+                relative = safeRelativePath(imported[2]);
+                if (relative) source = path.join(IMPORTS_DIR, imported[1], ...relative.split('/'));
+            }
+        }
+        if (!source || !relative) return url;
+        const target = path.join(root, 'files', ...relative.split('/'));
+        try {
+            await fsp.mkdir(path.dirname(target), { recursive: true });
+            if (!copied.has(target)) {
+                await fsp.copyFile(source, target);
+                copied.add(target);
+            }
+        } catch {
+            return url;
+        }
+        return `${publicPrefix}${relative}`;
+    };
+    for (const layer of composition.layers || []) {
+        if (typeof layer.url === 'string') layer.url = await copy(layer.url);
+        if (Array.isArray(layer.frames)) {
+            layer.frames = await Promise.all(layer.frames.map((frame) => copy(frame)));
+        }
+    }
+    if (composition.brandKit && Array.isArray(composition.brandKit.logos)) {
+        for (const logo of composition.brandKit.logos) logo.url = await copy(logo.url);
+    }
+    return copied.size;
+}
+
+/**
+ * Snapshots a live composition into the brand's template library. The client
+ * sends its current, unsaved composition so the published template is exactly
+ * what the user was looking at; `projectId` is recorded for traceability.
+ */
+async function saveBrandTemplate(packId, payload = {}) {
+    const { pack } = await readBrandPack(packId);
+    const brandId = String(payload.brandId || '');
+    const brand = pack.brands.find((entry) => entry.id === brandId);
+    if (!brand) throw httpError(404, `The brand “${brandId || '?'}” is not in this pack.`);
+
+    const sourceProjectId = String(payload.projectId || '').trim();
+    if (sourceProjectId && !SAVED_TEMPLATE_ID.test(sourceProjectId)) {
+        throw httpError(400, 'Invalid source project id.');
+    }
+    let composition = payload.composition;
+    if (!composition && sourceProjectId) composition = await readSavedComposition(sourceProjectId);
+    if (!composition || typeof composition !== 'object' || !Array.isArray(composition.layers)) {
+        throw httpError(400, 'The request must include a composition with a layers array.');
+    }
+    if (composition.layers.length > MAX_LAYERS) {
+        throw httpError(413, `A composition cannot contain more than ${MAX_LAYERS} layers.`);
+    }
+    if (JSON.stringify(composition).length > MAX_COMPOSITION_BYTES) {
+        throw httpError(413, 'The composition is too large to save as a template.');
+    }
+
+    const count = (await fsp.readdir(brandTemplatesRoot(packId, brandId)).catch(() => []))
+        .filter((name) => SAVED_TEMPLATE_ID.test(name)).length;
+    if (count >= MAX_SAVED_BRAND_TEMPLATES) {
+        throw httpError(413, `A brand can hold at most ${MAX_SAVED_BRAND_TEMPLATES} saved templates.`);
+    }
+
+    const name = sanitizeLabel(payload.name, composition.name || `${brand.name} — Template`);
+    const stamp = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14);
+    const base = (slugify(name) || 'template').slice(0, 48);
+    let id = `${base}-${stamp}-${crypto.randomBytes(2).toString('hex')}`;
+    while (await fsp.stat(savedTemplateDir(packId, brandId, id)).then(() => true).catch(() => false)) {
+        id = `${base}-${stamp}-${crypto.randomBytes(3).toString('hex')}`;
+    }
+
+    const createdAt = new Date().toISOString();
+    const snapshot = JSON.parse(JSON.stringify(composition));
+    snapshot.layers = (snapshot.layers || [])
+        .filter((layer) => layer && typeof layer === 'object' && typeof layer.id === 'string')
+        .slice(0, MAX_LAYERS);
+    if (!snapshot.layers.length) throw httpError(400, 'The composition has no publishable layers.');
+    snapshot.variables = Array.isArray(snapshot.variables) ? snapshot.variables : [];
+    snapshot.formats = Array.isArray(snapshot.formats) ? snapshot.formats : [];
+    snapshot.characters = Array.isArray(snapshot.characters) ? snapshot.characters : [];
+    snapshot.id = id;
+    snapshot.name = name;
+    snapshot.version = Math.max(3, Number(snapshot.version) || 3);
+    snapshot.width = Math.max(1, Math.round(Number(snapshot.width) || 1080));
+    snapshot.height = Math.max(1, Math.round(Number(snapshot.height) || 1080));
+    snapshot.duration = Math.max(1, Math.round(Number(snapshot.duration) || DEFAULT_DURATION));
+    snapshot.meta = {
+        ...(snapshot.meta || {}),
+        source: 'brand-template-saved',
+        packId: pack.id,
+        packName: pack.name,
+        brandId: brand.id,
+        brandName: brand.name,
+        savedTemplateId: id,
+        savedAt: createdAt,
+        sourceProjectId: sourceProjectId || null,
+        storage: `data/brand-packs/${pack.id}/templates/${brand.id}/${id}`,
+    };
+    const dir = savedTemplateDir(packId, brandId, id);
+    await fsp.mkdir(dir, { recursive: true });
+    try {
+        await localiseSavedTemplateAssets(pack.id, brand.id, id, snapshot);
+        const record = {
+            id,
+            packId: pack.id,
+            brandId: brand.id,
+            name,
+            source: 'saved',
+            sourceTemplateId: snapshot.meta?.templateId || payload.sourceTemplateId || null,
+            sourceProjectId: sourceProjectId || null,
+            width: snapshot.width,
+            height: snapshot.height,
+            channel: snapshot.formats?.[0]?.channel || 'custom',
+            duration: snapshot.duration,
+            layerCount: snapshot.layers.length,
+            variableCount: (snapshot.variables || []).length,
+            formats: (snapshot.formats || []).map((format) => format.label || format.id),
+            createdAt,
+            updatedAt: createdAt,
+            composition: snapshot,
+        };
+        await writeFileAtomic(savedTemplateFile(packId, brand.id, id), JSON.stringify(record, null, 2));
+        return { template: savedTemplateSummary(record), composition: snapshot };
+    } catch (error) {
+        await fsp.rm(dir, { recursive: true, force: true }).catch(() => {});
+        throw error;
+    }
+}
+
+/** Creates a normal editable project from a published template snapshot. */
+async function openSavedBrandTemplate(packId, brandId, templateId, payload = {}) {
+    const { pack } = await readBrandPack(packId);
+    const brand = pack.brands.find((entry) => entry.id === brandId);
+    if (!brand) throw httpError(404, `The brand “${brandId}” is not in this pack.`);
+    const record = await readSavedBrandTemplateRecord(packId, brandId, templateId);
+    const composition = JSON.parse(JSON.stringify(record.composition));
+    const stamp = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14);
+    const base = (slugify(composition.name || record.name) || 'brand-template').slice(0, 48);
+    const id = `${base}-${stamp}-${crypto.randomBytes(2).toString('hex')}`;
+    const projectDir = path.join(IMPORTS_DIR, id);
+    const createdAt = new Date().toISOString();
+    const name = sanitizeLabel(payload.name, composition.name || record.name);
+
+    // Copy the snapshot's files into the new project rather than linking to
+    // the template folder, so deleting the published template cannot break a
+    // copy that is already being edited.
+    const templatePrefix = `/api/brand-packs/${packId}/templates/${brandId}/${templateId}/files/`;
+    const projectPrefix = `/data/imports/${id}/assets/`;
+    const copyAsset = async (url) => {
+        if (typeof url !== 'string') return url;
+        let source = null;
+        let relative = null;
+        let targetRelative = null;
+        if (url.startsWith(templatePrefix)) {
+            relative = safeRelativePath(url.slice(templatePrefix.length));
+            // Import-sourced snapshots keep an assets/ segment in their copied
+            // path; strip it once so the working copy does not nest it twice.
+            targetRelative = relative && relative.startsWith('assets/') ? relative.slice('assets/'.length) : relative;
+            if (relative) source = path.join(savedTemplateDir(packId, brandId, templateId), 'files', ...relative.split('/'));
+        } else {
+            const imported = url.match(/^\/data\/imports\/([A-Za-z0-9_-]{1,80})\/(.+)$/);
+            if (imported) {
+                relative = safeRelativePath(imported[2]);
+                // Import URLs already include the project's assets/ folder;
+                // do not nest it twice in the copy.
+                targetRelative = relative && relative.startsWith('assets/') ? relative.slice('assets/'.length) : relative;
+                if (relative) source = path.join(IMPORTS_DIR, imported[1], ...relative.split('/'));
+            }
+        }
+        if (!source || !relative || !targetRelative) return url;
+        const target = path.join(projectDir, 'assets', ...targetRelative.split('/'));
+        try {
+            await fsp.mkdir(path.dirname(target), { recursive: true });
+            await fsp.copyFile(source, target);
+        } catch {
+            return url;
+        }
+        return `${projectPrefix}${targetRelative}`;
+    };
+    for (const layer of composition.layers || []) {
+        if (typeof layer.url === 'string') layer.url = await copyAsset(layer.url);
+        if (Array.isArray(layer.frames)) {
+            layer.frames = await Promise.all(layer.frames.map((frame) => copyAsset(frame)));
+        }
+    }
+    if (composition.brandKit && Array.isArray(composition.brandKit.logos)) {
+        for (const logo of composition.brandKit.logos) logo.url = await copyAsset(logo.url);
+    }
+
+    composition.id = id;
+    composition.name = name;
+    composition.meta = {
+        ...(composition.meta || {}),
+        source: 'brand-template',
+        packId: pack.id,
+        packName: pack.name,
+        brandId: brand.id,
+        brandName: brand.name,
+        templateId: composition.meta?.templateId || null,
+        brandTemplateId: record.id,
+        storage: `data/imports/${id}`,
+        createdAt,
+        updatedAt: createdAt,
+    };
+    await fsp.mkdir(projectDir, { recursive: true });
+    try {
+        await writeFileAtomic(path.join(projectDir, 'composition.json'), JSON.stringify(composition, null, 2));
+    } catch (error) {
+        await fsp.rm(projectDir, { recursive: true, force: true }).catch(() => {});
+        throw error;
+    }
+    return {
+        project: {
+            id,
+            name,
+            createdAt,
+            updatedAt: createdAt,
+            width: composition.width,
+            height: composition.height,
+            layerCount: composition.layers.length,
+            referenceUrl: null,
+            packId: pack.id,
+            brandId: brand.id,
+            templateId: composition.meta?.templateId || null,
+            brandTemplateId: record.id,
+        },
+        composition,
+    };
+}
+
+async function deleteSavedBrandTemplate(packId, brandId, templateId) {
+    const { pack } = await readBrandPack(packId);
+    if (!pack.brands.some((brand) => brand.id === brandId)) {
+        throw httpError(404, `The brand “${brandId}” is not in this pack.`);
+    }
+    await readSavedBrandTemplateRecord(packId, brandId, templateId);
+    await fsp.rm(savedTemplateDir(packId, brandId, templateId), { recursive: true, force: true });
+    return { deleted: true, id: templateId };
+}
+
+/** The read-only file route for the assets a saved template copied. */
+function savedTemplateAssetPath(packId, brandId, templateId, relativePath) {
+    if (!SAVED_TEMPLATE_ID.test(templateId) || !SAVED_TEMPLATE_ID.test(brandId)) return null;
+    const relative = safeRelativePath(relativePath);
+    if (!relative) return null;
+    const root = path.join(savedTemplateDir(packId, brandId, templateId), 'files');
+    const target = path.join(root, ...relative.split('/'));
+    const resolved = path.resolve(target);
+    return resolved.startsWith(path.resolve(root) + path.sep) ? resolved : null;
+}
+
 // ─── Brief ingestion (Phase 5) ───────────────────────────────────────
 // A brief is a CSV or an .xlsx table: one row per creative, one column per
 // template variable. The XLSX reader is built on the ZIP reader above, so the
@@ -4093,6 +4622,21 @@ async function handleApi(req, res, pathname) {
         return;
     }
 
+    // ─── Video transcode (optional ffmpeg) ──────────────────────────
+
+    if (pathname === '/api/video/transcode' && req.method === 'POST') {
+        const body = await readBody(req, MAX_TRANSCODE_BYTES + 1024);
+        const data = await transcodeVideoToMp4(body, req.headers['content-type'] || '');
+        res.writeHead(200, {
+            'Content-Type': 'video/mp4',
+            'Content-Length': data.length,
+            'Cache-Control': 'no-store',
+            'X-Studio-Transcoded': 'h264',
+        });
+        res.end(data);
+        return;
+    }
+
     // ─── Business Asset Intelligence ────────────────────────────────
 
     if (pathname === '/api/assets/status' && req.method === 'GET') {
@@ -4365,17 +4909,88 @@ async function handleApi(req, res, pathname) {
         return;
     }
 
-    const brandPackTemplateMatch = pathname.match(/^\/api\/brand-packs\/([A-Za-z0-9_-]{1,80})\/templates$/);
-    if (brandPackTemplateMatch && req.method === 'POST') {
-        const body = await readBody(req, 4 * 1024 * 1024);
+    const savedTemplateFileMatch = pathname.match(/^\/api\/brand-packs\/([A-Za-z0-9_-]{1,80})\/templates\/([A-Za-z0-9_-]{1,80})\/([A-Za-z0-9_-]{1,100})\/files\/(.+)$/);
+    if (savedTemplateFileMatch && req.method === 'GET') {
+        const [, packId, brandId, templateId, relative] = savedTemplateFileMatch;
+        const target = savedTemplateAssetPath(packId, brandId, templateId, relative);
+        if (!target) throw httpError(400, 'Invalid template asset path.');
+        const extension = path.extname(target).toLowerCase();
+        if (!IMPORT_PUBLIC_FILE.test(extension)) throw httpError(403, 'Template assets must be images or video.');
+        let data;
+        try {
+            data = await fsp.readFile(target);
+        } catch (error) {
+            if (error.code === 'ENOENT') throw httpError(404, 'Template asset not found.');
+            throw error;
+        }
+        res.writeHead(200, {
+            'Content-Type': MIME[extension] || 'application/octet-stream',
+            'Content-Length': data.length,
+            'Cache-Control': 'public, max-age=3600',
+        });
+        res.end(data);
+        return;
+    }
+
+    const savedTemplateOpenMatch = pathname.match(/^\/api\/brand-packs\/([A-Za-z0-9_-]{1,80})\/templates\/([A-Za-z0-9_-]{1,80})\/([A-Za-z0-9_-]{1,100})\/open$/);
+    if (savedTemplateOpenMatch && req.method === 'POST') {
+        const body = await readBody(req, 1024 * 1024);
+        let payload = {};
+        if (body.length) {
+            try {
+                payload = JSON.parse(body.toString('utf8'));
+            } catch {
+                throw httpError(400, 'The open request must be valid JSON.');
+            }
+        }
+        sendJson(res, 201, await openSavedBrandTemplate(
+            savedTemplateOpenMatch[1],
+            savedTemplateOpenMatch[2],
+            savedTemplateOpenMatch[3],
+            payload || {},
+        ));
+        return;
+    }
+
+    const savedTemplateMatch = pathname.match(/^\/api\/brand-packs\/([A-Za-z0-9_-]{1,80})\/templates\/([A-Za-z0-9_-]{1,80})\/([A-Za-z0-9_-]{1,100})$/);
+    if (savedTemplateMatch && req.method === 'DELETE') {
+        sendJson(res, 200, await deleteSavedBrandTemplate(savedTemplateMatch[1], savedTemplateMatch[2], savedTemplateMatch[3]));
+        return;
+    }
+
+    const savedTemplateSaveMatch = pathname.match(/^\/api\/brand-packs\/([A-Za-z0-9_-]{1,80})\/templates\/save$/);
+    if (savedTemplateSaveMatch && req.method === 'POST') {
+        const body = await readBody(req, MAX_COMPOSITION_BYTES + 1024 * 1024);
         let payload;
         try {
             payload = JSON.parse(body.toString('utf8'));
         } catch {
-            throw httpError(400, 'The template request must be valid JSON.');
+            throw httpError(400, 'The save request must be valid JSON.');
         }
-        sendJson(res, 201, await createBrandTemplateProject(brandPackTemplateMatch[1], payload || {}));
+        sendJson(res, 201, await saveBrandTemplate(savedTemplateSaveMatch[1], payload || {}));
         return;
+    }
+
+    const brandPackTemplateMatch = pathname.match(/^\/api\/brand-packs\/([A-Za-z0-9_-]{1,80})\/templates$/);
+    if (brandPackTemplateMatch) {
+        if (req.method === 'GET') {
+            const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+            sendJson(res, 200, await listBrandTemplates(brandPackTemplateMatch[1], {
+                brandId: url.searchParams.get('brandId') || '',
+            }));
+            return;
+        }
+        if (req.method === 'POST') {
+            const body = await readBody(req, 4 * 1024 * 1024);
+            let payload;
+            try {
+                payload = JSON.parse(body.toString('utf8'));
+            } catch {
+                throw httpError(400, 'The template request must be valid JSON.');
+            }
+            sendJson(res, 201, await createBrandTemplateProject(brandPackTemplateMatch[1], payload || {}));
+            return;
+        }
     }
 
     const brandPackMatch = pathname.match(/^\/api\/brand-packs\/([A-Za-z0-9_-]{1,80})$/);
@@ -4557,6 +5172,18 @@ async function handleApi(req, res, pathname) {
         return;
     }
 
+    // Repository project assets are deliberately not served from /data (that
+    // tree also holds imports, brand packs and secrets). This route exposes
+    // only data/projects/<project>/assets/ so a checked-in composition can
+    // reference its own PNGs without embedding data URLs.
+    const projectAssetMatch = pathname.match(/^\/api\/projects\/([A-Za-z0-9_-]{1,80})\/assets\/(.+)$/);
+    if (projectAssetMatch && (req.method === 'GET' || req.method === 'HEAD')) {
+        const target = resolveProjectAssetPath(projectAssetMatch[1], projectAssetMatch[2]);
+        if (!target) throw httpError(403, 'Invalid project asset path.');
+        sendFile(req, res, target);
+        return;
+    }
+
     const animationsMatch = pathname.match(/^\/api\/imports\/([A-Za-z0-9_-]{1,80})\/animations$/);
     if (animationsMatch) {
         const id = animationsMatch[1];
@@ -4710,9 +5337,32 @@ const LEGACY_PREFIXES = [
     ['/studio-minimal/', 'src/client/studio/studio-minimal/'],
 ];
 
+/**
+ * A created template copies the brand assets it references into its own import
+ * folder; its layers point at /data/imports/<id>/... so the creative survives
+ * the brand pack being deleted. The /data tree stays private (composition JSON,
+ * source ZIPs, brand kits, settings), but the raster/media files inside an
+ * import are exactly what the canvas needs. Only these extensions are exposed.
+ */
+const IMPORT_PUBLIC_FILE = /\.(?:png|jpe?g|gif|webp|svg|avif|mp4|webm)$/i;
+
+function importPublicFile(pathname) {
+    const match = pathname.match(/^\/data\/imports\/([A-Za-z0-9_-]{1,80})\/(.+)$/);
+    if (!match || !IMPORT_PUBLIC_FILE.test(match[2])) return null;
+    const target = path.join(IMPORTS_DIR, match[1], ...match[2].split('/'));
+    const root = path.resolve(IMPORTS_DIR) + path.sep;
+    return path.resolve(target).startsWith(root) ? target : null;
+}
+
 function serveStatic(req, res, pathname) {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
         sendText(res, 405, 'Method not allowed.');
+        return;
+    }
+    // A read-only window onto the assets a created template needs.
+    const importFile = importPublicFile(pathname);
+    if (importFile) {
+        sendFile(req, res, importFile);
         return;
     }
     // Never serve local state, secrets or test/dev material as static files.
@@ -4857,16 +5507,19 @@ module.exports = {
     defaultCharacterSettings,
     normalizeProposalCharacters,
     safeRelativePath,
+    resolveProjectAssetPath,
     createImport,
     createCharacterImport,
     listImports,
     readSavedComposition,
     saveComposition,
+    importPublicFile,
     readAnimations,
     saveAnimations,
     getLlmCatalog,
     buildDirectorCatalog,
     detectFontFormat,
+    transcodeVideoToMp4,
     saveFont,
     listFonts,
     parseBriefFile,
@@ -4876,6 +5529,11 @@ module.exports = {
     deleteBrandPack,
     createBrandPackImport,
     createBrandTemplateProject,
+    listBrandTemplates,
+    saveBrandTemplate,
+    openSavedBrandTemplate,
+    deleteSavedBrandTemplate,
+    savedTemplateAssetPath,
     listBrandKits,
     readBrandKit,
     saveBrandKit,

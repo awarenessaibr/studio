@@ -21,6 +21,9 @@
         loaded: false,
         busy: false,
         error: '',
+        // Saved snapshots + in-progress projects for one pack/brand pair.
+        library: { key: '', loading: false, data: null, error: '' },
+        save: { composition: null, projectId: '', name: '' },
     };
     let root = null;
 
@@ -801,63 +804,277 @@
     // -----------------------------------------------------------------
     // Templates
     // -----------------------------------------------------------------
+    function libraryKey(brand) {
+        return `${state.pack?.id || ''}:${brand?.id || ''}`;
+    }
+
+    function ensureBrandLibrary(brand, { force = false } = {}) {
+        const key = libraryKey(brand);
+        if (!key || key === ':') return;
+        const current = state.library;
+        if (!force && current.key === key && (current.loading || current.data || current.error)) return;
+        state.library = {
+            key,
+            loading: true,
+            data: current.key === key ? current.data : null,
+            error: '',
+        };
+        request(`${API}/${encodeURIComponent(state.pack.id)}/templates?brandId=${encodeURIComponent(brand.id)}`)
+            .then((data) => {
+                if (state.library.key !== key) return;
+                state.library = { key, loading: false, data, error: '' };
+                if (state.tab === 'templates' && currentBrand()?.id === brand.id) renderDialog();
+            })
+            .catch((error) => {
+                if (state.library.key !== key) return;
+                state.library = { key, loading: false, data: null, error: error.message || 'Could not read the saved templates.' };
+                if (state.tab === 'templates' && currentBrand()?.id === brand.id) renderDialog();
+            });
+    }
+
+    function templateChannelLabel(channel) {
+        return { social: 'Social', video: 'Video', display: 'Screen', print: 'Print', instore: 'In-store' }[channel] || 'Digital';
+    }
+
+    function templateBadge(template, composition) {
+        const channel = template.channel || composition?.formats?.[0]?.channel || 'custom';
+        const duration = Number(template.duration || composition?.duration || 0);
+        const moving = template.motion === true
+            || (composition?.layers || []).some((layer) => (layer.keyframes || []).length > 1);
+        return [templateChannelLabel(channel), moving && duration ? `${Math.round(duration / 1000)}s loop` : '']
+            .filter(Boolean).join(' · ');
+    }
+
+    function templateExportButtons(composition, name) {
+        const wrap = h('div', { class: 'brand-template-exports' });
+        ['gif', 'video'].forEach((output) => {
+            const label = output === 'gif' ? 'GIF' : 'MP4';
+            wrap.appendChild(h('button', {
+                type: 'button',
+                class: 'brand-template-export',
+                'data-brand-action': 'export-template',
+                'data-export-output': output,
+                title: `Render “${name}” as ${label} without leaving this panel`,
+            }, label));
+        });
+        wrap.dataset.templateName = name || '';
+        // The composition is looked up from this map on click, so the preview
+        // does not have to serialize the scene into a DOM attribute.
+        templateCompositions.set(wrap, composition);
+        return wrap;
+    }
+
+    const templateCompositions = new WeakMap();
+
+    function templateSection(title, count, description, grid) {
+        return h('section', { class: 'brand-template-section' }, [
+            h('header', { class: 'brand-template-section-head' }, [
+                h('div', null, [
+                    h('h4', { text: title }),
+                    description ? h('p', { class: 'brand-pack-summary', text: description }) : null,
+                ]),
+                h('span', { class: 'brand-count', text: String(count) }),
+            ]),
+            grid,
+        ]);
+    }
+
+    function initialTemplateCard(brand, template) {
+        const definition = CORE?.TEMPLATES?.find((entry) => entry.id === template.id);
+        let composition = null;
+        if (CORE && definition) {
+            try {
+                composition = CORE.createTemplateComposition({
+                    packId: state.pack.id,
+                    packName: state.pack.name,
+                    brand,
+                    templateId: template.id,
+                    projectId: 'preview',
+                });
+            } catch {
+                composition = null;
+            }
+        }
+        const digital = ['social', 'video', 'display'].includes(template.channel);
+        const actions = h('div', { class: 'brand-template-actions' }, [
+            h('button', {
+                type: 'button',
+                class: 'brand-primary',
+                'data-brand-action': 'create-template',
+                'data-template-id': template.id,
+            }, 'Create'),
+            h('button', {
+                type: 'button',
+                'data-brand-action': 'attach-kit',
+            }, 'Use kit'),
+            digital ? templateExportButtons(composition, `${brand.name} — ${template.label}`) : null,
+            h('span', { class: 'brand-template-formats', text: template.formats.length ? `${1 + template.formats.length} formats` : '1 format' }),
+        ]);
+        return h('article', { class: 'brand-template', 'data-template-channel': template.channel }, [
+            renderTemplatePreview(composition),
+            h('div', { class: 'brand-template-heading' }, [
+                h('h4', { text: template.label }),
+                h('span', { class: 'brand-template-badge', text: templateBadge(template, composition) }),
+            ]),
+            h('span', { class: 'brand-template-spec', text: template.spec }),
+            h('p', { class: 'brand-template-description', text: template.description }),
+            template.guideline
+                ? h('p', { class: 'brand-template-guideline', text: template.guideline.specification })
+                : null,
+            actions,
+        ]);
+    }
+
+    function savedTemplateCard(brand, template) {
+        const composition = template.composition;
+        const name = template.name || 'Saved template';
+        const actions = h('div', { class: 'brand-template-actions' }, [
+            h('button', {
+                type: 'button',
+                class: 'brand-primary',
+                'data-brand-action': 'open-saved-template',
+                'data-template-id': template.id,
+            }, 'Open copy'),
+            templateExportButtons(composition, name),
+            h('button', {
+                type: 'button',
+                'data-brand-action': 'delete-saved-template',
+                'data-template-id': template.id,
+                title: 'Remove this published snapshot',
+            }, 'Delete'),
+        ]);
+        return h('article', { class: 'brand-template', 'data-saved-template-id': template.id }, [
+            renderTemplatePreview(composition),
+            h('div', { class: 'brand-template-heading' }, [
+                h('h4', { text: name }),
+                h('span', { class: 'brand-template-badge brand-template-badge-saved', text: 'Published' }),
+            ]),
+            h('span', { class: 'brand-template-spec', text: `${template.width} × ${template.height} px · ${templateChannelLabel(template.channel)}` }),
+            h('p', { class: 'brand-template-description', text: `${template.layerCount} layers · ${template.variableCount} variables${template.duration && template.duration !== 10000 ? ` · ${Math.round(template.duration / 1000)}s loop` : ''}` }),
+            h('p', { class: 'brand-template-guideline', text: `Updated ${String(template.updatedAt || '').slice(0, 10) || '—'} · a snapshot, not a live link` }),
+            actions,
+        ]);
+    }
+
+    function projectTemplateCard(brand, project) {
+        const composition = project.composition;
+        const name = project.name || 'Created template';
+        const actions = h('div', { class: 'brand-template-actions' }, [
+            h('button', {
+                type: 'button',
+                class: 'brand-primary',
+                'data-brand-action': 'open-project-template',
+                'data-project-id': project.projectId,
+            }, 'Open'),
+            project.savedTemplateId
+                ? h('span', { class: 'brand-template-formats', text: 'Published' })
+                : h('button', {
+                    type: 'button',
+                    'data-brand-action': 'save-project-template',
+                    'data-project-id': project.projectId,
+                    'data-project-name': name,
+                }, 'Publish…'),
+            templateExportButtons(composition, name),
+        ]);
+        return h('article', { class: 'brand-template brand-template-project', 'data-project-id': project.projectId }, [
+            renderTemplatePreview(composition),
+            h('div', { class: 'brand-template-heading' }, [
+                h('h4', { text: name }),
+                h('span', { class: 'brand-template-badge brand-template-badge-project', text: project.savedTemplateId ? 'Published copy' : 'In progress' }),
+            ]),
+            h('span', { class: 'brand-template-spec', text: `${project.width} × ${project.height} px · ${templateChannelLabel(project.channel)}` }),
+            h('p', { class: 'brand-template-description', text: `${project.layerCount} layers · ${project.variableCount} variables` }),
+            h('p', { class: 'brand-template-guideline', text: 'Created from this brand’s templates. Publish a snapshot when the work is finished.' }),
+            actions,
+        ]);
+    }
+
     function renderTemplates(brand) {
+        ensureBrandLibrary(brand);
         const catalog = CORE ? CORE.templateCatalog(brand) : [];
+        const library = state.library;
         const panel = h('div', { class: 'brand-panel' });
-        panel.appendChild(h('div', { class: 'brand-card' }, [
+
+        panel.appendChild(h('div', { class: 'brand-card brand-template-intro' }, [
             h('header', null, [
-                h('h4', { text: 'Initial templates' }),
-                h('span', { class: 'brand-count', text: `${catalog.length} templates` }),
+                h('h4', { text: 'Templates' }),
+                h('span', { class: 'brand-count', text: `${catalog.length} initial · ${library.data?.templates?.length || 0} saved` }),
             ]),
             h('p', {
-                text: 'Each template is a real composition: variables, formats and the brand kit are already attached. Create one and edit it like any other scene.',
+                text: 'Each card is a real composition. Create an initial template to edit it, then publish the finished scene back to this brand so it joins the saved templates below.',
             }),
             h('p', {
-                text: 'Licensed families do not travel with the pack. Templates use Helvetica Neue / Georgia as explicit stand-ins and record the intended family in the composition metadata; upload the real fonts and relink when they are available.',
+                text: 'Digital templates carry keyframes, so the same composition exports as a still PNG, an animated GIF or an MP4. Licensed families use Helvetica Neue / Georgia stand-ins until the real fonts are uploaded.',
             }),
+            h('p', {
+                class: 'brand-pack-summary',
+                text: `Uses ${brand.photography?.length || 0} photographs, ${brand.logos?.length || 0} logo cuts and ${brand.palette?.length || 0} palette colours from the ${brand.name} asset library.`,
+            }),
+            h('div', { class: 'brand-template-toolbar' }, [
+                h('button', {
+                    type: 'button',
+                    class: 'brand-primary',
+                    'data-brand-action': 'save-current-template',
+                    disabled: !(studio()?.composition?.layers || []).length,
+                    title: 'Snapshot the composition open in the studio into this brand',
+                }, 'Save current composition…'),
+                h('button', {
+                    type: 'button',
+                    'data-brand-action': 'refresh-templates',
+                    title: 'Reload published templates and in-progress projects',
+                }, 'Refresh'),
+                (studio()?.composition?.layers || []).length
+                    ? h('span', { class: 'brand-template-formats', text: `Editing “${studio().composition.name}”` })
+                    : h('span', { class: 'brand-template-formats', text: 'Open or create a composition to publish it' }),
+            ]),
         ]));
-        const grid = h('div', { class: 'brand-templates' });
-        catalog.forEach((template) => {
-            const definition = CORE?.TEMPLATES?.find((entry) => entry.id === template.id);
-            let composition = null;
-            if (CORE && definition) {
-                try {
-                    composition = CORE.createTemplateComposition({
-                        packId: state.pack.id,
-                        packName: state.pack.name,
-                        brand,
-                        templateId: template.id,
-                        projectId: 'preview',
-                    });
-                } catch {
-                    composition = null;
-                }
-            }
-            const card = h('article', { class: 'brand-template' }, [
-                renderTemplatePreview(composition),
-                h('h4', { text: template.label }),
-                h('span', { class: 'brand-template-spec', text: template.spec }),
-                h('p', { class: 'brand-template-description', text: template.description }),
-                template.guideline
-                    ? h('p', { class: 'brand-template-guideline', text: template.guideline.specification })
-                    : null,
-                h('div', { class: 'brand-template-actions' }, [
-                    h('button', {
-                        type: 'button',
-                        class: 'brand-primary',
-                        'data-brand-action': 'create-template',
-                        'data-template-id': template.id,
-                    }, 'Create'),
-                    h('button', {
-                        type: 'button',
-                        'data-brand-action': 'attach-kit',
-                    }, 'Use kit'),
-                    h('span', { class: 'brand-template-formats', text: template.formats.length ? `${1 + template.formats.length} formats` : '1 format' }),
-                ]),
-            ]);
-            grid.appendChild(card);
-        });
-        panel.appendChild(grid);
+
+        const initialGrid = h('div', { class: 'brand-templates' });
+        catalog.forEach((template) => initialGrid.appendChild(initialTemplateCard(brand, template)));
+        panel.appendChild(templateSection(
+            'Initial templates',
+            catalog.length,
+            'Generated from the guide and the asset library. Create one and it opens in the studio as a normal project.',
+            initialGrid,
+        ));
+
+        if (library.loading && !library.data) {
+            panel.appendChild(h('p', { class: 'brand-template-state', text: 'Reading published templates and projects…' }));
+        }
+        if (library.error) {
+            panel.appendChild(h('p', { class: 'brand-template-state', 'data-error': 'true', text: library.error }));
+        }
+
+        const saved = library.data?.templates || [];
+        if (saved.length) {
+            const grid = h('div', { class: 'brand-templates' });
+            saved.forEach((template) => grid.appendChild(savedTemplateCard(brand, template)));
+            panel.appendChild(templateSection(
+                'Saved brand templates',
+                saved.length,
+                'Published snapshots. Export one as a GIF or MP4, or open a copy to keep editing without changing the snapshot.',
+                grid,
+            ));
+        }
+
+        const projects = library.data?.projects || [];
+        if (projects.length) {
+            const grid = h('div', { class: 'brand-templates' });
+            projects.forEach((project) => grid.appendChild(projectTemplateCard(brand, project)));
+            panel.appendChild(templateSection(
+                'In progress',
+                projects.length,
+                'Projects created from this brand’s templates. Open one to continue, or publish it to freeze the current state.',
+                grid,
+            ));
+        }
+
+        if (!library.loading && library.data && !saved.length && !projects.length) {
+            panel.appendChild(h('p', {
+                class: 'brand-template-state',
+                text: 'No saved templates yet. Create an initial template, edit it in the studio, then use “Save current composition…”.',
+            }));
+        }
         return panel;
     }
 
@@ -876,8 +1093,20 @@
             class: 'brand-preview-canvas',
             style: { width: `${width}px`, height: `${height}px` },
         });
-        canvas.style.background = composition.meta?.palette?.ground || '#000000';
-        composition.layers.slice().sort((a, b) => a.z - b.z).forEach((layer) => {
+        const core = window.StudioCore;
+        const format = core?.getActiveFormat ? core.getActiveFormat(composition) : null;
+        const resolvedLayers = composition.layers.map((layer) => {
+            if (!core?.resolveLayer) return layer;
+            try {
+                return core.resolveLayer(layer, { composition, format });
+            } catch {
+                return layer;
+            }
+        });
+        canvas.style.background = composition.meta?.palette?.ground
+            || composition.brandKit?.palette?.[0]?.hex
+            || '#000000';
+        resolvedLayers.filter((layer) => layer.visible !== false).sort((a, b) => a.z - b.z).forEach((layer) => {
             const geometry = {
                 left: `${layer.x}%`,
                 top: `${layer.y}%`,
@@ -1026,6 +1255,263 @@
         }
     }
 
+    async function refreshTemplateLibrary() {
+        const brand = currentBrand();
+        if (!brand) return;
+        ensureBrandLibrary(brand, { force: true });
+        renderDialog();
+    }
+
+    async function openSavedTemplate(templateId) {
+        const brand = currentBrand();
+        const studioRef = studio();
+        if (!state.pack || !brand || !templateId) return;
+        if (!studioRef) {
+            setStatus('The studio is still loading. Try again in a moment.', { error: true });
+            return;
+        }
+        state.busy = true;
+        renderBusy();
+        setStatus('Opening a working copy…', { busy: true });
+        try {
+            const result = await request(
+                `${API}/${encodeURIComponent(state.pack.id)}/templates/${encodeURIComponent(brand.id)}/${encodeURIComponent(templateId)}/open`,
+                { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
+            );
+            if (!result?.composition) throw new Error('The saved template returned no composition.');
+            studioRef.openComposition(result.composition, {
+                projectId: result.project.id,
+                projectMeta: result.composition.meta || null,
+            });
+            studioRef.loadProjectCatalog({ selectProjectId: `import-${result.project.id}` }).catch(() => {});
+            closeDialog();
+            studioRef.setStatus(`Opened a copy of “${result.project.name}” — ${result.composition.layers.length} layers.`);
+        } catch (error) {
+            setStatus(error.message || 'Could not open the saved template.', { error: true });
+        } finally {
+            state.busy = false;
+            renderBusy();
+        }
+    }
+
+    async function openProjectTemplate(projectId) {
+        const studioRef = studio();
+        if (!studioRef || !projectId) return;
+        setStatus('Opening the project…', { busy: true });
+        try {
+            await studioRef.loadProjectCatalog({ selectProjectId: `import-${projectId}` });
+            await studioRef.selectProject(`import-${projectId}`);
+            closeDialog();
+        } catch (error) {
+            setStatus(error.message || 'Could not open the project.', { error: true });
+        }
+    }
+
+    async function deleteSavedTemplate(templateId) {
+        const brand = currentBrand();
+        if (!state.pack || !brand || !templateId) return;
+        if (!window.confirm('Delete this published template? The project it came from is untouched.')) return;
+        try {
+            await request(
+                `${API}/${encodeURIComponent(state.pack.id)}/templates/${encodeURIComponent(brand.id)}/${encodeURIComponent(templateId)}`,
+                { method: 'DELETE' },
+            );
+            setStatus('Published template deleted.');
+            refreshTemplateLibrary();
+        } catch (error) {
+            setStatus(error.message || 'Could not delete the saved template.', { error: true });
+        }
+    }
+
+    async function exportTemplate(button) {
+        const wrap = button.closest('.brand-template-exports');
+        const composition = wrap ? templateCompositions.get(wrap) : null;
+        const output = button.dataset.exportOutput === 'video' ? 'video' : 'gif';
+        const name = wrap?.dataset.templateName || composition?.name || 'brand-template';
+        const studioRef = studio();
+        if (!composition) {
+            setStatus('This card has no composition preview to export.', { error: true });
+            return;
+        }
+        if (!studioRef?.exportCompositionAs) {
+            setStatus('The studio is still loading. Try again in a moment.', { error: true });
+            return;
+        }
+        button.disabled = true;
+        const previous = button.textContent;
+        button.textContent = output === 'gif' ? 'Rendering GIF…' : 'Rendering MP4…';
+        setStatus(`Rendering “${name}” as ${output === 'gif' ? 'GIF' : 'MP4'}…`, { busy: true });
+        try {
+            const result = await studioRef.exportCompositionAs(composition, output, { name });
+            setStatus(`Downloaded ${result.extension.toUpperCase()} (${Math.round(result.bytes / 1024)} KB) from “${name}”.`);
+        } catch (error) {
+            setStatus(error.message || 'The template export failed.', { error: true });
+        } finally {
+            button.disabled = false;
+            button.textContent = previous;
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // Save-to-brand dialog
+    // -----------------------------------------------------------------
+    function fillSavePacks(preferredPackId) {
+        const select = $('brandTemplatePack');
+        if (!select) return;
+        select.replaceChildren();
+        if (!state.packs.length) select.appendChild(new Option('No packs imported', ''));
+        state.packs.forEach((pack) => {
+            select.appendChild(new Option(pack.name, pack.id));
+        });
+        const pick = preferredPackId && state.packs.some((pack) => pack.id === preferredPackId)
+            ? preferredPackId
+            : (state.packs[0]?.id || '');
+        if (pick) select.value = pick;
+        fillSaveBrands(pick, null);
+    }
+
+    function fillSaveBrands(packId, preferredBrandId) {
+        const select = $('brandTemplateBrand');
+        if (!select) return;
+        const pack = state.packs.find((entry) => entry.id === packId);
+        select.replaceChildren();
+        (pack?.brands || []).forEach((brand) => {
+            select.appendChild(new Option(brand.name, brand.id));
+        });
+        if (!pack || !pack.brands.length) {
+            select.appendChild(new Option('No brands in this pack', ''));
+            select.disabled = true;
+            return;
+        }
+        select.disabled = false;
+        const pick = preferredBrandId && pack.brands.some((brand) => brand.id === preferredBrandId)
+            ? preferredBrandId
+            : pack.brands[0].id;
+        select.value = pick;
+    }
+
+    async function openSaveDialog({ composition = null, projectId = '', name = '' } = {}) {
+        const studioRef = studio();
+        // Publishing a project card must read that project, not whatever scene
+        // happens to be open in the editor.
+        const source = composition || (projectId ? null : (studioRef?.composition || null));
+        if (!source && !projectId) {
+            setStatus('Open or create a composition first.', { error: true });
+            return;
+        }
+        if (!state.packs.length) {
+            try {
+                await fetchPacks();
+            } catch (error) {
+                setStatus(error.message || 'Could not read the brand packs.', { error: true });
+                return;
+            }
+        }
+        const liveProjectId = source && source === studioRef?.composition
+            ? String(studioRef.projectId || '')
+            : '';
+        state.save = {
+            composition: source,
+            projectId: projectId || liveProjectId,
+            name: name || source?.name || 'Brand template',
+        };
+        const meta = source?.meta || {};
+        const preferredPack = meta.packId || state.pack?.id || '';
+        const preferredBrand = meta.brandId || state.brandId || '';
+        fillSavePacks(preferredPack);
+        if (preferredBrand) fillSaveBrands($('brandTemplatePack')?.value || preferredPack, preferredBrand);
+        const nameInput = $('brandTemplateName');
+        if (nameInput) nameInput.value = state.save.name;
+        const status = $('brandTemplateSaveStatus');
+        if (status) {
+            status.textContent = projectId
+                ? 'Publishes the project’s current saved composition. The project stays editable.'
+                : (source ? `Publishes a snapshot of “${source.name}”. Later edits will not change it.` : '');
+            status.dataset.error = 'false';
+        }
+        const dialog = $('brandTemplateSaveDialog');
+        if (dialog && !dialog.open) {
+            if (typeof dialog.showModal === 'function') dialog.showModal();
+            else dialog.setAttribute('open', '');
+        }
+    }
+
+    function closeSaveDialog() {
+        const dialog = $('brandTemplateSaveDialog');
+        if (!dialog) return;
+        if (dialog.open) dialog.close();
+        else dialog.removeAttribute('open');
+    }
+
+    async function submitSaveTemplate() {
+        const packId = $('brandTemplatePack')?.value || '';
+        const brandId = $('brandTemplateBrand')?.value || '';
+        const nameInput = $('brandTemplateName');
+        const name = String(nameInput?.value || '').trim();
+        const status = $('brandTemplateSaveStatus');
+        if (!packId || !brandId) {
+            if (status) {
+                status.textContent = 'Choose a pack and a brand.';
+                status.dataset.error = 'true';
+            }
+            return;
+        }
+        if (!state.save.composition && !state.save.projectId) {
+            if (status) {
+                status.textContent = 'There is no composition to publish.';
+                status.dataset.error = 'true';
+            }
+            return;
+        }
+        const button = document.querySelector('[data-brand-action="save-template"]');
+        if (button) button.disabled = true;
+        if (status) {
+            status.textContent = 'Publishing the snapshot…';
+            status.dataset.error = 'false';
+        }
+        try {
+            const payload = { brandId, name: name || state.save.name };
+            if (state.save.projectId) payload.projectId = state.save.projectId;
+            if (state.save.composition) payload.composition = state.save.composition;
+            const result = await request(`${API}/${encodeURIComponent(packId)}/templates/save`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            // The live editor keeps a pointer to the published snapshot; the
+            // project is still the editable source of truth.
+            const studioRef = studio();
+            if (studioRef?.composition && studioRef.composition === state.save.composition) {
+                studioRef.composition.meta = {
+                    ...(studioRef.composition.meta || {}),
+                    packId,
+                    brandId,
+                    brandTemplateId: result.template?.id || null,
+                };
+                studioRef.scheduleSave?.();
+            }
+            closeSaveDialog();
+            state.pack = await fetchPack(packId).catch(() => state.pack);
+            state.brandId = brandId;
+            state.tab = 'templates';
+            state.library = { key: '', loading: false, data: null, error: '' };
+            renderAll();
+            const dialog = $('brandIdentityDialog');
+            if (dialog && !dialog.open) {
+                if (typeof dialog.showModal === 'function') dialog.showModal();
+                else dialog.setAttribute('open', '');
+            }
+            setStatus(`Published “${result.template?.name || name}” to ${state.pack?.brands?.find((brand) => brand.id === brandId)?.name || brandId}.`);
+        } catch (error) {
+            if (status) {
+                status.textContent = error.message || 'Could not publish the template.';
+                status.dataset.error = 'true';
+            }
+        } finally {
+            if (button) button.disabled = false;
+        }
+    }
+
     async function deletePack() {
         if (!state.pack) return;
         const pack = state.pack;
@@ -1059,8 +1545,10 @@
     }
 
     function renderBusy() {
-        document.querySelectorAll('[data-brand-action="create-template"], [data-brand-action="import"], [data-brand-action="delete-pack"]').forEach((button) => {
-            button.disabled = state.busy;
+        const hasScene = Boolean((studio()?.composition?.layers || []).length);
+        document.querySelectorAll('[data-brand-action="create-template"], [data-brand-action="open-saved-template"], [data-brand-action="import"], [data-brand-action="delete-pack"], [data-brand-action="save-current-template"]').forEach((button) => {
+            button.disabled = state.busy
+                || (button.dataset.brandAction === 'save-current-template' && !hasScene);
         });
         const submit = $('brandPackZipInput');
         if (submit) submit.disabled = state.busy;
@@ -1118,6 +1606,33 @@
         } else if (kind === 'attach-kit') {
             event.preventDefault();
             attachKit();
+        } else if (kind === 'open-saved-template') {
+            event.preventDefault();
+            openSavedTemplate(action.dataset.templateId || '');
+        } else if (kind === 'open-project-template') {
+            event.preventDefault();
+            openProjectTemplate(action.dataset.projectId || '');
+        } else if (kind === 'save-project-template') {
+            event.preventDefault();
+            openSaveDialog({ projectId: action.dataset.projectId || '', name: action.dataset.projectName || '' });
+        } else if (kind === 'delete-saved-template') {
+            event.preventDefault();
+            deleteSavedTemplate(action.dataset.templateId || '');
+        } else if (kind === 'export-template') {
+            event.preventDefault();
+            exportTemplate(action);
+        } else if (kind === 'refresh-templates') {
+            event.preventDefault();
+            refreshTemplateLibrary();
+        } else if (kind === 'save-current-template') {
+            event.preventDefault();
+            openSaveDialog();
+        } else if (kind === 'save-template') {
+            event.preventDefault();
+            submitSaveTemplate();
+        } else if (kind === 'close-save-template') {
+            event.preventDefault();
+            closeSaveDialog();
         }
     }
 
@@ -1163,6 +1678,17 @@
         const dialogClose = $('brandIdentityDialog');
         if (dialogClose) {
             dialogClose.addEventListener('close', () => setStatus(''));
+        }
+        const savePack = $('brandTemplatePack');
+        if (savePack) {
+            savePack.addEventListener('change', () => fillSaveBrands(savePack.value, null));
+        }
+        const saveForm = $('brandTemplateSaveForm');
+        if (saveForm) {
+            saveForm.addEventListener('submit', (event) => {
+                event.preventDefault();
+                submitSaveTemplate();
+            });
         }
         renderSidebar();
         ensureLoaded();

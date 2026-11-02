@@ -301,12 +301,28 @@ test('the template catalog exposes the initial set with print specs', () => {
         'table-card',
         'voucher',
         'social-post',
+        'social-story',
+        'social-reel',
+        'square-loop',
+        'display-screen',
+        'digital-menu-board',
+        'link-preview',
     ]);
     const menu = catalog.find((entry) => entry.id === 'menu');
     assert.match(menu.spec, /A4/);
     assert.match(menu.spec, /300 dpi/);
     assert.strictEqual(menu.guideline.specification, 'Black ground, brass prices');
     assert.deepStrictEqual(menu.formats, ['A5 menu', 'A3 menu']);
+    // Digital templates carry a loop duration and motion, which is what makes
+    // the same card exportable as a GIF or an MP4.
+    const story = catalog.find((entry) => entry.id === 'social-story');
+    assert.strictEqual(story.channel, 'social');
+    assert.strictEqual(story.duration, 6000);
+    assert.strictEqual(story.motion, true);
+    assert.match(story.spec, /1080 × 1920/);
+    const board = catalog.find((entry) => entry.id === 'digital-menu-board');
+    assert.strictEqual(board.channel, 'display');
+    assert.match(board.spec, /1920 × 1080/);
 });
 
 test('createTemplateComposition builds a valid v3 composition', () => {
@@ -364,6 +380,37 @@ test('every template builds and respects its safe area', () => {
     });
 });
 
+test('digital templates carry loop-safe keyframes and a real duration', () => {
+    const brand = Brand.normalizeBrand(brandInput(), 0);
+    const digital = Brand.templateCatalog(brand).filter((template) => template.motion);
+    assert.deepStrictEqual(digital.map((template) => template.id), [
+        'social-story',
+        'social-reel',
+        'square-loop',
+        'display-screen',
+        'digital-menu-board',
+        'link-preview',
+    ]);
+    digital.forEach((template) => {
+        const composition = Brand.createTemplateComposition({ brand, templateId: template.id });
+        assert.strictEqual(composition.duration, template.duration, template.id);
+        assert.ok(composition.duration > 0, template.id);
+        const moving = composition.layers.filter((layer) => (layer.keyframes || []).length > 1);
+        assert.ok(moving.length > 0, `${template.id} has no motion`);
+        moving.forEach((layer) => {
+            const frames = layer.keyframes;
+            assert.ok(frames.length >= 2, layer.id);
+            assert.ok(frames.every((frame) => frame.time >= 0 && frame.time <= composition.duration), layer.id);
+            // The first and last frame must match so a short GIF loops cleanly.
+            const first = frames[0];
+            const last = frames[frames.length - 1];
+            ['x', 'y', 'w', 'h', 'opacity'].forEach((property) => {
+                assert.ok(Math.abs(first[property] - last[property]) < 0.01, `${template.id}/${layer.id}/${property}`);
+            });
+        });
+    });
+});
+
 test('parseBrandDocx reads the application, print, contact and type tables', () => {
     const doc = parseBrandDocx(docx(), {
         readZipEntries: server.readZipEntries,
@@ -400,6 +447,7 @@ test('a brand-kit ZIP becomes a pack, kits, assets and a template project', asyn
     ]);
     let packId = null;
     let projectId = null;
+    let copyId = null;
     try {
         const result = await server.createBrandPackImport({ zip: zip.toString('base64'), zipName: 'test-kit.zip' });
         packId = result.pack.id;
@@ -446,8 +494,67 @@ test('a brand-kit ZIP becomes a pack, kits, assets and a template project', asyn
         saved.brandKit.logos.forEach((logo) => assert.match(logo.url, new RegExp(`^/data/imports/${projectId}/assets/`)));
         const report = Core.validateAgainstBrandKit(saved, { kit: saved.brandKit, format: saved.formats[0] });
         assert.strictEqual(report.ok, true, JSON.stringify(report.groups.filter((group) => !group.ok)));
+
+        // Publish a snapshot from a fresh (not yet localized) composition, so
+        // the store has to copy the pack's own asset URLs.
+        const snapshot = Brand.createTemplateComposition({
+            packId,
+            packName: result.pack.name,
+            brand,
+            templateId: 'social-story',
+            projectId: 'preview',
+            name: 'Test story loop',
+        });
+        const published = await server.saveBrandTemplate(packId, {
+            brandId: brand.id,
+            name: 'Test story loop',
+            composition: snapshot,
+        });
+        const templateId = published.template.id;
+        assert.strictEqual(published.template.source, 'saved');
+        assert.strictEqual(published.template.duration, 6000);
+        assert.ok(published.template.layerCount > 3);
+        const storedUrls = published.composition.layers
+            .filter((layer) => layer.type === 'image' && !layer.url.startsWith('data:'))
+            .map((layer) => layer.url);
+        assert.ok(storedUrls.length > 0);
+        storedUrls.forEach((url) => assert.match(url, /\/templates\/test-brand\/.+\/files\//));
+        const listed = await server.listBrandTemplates(packId, { brandId: brand.id });
+        assert.strictEqual(listed.templates.length, 1);
+        assert.strictEqual(listed.templates[0].id, templateId);
+        assert.ok(listed.projects.some((entry) => entry.projectId === projectId));
+        assert.ok(listed.projects.some((entry) => entry.projectId === projectId && entry.savedTemplateId === null));
+
+        const opened = await server.openSavedBrandTemplate(packId, brand.id, templateId, {});
+        copyId = opened.project.id;
+        assert.strictEqual(opened.composition.meta.brandTemplateId, templateId);
+        assert.strictEqual(opened.composition.duration, 6000);
+        // The working copy localizes the snapshot's files into its own folder.
+        opened.composition.layers
+            .filter((layer) => layer.type === 'image' && !layer.url.startsWith('data:'))
+            .forEach((layer) => assert.match(layer.url, new RegExp(`^/data/imports/${copyId}/assets/`)));
+
+        // Publishing a project copies the project's own /data/imports assets
+        // into the template folder as well, so the snapshot is self-contained.
+        const fromProject = await server.saveBrandTemplate(packId, {
+            brandId: brand.id,
+            projectId,
+            name: 'Project snapshot',
+        });
+        const projectSnapshot = fromProject.composition.layers
+            .filter((layer) => layer.type === 'image' && !layer.url.startsWith('data:'))
+            .map((layer) => layer.url);
+        assert.ok(projectSnapshot.length > 0);
+        projectSnapshot.forEach((url) => assert.match(url, new RegExp(
+            `^/api/brand-packs/${packId}/templates/test-brand/${fromProject.template.id}/files/`,
+        )));
+        await server.deleteSavedBrandTemplate(packId, brand.id, fromProject.template.id);
+        await server.deleteSavedBrandTemplate(packId, brand.id, templateId);
+        const after = await server.listBrandTemplates(packId, { brandId: brand.id });
+        assert.strictEqual(after.templates.length, 0);
     } finally {
         if (projectId) await fsp.rm(path.join(IMPORTS, projectId), { recursive: true, force: true }).catch(() => {});
+        if (copyId) await fsp.rm(path.join(IMPORTS, copyId), { recursive: true, force: true }).catch(() => {});
         if (packId) {
             const pack = await server.readBrandPack(packId).catch(() => null);
             await server.deleteBrandPack(packId).catch(() => {});

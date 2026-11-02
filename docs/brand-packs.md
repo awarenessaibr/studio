@@ -142,56 +142,97 @@ brand chips for the active group, and the two primary actions.
 
 ### Dialog
 - **Group tab** first, then one tab per brand.
-- Each brand has three detail tabs:
+- Each brand has five detail tabs:
 
 | Tab | Contents |
 |---|---|
 | **Identity** | Cover hero, palette swatches with names/roles, typography families with weights and cuts, voice attributes, logo cuts by variant, photography with dimensions, type specimens |
-| **Templates** | A live miniature of each generated template, the guide sentence that shaped it, **Create** and **Use kit** |
+| **Templates** | A live miniature of each generated template, the guide sentence that shaped it, **Create** and **Use kit**; below them, **Saved brand templates** (published snapshots with **GIF**/**MP4**) and **In progress** projects created from this brand |
 | **Guidelines** | Applications matrix, print specification, canonical contact block, facts, type hierarchy, logo rules, and the source document's sections; the Word guide is downloadable |
+| **Library** | Read-only asset-library health for the brand (total, verified, proposed, duplicates, orphaned, palette drift) and a link to `/library.html` |
+| **Social** | Read-only social-intelligence profile matched by brand name/slug |
 
-Everything is read from the pack; nothing is retyped in the UI.
+Identity, guidelines and the initial templates are read from the pack; saved
+templates and in-progress projects are read from the pack's `templates/`
+folder and `data/imports/`. Nothing is retyped in the UI.
 
 ---
 
 ## 6. Starter templates
 
-Seven real v3 compositions are generated from the identity and guide. Sizes
-are print sizes at 300 dpi unless stated.
+Thirteen real v3 compositions are generated from the identity, the guide and
+the brand's photography. Seven are print/stationery sizes at 300 dpi; six are
+digital loops with keyframes.
 
-| Template | Size | Formats | Layers | Variables | What is already built |
-|---|---|---:|---:|---:|---|
-| `menu` | A4 · 2480 × 3508 | A5, A3 | 22 | 17 | Ground, rule, logo, kicker, title, 5 dishes × (name, description, price), footer |
-| `business-card-front` | 85 × 55 mm · 1004 × 650 | — | 5 | 2 | Brand ground, mark/wordmark, tagline, hairline, website |
-| `business-card-back` | 85 × 55 mm · 1004 × 650 | — | 8 | 6 | Name, role, phone, email, address, website, social from the guide's contact block |
-| `flyer` | A5 · 1748 × 2480 | — | 8 | 5 | Photo band, logo, headline, sub-head, body, CTA, footer |
-| `table-card` | A6 · 1240 × 1748 | — | 8 | 5 | Mark, kicker, dish, description, price, allergen note |
-| `voucher` | DL · 2480 × 1169 | — | 8 | 5 | Logo, title, value, terms, redemption code panel, footer |
-| `social-post` | 1080 × 1080 | 4:5 portrait | 6 | 3 | Logo, headline, sub-head, handle/website |
+| Template | Size | Channel | Layers | Variables | What is already built |
+|---|---|---|---:|---:|---|
+| `menu` | A4 · 2480 × 3508 | print | 22 | 17 | Ground, rule, logo, kicker, title, 5 dishes × (name, description, price), footer |
+| `business-card-front` | 85 × 55 mm · 1004 × 650 | print | 5 | 2 | Brand ground, mark/wordmark, tagline, hairline, website |
+| `business-card-back` | 85 × 55 mm · 1004 × 650 | print | 8 | 6 | Name, role, phone, email, address, website, social from the guide's contact block |
+| `flyer` | A5 · 1748 × 2480 | print | 8 | 5 | Photo band, logo, headline, sub-head, body, CTA, footer |
+| `table-card` | A6 · 1240 × 1748 | print | 8 | 5 | Mark, kicker, dish, description, price, allergen note |
+| `voucher` | DL · 2480 × 1169 | print | 8 | 5 | Logo, title, value, terms, redemption code panel, footer |
+| `social-post` | 1080 × 1080 | social | 6 | 3 | Logo, headline, sub-head, handle/website |
+| `social-story` | 1080 × 1920 · 6 s | social | 9 | 4 | Photo push, scrim, logo, kicker, headline, sub-head, footer |
+| `social-reel` | 1080 × 1920 · 8 s | video | 9 | 4 | Parallax photo, rule, kicker, large headline, detail, footer |
+| `square-loop` | 1080 × 1080 · 5 s | social | 6 | 3 | Ink ground, moving accent bar, logo, headline, tagline, footer |
+| `display-screen` | 1920 × 1080 · 6 s | display | 9 | 4 | Photo push, scrim, logo, rule, headline, tagline, detail, footer |
+| `digital-menu-board` | 1920 × 1080 · 5 s | display | 20 | 17 | Ground, moving rule, logo, title, 5 dishes × (name, description, price), footer |
+| `link-preview` | 1200 × 630 · 4 s | social | 7 | 4 | Accent bar, logo, kicker, headline, sub-head, footer |
 
 Every one is a normal composition: per-template variables with bindings, a
 format list, the brand kit and safe zones. Nothing is a screenshot or a
 special layer type, so the variable editor, brief ingestion, contact sheet,
-batch export, guardrails and agent protocol all apply to it.
+batch export, guardrails and agent protocol all apply to it. The digital
+templates are loop-safe (first and last keyframe match), so the same scene
+exports as a still PNG, an animated GIF or an MP4.
 
 A menu arrives with 17 variables (`menu_title`, five × `item_N_name`,
 `item_N_desc`, `item_N_price`, `menu_footer`); a business-card back carries
 the canonical contact block; a voucher has value, terms and code. Row-based
 briefs can replace any of them.
 
-### Create vs Use kit
+### Create, Use kit and publish
 - **Create** writes a new project, opens it in the studio and closes the
   dialog. The action:
 
   1. builds the composition in Node (the same code the studio loads),
   2. writes `data/imports/<id>/composition.json`,
   3. copies referenced images/logos into `data/imports/<id>/assets/` and
-     rewrites layer and kit URLs to the static `/data/` path,
+     rewrites layer and kit URLs to `/data/imports/<id>/assets/…`; the static
+     server exposes only image/video files inside an import, never
+     `composition.json`, `source.zip` or the rest of `data/`,
   4. records the pack's shared kit id in `meta.sharedKitId` but keeps a
      **local kit snapshot**, so deleting the pack cannot break the creative.
 
 - **Use kit** attaches the brand kit to the *current* composition without
   leaving it — useful for a scene that already exists.
+
+- **Save current composition…** (Export panel) and **Publish…** (on an
+  in-progress project) snapshot the scene into the brand's template library.
+  The snapshot is independent of the project: later edits do not rewrite a
+  template someone already published.
+
+- **Open copy** on a saved template creates a new project and copies the
+  snapshot's files into it, so deleting the template cannot break the copy.
+
+### Saved templates and in-progress work
+The Templates tab reads `GET /api/brand-packs/:id/templates?brandId=…` and
+shows two extra sections:
+
+- **Saved brand templates** — published snapshots under
+  `data/brand-packs/<pack>/templates/<brand>/<template>/template.json`, with
+  **GIF**, **MP4** and **Delete** actions.
+- **In progress** — projects whose `composition.meta.packId`/`brandId` match
+  the brand and whose `meta.source` is `brand-template`. These are the scenes
+  already generated for that business; open one, keep editing, then publish.
+
+Both sections render the composition through the same preview path as the
+initial cards and offer **GIF**/**MP4** without replacing the scene open in
+the editor. GIFs are capped at 480 px / 10 fps by the existing export pipeline.
+MP4 records at 30 fps; when the optional `ffmpeg` binary is present the server
+transcodes the browser recording to H.264/AVC (see
+`POST /api/video/transcode`), otherwise the browser's own MP4/WebM is kept.
 
 ---
 
@@ -235,7 +276,14 @@ composition kitless.
 | `GET` | `/api/brand-packs/:id` | `{ pack, updatedAt }` |
 | `DELETE` | `/api/brand-packs/:id` | `{ deleted: true }`; the pack's shared kits are removed, while existing compositions keep their embedded snapshots and created templates keep their copied assets |
 | `GET` | `/api/brand-packs/:id/files/<brand>/<path>` | An asset or a guide with its real content type |
-| `POST` | `/api/brand-packs/:id/templates` | `{ brandId, templateId, name? }` → `{ project, composition }` |
+| `POST` | `/api/brand-packs/:id/templates` | `{ brandId, templateId, name? }` → `{ project, composition }` (Create) |
+| `GET` | `/api/brand-packs/:id/templates?brandId=…` | `{ templates, projects }` — published snapshots and in-progress brand projects |
+| `POST` | `/api/brand-packs/:id/templates/save` | `{ brandId, name?, composition?, projectId? }` → `{ template, composition }`; publishes a snapshot |
+| `POST` | `/api/brand-packs/:id/templates/<brand>/<template>/open` | `{ name? }` → `{ project, composition }`; creates an editable copy |
+| `DELETE` | `/api/brand-packs/:id/templates/<brand>/<template>` | `{ deleted: true }`; the source project is untouched |
+| `GET` | `/api/brand-packs/:id/templates/<brand>/<template>/files/<path>` | Copied template asset (image/video only) |
+| `POST` | `/api/video/transcode` | Raw video body → H.264 MP4; `501` when `ffmpeg` is unavailable |
+| `GET` | `/data/imports/<id>/<path>` | Read-only raster/video files inside an import; JSON, ZIPs and dotfiles are `404` |
 
 A pack is `data/brand-packs/<id>/pack.json` plus `files/<brand>/…`.
 Limits: 160 MB ZIP, 480 MB extracted, 4000 files, 40 MB per asset, 240
@@ -252,7 +300,10 @@ assets per brand, 50 packs.
    missing guides).
 4. Open a brand → *Identity* to confirm palette, type and logo cuts.
 5. *Templates* → **Create** the pieces you need.
-6. In Asset Studio, the new group appears in the gate automatically.
+6. Edit the scene, then **Export → Save to brand…** (or **Publish…** on an
+   in-progress card). It appears under *Saved brand templates* and can be
+   reopened as a copy or exported as PNG, GIF or MP4.
+7. In Asset Studio, the new group appears in the gate automatically.
 
 No code change is required. The gate tabs, group selector and brand switch
 are driven by `/api/brand-packs`.
@@ -269,7 +320,9 @@ are driven by `/api/brand-packs`.
 | Text renders in Helvetica/Georgia | Licensed fonts are substituted by design; upload the real files and relink |
 | A logo is blank | The SVG was unrepairable; re-export it as a clean SVG or PNG |
 | Template fonts warn on export | Upload the family, or accept the recorded substitution |
-| Deleting a pack broke nothing, but kits vanished | Expected: compositions keep snapshots; shared kits are removed |
+| A created template shows broken photos/logos | The static `/data/imports/<id>/assets/…` route must be reachable; the server exposes image/video files only, so a `composition.json` URL is a bug |
+| MP4 downloads but will not play elsewhere | Install `ffmpeg` (or set `STUDIO_FFMPEG`) so the server can transcode the browser recording to H.264 |
+| Deleting a pack broke nothing, but kits vanished | Expected: compositions keep snapshots; shared kits and the pack's saved templates are removed |
 
 
 ### Library linkage

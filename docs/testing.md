@@ -8,7 +8,7 @@ Four suites: three Node unit/integration suites, three Chromium harnesses
 ## 1. Quick reference
 
 ```bash
-npm test                  # 127 Node tests
+npm test                  # 134 Node tests
 npm run test:smoke        # 68 checks, Layer Studio in Chromium
 npm run test:asset-studio # 57 checks, Asset Studio in Chromium
 npm run test:visual       # 8 fixtures, 11 renders, visual gate
@@ -49,8 +49,8 @@ test-only dependency; the application itself has none.
 | File | Covers |
 |---|---|
 | `tests/core.test.js` | Schema normalisers, text layout, formats, overrides, variables/bindings, safe zones, guardrails, brief parsing and row composition |
-| `tests/server.test.js` | Server guards and stores: saveComposition merge rules, font upload validation, brief parsing (CSV + real `.xlsx`), brand kits, director catalog, ZIP helpers |
-| `tests/brand.test.js` | Brand packs, the DOCX reader, kit mapping, template compositions |
+| `tests/server.test.js` | Server guards and stores: saveComposition merge rules, font upload validation, brief parsing (CSV + real `.xlsx`), brand kits, director catalog, ZIP helpers, import-media privacy, optional H.264 transcode |
+| `tests/brand.test.js` | Brand packs, the DOCX reader, kit mapping, template compositions (print + animated digital), saved-template publish/open/delete |
 | `tests/generator.test.js` | The CLI in scaffold and brief modes, invalid rows, usage errors |
 
 Fixtures live in `tests/fixtures/` (a 3-row `.xlsx` campaign brief). The

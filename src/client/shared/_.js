@@ -1287,6 +1287,37 @@
         window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
 
+    /**
+     * MediaRecorder in Chromium may put VP9 in an MP4 container. The optional
+     * server transcode turns that into H.264/AVC, which plays everywhere and
+     * uploads cleanly to social platforms. A 501 (no ffmpeg) is not an export
+     * failure: the caller keeps the browser recording.
+     */
+    async function transcodeVideoBlob(blob) {
+        if (!blob || !blob.size || typeof fetch !== 'function') return null;
+        try {
+            const response = await fetch('api/video/transcode', {
+                method: 'POST',
+                headers: { 'Content-Type': blob.type || 'application/octet-stream' },
+                body: blob,
+            });
+            if (!response.ok) {
+                if (response.status !== 501) {
+                    const detail = await response.text().catch(() => '');
+                    console.warn('[layer-studio] MP4 transcode skipped:', response.status, detail.slice(0, 300));
+                }
+                return null;
+            }
+            const type = response.headers.get('content-type') || '';
+            if (!/video\/mp4/i.test(type)) return null;
+            const transcoded = await response.blob();
+            return transcoded.size ? transcoded : null;
+        } catch (error) {
+            console.warn('[layer-studio] MP4 transcode unavailable:', error.message);
+            return null;
+        }
+    }
+
     function dilateAlpha(alpha, width, height, radius) {
         const filter = (input, horizontal) => {
             const output = new Uint8Array(input.length);
@@ -6094,6 +6125,9 @@
                 recorder.stop();
                 const blob = await recorded;
                 if (!blob.size) throw new Error('The browser video encoder produced an empty file.');
+                this.setExportProgress('Converting to H.264 MP4…');
+                const transcoded = await transcodeVideoBlob(blob);
+                if (transcoded) return { blob: transcoded, extension: 'mp4' };
                 return { blob, extension: mimeType.includes('mp4') ? 'mp4' : 'webm' };
             } finally {
                 stream.getTracks().forEach((track) => track.stop());
@@ -9240,8 +9274,11 @@
                 recorder.stop();
                 const blob = await recorded;
                 if (!blob.size) throw new Error('The browser video encoder produced an empty file.');
-                const extension = mimeType.includes('mp4') ? 'mp4' : 'webm';
-                downloadBlob(safeFilename(snapshot.name, extension), blob);
+                this.setExportProgress('Converting to H.264 MP4…');
+                const transcoded = await transcodeVideoBlob(blob);
+                const finalBlob = transcoded || blob;
+                const extension = transcoded ? 'mp4' : (mimeType.includes('mp4') ? 'mp4' : 'webm');
+                downloadBlob(safeFilename(snapshot.name, extension), finalBlob);
                 this.setExportProgress(`${extension.toUpperCase()} export complete.`);
                 this.setStatus(
                     animated
@@ -9312,6 +9349,63 @@
                         : 'GIF exported as a still image — animate a character or add keyframes for motion.',
                     !animated,
                 );
+            } finally {
+                this.finishExport();
+            }
+        }
+
+        /**
+         * Exports a composition that is not the one open in the editor. The
+         * Brand identity template cards use this so publishing a template can
+         * produce a GIF or MP4 without replacing the user's current scene.
+         *
+         * `output` is png | gif | video. Video records through MediaRecorder at
+         * 30 fps and prefers MP4; WebM is the honest fallback when the browser
+         * has no MP4 encoder.
+         */
+        async exportCompositionAs(composition, output = 'gif', { name = '', time = 0 } = {}) {
+            if (!composition || typeof composition !== 'object' || !Array.isArray(composition.layers)) {
+                throw new Error('Open a composition before exporting it.');
+            }
+            const kind = ['png', 'gif', 'video'].includes(output) ? output : 'gif';
+            const snapshot = this.createExportSnapshot({ composition, time });
+            await this.ensureFontsForExport(snapshot);
+            this.assertGuardrails(snapshot);
+            const label = name || composition.name || 'brand-template';
+            const animated = (composition.layers || []).some((layer) => (layer.keyframes || []).length > 1);
+            this.beginExport();
+            try {
+                const scale = kind === 'gif' ? 1024 : 2048;
+                const edge = kind === 'gif' ? 480 : (kind === 'video' ? 1920 : 4096);
+                const assets = await this.loadExportAssets(
+                    snapshot,
+                    scale,
+                    Math.max(edge, snapshot.width, snapshot.height),
+                    24_000_000,
+                );
+                let blob;
+                let extension;
+                if (kind === 'gif') {
+                    ({ blob, extension } = await this.encodeGif(snapshot, assets));
+                } else if (kind === 'video') {
+                    ({ blob, extension } = await this.recordVideoBlob(snapshot, assets));
+                } else {
+                    ({ blob, extension } = await this.encodePng(snapshot, assets));
+                }
+                downloadBlob(safeFilename(label, extension), blob);
+                this.setExportProgress(`${extension.toUpperCase()} export complete.`);
+                this.setStatus(
+                    kind === 'png'
+                        ? `PNG downloaded from “${label}”.`
+                        : (animated
+                            ? `${extension.toUpperCase()} downloaded from “${label}”.`
+                            : `${extension.toUpperCase()} downloaded from “${label}” — add keyframes for motion.`),
+                    kind !== 'png' && !animated,
+                );
+                return { extension, bytes: blob.size };
+            } catch (error) {
+                this.setExportProgress(`Export failed: ${error.message || 'unknown error'}`);
+                throw error;
             } finally {
                 this.finishExport();
             }

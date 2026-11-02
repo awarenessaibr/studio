@@ -55,7 +55,7 @@ Optional keys unlock better sources:
 | Variable | What it improves |
 |---|---|
 | `GOOGLE_PLACES_API_KEY` | Authoritative place search + more Google reviews |
-| `SERPAPI_KEY` | Paginated Google reviews |
+| `SERPAPI_KEY` | More Google reviews: pagination when available, otherwise a small sort/topic sweep (5 reviews per request on the Free Plan) |
 | `FB_GRAPH_TOKEN` | Facebook Graph data |
 | `TIKTOK_RESEARCH_TOKEN` | TikTok Research API |
 
@@ -349,6 +349,23 @@ Python process is started with an argument array — there is no shell string.
 ---
 
 ## 7. Known limits / what to check
+
+### `Can't connect to HTTPS URL because the SSL module is not available`
+
+This is a Python installation problem, not a crawler problem: the venv's
+`_ssl` extension cannot find its OpenSSL dylib. It happens when a Homebrew
+`python@3.14` upgrade is interrupted and `openssl@4` is left half-linked
+(`Cellar/openssl@4/4.1.0.reinstall` with no `4.1.0`).
+
+```bash
+brew reinstall openssl@4
+.venv/bin/python -c "import ssl; print(ssl.OPENSSL_VERSION)"
+```
+
+Then rerun the crawl. The Social dialog now marks a run **failed** when it
+exits without writing `business.profile.json`, instead of reporting “complete”.
+
+
 
 - **Search provider.** Google Maps returns the best single place; ambiguous
   names may still need the town or a manual website URL. If Maps is blocked,

@@ -235,11 +235,17 @@
             rows.appendChild(h('p', { class: 'empty-note', text: 'The crawler did not return signal scores for this profile.' }));
             return;
         }
+        const scoreColor = (value) => {
+            if (value < 50) return '#d75045';
+            if (value < 75) return '#c38b2d';
+            if (value < 90) return '#2f9a63';
+            return '#2a74c9';
+        };
         entries.forEach((key) => {
             const value = Number(scores[key]) || 0;
             rows.appendChild(h('div', { class: 'score-row', dataset: { low: value < 50 ? '1' : '0' } }, [
                 h('div', { class: 'score-row-head' }, [h('span', { text: SCORE_LABELS[key] }), h('b', { text: String(Math.round(value)) })]),
-                h('div', { class: 'score-track' }, h('i', { style: { width: `${Math.max(2, Math.min(100, value))}%` } })),
+                h('div', { class: 'score-track' }, h('i', { style: { width: `${Math.max(2, Math.min(100, value))}%`, backgroundColor: scoreColor(value) } })),
             ]));
         });
     }
@@ -334,6 +340,128 @@
         return `${'★'.repeat(Math.max(0, Math.min(5, full)))}${'☆'.repeat(Math.max(0, 5 - full))}`;
     }
 
+    function reviewSourceLabel(source) {
+        const label = String(source?.label || source?.source || '').toLowerCase();
+        if (source?.source === 'google' || label.includes('google')) return 'Google reviews';
+        return source?.label || source?.source || 'Reviews';
+    }
+
+    function reviewSourceUrl(dataset, source) {
+        const direct = safeUrl(source?.url);
+        if (direct) return direct;
+        const query = [dataset.business?.name, dataset.business?.city, reviewSourceLabel(source)].filter(Boolean).join(' ');
+        return `https://www.google.com/search?q=${encodeURIComponent(`${query} reviews`.trim())}`;
+    }
+
+    function getReadReviews(dataset) {
+        const reputation = dataset.reputation || {};
+        const valid = (review) => Boolean(review && typeof review === 'object'
+            && (review.excerpt || review.text || review.author || review.date || review.rating != null));
+        // The server now supplies the full reviewed set from platforms/*.json.
+        // Only older datasets fall back to the best/worst highlights.
+        if (Array.isArray(reputation.reviews) && reputation.reviews.length) {
+            return reputation.reviews.filter(valid);
+        }
+        const reviewList = [
+            ...(Array.isArray(reputation.best) ? reputation.best : []),
+            ...(Array.isArray(reputation.worst) ? reputation.worst : []),
+        ];
+        const seen = new Set();
+        return reviewList.filter((review) => {
+            if (!valid(review)) return false;
+            const key = [review.author || review.name || 'Guest', review.date || '—', review.excerpt || review.text || ''].join('|');
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+    }
+
+    function openReviewDrawer(dataset, pageIndex = 0) {
+        const drawer = $('reviewDrawer');
+        const body = $('reviewDrawerBody');
+        if (!drawer || !body) return;
+        body.textContent = '';
+        const reviews = getReadReviews(dataset);
+        if (!reviews.length) {
+            body.appendChild(h('div', { class: 'empty-note', text: 'No read reviews were returned for this profile yet.' }));
+            drawer.classList.add('is-open');
+            drawer.setAttribute('aria-hidden', 'false');
+            document.body.style.overflow = 'hidden';
+            return;
+        }
+        const pageSize = 8;
+        const totalPages = Math.max(1, Math.ceil(reviews.length / pageSize));
+        const safePage = Math.min(Math.max(0, pageIndex), totalPages - 1);
+        const start = safePage * pageSize;
+        const pageReviews = reviews.slice(start, start + pageSize);
+
+        pageReviews.forEach((review) => {
+            const ratingText = review.rating == null ? 'Review' : `${review.rating.toFixed(1)}★`;
+            const responseText = review.ownerResponseText || '';
+            const item = h('article', { class: `review-panel-item ${review.rating != null && Number(review.rating) < 3 ? 'is-negative' : 'is-positive'}` }, [
+                h('div', { class: 'review-panel-head' }, [h('b', { text: review.author || 'Guest' }), h('span', { text: `${ratingText} · ${review.source || 'review'}` })]),
+                h('p', { text: review.excerpt }),
+            ]);
+            if (responseText) {
+                const toggle = h('button', {
+                    type: 'button',
+                    class: 'reply-toggle',
+                    onclick: () => {
+                        const panel = toggle.closest('.review-panel-item')?.querySelector('.reply-content');
+                        if (!panel) return;
+                        const shouldShow = panel.hasAttribute('hidden');
+                        panel.toggleAttribute('hidden', !shouldShow);
+                        const caret = toggle.querySelector('.reply-caret');
+                        if (caret) caret.textContent = shouldShow ? '▾' : '▸';
+                    },
+                }, [
+                    h('span', { class: 'reply-caret', text: '▸' }),
+                    h('span', { text: 'owner replied' }),
+                ]);
+                item.appendChild(h('small', null, [h('span', { text: review.date || '—' }), h('span', { text: ' · ' }), toggle]));
+                item.appendChild(h('div', { class: 'reply-content', text: responseText, hidden: true }));
+            } else {
+                item.appendChild(h('small', { text: [review.date, 'no owner reply'].filter(Boolean).join(' · ') }));
+            }
+            body.appendChild(item);
+        });
+
+        if (totalPages > 1) {
+            const pager = h('div', { class: 'review-pager' }, [
+                h('button', {
+                    type: 'button',
+                    disabled: safePage === 0,
+                    text: 'Prev',
+                    onclick: () => openReviewDrawer(dataset, safePage - 1),
+                }),
+                h('small', { text: `Page ${safePage + 1} of ${totalPages}` }),
+                h('button', {
+                    type: 'button',
+                    disabled: safePage >= totalPages - 1,
+                    text: 'Next',
+                    onclick: () => openReviewDrawer(dataset, safePage + 1),
+                }),
+            ]);
+            body.appendChild(pager);
+        }
+        drawer.classList.add('is-open');
+        drawer.setAttribute('aria-hidden', 'false');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeReviewDrawer() {
+        const drawer = $('reviewDrawer');
+        if (!drawer) return;
+        drawer.classList.remove('is-open');
+        drawer.setAttribute('aria-hidden', 'true');
+        document.body.style.overflow = '';
+    }
+
+    document.addEventListener('click', (event) => {
+        const closeTarget = event.target.closest('[data-close-review]');
+        if (closeTarget) closeReviewDrawer();
+    });
+
     function renderReputation(dataset) {
         const body = $('reputationBody');
         body.textContent = '';
@@ -342,6 +470,7 @@
             body.appendChild(h('div', { class: 'empty-note', text: 'No review source was reachable. Do not present a rating you cannot source.' }));
             return;
         }
+        const primarySource = (reputation.sources || []).find((source) => (source.source || source.label || '').toLowerCase().includes('google')) || (reputation.sources || [])[0];
         const summary = h('div', { class: 'reputation-summary' });
         summary.appendChild(h('div', { class: 'rating-block' }, [
             h('strong', { text: reputation.rating == null ? '—' : reputation.rating.toFixed(1) }),
@@ -361,6 +490,29 @@
         summary.appendChild(distribution);
         body.appendChild(summary);
 
+        const actions = h('div', { class: 'reputation-actions' });
+        const availableReviews = getReadReviews(dataset).length;
+        if (primarySource) {
+            const googleLabel = reviewSourceLabel(primarySource);
+            actions.appendChild(h('a', {
+                class: 'button small',
+                href: reviewSourceUrl(dataset, primarySource),
+                target: '_blank',
+                rel: 'noopener',
+                text: `${googleLabel} · ${primarySource.rating == null ? fmt(primarySource.count || primarySource.collected) : `${primarySource.rating.toFixed(1)}★`}`,
+            }));
+        }
+        if ((reputation.collectedReviews || availableReviews) > 0) {
+            const reviewCount = availableReviews || Number(reputation.collectedReviews) || 0;
+            actions.appendChild(h('button', {
+                type: 'button',
+                class: 'button small secondary',
+                onclick: () => openReviewDrawer(dataset, 0),
+                text: `Read all ${fmt(reviewCount)} reviews`,
+            }));
+        }
+        if (actions.children.length) body.appendChild(actions);
+
         const sentiment = reputation.sentiment || {};
         body.appendChild(h('div', { class: 'sentiment-row' }, [
             h('div', { class: 'sentiment-cell positive' }, [h('strong', { text: fmt(sentiment.positive) }), h('span', { text: 'positive' })]),
@@ -379,20 +531,52 @@
 
         const sources = h('div', { class: 'source-list' });
         (reputation.sources || []).forEach((source) => {
+            const valueText = source.rating == null ? `${fmt(source.collected)} read` : `${source.rating.toFixed(1)}★ · ${fmt(source.count)}`;
+            const sourceLink = safeUrl(source.url) || reviewSourceUrl(dataset, source);
+            const valueNode = sourceLink
+                ? h('a', { class: 'source-link', href: sourceLink, target: '_blank', rel: 'noopener', text: valueText })
+                : h('span', { class: 'source-link is-static', text: valueText });
             sources.appendChild(h('div', { class: 'source-row' }, [
-                h('span', null, [h('b', { text: source.label }), source.warnings?.[0] ? h('small', { text: ` · ${truncate(source.warnings[0], 90)}` }) : null]),
-                h('span', { text: source.rating == null ? `${fmt(source.collected)} read` : `${source.rating.toFixed(1)}★ · ${fmt(source.count)}` }),
+                h('span', null, [h('b', { text: reviewSourceLabel(source) }), source.warnings?.[0] ? h('small', { text: ` · ${truncate(source.warnings[0], 90)}` }) : null]),
+                valueNode,
             ]));
         });
         if (sources.children.length) body.appendChild(sources);
 
         const quotes = [...(reputation.best || []).slice(0, 1), ...(reputation.worst || []).slice(0, 1)];
         if (quotes.length) {
-            body.appendChild(h('div', { class: 'quote-grid' }, quotes.map((quote, index) => h('article', { class: `quote-card${index === 1 ? ' is-worst' : ''}` }, [
-                h('div', { class: 'quote-head' }, [h('b', { text: quote.author || 'Guest' }), h('span', { text: quote.rating == null ? quote.source : `${quote.rating.toFixed(1)}★ · ${quote.source}` })]),
-                h('p', { text: truncate(quote.excerpt, 260) }),
-                h('footer', { text: [quote.date, quote.ownerResponse ? 'owner replied' : 'no owner reply'].filter(Boolean).join(' · ') }),
-            ]))));
+            body.appendChild(h('div', { class: 'quote-grid' }, quotes.map((quote, index) => {
+                const replyText = quote.ownerResponseText || '';
+                const article = h('article', { class: `quote-card${index === 1 ? ' is-worst' : ''}` }, [
+                    h('div', { class: 'quote-head' }, [h('b', { text: quote.author || 'Guest' }), h('span', { text: quote.rating == null ? quote.source : `${quote.rating.toFixed(1)}★ · ${quote.source}` })]),
+                    h('p', { text: truncate(quote.excerpt, 260) }),
+                ]);
+                if (replyText) {
+                    const toggle = h('button', {
+                        type: 'button',
+                        class: 'reply-toggle',
+                        onclick: () => {
+                            const panel = toggle.closest('.quote-card')?.querySelector('.reply-content');
+                            if (!panel) return;
+                            const shouldShow = panel.hasAttribute('hidden');
+                            panel.toggleAttribute('hidden', !shouldShow);
+                            const caret = toggle.querySelector('.reply-caret');
+                            if (caret) caret.textContent = shouldShow ? '▾' : '▸';
+                        },
+                    }, [
+                        h('span', { class: 'reply-caret', text: '▸' }),
+                        h('span', { text: 'owner replied' }),
+                    ]);
+                    article.appendChild(h('footer', null, [
+                        h('span', { text: quote.date || '—' }),
+                        toggle,
+                    ]));
+                    article.appendChild(h('div', { class: 'reply-content', text: replyText, hidden: true }));
+                } else {
+                    article.appendChild(h('footer', null, [h('span', { text: quote.date || '—' }), h('span', { text: 'no owner reply' })]));
+                }
+                return article;
+            })));
         }
     }
 

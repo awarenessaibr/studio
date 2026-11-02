@@ -55,6 +55,22 @@ test('normalises channels, reputation, themes and voice evidence', () => {
     assert.ok(dataset.intelligence.actions.some((action) => action.code === 'NEGATIVE_THEME'));
 });
 
+test('keeps the full review list when it is present in the reputation payload', () => {
+    const reviewA = { author: 'A', rating: 5, source: 'google', text: 'Great cocktails.', date: '2026-09-02' };
+    const reviewB = { author: 'B', rating: 2, source: 'google', text: 'Too loud.', date: '2026-05-03' };
+    const dataset = Intel.normaliseProfile({
+        ...profile,
+        reputation: {
+            ...profile.reputation,
+            reviews: [reviewA, reviewB],
+            notable: { best: [reviewA], worst: [reviewB] },
+        },
+    }, { tokens: { voice: { samples: ['A calm line.'], topKeywords: ['drinks', 'service'] } } });
+    assert.equal(dataset.reputation.reviews.length, 2);
+    assert.equal(dataset.reputation.best.length, 1);
+    assert.equal(dataset.reputation.worst.length, 1);
+});
+
 test('an empty profile is honest, not a zero-star business', () => {
     const dataset = Intel.normaliseProfile({ business: { name: 'Empty' }, social: {}, reputation: {} });
     assert.equal(dataset.reputation.rating, null);

@@ -94,12 +94,46 @@ function candidates() {
     return [...new Set(found)].slice(0, MAX_DATASETS);
 }
 
+/** Full review list from the crawler's sibling platforms/*.json files. */
+function platformReviews(dir) {
+    const reviews = [];
+    const seen = new Set();
+    for (const entry of readDir(path.join(dir, 'platforms'))) {
+        if (!entry.isFile() || !entry.name.endsWith('.json')) continue;
+        const data = readJson(path.join(dir, 'platforms', entry.name), null);
+        if (!data || !Array.isArray(data.reviews)) continue;
+        for (const review of data.reviews) {
+            if (!review || typeof review !== 'object') continue;
+            if (!String(review.text || '').trim()) continue;
+            const key = review.review_id
+                || `${review.source || ''}|${review.author || ''}|${review.date || ''}|${review.text}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            reviews.push(review);
+        }
+    }
+    return reviews.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+}
+
 function loadDataset(file) {
     const profile = readJson(file);
     if (!profile || typeof profile !== 'object') return null;
     if (!profile.business || (!profile.social && !profile.reputation)) return null;
     const dir = path.dirname(file);
     const tokens = readJson(path.join(dir, 'social.tokens.json'), {});
+    // The profile itself only keeps best/worst in `notable`; the crawler's
+    // platforms/*.json files hold every readable review. Attach them so the
+    // Social page can page through the full set instead of six highlights.
+    if (!Array.isArray(profile.reputation?.reviews) || !profile.reputation.reviews.length) {
+        const full = platformReviews(dir);
+        if (full.length) {
+            const wanted = Number(profile.reputation?.collected_reviews) || 0;
+            profile.reputation = {
+                ...(profile.reputation || {}),
+                reviews: wanted > 0 ? full.slice(0, wanted) : full,
+            };
+        }
+    }
     const dataset = Intel.normaliseProfile(profile, {
         id: idFor(file),
         kind: kindFor(file),

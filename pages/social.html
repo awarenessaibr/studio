@@ -220,6 +220,20 @@
         </div>
     </dialog>
 
+    <aside id="reviewDrawer" class="review-drawer" aria-hidden="true">
+        <div class="review-drawer-backdrop" data-close-review></div>
+        <div class="review-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="reviewDrawerTitle">
+            <header class="review-drawer-head">
+                <div>
+                    <p class="eyebrow">Reviews</p>
+                    <h3 id="reviewDrawerTitle">Read reviews</h3>
+                </div>
+                <button type="button" class="review-close" aria-label="Close review panel" data-close-review>×</button>
+            </header>
+            <div id="reviewDrawerBody" class="review-drawer-body"></div>
+        </div>
+    </aside>
+
     <script src="/src/client/social/social.js"></script>
 </body>
 

@@ -18,7 +18,7 @@ runs unchanged under Node for tests.
 |---|---|---|---|
 | **Layer Studio v2** | `/` or `/studio-v2.html` | Compose, animate and export layered scenes and templates. Segments, keyframes, presets, text, formats, variables, characters, AI animation ideas. | [layer-studio.md](docs/layer-studio.md) |
 | **Asset Studio** | `/asset-studio.html` | Produce final, on-brand artwork fast: flyers, menus, vouchers, cards, social, signage, packaging and compliance labels, with print- and screen-ready output. | [asset-studio.md](docs/asset-studio.md) |
-| **Brand identity** | sidebar of the studio | Import a brand-kit ZIP, read the Word guides, browse palette/type/logos/guidelines and generate starter templates. Also available as a drawer inside Asset Studio. | [brand-packs.md](docs/brand-packs.md) |
+| **Brand identity** | sidebar of the studio | Import a brand-kit ZIP, read the Word guides, browse palette/type/logos/guidelines, create print and digital templates, and publish edited scenes back as reusable brand templates with GIF/MP4 export. Also available as a drawer inside Asset Studio. | [brand-packs.md](docs/brand-packs.md) |
 | **Brand intake** | `/crawler.html` | Search a business, confirm its website/social profiles, queue several restaurants as a group, run the combined crawler one by one and import the finished group ZIP into Asset Studio. | [crawler.md](docs/crawler.md) |
 | **Asset library** | `/library.html` | Business Asset Intelligence: index pack assets and uploads, review and classify them, apply usage rules and feed the Asset Studio photo slot and print gate. | [asset-library.md](docs/asset-library.md) |
 | **Voice Studio** | `/voice.html` | Local MLX-Audio speech, two-direction voice design, auditions and saving spoken audio to the asset library. | [voice-studio.md](docs/voice-studio.md) |
@@ -47,8 +47,9 @@ HTTP** (browsers block canvas pixel readback and `fetch` on `file://`).
 Requirements: Node ≥ 22.6 for the test runner (glob support in `node --test`),
 Chrome for the browser test harnesses (plus a Playwright module — see
 [testing.md](docs/testing.md#1-quick-reference)). Optional:
-[Ollama](https://ollama.com/) for the local vision features. Application
-modules: none.
+[Ollama](https://ollama.com/) for the local vision features, and `ffmpeg` on
+`PATH` (or `STUDIO_FFMPEG=/path/to/ffmpeg`) for H.264 MP4 exports; without it
+the browser's own MP4/WebM recording is used. Application modules: none.
 
 ---
 
@@ -171,7 +172,7 @@ git; back it up like any other document folder.
 ## Verify a checkout
 
 ```bash
-npm test                  # 127 Node tests: schema, render path, server guards, crawler safety, asset intelligence, social intelligence, voice design, CLI
+npm test                  # 130 Node tests: schema, render path, server guards, crawler safety, asset intelligence, social intelligence, voice design, CLI
 npm run test:smoke        # 68 checks in Chromium against the real studio
 npm run test:asset-studio # 57 checks in Chromium across all five brand groups
 npm run test:visual       # 8 fixtures × formats, DOM vs canvas vs SVG

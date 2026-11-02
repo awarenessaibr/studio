@@ -10,6 +10,8 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const fsp = fs.promises;
 const path = require('node:path');
+const os = require('node:os');
+const { execFileSync } = require('node:child_process');
 const server = require('../server.js');
 
 const IMPORTS = path.join(__dirname, '..', 'data', 'imports');
@@ -49,6 +51,84 @@ const baseComposition = () => ({
     layers: [
         { id: 'bg', type: 'image', name: 'Sky', url: 'data:image/png;base64,AAAA', x: 0, y: 0, w: 100, h: 100, z: 0 },
     ],
+});
+
+// ---------------------------------------------------------------------------
+// Project assets
+// ---------------------------------------------------------------------------
+test('resolveProjectAssetPath keeps repository assets inside assets/', () => {
+    const root = path.join(__dirname, '..', 'data', 'projects', 'demo', 'assets');
+    assert.strictEqual(
+        server.resolveProjectAssetPath('demo', 'segments/dots/dot-001.png'),
+        path.join(root, 'segments', 'dots', 'dot-001.png'),
+    );
+    assert.strictEqual(server.resolveProjectAssetPath('demo', '../composition.json'), null);
+    assert.strictEqual(server.resolveProjectAssetPath('demo', 'segments/../../.env'), null);
+    assert.strictEqual(server.resolveProjectAssetPath('demo', '.secret/x.png'), null);
+    assert.strictEqual(server.resolveProjectAssetPath('bad/name', 'x.png'), null);
+    assert.strictEqual(server.resolveProjectAssetPath('demo', ''), null);
+});
+
+// Created templates reference /data/imports/<id>/assets/... URLs. The static
+// route must expose those raster files without exposing composition.json,
+// source ZIPs or anything outside the import folder.
+test('importPublicFile exposes import media only', () => {
+    const imports = path.join(__dirname, '..', 'data', 'imports');
+    assert.strictEqual(
+        server.importPublicFile('/data/imports/demo/assets/logo.svg'),
+        path.join(imports, 'demo', 'assets', 'logo.svg'),
+    );
+    assert.strictEqual(
+        server.importPublicFile('/data/imports/demo/segments/01.png'),
+        path.join(imports, 'demo', 'segments', '01.png'),
+    );
+    assert.strictEqual(server.importPublicFile('/data/imports/demo/composition.json'), null);
+    assert.strictEqual(server.importPublicFile('/data/imports/demo/source.zip'), null);
+    assert.strictEqual(server.importPublicFile('/data/imports/demo/../../.env'), null);
+    assert.strictEqual(server.importPublicFile('/data/assets/demo/original.png'), null);
+    assert.strictEqual(server.importPublicFile('/data/imports/demo/assets/page.html'), null);
+});
+
+test('transcodeVideoToMp4 yields an H.264 MP4 when ffmpeg is installed', async (t) => {
+    const ffmpeg = process.env.STUDIO_FFMPEG || 'ffmpeg';
+    const ffprobe = process.env.STUDIO_FFPROBE || 'ffprobe';
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'studio-transcode-test-'));
+    const input = path.join(dir, 'input.mp4');
+    try {
+        try {
+            execFileSync(ffmpeg, [
+                '-hide_banner', '-loglevel', 'error', '-y',
+                '-f', 'lavfi', '-i', 'color=c=red:s=64x64:d=0.6',
+                '-c:v', 'libx264', '-pix_fmt', 'yuv420p', input,
+            ], { stdio: 'ignore' });
+        } catch {
+            t.skip('ffmpeg is not installed');
+            return;
+        }
+        const source = await fsp.readFile(input);
+        const output = await server.transcodeVideoToMp4(source, 'video/mp4');
+        assert.ok(output.length > 500, `transcoded ${output.length} bytes`);
+        assert.match(output.toString('latin1').slice(0, 32), /ftyp/);
+        const transcodedPath = path.join(dir, 'transcoded.mp4');
+        await fsp.writeFile(transcodedPath, output);
+        // ffprobe is optional; the container header above is the mandatory
+        // assertion. When it is present, prove the codec is H.264.
+        let codec = '';
+        try {
+            codec = execFileSync(ffprobe, [
+                '-hide_banner', '-loglevel', 'error',
+                '-select_streams', 'v:0',
+                '-show_entries', 'stream=codec_name',
+                '-of', 'default=nw=1:nk=1',
+                transcodedPath,
+            ], { encoding: 'utf8' }).trim();
+        } catch {
+            codec = '';
+        }
+        if (codec) assert.strictEqual(codec, 'h264');
+    } finally {
+        await fsp.rm(dir, { recursive: true, force: true }).catch(() => {});
+    }
 });
 
 // ---------------------------------------------------------------------------

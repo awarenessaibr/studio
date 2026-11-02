@@ -210,6 +210,7 @@
                     <div id="brandSidebarChips" class="brand-sidebar-chips"></div>
                     <div class="brand-sidebar-actions">
                         <button type="button" class="brand-primary" data-brand-action="open">Open brand identity</button>
+                        <button type="button" data-brand-action="save-current-template">Save current as template</button>
                         <button type="button" data-brand-action="import">Import brand ZIP</button>
                     </div>
                 </div>
@@ -358,14 +359,16 @@
                 <div class="bar-group">
                     <button type="button" data-action="export-image" title="Export all layers without the final image reference">PNG</button>
                     <button type="button" data-action="export-svg">SVG</button>
-                    <button type="button" data-action="export-gif">GIF</button>
-                    <button type="button" data-action="export-webm">Video</button>
+                    <button type="button" data-action="export-gif" title="Animated GIF (480 px, 10 fps)">GIF</button>
+                    <button type="button" data-action="export-webm" title="MP4 at 30 fps; WebM is used only when the browser has no MP4 encoder">MP4</button>
                 </div>
                 <div class="bar-group">
                     <button type="button" data-action="export-json">JSON</button>
                     <button type="button" data-action="export-agent-spec">Agent spec</button>
                 </div>
                 <button type="button" data-action="export-all-formats" title="Render every format and locale into one ZIP">All formats (ZIP)</button>
+                <button type="button" data-brand-action="save-current-template"
+                    title="Publish this composition as a template for its brand">Save to brand…</button>
             </div>
 
             <!-- Tools -->
@@ -474,6 +477,39 @@
                 </div>
                 <p id="brandStatus" class="layer-dialog-status" role="status"></p>
             </div>
+        </dialog>
+
+        <dialog id="brandTemplateSaveDialog" class="layer-dialog" aria-labelledby="brandTemplateSaveTitle">
+            <form id="brandTemplateSaveForm" class="layer-dialog-form">
+                <header class="layer-dialog-header">
+                    <div>
+                        <h2 id="brandTemplateSaveTitle">Publish to brand templates</h2>
+                        <p>Save a snapshot of this composition in the brand’s template library</p>
+                    </div>
+                    <button type="button" class="layer-icon-btn" data-brand-action="close-save-template"
+                        aria-label="Close publish dialog">
+                        <i class="fas fa-xmark" aria-hidden="true"></i>
+                    </button>
+                </header>
+                <label class="layer-dialog-field">Brand pack
+                    <select id="brandTemplatePack" autocomplete="off"></select>
+                </label>
+                <label class="layer-dialog-field">Brand
+                    <select id="brandTemplateBrand" autocomplete="off"></select>
+                </label>
+                <label class="layer-dialog-field">Template name
+                    <input id="brandTemplateName" type="text" maxlength="120" placeholder="Brand template" autocomplete="off">
+                </label>
+                <p class="layer-hint">
+                    Publishing freezes the scene as a template. The project stays editable, and you can keep
+                    exporting the template as PNG, GIF or MP4 from the Templates tab.
+                </p>
+                <p id="brandTemplateSaveStatus" class="layer-dialog-status" role="status"></p>
+                <div class="layer-dialog-actions">
+                    <button type="submit" class="brand-primary" data-brand-action="save-template">Publish template</button>
+                    <button type="button" data-brand-action="close-save-template">Cancel</button>
+                </div>
+            </form>
         </dialog>
 
         <dialog id="layerArchiveDialog" class="layer-dialog" aria-labelledby="layerArchiveTitle">

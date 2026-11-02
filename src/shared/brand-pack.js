@@ -960,6 +960,108 @@
             ],
             build: buildSocialPost,
         },
+        {
+            id: 'social-story',
+            label: 'Story — animated',
+            category: 'Digital',
+            description: 'A 9:16 story that moves: a slow photographic push, the wordmark and a clear headline. Ready for GIF or MP4.',
+            channel: 'social',
+            width: 1080,
+            height: 1920,
+            widthMm: null,
+            heightMm: null,
+            paper: '9:16',
+            dpi: 72,
+            duration: 6000,
+            motion: true,
+            formats: [],
+            build: buildSocialStory,
+        },
+        {
+            id: 'social-reel',
+            label: 'Reel — 9:16',
+            category: 'Digital',
+            description: 'A longer vertical loop with a parallax photograph, a large statement and the venue details. Video first, GIF ready.',
+            channel: 'video',
+            width: 1080,
+            height: 1920,
+            widthMm: null,
+            heightMm: null,
+            paper: '9:16',
+            dpi: 72,
+            duration: 8000,
+            motion: true,
+            formats: [],
+            build: buildSocialReel,
+        },
+        {
+            id: 'square-loop',
+            label: 'Square loop — GIF',
+            category: 'Digital',
+            description: 'A type-led 1:1 loop with the wordmark, an accent bar and the tagline. A small, fast GIF for feeds and stories.',
+            channel: 'social',
+            width: 1080,
+            height: 1080,
+            widthMm: null,
+            heightMm: null,
+            paper: '1:1',
+            dpi: 72,
+            duration: 5000,
+            motion: true,
+            formats: [],
+            build: buildSquareLoop,
+        },
+        {
+            id: 'display-screen',
+            label: 'Display screen — 16:9',
+            category: 'Digital',
+            description: 'A 1920 × 1080 screen loop for bars, receptions and social video, built from the brand photography.',
+            channel: 'display',
+            width: 1920,
+            height: 1080,
+            widthMm: null,
+            heightMm: null,
+            paper: '16:9',
+            dpi: 72,
+            duration: 6000,
+            motion: true,
+            formats: [],
+            build: buildDisplayScreen,
+        },
+        {
+            id: 'digital-menu-board',
+            label: 'Digital menu board',
+            category: 'Digital',
+            description: 'A 16:9 menu board with five dishes, prices and the venue mark for screens above the bar.',
+            channel: 'display',
+            width: 1920,
+            height: 1080,
+            widthMm: null,
+            heightMm: null,
+            paper: '16:9',
+            dpi: 72,
+            duration: 5000,
+            motion: true,
+            formats: [],
+            build: buildDigitalMenuBoard,
+        },
+        {
+            id: 'link-preview',
+            label: 'Link preview',
+            category: 'Digital',
+            description: 'A 1200 × 630 share card with the wordmark, a headline and the address; works as a still, GIF or MP4.',
+            channel: 'social',
+            width: 1200,
+            height: 630,
+            widthMm: null,
+            heightMm: null,
+            paper: '1.91:1',
+            dpi: 72,
+            duration: 4000,
+            motion: true,
+            formats: [],
+            build: buildLinkPreview,
+        },
     ];
 
     function templateById(id) {
@@ -989,6 +1091,8 @@
                 dpi: template.dpi,
                 paper: template.paper,
                 channel: template.channel,
+                duration: Number(template.duration) || 10000,
+                motion: template.motion === true,
                 formats: template.formats.map((format) => format.label || format.id),
                 guideline: application
                     ? { application: application.application, specification: application.specification, scope: application.scope }
@@ -1055,6 +1159,26 @@
     function layerId(name) {
         layerCounter += 1;
         return `${name}-${layerCounter.toString(36)}`;
+    }
+
+    /**
+     * The studio's keyframe schema animates x/y/w/h/rotation/opacity only.
+     * Templates use slow, loop-safe motion (the first and last frame match), so
+     * a card, a GIF and an MP4 all read as the same design.
+     */
+    function animate(layer, frames) {
+        if (!layer || !Array.isArray(frames) || !frames.length) return layer;
+        layer.keyframes = frames.map((frame) => ({
+            time: Math.round(clamp(finite(frame.time, 0), 0, 30000)),
+            x: round2(clamp(finite(frame.x, layer.x), -100, 200)),
+            y: round2(clamp(finite(frame.y, layer.y), -100, 200)),
+            w: round2(clamp(finite(frame.w, layer.w), 1, 300)),
+            h: round2(clamp(finite(frame.h, layer.h), 1, 300)),
+            rotation: round2(clamp(finite(frame.rotation, layer.rotation || 0), -180, 180)),
+            opacity: round2(clamp(finite(frame.opacity, layer.opacity ?? 1), 0, 1)),
+            easing: typeof frame.easing === 'string' && frame.easing ? frame.easing : 'easeInOutSine',
+        }));
+        return layer;
     }
 
     function imageLayer(spec) {
@@ -1525,6 +1649,436 @@
         return { layers, variables };
     }
 
+    // ─── Digital / motion templates ──────────────────────────────────
+    // These are normal v3 compositions: keyframes, photos and text are the
+    // same objects the editor and the export pipeline already understand.
+
+    function buildSocialStory(ctx) {
+        const { roles, accentText, fonts, brand, logoLight, contact, website } = ctx;
+        const photo = photoFor(brand, 'evening|food|interior|hero|signature') || ctx.photo;
+        const on = logoLight || ctx.logo;
+        const layers = [];
+        const variables = [];
+        layers.push(imageLayer({ id: 'story-ground', name: 'Story ground', color: roles.ground.hex, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
+        if (photo) {
+            layers.push(animate(imageLayer({
+                id: 'story-photo', name: 'Story photograph', url: photo.url, fit: 'cover',
+                x: -2, y: -2, w: 104, h: 104, z: 1, bleed: true,
+            }), [
+                { time: 0, x: -2, y: -2, w: 104, h: 104 },
+                { time: 3000, x: -6, y: -4, w: 112, h: 112 },
+                { time: 6000, x: -2, y: -2, w: 104, h: 104 },
+            ]));
+        }
+        layers.push(imageLayer({
+            id: 'story-scrim', name: 'Story scrim', color: roles.ink.hex,
+            x: 0, y: 0, w: 100, h: 100, opacity: 0.56, z: 2, bleed: true,
+        }));
+        layers.push(animate(imageLayer({
+            id: 'story-accent', name: 'Story accent', color: roles.accent.hex,
+            x: 8, y: 52.4, w: 18, h: 0.55, z: 3, bleed: true,
+        }), [
+            { time: 0, x: 8, w: 18 },
+            { time: 3000, x: 8, w: 26 },
+            { time: 6000, x: 8, w: 18 },
+        ]));
+        if (on) {
+            layers.push(animate(imageLayer({
+                id: 'story-logo', name: 'Story logo', url: on.url, fit: 'contain',
+                x: 31, y: 13, w: 38, h: 9, z: 6, bleed: true,
+            }), [
+                { time: 0, y: 13 },
+                { time: 3000, y: 14 },
+                { time: 6000, y: 13 },
+            ]));
+        }
+        variables.push(variable({ id: 'story_kicker', name: 'Kicker', value: brand.tagline || 'Find your cure.' }));
+        layers.push(animate(textLayer({
+            id: 'story-kicker', name: 'Kicker', binding: 'story_kicker',
+            text: brand.tagline || 'Find your cure.', family: fonts.label, weight: 400,
+            sizePct: 1.9, letterSpacingEm: 0.22, transform: 'uppercase',
+            color: roles.ground.hex, opacity: 0.9, align: 'left',
+            x: 8, y: 55, w: 84, h: 2.6, z: 10,
+        }), [
+            { time: 0, y: 55 },
+            { time: 3000, y: 54.4 },
+            { time: 6000, y: 55 },
+        ]));
+        variables.push(variable({ id: 'story_headline', name: 'Headline', value: 'Dinner, served properly.' }));
+        layers.push(animate(textLayer({
+            id: 'story-headline', name: 'Headline', binding: 'story_headline',
+            text: 'Dinner, served properly.', family: fonts.title, weight: 300,
+            sizePct: 5.8, lineHeight: 1.02, color: '#ffffff', align: 'left',
+            x: 8, y: 58, w: 84, h: 18.5, z: 10,
+        }), [
+            { time: 0, y: 58 },
+            { time: 3000, y: 57.2 },
+            { time: 6000, y: 58 },
+        ]));
+        variables.push(variable({ id: 'story_subhead', name: 'Sub-headline', value: 'Seasonal plates, a considered drinks list and a room built for long lunches.' }));
+        layers.push(animate(textLayer({
+            id: 'story-subhead', name: 'Sub-headline', binding: 'story_subhead',
+            text: 'Seasonal plates, a considered drinks list and a room built for long lunches.',
+            family: fonts.body, weight: 300, sizePct: 1.6, lineHeight: 1.35,
+            color: '#ffffff', opacity: 0.82, align: 'left',
+            x: 8, y: 77.2, w: 84, h: 5.2, z: 10,
+        }), [
+            { time: 0, y: 77.2 },
+            { time: 3000, y: 76.7 },
+            { time: 6000, y: 77.2 },
+        ]));
+        variables.push(variable({
+            id: 'story_footer', name: 'Footer',
+            value: [contact.instagram, website].filter(Boolean).join('  ·  ') || brand.name,
+        }));
+        layers.push(textLayer({
+            id: 'story-footer', name: 'Footer', binding: 'story_footer',
+            text: [contact.instagram, website].filter(Boolean).join('  ·  ') || brand.name,
+            family: fonts.label, weight: 400, sizePct: 0.95, letterSpacingEm: 0.06,
+            color: '#ffffff', opacity: 0.7, align: 'left',
+            x: 8, y: 82.8, w: 84, h: 1.2, z: 10,
+        }));
+        return { layers, variables };
+    }
+
+    function buildSocialReel(ctx) {
+        const { roles, accentText, fonts, brand, logoLight, contact, website } = ctx;
+        const photo = photoFor(brand, 'signage|interior|room|founder|bar') || ctx.photo;
+        const on = logoLight || ctx.logo;
+        const layers = [];
+        const variables = [];
+        layers.push(imageLayer({ id: 'reel-ground', name: 'Reel ground', color: roles.ink.hex, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
+        if (photo) {
+            layers.push(animate(imageLayer({
+                id: 'reel-photo', name: 'Reel photograph', url: photo.url, fit: 'cover',
+                x: 0, y: 0, w: 100, h: 100, z: 1, bleed: true,
+            }), [
+                { time: 0, x: 0, y: 0, w: 100, h: 100 },
+                { time: 4000, x: -5, y: -3, w: 110, h: 110 },
+                { time: 8000, x: 0, y: 0, w: 100, h: 100 },
+            ]));
+        }
+        layers.push(imageLayer({
+            id: 'reel-scrim', name: 'Reel scrim', color: roles.ink.hex,
+            x: 0, y: 0, w: 100, h: 100, opacity: 0.62, z: 2, bleed: true,
+        }));
+        if (on) {
+            layers.push(imageLayer({
+                id: 'reel-logo', name: 'Reel logo', url: on.url, fit: 'contain',
+                x: 8, y: 12, w: 30, h: 8, z: 6, bleed: true,
+            }));
+        }
+        layers.push(animate(imageLayer({
+            id: 'reel-rule', name: 'Reel rule', color: roles.accent.hex,
+            x: 8, y: 44, w: 14, h: 0.6, z: 3, bleed: true,
+        }), [
+            { time: 0, w: 14 },
+            { time: 4000, w: 24 },
+            { time: 8000, w: 14 },
+        ]));
+        variables.push(variable({ id: 'reel_kicker', name: 'Kicker', value: 'Tonight at the bar' }));
+        layers.push(textLayer({
+            id: 'reel-kicker', name: 'Kicker', binding: 'reel_kicker',
+            text: 'Tonight at the bar', family: fonts.label, weight: 400,
+            sizePct: 1.7, letterSpacingEm: 0.24, transform: 'uppercase',
+            color: roles.ground.hex, align: 'left', x: 8, y: 47, w: 84, h: 2.8, z: 10,
+        }));
+        variables.push(variable({ id: 'reel_headline', name: 'Headline', value: 'A table worth crossing town for' }));
+        layers.push(animate(textLayer({
+            id: 'reel-headline', name: 'Headline', binding: 'reel_headline',
+            text: 'A table worth crossing town for', family: fonts.title, weight: 300,
+            sizePct: 6.0, lineHeight: 1.02, color: '#ffffff', align: 'left',
+            x: 8, y: 51, w: 84, h: 30, z: 10,
+        }), [
+            { time: 0, y: 51 },
+            { time: 4000, y: 49.8 },
+            { time: 8000, y: 51 },
+        ]));
+        variables.push(variable({ id: 'reel_detail', name: 'Detail', value: 'Seasonal plates · a considered drinks list · private dining' }));
+        layers.push(textLayer({
+            id: 'reel-detail', name: 'Detail', binding: 'reel_detail',
+            text: 'Seasonal plates · a considered drinks list · private dining',
+            family: fonts.body, weight: 300, sizePct: 1.7, lineHeight: 1.35,
+            color: '#ffffff', opacity: 0.82, align: 'left',
+            x: 8, y: 82.2, w: 84, h: 5, z: 10,
+        }));
+        variables.push(variable({
+            id: 'reel_footer', name: 'Footer',
+            value: [contact.address, website].filter(Boolean).join('  ·  ') || brand.name,
+        }));
+        layers.push(textLayer({
+            id: 'reel-footer', name: 'Footer', binding: 'reel_footer',
+            text: [contact.address, website].filter(Boolean).join('  ·  ') || brand.name,
+            family: fonts.label, weight: 400, sizePct: 1.05, letterSpacingEm: 0.05,
+            color: '#ffffff', opacity: 0.62, align: 'left',
+            x: 8, y: 87.6, w: 84, h: 2.2, z: 10,
+        }));
+        return { layers, variables };
+    }
+
+    function buildSquareLoop(ctx) {
+        const { roles, accentText, fonts, brand, logoLight, contact, website } = ctx;
+        const onInk = contrastRatio(roles.ground.hex, roles.ink.hex) >= 4 ? roles.ground.hex : '#ffffff';
+        const on = logoLight || ctx.logo;
+        const layers = [];
+        const variables = [];
+        layers.push(imageLayer({ id: 'loop-ground', name: 'Loop ground', color: roles.ink.hex, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
+        layers.push(animate(imageLayer({
+            id: 'loop-bar', name: 'Accent bar', color: roles.accent.hex,
+            x: 0, y: 0, w: 2.4, h: 100, z: 1, bleed: true,
+        }), [
+            { time: 0, w: 2.4 },
+            { time: 2500, w: 7 },
+            { time: 5000, w: 2.4 },
+        ]));
+        if (on) {
+            layers.push(animate(imageLayer({
+                id: 'loop-logo', name: 'Loop logo', url: on.url, fit: 'contain',
+                x: 8, y: 16, w: 34, h: 9, z: 6, bleed: true,
+            }), [
+                { time: 0, x: 8 },
+                { time: 2500, x: 10 },
+                { time: 5000, x: 8 },
+            ]));
+        }
+        variables.push(variable({ id: 'loop_headline', name: 'Headline', value: 'Dinner, served properly.' }));
+        layers.push(animate(textLayer({
+            id: 'loop-headline', name: 'Headline', binding: 'loop_headline',
+            text: 'Dinner, served properly.', family: fonts.title, weight: 300,
+            sizePct: 9.2, lineHeight: 1.02, color: onInk, align: 'left',
+            x: 8, y: 32, w: 84, h: 22, z: 10,
+        }), [
+            { time: 0, y: 32 },
+            { time: 2500, y: 30.6 },
+            { time: 5000, y: 32 },
+        ]));
+        variables.push(variable({ id: 'loop_subhead', name: 'Sub-headline', value: brand.tagline || 'Find your cure.' }));
+        layers.push(animate(textLayer({
+            id: 'loop-subhead', name: 'Sub-headline', binding: 'loop_subhead',
+            text: brand.tagline || 'Find your cure.', family: fonts.label, weight: 400,
+            sizePct: 2.1, letterSpacingEm: 0.18, transform: 'uppercase',
+            color: accentText, align: 'left', x: 8, y: 57, w: 84, h: 4, z: 10,
+        }), [
+            { time: 0, x: 8 },
+            { time: 2500, x: 9.4 },
+            { time: 5000, x: 8 },
+        ]));
+        variables.push(variable({
+            id: 'loop_footer', name: 'Footer',
+            value: [contact.instagram, website].filter(Boolean).join('  ·  ') || brand.name,
+        }));
+        layers.push(textLayer({
+            id: 'loop-footer', name: 'Footer', binding: 'loop_footer',
+            text: [contact.instagram, website].filter(Boolean).join('  ·  ') || brand.name,
+            family: fonts.body, weight: 300, sizePct: 1.5,
+            color: onInk, opacity: 0.62, align: 'left',
+            x: 8, y: 78, w: 84, h: 3, z: 10,
+        }));
+        return { layers, variables };
+    }
+
+    function buildDisplayScreen(ctx) {
+        const { roles, accentText, fonts, brand, logoLight, contact, website } = ctx;
+        const photo = photoFor(brand, 'interior|room|bar|hero|signature') || ctx.photo;
+        const on = logoLight || ctx.logo;
+        const layers = [];
+        const variables = [];
+        layers.push(imageLayer({ id: 'screen-ground', name: 'Screen ground', color: roles.ink.hex, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
+        if (photo) {
+            layers.push(animate(imageLayer({
+                id: 'screen-photo', name: 'Screen photograph', url: photo.url, fit: 'cover',
+                x: 0, y: 0, w: 100, h: 100, z: 1, bleed: true,
+            }), [
+                { time: 0, x: 0, y: 0, w: 100, h: 100 },
+                { time: 3000, x: -3, y: -2, w: 107, h: 107 },
+                { time: 6000, x: 0, y: 0, w: 100, h: 100 },
+            ]));
+        }
+        layers.push(imageLayer({
+            id: 'screen-scrim', name: 'Screen scrim', color: roles.ink.hex,
+            x: 0, y: 0, w: 100, h: 100, opacity: 0.55, z: 2, bleed: true,
+        }));
+        if (on) {
+            layers.push(imageLayer({
+                id: 'screen-logo', name: 'Screen logo', url: on.url, fit: 'contain',
+                x: 7, y: 8, w: 24, h: 7, z: 6, bleed: true,
+            }));
+        }
+        layers.push(animate(imageLayer({
+            id: 'screen-rule', name: 'Screen rule', color: roles.accent.hex,
+            x: 7, y: 61, w: 12, h: 0.6, z: 3, bleed: true,
+        }), [
+            { time: 0, w: 12 },
+            { time: 3000, w: 20 },
+            { time: 6000, w: 12 },
+        ]));
+        variables.push(variable({ id: 'screen_headline', name: 'Headline', value: 'A table worth crossing town for' }));
+        layers.push(animate(textLayer({
+            id: 'screen-headline', name: 'Headline', binding: 'screen_headline',
+            text: 'A table worth crossing town for', family: fonts.title, weight: 300,
+            sizePct: 5.6, lineHeight: 1.02, color: '#ffffff', align: 'left',
+            x: 7, y: 65, w: 56, h: 17, z: 10,
+        }), [
+            { time: 0, y: 65 },
+            { time: 3000, y: 63.8 },
+            { time: 6000, y: 65 },
+        ]));
+        variables.push(variable({ id: 'screen_subhead', name: 'Sub-headline', value: brand.tagline || 'Find your cure.' }));
+        layers.push(textLayer({
+            id: 'screen-subhead', name: 'Sub-headline', binding: 'screen_subhead',
+            text: brand.tagline || 'Find your cure.', family: fonts.label, weight: 400,
+            sizePct: 1.7, letterSpacingEm: 0.16, transform: 'uppercase',
+            color: accentText, align: 'left', x: 7, y: 83.5, w: 56, h: 4, z: 10,
+        }));
+        variables.push(variable({ id: 'screen_detail', name: 'Detail', value: 'Seasonal plates · a considered drinks list · private dining' }));
+        layers.push(textLayer({
+            id: 'screen-detail', name: 'Detail', binding: 'screen_detail',
+            text: 'Seasonal plates · a considered drinks list · private dining',
+            family: fonts.body, weight: 300, sizePct: 1.7, lineHeight: 1.35,
+            color: '#ffffff', opacity: 0.78, align: 'left',
+            x: 66, y: 68, w: 27, h: 12, z: 10,
+        }));
+        variables.push(variable({
+            id: 'screen_footer', name: 'Footer',
+            value: [contact.address, website].filter(Boolean).join('  ·  ') || brand.name,
+        }));
+        layers.push(textLayer({
+            id: 'screen-footer', name: 'Footer', binding: 'screen_footer',
+            text: [contact.address, website].filter(Boolean).join('  ·  ') || brand.name,
+            family: fonts.label, weight: 400, sizePct: 1.1, letterSpacingEm: 0.05,
+            color: '#ffffff', opacity: 0.6, align: 'left',
+            x: 7, y: 90.5, w: 86, h: 2.5, z: 10,
+        }));
+        return { layers, variables };
+    }
+
+    function buildDigitalMenuBoard(ctx) {
+        const { roles, accentText, fonts, brand, logo, contact, website } = ctx;
+        const layers = [];
+        const variables = [];
+        layers.push(imageLayer({ id: 'board-ground', name: 'Board ground', color: roles.ground.hex, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
+        layers.push(animate(imageLayer({
+            id: 'board-rule', name: 'Board rule', color: roles.accent.hex,
+            x: 7, y: 18, w: 30, h: 0.5, z: 2, bleed: true,
+        }), [
+            { time: 0, w: 30 },
+            { time: 2500, w: 44 },
+            { time: 5000, w: 30 },
+        ]));
+        if (logo) {
+            layers.push(imageLayer({
+                id: 'board-logo', name: 'Board logo', url: logo.url, fit: 'contain',
+                x: 7, y: 8, w: 22, h: 7, z: 6, bleed: true,
+            }));
+        }
+        variables.push(variable({ id: 'board_title', name: 'Board title', value: `${brand.name} — menu` }));
+        layers.push(animate(textLayer({
+            id: 'board-title', name: 'Board title', binding: 'board_title',
+            text: `${brand.name} — menu`, family: fonts.title, weight: 300,
+            sizePct: 4.2, lineHeight: 1.05, color: roles.ink.hex, align: 'left',
+            x: 7, y: 20.5, w: 60, h: 7, z: 10,
+        }), [
+            { time: 0, y: 20.5 },
+            { time: 2500, y: 19.9 },
+            { time: 5000, y: 20.5 },
+        ]));
+        const items = menuItems(brand);
+        items.forEach((item, index) => {
+            const number = index + 1;
+            const y = 32 + index * 10.4;
+            variables.push(variable({ id: `board_item_${number}_name`, name: `Item ${number} — name`, value: item[0] }));
+            variables.push(variable({ id: `board_item_${number}_desc`, name: `Item ${number} — description`, value: item[1] }));
+            variables.push(variable({ id: `board_item_${number}_price`, name: `Item ${number} — price`, value: item[2] }));
+            layers.push(textLayer({
+                id: `board-item-${number}-name`, name: `Item ${number} name`, binding: `board_item_${number}_name`,
+                text: item[0], family: fonts.heading, weight: 400, sizePct: 2.4,
+                color: roles.ink.hex, align: 'left', x: 7, y, w: 68, h: 4.2, z: 10,
+            }));
+            layers.push(textLayer({
+                id: `board-item-${number}-price`, name: `Item ${number} price`, binding: `board_item_${number}_price`,
+                text: item[2], family: fonts.body, weight: 400, sizePct: 2.4,
+                color: accentText, align: 'right', x: 80, y, w: 13, h: 4.2, z: 10,
+            }));
+            layers.push(textLayer({
+                id: `board-item-${number}-desc`, name: `Item ${number} description`, binding: `board_item_${number}_desc`,
+                text: item[1], family: fonts.body, weight: 300, sizePct: 1.5,
+                lineHeight: 1.3, color: roles.ink.hex, opacity: 0.72,
+                align: 'left', x: 7, y: y + 3.9, w: 72, h: 3.6, z: 10,
+            }));
+        });
+        variables.push(variable({
+            id: 'board_footer', name: 'Footer',
+            value: [contact.address, website].filter(Boolean).join('  ·  ') || brand.name,
+        }));
+        layers.push(textLayer({
+            id: 'board-footer', name: 'Footer', binding: 'board_footer',
+            text: [contact.address, website].filter(Boolean).join('  ·  ') || brand.name,
+            family: fonts.label, weight: 400, sizePct: 1.2, letterSpacingEm: 0.05,
+            color: roles.ink.hex, opacity: 0.62, align: 'left',
+            x: 7, y: 90, w: 86, h: 3, z: 10,
+        }));
+        return { layers, variables };
+    }
+
+    function buildLinkPreview(ctx) {
+        const { roles, accentText, fonts, brand, logo, contact, website } = ctx;
+        const layers = [];
+        const variables = [];
+        layers.push(imageLayer({ id: 'link-ground', name: 'Link ground', color: roles.ground.hex, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
+        layers.push(animate(imageLayer({
+            id: 'link-bar', name: 'Accent bar', color: roles.accent.hex,
+            x: 0, y: 0, w: 1.6, h: 100, z: 1, bleed: true,
+        }), [
+            { time: 0, w: 1.6 },
+            { time: 2000, w: 4.2 },
+            { time: 4000, w: 1.6 },
+        ]));
+        if (logo) {
+            layers.push(imageLayer({
+                id: 'link-logo', name: 'Link logo', url: logo.url, fit: 'contain',
+                x: 7, y: 14, w: 22, h: 8, z: 6, bleed: true,
+            }));
+        }
+        variables.push(variable({ id: 'link_kicker', name: 'Kicker', value: brand.tagline || 'Find your cure.' }));
+        layers.push(textLayer({
+            id: 'link-kicker', name: 'Kicker', binding: 'link_kicker',
+            text: brand.tagline || 'Find your cure.', family: fonts.label, weight: 400,
+            sizePct: 2.2, letterSpacingEm: 0.2, transform: 'uppercase',
+            color: accentText, align: 'left', x: 7, y: 27, w: 86, h: 4, z: 10,
+        }));
+        variables.push(variable({ id: 'link_headline', name: 'Headline', value: 'A table worth crossing town for' }));
+        layers.push(animate(textLayer({
+            id: 'link-headline', name: 'Headline', binding: 'link_headline',
+            text: 'A table worth crossing town for', family: fonts.title, weight: 300,
+            sizePct: 6.4, lineHeight: 1.04, color: roles.ink.hex, align: 'left',
+            x: 7, y: 33, w: 66, h: 24, z: 10,
+        }), [
+            { time: 0, y: 33 },
+            { time: 2000, y: 31.8 },
+            { time: 4000, y: 33 },
+        ]));
+        variables.push(variable({ id: 'link_subhead', name: 'Sub-headline', value: 'Seasonal plates · a considered drinks list · private dining' }));
+        layers.push(textLayer({
+            id: 'link-subhead', name: 'Sub-headline', binding: 'link_subhead',
+            text: 'Seasonal plates · a considered drinks list · private dining',
+            family: fonts.body, weight: 300, sizePct: 2.1, lineHeight: 1.35,
+            color: roles.ink.hex, opacity: 0.72, align: 'left',
+            x: 7, y: 62, w: 66, h: 8, z: 10,
+        }));
+        variables.push(variable({
+            id: 'link_footer', name: 'Footer',
+            value: [contact.address, website].filter(Boolean).join('  ·  ') || brand.name,
+        }));
+        layers.push(textLayer({
+            id: 'link-footer', name: 'Footer', binding: 'link_footer',
+            text: [contact.address, website].filter(Boolean).join('  ·  ') || brand.name,
+            family: fonts.label, weight: 400, sizePct: 1.4, letterSpacingEm: 0.06,
+            color: roles.ink.hex, opacity: 0.6, align: 'left',
+            x: 7, y: 77, w: 86, h: 4, z: 10,
+        }));
+        return { layers, variables };
+    }
+
     function formatFor(template) {
         const master = {
             id: 'master',
@@ -1602,7 +2156,7 @@
             name,
             width: template.width,
             height: template.height,
-            duration: 10000,
+            duration: Number(template.duration) || 10000,
             defaultLocale: 'en',
             referenceLayerId: null,
             characters: [],

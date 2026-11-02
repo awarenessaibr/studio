@@ -6215,41 +6215,34 @@ def _maps_extract(soup, url):
     return data
 
 
-def _serpapi_reviews(data_id, limit, language="en"):
-    """Optional: paginate *all* Google reviews through SerpAPI.
+def _serpapi_reviews(data_id=None, limit=20, language="en", place_id=None):
+    """Collect Google reviews through SerpAPI within a small search budget.
 
-    The free Maps page in a headless browser only exposes five unique
-    reviews; a SerpAPI key (SERPAPI_KEY / tokens.json serpapi_key) unlocks
-    the full list, which is what you want for sentiment/theme work.
+    SerpAPI accepts either the Maps `data_id` (0x…:0x…) or a Places
+    `place_id`; the Places path only has the latter. When pagination is not
+    offered (the Free Plan returns 5 reviews per request), the remaining
+    budget is spent on other sort orders and review topics, which surface
+    different reviews and therefore more unique evidence.
     """
     token = State.tokens.get("serpapi_key")
-    if not token or not data_id:
-        return []
+    if not token or not (data_id or place_id):
+        return [], 0
     collected = []
+    seen = set()
+    calls = 0
+    topics = []
     page_token = None
-    pages = 0
-    while len(collected) < limit and pages < 40:
-        params = {"engine": "google_maps_reviews", "data_id": data_id,
-                  "hl": language, "sort_by": "newest", "api_key": token}
-        if page_token:
-            params["next_page_token"] = page_token
-        payload = fetch("https://serpapi.com/search.json", platform="google",
-                        json_response=True, use_cache=False, params=params)
-        if not payload.ok:
-            log(f"serpapi reviews failed: {blocked_reason(payload)}", "debug")
-            break
-        try:
-            data = json.loads(payload.text)
-        except ValueError:
-            break
-        if data.get("error"):
-            log(f"serpapi error: {data['error']}", "warn")
-            break
-        batch = data.get("reviews") or []
-        if not batch:
-            break
+
+    def record(batch):
         for item in batch:
             user = item.get("user") or {}
+            text = clean_text(item.get("snippet")
+                              or item.get("extracted_snippet", {}).get("original"))
+            key = (item.get("review_id") or item.get("link")
+                   or (normalize_text(user.get("name")) + normalize_text(text)[:60]))
+            if key in seen:
+                continue
+            seen.add(key)
             collected.append({
                 "source": "google",
                 "review_id": item.get("review_id") or f"serp-{len(collected)}",
@@ -6261,7 +6254,7 @@ def _serpapi_reviews(data_id, limit, language="en"):
                 "rating_raw": item.get("rating"),
                 "best_rating": 5.0,
                 "title": None,
-                "text": clean_text(item.get("snippet") or item.get("extracted_snippet", {}).get("original")),
+                "text": text,
                 "language": item.get("iso_date") and language or None,
                 "date": (item.get("iso_date") or item.get("date") or "")[:10] or None,
                 "date_raw": item.get("date"),
@@ -6272,13 +6265,72 @@ def _serpapi_reviews(data_id, limit, language="en"):
                 "photos": len(item.get("images") or []),
                 "url": item.get("link"),
             })
-        pages += 1
-        page_token = (data.get("serpapi_pagination") or {}).get("next_page_token")
-        if not page_token:
-            break
-    log(f"serpapi: {len(collected)} google reviews collected", "debug")
-    return collected[:limit]
 
+    def query(extra=None):
+        nonlocal calls
+        calls += 1
+        params = {"engine": "google_maps_reviews",
+                  "hl": language,
+                  "num": max(1, min(20, limit)),
+                  "api_key": token}
+        if place_id:
+            params["place_id"] = place_id
+        else:
+            params["data_id"] = data_id
+        params.update(extra or {})
+        payload = fetch("https://serpapi.com/search.json", platform="google",
+                        json_response=True, use_cache=False, params=params)
+        if not payload.ok:
+            log(f"serpapi reviews failed: {blocked_reason(payload)}", "debug")
+            return None
+        try:
+            data = json.loads(payload.text)
+        except ValueError:
+            return None
+        if data.get("error"):
+            log(f"serpapi error: {data['error']}", "warn")
+            return None
+        return data
+
+    data = query({"sort_by": "newestFirst"})
+    if not data:
+        return [], calls
+    topics = data.get("topics") or []
+    record(data.get("reviews") or [])
+    page_token = (data.get("serpapi_pagination") or {}).get("next_page_token")
+
+    # Paid plans paginate. Follow the token while it lasts.
+    pages = 1
+    while page_token and len(collected) < limit and pages < 20:
+        data = query({"sort_by": "newestFirst", "next_page_token": page_token})
+        if not data:
+            break
+        record(data.get("reviews") or [])
+        page_token = (data.get("serpapi_pagination") or {}).get("next_page_token")
+        pages += 1
+
+    # No pagination: spend a small budget on sorts/topics to find more unique
+    # reviews. Keep this proportional to the requested depth.
+    if len(collected) < limit and not page_token:
+        budget = min(12, max(4, int((limit + 3) / 4)))
+        for sort in ("qualityScore", "ratingHigh", "ratingLow"):
+            if len(collected) >= limit or calls >= budget:
+                break
+            data = query({"sort_by": sort})
+            if data:
+                record(data.get("reviews") or [])
+        for topic in topics:
+            if len(collected) >= limit or calls >= budget:
+                break
+            topic_id = topic.get("id")
+            if not topic_id:
+                continue
+            data = query({"topic_id": topic_id})
+            if data:
+                record(data.get("reviews") or [])
+
+    log(f"serpapi: {len(collected)} unique reviews from {calls} search(es)")
+    return collected[:limit], calls
 
 @register("google", tier="browser")
 def fetch_google(ctx):
@@ -6298,9 +6350,39 @@ def fetch_google(ctx):
         if api.get("place_id"):
             result["metrics"]["place_id"] = api["place_id"]
         result["mode"] = "places-api"
-        if len(result["reviews"]) >= 5 and State.max_reviews > 5:
-            result["warnings"].append(
-                "Places API caps reviews at 5 per place; add SERPAPI_KEY for the full list")
+        if (State.max_reviews > len(result["reviews"])
+                and State.tokens.get("serpapi_key")
+                and result["metrics"].get("place_id")):
+            bulk, serp_calls = _serpapi_reviews(limit=State.max_reviews,
+                                               place_id=result["metrics"]["place_id"])
+            if serp_calls:
+                result["metrics"]["serpapi_searches"] = serp_calls
+            if bulk:
+                merged, seen_ids = [], set()
+                before = len(result["reviews"])
+                for review in bulk + list(result["reviews"]):
+                    key = (review.get("review_id")
+                           or (normalize_text(review.get("author"))
+                               + normalize_text(review.get("text"))[:60]))
+                    if key in seen_ids:
+                        continue
+                    seen_ids.add(key)
+                    merged.append(review)
+                result["reviews"] = merged[: State.max_reviews]
+                result["mode"] = "places-api+serpapi"
+                result["metrics"]["reviews_from_serpapi"] = max(0, len(result["reviews"]) - before)
+        if len(result["reviews"]) < State.max_reviews:
+            if State.tokens.get("serpapi_key"):
+                added = result["metrics"].get("reviews_from_serpapi", 0)
+                searches = result["metrics"].get("serpapi_searches", 0)
+                result["warnings"].append(
+                    f"Readable Google reviews: {len(result['reviews'])}; "
+                    f"SerpAPI used {searches} search(es) and added {added} unique "
+                    "review(s). The current plan returns 5 reviews per request; "
+                    "a paid plan can paginate further if more coverage is needed.")
+            else:
+                result["warnings"].append(
+                    "Places API caps reviews at 5 per place; add SERPAPI_KEY for more.")
         return finalize(result)
 
     seed = ctx.url_for("google") or ""
@@ -6385,7 +6467,9 @@ def fetch_google(ctx):
     if State.tokens.get("serpapi_key"):
         match = re.search(r"0x[0-9a-f]+:0x[0-9a-f]+", overview.url or "")
         data_id = result["metrics"].get("place_id") or (match.group(0) if match else None)
-        bulk = _serpapi_reviews(data_id, State.max_reviews)
+        bulk, serp_calls = _serpapi_reviews(data_id=data_id, limit=State.max_reviews)
+        if serp_calls:
+            result["metrics"]["serpapi_searches"] = serp_calls
         if bulk:
             merged, seen_ids = [], set()
             for review in bulk + list(result["reviews"]):
@@ -8442,6 +8526,7 @@ def assemble_profile(ctx, assets):
             "topics": dedupe(topics),
             "other_platform_ratings": dedupe(web_ratings),
             "notable": reviews["notable"],
+            "reviews": reviews["reviews"],
             "red_flags": flags,
         },
         "social": social,

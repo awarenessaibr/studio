@@ -22,7 +22,7 @@ button-level detail.
 | One design that fits feed, story, banner and print | **Layer Studio formats + variables** | Per-format overrides, typed slots, batch export |
 | A finished, on-brand flyer/menu/voucher/social post | **Asset Studio** | 50 print-aware layouts, live brand theming |
 | A CMYK PDF with bleed and crop marks | **Asset Studio → Print pack** | Bleed/trim boxes, marks, safe-zone preflight |
-| A brand system imported from a kit ZIP | **Brand identity** | Palette, type, logos, guides, starter templates |
+| A brand system imported from a kit ZIP | **Brand identity** | Palette, type, logos, guides, 13 starter templates (print + digital loops), saved brand templates with GIF/MP4 export |
 | A new business turned into a brand pack | **Brand intake** | Name → website/profiles → website + social crawl → importable ZIP |
 | What the business already owns | **Asset library** | Referenced pack files + uploads, review, usage rules, print gate |
 | A spoken line or a designed voice | **Voice Studio** | Local MLX-Audio speech + two-direction voice agent |
@@ -380,9 +380,10 @@ shares the engine; it simply has no UI to create text, formats or variables.
 3. Review flagged (`!`) layers, confirm or nudge; *Confirm all positions*.
 4. Select foliage → preset **sway**; character → **walk**; title → **fadeIn**.
 5. Set duration 10 s, press **Play**.
-6. Export panel → **Video** (MP4 where the browser supports it, else WebM),
-   or **GIF**.
+6. Export panel → **MP4** (H.264 via the optional ffmpeg transcode) or **GIF**.
 7. **Save project** (or let autosave run); it reopens under *Saved projects*.
+8. To reuse it, **Export → Save to brand…**; it appears in Brand identity →
+   *Templates* → *Saved brand templates* with GIF/MP4 buttons.
 
 ### B. Brand ZIP → starter templates → 40 menu variants
 1. Sidebar → Brand identity → **Import brand ZIP**.
@@ -391,6 +392,10 @@ shares the engine; it simply has no UI to create text, formats or variables.
 4. Tools → **Brief…** → drop the kitchen's `.xlsx`.
 5. Map columns → *Preview* one row → *Export all rows*.
 6. One ZIP of all rows × formats comes down, named per row.
+7. For a digital campaign, reopen *Templates* and **Create** *Story —
+   animated*, *Reel — 9:16* or *Square loop — GIF*; each already carries
+   keyframes and the brand photography, so the same card exports as an
+   animated GIF or an H.264 MP4.
 
 ### C. Brand pack → finished social post and print voucher
 1. Open `/asset-studio.html`, pass the gate, pick the brand.
@@ -408,14 +413,35 @@ shares the engine; it simply has no UI to create text, formats or variables.
    `window.layerStudio.applyAgentCommands(cmds)`.
 5. Status reports applied/skipped; press **Play**; autosave keeps it.
 
+### E. Segment a logo into a dot-wave animation
+A worked example lives at
+[`data/projects/the-physician-snake/`](../data/projects/the-physician-snake/README.md).
+It is a repository project, so it opens without an import step.
+
+1. `node server.js` → `/` → Sidebar **Project → the physician snake**.
+2. **Composition → The Physician — Ember serpent** → **Play**. The 237 dots
+   are separate layers; the pulse travels from head to tail.
+3. Read
+   [`docs/SEGMENTATION.md`](../data/projects/the-physician-snake/docs/SEGMENTATION.md)
+   for the alpha/flood/run-length method and the 1 % padding rule, and
+   [`docs/ANIMATION.md`](../data/projects/the-physician-snake/docs/ANIMATION.md)
+   for the wave maths.
+4. To make your own, copy the project folder and follow
+   [`docs/REPLICATION.md`](../data/projects/the-physician-snake/docs/REPLICATION.md).
+   The scripts need Pillow + Node only — no numpy, OpenCV or build step.
+
+The example also documents the project-asset route
+(`/api/projects/:project/assets/*`), because `/data/…` is not served statically.
+
 ---
 
 ## 10. Limits and gotchas
 
 - **`file://`** blocks canvas readback and `fetch`: alignment, video export
   and every API feature need HTTP. Serve with `npm start`.
-- **Video is real-time** — a 20 s composition takes ~20 s per format; MP4
-  depends on the browser's `MediaRecorder` support, otherwise WebM.
+- **Video is real-time** — a 20 s composition takes ~20 s per format; the
+  browser records MP4/WebM, then `POST /api/video/transcode` re-encodes it to
+  H.264 when `ffmpeg` is available. Without ffmpeg the recording is kept.
 - **Fonts must be loaded** before a raster/GIF/video export that uses them,
   by design.
 - **Keyframes are base-level**; a pinned layer offsets its base animation.

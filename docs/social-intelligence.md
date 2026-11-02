@@ -65,6 +65,13 @@ The index is read-only, cached for a few seconds, and deduplicated by
 group + business slug; the richer copy wins, with the crawler's working `_social`
 copy preferred over its assembled kit copy.
 
+The profile itself only stores the best/worst **6** reviews in `notable`. The
+full reviewed set lives in the sibling `platforms/*.json` files; the store
+reads those too and exposes up to `collected_reviews` (52 for the current Pomo
+run) as `reputation.reviews`. The Social sidebar pages through that full set,
+8 per page, with Prev/Next; before this the drawer could only show the six
+highlights.
+
 Current local index: **4 businesses** (Results, The Physician, The Adamson,
 HATCH) across 2 groups. A run that is still crawling simply will not appear until
 its `business.profile.json` is written.
@@ -103,7 +110,21 @@ API keys come from the project `.env` (`GOOGLE_PLACES_API_KEY`,
 Python child. The dialog only shows whether each key is present.
 
 The run is refused with `403` when the business is not enabled and `422` when
-it has no website on file.
+it has no website on file. A run that finishes without writing a
+`business.profile.json` is marked **failed** with the source error (for example
+a missing Python SSL module), not “complete”.
+
+Google reviews use Places first and then SerpAPI when `SERPAPI_KEY` is set,
+merging and de-duplicating both sets up to the requested review count. SerpAPI
+returns 5 reviews per request on the current Free Plan and offers no
+`next_page_token`; when that happens the crawler spends a small search budget
+on other sort orders (`qualityScore`, `ratingHigh`, `ratingLow`) and on the
+place's review topics, which surface different reviews. A 20-review target
+collected **20 unique reviews using 5 SerpAPI searches** (15 SerpAPI + 5 Places)
+in testing. The warning reports the searches used when the target is not met;
+a deeper 80-review target can use up to 12 searches. Paid plans that provide
+pagination are followed automatically. Places remains authoritative for the
+rating and total review count.
 
 To refresh the page without a crawl, press **Refresh** or:
 

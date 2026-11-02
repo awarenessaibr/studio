@@ -159,6 +159,7 @@
         const collected = num(reputation.collected_reviews);
         const sentiment = obj(reputation.sentiment);
         const notables = obj(reputation.notable);
+        const reviewList = arr(reputation.reviews).length ? arr(reputation.reviews) : arr(obj(reputation.notable).reviews);
         const intelligence = buildIntelligence({
             business, social, reputation, identity, web,
             channels, sources, themes, distribution,
@@ -249,6 +250,7 @@
                 })).filter((topic) => topic.label),
                 best: arr(notables.best).map(normaliseReview).filter(Boolean),
                 worst: arr(notables.worst).map(normaliseReview).filter(Boolean),
+                reviews: reviewList.map(normaliseReview).filter(Boolean),
                 redFlags: arr(reputation.red_flags).map((flag) => text(flag, 300)).filter(Boolean),
             },
             voice: voiceData(tokens, reputation),
@@ -271,6 +273,12 @@
         if (!review || typeof review !== 'object') return null;
         const textValue = text(review.text, 1200);
         if (!textValue) return null;
+        const ownerReply = review.owner_response;
+        const ownerResponseText = typeof ownerReply === 'string'
+            ? text(ownerReply, 2000)
+            : (ownerReply && typeof ownerReply === 'object' && typeof ownerReply.text === 'string'
+                ? text(ownerReply.text, 2000)
+                : '');
         return {
             source: text(review.source, 40),
             author: text(review.author, 120),
@@ -278,7 +286,8 @@
             date: text(review.date, 40),
             excerpt: textValue,
             sentiment: num(review.sentiment),
-            ownerResponse: Boolean(review.owner_response),
+            ownerResponse: Boolean(ownerResponseText),
+            ownerResponseText,
         };
     }
 

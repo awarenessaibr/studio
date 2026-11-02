@@ -312,6 +312,17 @@ function cleanSocialOptions(input = {}) {
     };
 }
 
+function findSocialProfile(outputDir) {
+    const socialRoot = path.join(outputDir, '_social');
+    try {
+        return fs.readdirSync(socialRoot, { withFileTypes: true })
+            .some((entry) => entry.isDirectory()
+                && fs.existsSync(path.join(socialRoot, entry.name, 'business.profile.json')));
+    } catch {
+        return false;
+    }
+}
+
 /** Spawn a managed crawler run and wire its log, phase and status file. */
 function launchJob({ runDir, outputDir, args, status }) {
     const id = status.id;
@@ -351,13 +362,16 @@ function launchJob({ runDir, outputDir, args, status }) {
         job.status.zip = status.kind === 'social' ? '' : (findZip(outputDir) || '');
         if (job.status.state === 'cancelled') {
             job.status.phase = 'cancelled';
-        } else if (code === 0 && (status.kind === 'social' || job.status.zip)) {
+        } else if (code === 0 && (status.kind === 'social' ? findSocialProfile(outputDir) : job.status.zip)) {
             job.status.state = 'done';
             job.status.phase = 'done';
         } else {
             job.status.state = 'failed';
             job.status.phase = 'failed';
-            job.status.error = job.status.error || lastError(job.log) || `The crawler exited with code ${code}.`;
+            job.status.error = job.status.error || lastError(job.log)
+                || (status.kind === 'social' && code === 0
+                    ? 'The social crawl finished without producing a business profile. Check the log for the source failure.'
+                    : `The crawler exited with code ${code}.`);
         }
         await writeStatus(runDir, job.status);
     });

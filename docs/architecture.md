@@ -33,7 +33,7 @@ brand-aware canvas engine. Dependency-free modules sit between them:
 | Module | Runs in | Responsibility |
 |---|---|---|
 | `src/shared/studio-core.js` | browser **and** Node | Schema normalisers, one text layout, one render-path resolver, formats, variables, brand-kit validation, safe zones, guardrails, brief parsing helpers |
-| `src/shared/brand-pack.js` | browser **and** Node | Brand-pack schema, tokens→kit mapping, palette-role inference, seven template builders |
+| `src/shared/brand-pack.js` | browser **and** Node | Brand-pack schema, tokens→kit mapping, palette-role inference, print + animated digital template builders |
 | `src/server/brand-docx.js` | Node | Word `.docx` reader (ZIP + document XML) |
 | `src/client/shared/_.js` | browser | The Layer Studio engine: state, DOM, canvas, timeline, characters, exports, agent protocol |
 | `src/client/studio/studio-v2.js` | browser | The studio page's own behaviour: zoom/fit, segment tree, group export, organizer dialog, saved projects |
@@ -60,6 +60,14 @@ There is no bundler. Each page loads exactly the scripts it needs, in order.
 asset paths (`/_.js`, `/asset-studio/app.css`, `/studio-minimal/…`) are kept as
 aliases during the transition. `.env`, `data/`, `_dev/`, `tests/`, `tools/`,
 `scripts/`, `.git` and `server.js` itself are never served as static files.
+
+Repository projects still need their own images.
+`GET /api/projects/:project/assets/*` serves only
+`data/projects/<project>/assets/`, with `safeRelativePath()` and a resolved-path
+prefix check, so a composition can reference its PNGs without making the rest
+of `data/` public. The layer URL is absolute
+(`/api/projects/<project>/assets/segments/…`); renaming the project folder
+breaks it.
 
 ### Load order
 
@@ -236,9 +244,14 @@ data/                              git-ignored
 │   ├── compositions/*.composition.json
 │   └── README.md, layers/, sources/, docs/, previews/
 ├── brand-packs/<id>/pack.json + files/<brand>/…
+│   └── templates/<brand>/<template>/  published snapshot + copied files/
 ├── brand-kits/<id>.json
 └── fonts/<family>-<hash>.ttf|woff2
 ```
+
+`/data` is private. The only static window is `/data/imports/<id>/…` for
+image/video extensions, which is what created templates reference; JSON, ZIPs,
+dotfiles and the rest of `data/` stay `404`.
 
 Repository projects are **curated** by whoever owns the film or brand
 work; imports are **working state**. Because `data/` is ignored, both live
