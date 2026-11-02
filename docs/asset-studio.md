@@ -447,3 +447,35 @@ a pack import; the gate and selectors pick it up with no code change.
 | The cut line is not the printer's die-line | It is a guide in magenta; use the supplier's die-line for the final cut |
 | Slide download only saved one file | Allow multiple downloads for the site, or use the per-slide preview to save individually |
 | A new category has no copy fields | The Text panel derives fields from the design; check the template's `t` keys |
+
+
+---
+
+## Business Asset Intelligence
+
+The Image tab of a photo design now includes a **Business library** section
+when the active brand has assets in the library:
+
+- class chips and a **Verified only** toggle;
+- lazy thumbnails, with the class and review state on each tile;
+- selecting a tile loads the asset into the photo slot and records its
+  `assetId` on the source, so the choice survives saving and restoring;
+- **Upload image** first tries `POST /api/assets/ingest`, so a new upload is
+  both used in this design and added to the library. If the server is down the
+  local data-URL fallback still works.
+
+The Text tab gains **Insert menu rows from the library** for `items`/`wines`
+when the brand has a `business-document` asset with extracted rows. The rows are
+inserted as normal text; the engine's existing `Name | Description | Price`
+parser does the rest.
+
+The export bar evaluates the active photo source with
+`AssetIntel.evaluateUsage()`. Blockers (screen-only in print, denied format,
+missing consent, too small, rejected/orphaned) disable Print/Print pack and
+explain why; **Download PNG stays available**. Warnings (unverified, rights
+unknown, DPI, palette drift, duplicate) are shown in the note and confirmed once
+in the print dialog.
+
+Saved assets keep `assetId` on their photo sources; saves and downloads post a
+best-effort usage event. The Brand identity drawer has a read-only **Library**
+tab with per-brand health counts.

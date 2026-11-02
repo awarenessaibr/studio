@@ -42,6 +42,7 @@ brand-kit/
 ├── 01-<brand>/
 │   ├── <Brand>-Brand-Guide.docx       the Word guide (optional)
 │   ├── tokens/<brand>.tokens.json     colours, type scale, voice, logo
+│   ├── content/<brand>.json           menus, drinks, hours, booking link
 │   └── assets/
 │       ├── logos/                     SVG + PNG cuts, variants, plates
 │       ├── colors/palette.png
@@ -56,7 +57,8 @@ brand-kit/
 - A brand is any folder that owns `tokens/*.tokens.json`.
 - With no token folders, the importer falls back to
   `*Brand-Guide.docx` folders.
-- Anything whose path says *portfolio* is skipped as a brand.
+- Anything whose path says *portfolio* or *social* is skipped as a brand.
+  In particular `social/social-profile.json` is research, not a token file.
 - A ZIP wrapped in a single top-level folder is unwrapped automatically.
 - Numbered folders keep their reading order.
 
@@ -67,6 +69,8 @@ brand-kit/
 | Source | Becomes |
 |---|---|
 | `tokens/*.tokens.json` | Palette (HEX / RGB / CMYK, role, share, tier), typography families + scale, voice attributes / prefer / avoid, logo notes |
+| `content/*.json` | Structured menus/drinks, hours and booking link; Asset Studio uses the menu to prefill menu designs |
+| `assets/{logos,photography}` | Logo cuts and photo pool; `social/assets/` is excluded from both |
 | `*.docx` guide | Positioning statement, **applications matrix** (menu, brochure, voucher, social, …), print specification, canonical contact block, facts, type hierarchy, logo rules, full section outline |
 | `assets/logos` | Logo cuts classified by variant (`light`, `dark`, `color`, `primary`) and kind (`wordmark`, `mark`, `logo`); presentation plates are excluded from selection |
 | `assets/{colors,type,photography}` | Palette images, type specimens, photography with pixel dimensions |
@@ -258,3 +262,21 @@ are driven by `/api/brand-packs`.
 | A logo is blank | The SVG was unrepairable; re-export it as a clean SVG or PNG |
 | Template fonts warn on export | Upload the family, or accept the recorded substitution |
 | Deleting a pack broke nothing, but kits vanished | Expected: compositions keep snapshots; shared kits are removed |
+
+
+### Library linkage
+
+Imported pack files can be indexed into the Business Asset library from
+`/library.html` or `POST /api/assets/index-pack`. The library stores references,
+not copies: deleting a pack marks its records `orphaned` and the export gate
+blocks them. The Brand identity drawer shows a per-brand Library health tab.
+
+
+### Social tab
+
+Brand identity can now show a read-only **Social** tab. It calls
+`GET /api/social/by-brand?brandId=&name=` and matches the pack brand to a
+scraped profile by name/slug/alias. The tab shows followers, rating, reviews,
+channels and the number of evidence-backed actions, then links to
+`/social.html`. The full method and limits are in
+[social-intelligence.md](social-intelligence.md).

@@ -1,117 +1,79 @@
 #!/usr/bin/env python3
 """
-Business Social & Reputation Intelligence Crawler  (v2)
-=======================================================
+Brand, Social & Reputation Pipeline   (website crawler -> social crawler, one run)
+==================================================================================
 
-Turns a business name + location into an evidence-backed dossier covering
-social presence, ratings, reviews and everything that bears on reputation:
-NAP data, opening hours, booking/delivery paths, hygiene compliance, press
-mentions and a cross-platform benchmark. Every claim keeps its provenance.
+Runs two crawlers back to back for every site and consolidates the result into
+one brand pack:
 
-WHAT IT COLLECTS
-----------------
-Reputation & reviews
-  Google Maps ....... rating, review count, 5->1 star distribution, review text
-                      (author, stars, date, owner reply, photos), Google's own
-                      "mentioned in N reviews" topic tags, price level, category,
-                      address, phone, website, plus code, opening hours.
-  RestaurantGuru .... rating + count, hours, geo, cuisine, menu, and the
-                      `sameAs` links that reveal the real website / IG / FB.
-  TripAdvisor ....... bubble rating, "#x of y" rank, review count, breakdown,
-                      awards (blocked from most datacentre IPs — see LIMITS).
-  Yelp, Trustpilot, OpenTable, TheFork, Quandoo, Booking.com, Expedia,
-  MICHELIN, Foursquare, Zomato ... one generic schema.org/JSON-LD connector,
-  with review-block heuristics when markup is missing.
+  1. WEBSITE PHASE  (WordPress document / media / brand crawler)
+       REST API + sitemap + page crawl -> documents, images, videos, page text,
+       brand tokens (colour, type, logos, photography), validated contact data,
+       menu / hours content, brand-guide.json and a Word brand guide.
 
-Social presence
-  Instagram .... followers / following / posts / bio / category / verified /
-                 external link (Graph API, then public profile meta).
-  Facebook ..... followers, likes, check-ins ("were here"), talking-about,
-                 category, about, rating, phone, address (Graph API, then web).
-  TikTok ....... followers, likes, video count, bio, latest video stats.
-  YouTube ...... subscribers, total views, video count, latest uploads (RSS).
-  X, Threads, Pinterest, LinkedIn, Snapchat ... best-effort profile meta.
+  2. SOCIAL PHASE   (business social & reputation intelligence crawler)
+       Fed by phase 1: the business name, city, category, the social / review
+       profile links found on the site, the validated NAP, and the pages
+       already downloaded (so nothing is fetched twice). Collects Google Maps,
+       TripAdvisor, Restaurant Guru, Instagram, Facebook, TikTok, YouTube,
+       food-hygiene rating, press mentions, ... and derives a reputation +
+       social dossier with scores, signals and a cross-business benchmark.
 
-Business facts
-  Website crawl (home / about / contact / menu / book / gift): NAP, hours,
-  emails, phones, schema.org, social links, booking + delivery providers
-  (OpenTable, ResDiary, SevenRooms, TheFork, Deliveroo, Uber Eats, Just Eat...),
-  tech stack, sitemap size, menu presence.
+  3. CONSOLIDATION
+       Each brand folder gets a social/ sub-folder, brand-guide.json (and the
+       Word guide) gain reputation + social sections, 00-portfolio/ gets the
+       group benchmark, and everything is zipped once.
 
-Compliance & context
-  UK Food Standards Agency .... hygiene rating (FHRS 0-5 / FHIS pass or
-                                improvement required), inspection date,
-                                authority, address (free open API, no key).
-  Web mentions ................ listicles, awards, local press, incident
-                                signals (search-engine backed, relevance-filtered).
+OUTPUT
+------
+  <OUTPUT_ROOT>/
+      <site-slug>/                      website working files (documents/, images/,
+                                        videos/, pages_text/, discovered_media.csv)
+      _social/                          social working files (cache, platforms/*.json,
+                                        state.json, crawl.log) - resumable
+      targets.json                      the social targets derived from the crawl
+      <group>-brand-kit/                (group mode, the default)
+          README.md   targets.json
+          00-portfolio/                 overview .docx, portfolio.json,
+                                        group.report.md, group.summary.json
+          01-<brand>/
+              <brand>-Brand-Guide.docx  brand-guide.json  cover.<ext>
+              tokens/  content/  assets/
+              social/                   business.profile.json  insights.md
+                                        report.html  reviews.csv  reviews.all.json
+                                        social.json  social-profile.json  assets/
+      <group>-brand-kit.zip             the importable pack
+  With --standalone each site gets <site-slug>/brand-kit.zip instead.
 
-DERIVED INTELLIGENCE
---------------------
-  identity   canonical NAP, every observed variant, conflict detection,
-             handle consistency across platforms.
-  reputation cross-source consensus rating (volume-weighted), distribution,
-             review velocity + trend, sentiment (negation/intensifier aware),
-             theme extraction (food / service / drinks / atmosphere / value /
-             wait / cleanliness / dietary / family / events / consistency),
-             owner-response rate, red flags, standout quotes.
-  social     presence matrix, reach, posting cadence, content mix, engagement
-             where measurable, profile completeness, staleness, gaps.
-  web        booking + delivery paths, menu, tech, page count, sitemap.
-  scoring    0-100 for reputation, social strength, content health and
-             discoverability (+ weighted overall).
-  signals    strengths / weaknesses / opportunities / risks, each traceable
-             to the data that produced it.
-  benchmark  group report ranking every business against its siblings.
+USAGE
+-----
+    python crawler-combined.py                         # every site in SITES, both phases
+    python crawler-combined.py https://example.com/    # one ad-hoc site
+    python crawler-combined.py --business hatch        # only configured sites matching "hatch"
+    python crawler-combined.py --skip-social           # website phase only
+    python crawler-combined.py --social-only           # social phase from saved targets.json
+    python crawler-combined.py --report-only           # rebuild reports from saved platforms/*.json
+    python crawler-combined.py --no-browser --deep --max-reviews 120
+    python crawler-combined.py --only google,instagram --skip press
+    python crawler-combined.py --targets my-targets.json --standalone
+    python crawler-combined.py --dry-run               # print the plan, no network I/O
+    python crawler-combined.py --list
 
-HOW EACH SOURCE IS FETCHED (tiers, degrading gracefully)
--------------------------------------------------------
+Edit the CONFIGURATION block below to add sites. TARGET_OVERRIDES holds
+hand-confirmed facts (profile URLs, aliases, category ...) that win over what
+the crawl derives; anything not overridden is discovered.
+
+SOCIAL SOURCES AND HOW THEY ARE FETCHED (tiers, degrading gracefully)
+--------------------------------------------------------------------
   1. api      official API when a key is present
               (Google Places New, Facebook Graph, TikTok Research, SerpAPI)
   2. http     requests + JSON-LD / microdata / meta parsing  (fast, default)
   3. browser  headless Chromium via Playwright for JS pages and bot walls
+Every source is optional: a blocked site records a warning and the run continues.
 
-Every source is optional: a blocked site records a warning and the run
-continues. Each business gets a crawl.log, a per-source checkpoint
-(state.json) for resumability, and platform JSON files that later runs merge
-so `--only` stays incremental.
-
-OUTPUT (per business)
----------------------
-  crawler_output/_social_output/<group>/<slug>/
-    business.profile.json   master record (all sections below)
-    reviews.all.json        normalised reviews, all sources
-    reviews.csv            spreadsheet-friendly export
-    social.json            social matrix + completeness
-    social.tokens.json     brand-pack tokens (v1-compatible shape, enriched)
-    insights.md            human-readable brief with tables and quotes
-    report.html            self-contained dark-mode dashboard
-    platforms/<source>.json  raw per-source output incl. warnings
-    platforms/raw/<source>.html  (only with --keep-raw)
-    assets/                avatars, covers, photos
-    discovery.json         resolved profile URLs + evidence
-    crawl.log, state.json
-  crawler_output/_social_output/<group>/group.report.md
-  crawler_output/_social_output/<group>/group.summary.json
-
-USAGE
------
-    python scripts/crawler-studio-social.py --list
-    python scripts/crawler-studio-social.py --business bar-91 --dry-run
-    python scripts/crawler-studio-social.py --business bar-91
-    python scripts/crawler-studio-social.py --all
-    python scripts/crawler-studio-social.py --all --no-browser
-    python scripts/crawler-studio-social.py --business bar-91 --deep --max-reviews 120
-    python scripts/crawler-studio-social.py --business bar-91 --only google,instagram
-    python scripts/crawler-studio-social.py --business bar-91 --skip press,trustpilot
-    python scripts/crawler-studio-social.py --all --report-only
-    python scripts/crawler-studio-social.py --all --output-root out/run1 --group q4
-
-Edit TARGETS (top of file) to add businesses. `profiles` entries are trusted
-seeds; anything left out is discovered from the website, from aggregators,
-from web search, or by verified handle guessing.
-
-CREDENTIALS (all optional; env vars or tokens.json)
----------------------------------------------------
+CREDENTIALS (all optional; env vars, or tokens.json / cookies.json next to the
+script or in the working directory)
+---------------------------------------------------------------------------
     GOOGLE_PLACES_API_KEY   Places API (New): authoritative place + 5 reviews
     SERPAPI_KEY             paginates the *full* Google review list
     FB_GRAPH_TOKEN          Facebook Graph + owned Instagram accounts
@@ -121,25 +83,22 @@ CREDENTIALS (all optional; env vars or tokens.json)
 
 LIMITS (observed, not speculative)
 ----------------------------------
-  * Google Maps renders only ~5 unique reviews to anonymous browsers. The
-    rating, count, distribution and topics are complete; set
-    GOOGLE_PLACES_API_KEY or SERPAPI_KEY for full review coverage.
-  * TripAdvisor and Yelp sit behind bot walls (HTTP 403 and JS challenges).
-    The connector tries HTTP, then a real browser, then records the block.
-    Provide cookies.json for a session that can already see the page.
-  * Search-engine results follow the caller's IP geolocation. Discovery
-    therefore prefers website links, aggregator `sameAs` and verified handle
-    guessing; web mentions are relevance-filtered and may come back empty.
-  * Social metrics that require login (Instagram engagement, Facebook post
-    text) are only available in cookie mode and are marked as such.
-  * Sentiment and themes are lexicon-based and indicative: read the sample
-    size before acting on them (the brief says so explicitly).
+  * Google Maps renders only ~5 unique reviews to anonymous browsers. Rating,
+    count, distribution and topics are complete; set GOOGLE_PLACES_API_KEY or
+    SERPAPI_KEY for full review coverage.
+  * TripAdvisor and Yelp sit behind bot walls. The connector tries HTTP, then a
+    real browser, then records the block.
+  * Social metrics that need a login are only available in cookie mode.
+  * Sentiment and themes are lexicon-based and indicative; read the sample size.
+  * Phone normalisation and the default locale/currency are UK-oriented; change
+    DEFAULT_* / KNOWN_CITIES below (and normalize_phone) for other markets.
+  * Asset rights and licensing are NOT verified by this tool.
 
 TERMS OF SERVICE
 ----------------
 Automated collection may breach the terms of some of these platforms. Prefer
 official APIs, use cookie mode only for accounts you are authorised to access,
-keep volumes low (this tool self-throttles per domain), and treat the output as
+keep volumes low (the tool self-throttles per domain), and treat the output as
 internal research. No warranty of legality is given or implied.
 """
 
@@ -150,25 +109,40 @@ import base64
 import csv
 import gzip
 import hashlib
+import io
+import contextlib
 import json
 import math
+import mimetypes
 import os
 import random
 import re
+import shutil
 import statistics
 import sys
 import threading
 import time
 import traceback
 import urllib.parse as up
+import xml.etree.ElementTree as ET
+import zipfile
 from collections import Counter, defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from html import escape as html_escape, unescape
+from urllib.parse import parse_qs, unquote, urljoin, urlparse
+from xml.sax.saxutils import escape as xml_escape
 
 import requests
 from bs4 import BeautifulSoup
 
-try:  # optional heavy dependency, only needed for tier-3 extraction
+try:  # optional: image dimensions, palette / specimen PNGs
+    from PIL import Image, ImageDraw, ImageFont
+    HAVE_PIL = True
+except ImportError:
+    HAVE_PIL = False
+
+try:  # optional heavy dependency, only needed for tier-3 (browser) extraction
     from playwright.sync_api import sync_playwright
     HAVE_PLAYWRIGHT = True
 except Exception:  # pragma: no cover - environment dependent
@@ -178,23 +152,49 @@ except Exception:  # pragma: no cover - environment dependent
 
 SCHEMA_VERSION = "2.0"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-REPO_ROOT = os.path.dirname(SCRIPT_DIR)
 
 
 # =========================================================================
-# 1. TARGETS
+# CONFIGURATION
 # =========================================================================
-# `profiles` seeds are trusted (no discovery cost). Everything not seeded is
-# discovered from the website, from aggregators and from web search.
-#
-# Each business may set:
+SITES = [
+    "https://www.thephysician.bar/",
+    "https://www.theadamson.com/",
+    "https://www.hatchstandrews.com/",
+]
+
+# Everything lives under here: per-site website files, _social/ working files,
+# the group brand kit and its ZIP.
+OUTPUT_ROOT = "data/Julie-Dalton"
+
+# If set, all sites go into ONE brand kit with numbered brand folders.
+# If empty/None (or --standalone), each site gets its own brand-kit.zip.
+BRAND_PACK_GROUP_NAME = "Julie-Dalton"
+BRAND_PACK_GROUP_DESCRIPTION = (
+    "This group contains brand kits for multiple venues managed by Julie Dalton. "
+)
+BRAND_PACK_GROUP_SLUG = "Julie-Dalton-brand-kit"
+
+# ---- Pipeline switches ----
+RUN_SOCIAL_PHASE = True            # False == --skip-social
+ENRICH_BRAND_GUIDE = True          # add reputation / socialPresence / webPresence to brand-guide.json (+ .docx)
+INCLUDE_SOCIAL_ASSETS_IN_PACK = True   # copy social avatars/covers into <brand>/social/assets
+
+# ---- Locale defaults (used for brand tokens and for deriving the social target) ----
+DEFAULT_LOCALE = "en-GB"
+DEFAULT_CURRENCY = "GBP"
+KNOWN_CITIES = ("St Andrews", "Glasgow", "Edinburgh")   # fallback city detection from page text
+
+# ---- Hand-confirmed facts for the social phase (formerly TARGETS) ----------
+# Matched to a crawled site by the host of `website`. Values here WIN over what
+# the crawl derives; empty values never erase crawled ones. `profiles` are merged
+# key by key. Sites without an entry are fully derived from their own pages.
 #   name, slug, city, region, country, category, website,
-#   profiles {}          -> known/confirmed profile URLs
-#   aliases []           -> other spellings used for matching and search
-#   competitors []       -> names used for local competitive context
+#   profiles {}    -> trusted profile URLs (skip discovery cost)
+#   aliases []     -> other spellings used for matching and search
+#   competitors [] -> names used for local competitive context
 #   notes str
-
-TARGETS = [
+TARGET_OVERRIDES = [
     {
         "name": "The Physician",
         "slug": "thephysician-bar",
@@ -202,15 +202,13 @@ TARGETS = [
         "region": "Scotland",
         "country": "United Kingdom",
         "category": "Bar",
-        "aliases": [
-        "The Physician Bar"
-        ],
+        "aliases": ["The Physician Bar"],
         "website": "https://www.thephysician.bar/",
         "profiles": {
-        "facebook": "https://www.facebook.com/profile.php?id=61554721448724",
-        "instagram": "https://www.instagram.com/thephysician_standrews",
-        "tripadvisor": "https://www.tripadvisor.co.uk/Restaurant_Review-g186533-d27299282-Reviews-The_Physician-St_Andrews_Fife_Scotland.html"
-        }
+            "facebook": "https://www.facebook.com/profile.php?id=61554721448724",
+            "instagram": "https://www.instagram.com/thephysician_standrews",
+            "tripadvisor": "https://www.tripadvisor.co.uk/Restaurant_Review-g186533-d27299282-Reviews-The_Physician-St_Andrews_Fife_Scotland.html",
+        },
     },
     {
         "name": "The Adamson",
@@ -219,16 +217,14 @@ TARGETS = [
         "region": "Scotland",
         "country": "United Kingdom",
         "category": "Restaurant",
-        "aliases": [
-        "The Adamson Restaurant"
-        ],
+        "aliases": ["The Adamson Restaurant"],
         "website": "https://www.theadamson.com/",
         "profiles": {
-        "facebook": "https://www.facebook.com/TheAdamsonStAndrews",
-        "instagram": "https://www.instagram.com/theadamsonstandrews/",
-        "tiktok": "https://www.tiktok.com/@theadamsonstandrews",
-        "tripadvisor": "https://www.tripadvisor.co.uk/Restaurant_Review-g186533-d2679481-Reviews-The_Adamson-St_Andrews_Fife_Scotland.html"
-        }
+            "facebook": "https://www.facebook.com/TheAdamsonStAndrews",
+            "instagram": "https://www.instagram.com/theadamsonstandrews/",
+            "tiktok": "https://www.tiktok.com/@theadamsonstandrews",
+            "tripadvisor": "https://www.tripadvisor.co.uk/Restaurant_Review-g186533-d2679481-Reviews-The_Adamson-St_Andrews_Fife_Scotland.html",
+        },
     },
     {
         "name": "HATCH",
@@ -237,24 +233,3216 @@ TARGETS = [
         "region": "Scotland",
         "country": "United Kingdom",
         "category": "Restaurant",
-        "aliases": [
-        "HATCH Restaurant"
-        ],
+        "aliases": ["HATCH Restaurant"],
         "website": "https://www.hatchstandrews.com/",
         "profiles": {
-        "facebook": "https://www.facebook.com/HatchStAndrews",
-        "instagram": "https://www.instagram.com/hatch_standrews/",
-        "tripadvisor": "https://www.tripadvisor.co.uk/Restaurant_Review-g186533-d23378004-Reviews-Hatch-St_Andrews_Fife_Scotland.html"
-        }
+            "facebook": "https://www.facebook.com/HatchStAndrews",
+            "instagram": "https://www.instagram.com/hatch_standrews/",
+            "tripadvisor": "https://www.tripadvisor.co.uk/Restaurant_Review-g186533-d23378004-Reviews-Hatch-St_Andrews_Fife_Scotland.html",
+        },
+    },
+]
+
+# ---- Website-phase crawl tuning ----
+WEB_REQUEST_DELAY = 0.3
+MAX_PAGE_CRAWL = 500
+WEB_MAX_WORKERS = 5
+RESTRICT_CRAWL_TO_BASE_PATH = False
+ALLOW_SUBDOMAINS = True
+ALLOW_EXTERNAL_DOCUMENTS = False
+
+# CDNs that legitimately serve a brand's own images/video. The site's HTML
+# points at these hosts directly (Wix, Squarespace, Shopify, ...), so they must
+# be downloaded even though they are not on the site's own domain.
+MEDIA_HOST_SUFFIXES = (
+    'wixstatic.com', 'wix.com', 'parastorage.com',
+    'squarespace-cdn.com', 'sqspcdn.com', 'squarespace.com',
+    'cloudfront.net', 'imgix.net', 'ctfassets.net', 'contentful.com',
+    'cdn.shopify.com', 'shopifycdn.com', 'cloudinary.com',
+    'amazonaws.com', 'azureedge.net', 'akamaized.net', 'fastly.net',
+    'googleusercontent.com', 'ggpht.com', 'fbcdn.net', 'cdninstagram.com',
+    'ytimg.com', 'vimeo.com', 'vimeocdn.com', 'jwplayer.com',
+)
+
+ENABLE_CRAWL_CHECKPOINT = True
+CRAWL_CHECKPOINT_SAVE_EVERY = 50
+CLEAR_CHECKPOINT_ON_COMPLETE = True
+
+# ---- Brand-pack quality gates ----
+LOGO_MIN_EDGE = 200            # px; anything smaller is treated as icon/favicon
+PHOTO_MIN_SHORT_EDGE = 600     # px; keep photos at least this large
+PHOTO_PRINT_SHORT_EDGE = 2000  # target for print-capable photos (flagged, not filtered)
+COVER_MIN_WIDTH = 1600
+COVER_MIN_HEIGHT = 1000
+
+
+
+# =========================================================================
+# PART A — WEBSITE CRAWLER: documents, media, brand tokens, brand pack
+# (original crawler-website.py; colliding names carry a web_/WEB_ prefix)
+# =========================================================================
+# ------------------------------
+# PER-SITE GLOBALS
+# ------------------------------
+BASE_URL = ""
+OUTPUT_DIR = ""
+DOWNLOAD_DIR = ""
+IMAGE_DIR = ""
+VIDEO_DIR = ""
+TEXT_DIR = ""
+BRAND_KIT_DIR = ""
+EXPORT_DISCOVERED_URLS_CSV = ""
+EXPORT_VIDEO_EMBEDS_CSV = ""
+CRAWL_CHECKPOINT_FILE = ""
+BASE_DOMAIN = ""
+BASE_DOMAIN_SUFFIX = ""
+BASE_SCOPE_PATH = "/"
+PRIORITY_SEED_URLS = []
+PERMANENTLY_FAILED = set()
+
+# Simple in-memory fetch cache so brand extraction does not re-fetch pages
+_page_cache = {}
+
+
+# ------------------------------
+# EXTENSION SETS
+# ------------------------------
+DOCUMENT_EXTENSIONS = {
+    '.pdf', '.doc', '.docx', '.xls', '.xlsx',
+    '.csv', '.ppt', '.pptx', '.odt', '.ods', '.odp',
+    '.rtf', '.txt', '.zip', '.rar', '.7z'
+}
+
+IMAGE_EXTENSIONS = {
+    '.jpg', '.jpeg', '.png', '.gif', '.webp',
+    '.svg', '.bmp', '.tiff', '.tif', '.ico', '.avif'
+}
+
+VIDEO_EXTENSIONS = {
+    '.mp4', '.webm', '.ogv', '.mov', '.avi',
+    '.mkv', '.m4v', '.flv', '.wmv', '.mpg', '.mpeg'
+}
+
+ALL_MEDIA_EXTENSIONS = DOCUMENT_EXTENSIONS | IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
+
+DOCUMENT_MIME_TYPES = [
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "text/csv",
+    "application/zip",
+    "application/x-rar-compressed",
+    "application/x-7z-compressed",
+]
+IMAGE_MIME_TYPES = [
+    "image/jpeg", "image/png", "image/gif", "image/webp",
+    "image/svg+xml", "image/bmp", "image/tiff", "image/avif", "image/x-icon",
+]
+VIDEO_MIME_TYPES = [
+    "video/mp4", "video/webm", "video/ogg", "video/quicktime",
+    "video/x-msvideo", "video/x-matroska", "video/mpeg",
+]
+ALL_MEDIA_MIME_TYPES = DOCUMENT_MIME_TYPES + IMAGE_MIME_TYPES + VIDEO_MIME_TYPES
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (compatible; MediaCrawler/2.2; +http://example.com)"
+}
+HEADERS_FALLBACK = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
+}
+
+EXTRA_LINK_ATTRIBUTES = (
+    'href', 'src', 'data-href', 'data-url', 'data-download',
+    'data-file', 'onclick',
+    'data-src', 'data-lazy-src', 'data-original', 'data-orig-file',
+    'data-large-file', 'data-medium-file', 'data-full-url',
+    'srcset', 'data-srcset', 'data-lazy-srcset',
+    'data-background', 'data-bg', 'data-background-image',
+    'data-video', 'data-mp4', 'data-webm', 'data-ogv',
+    'poster',
+)
+
+NON_HTML_SUFFIXES = (
+    '.jpg', '.jpeg', '.png', '.gif', '.css', '.js', '.xml',
+    '.ico', '.svg', '.woff', '.woff2', '.webp', '.avif',
+    '.mp4', '.webm', '.ogv', '.mov', '.m4v', '.pdf',
+    '.zip', '.rar', '.7z'
+)
+
+VIDEO_EMBED_PATTERNS = [
+    (r'youtube\.com/embed/([A-Za-z0-9_-]+)', 'youtube'),
+    (r'youtube\.com/watch\?v=([A-Za-z0-9_-]+)', 'youtube'),
+    (r'youtu\.be/([A-Za-z0-9_-]+)', 'youtube'),
+    (r'vimeo\.com/video/(\d+)', 'vimeo'),
+    (r'player\.vimeo\.com/video/(\d+)', 'vimeo'),
+    (r'dailymotion\.com/embed/video/([A-Za-z0-9]+)', 'dailymotion'),
+    (r'facebook\.com/plugins/video\.php\?href=([^&"\']+)', 'facebook'),
+    (r'wistia\.(com|net)/embed/iframe/([A-Za-z0-9]+)', 'wistia'),
+]
+
+CSS_URL_PATTERN = re.compile(r"url\(\s*['\"]?([^'\")\s]+)['\"]?\s*\)", re.IGNORECASE)
+
+SOCIAL_PATTERNS = {
+    'facebook':  r'facebook\.com/',
+    'instagram': r'instagram\.com/',
+    'twitter':   r'(?<![A-Za-z0-9-])(?:twitter|x)\.com/',
+    'linkedin':  r'linkedin\.com/',
+    'tiktok':    r'tiktok\.com/',
+    'youtube':   r'youtube\.com/',
+    'pinterest': r'pinterest\.com/',
+    'tripadvisor': r'tripadvisor\.(?:com|co\.[a-z]{2})/',
+}
+
+LOGO_HINTS = ('logo', 'wordmark', 'brandmark', 'brand-mark', 'emblem')
+
+CSS_NAMED_COLORS = {
+    'black': '#000000', 'white': '#ffffff', 'red': '#ff0000',
+    'blue': '#0000ff', 'green': '#008000', 'yellow': '#ffff00',
+    'gray': '#808080', 'grey': '#808080', 'silver': '#c0c0c0',
+    'navy': '#000080', 'maroon': '#800000', 'olive': '#808000',
+    'teal': '#008080', 'purple': '#800080', 'lime': '#00ff00',
+    'aqua': '#00ffff', 'fuchsia': '#ff00ff', 'orange': '#ffa500',
+    'gold': '#ffd700', 'beige': '#f5f5dc', 'ivory': '#fffff0',
+    'coral': '#ff7f50', 'salmon': '#fa8072', 'crimson': '#dc143c',
+    'chocolate': '#d2691e', 'tan': '#d2b48c', 'khaki': '#f0e68c',
+    'plum': '#dda0dd', 'orchid': '#da70d6', 'violet': '#ee82ee',
+}
+
+# Font-family patterns that are framework internals, not real brands faces
+FONT_INTERNAL_PATTERNS = re.compile(
+    r'^('
+    r'wf_|wfont_|wix-|wix_|avenir-lt|avenir-lt-w|helvetica-w01|helvetica-w02|'
+    r'futura-lt|proxima-n-w01|brandon-grotesque|raleway-w|madefor-|wix-madefor|'
+    r'squarespace|fonts-|sofia-pro|questrial|social-icons|'
+    r'font-awesome|material-icons|helvetica neue|helveticaneue|orig_practice'
+    r')',
+    re.IGNORECASE,
+)
+
+# Wix theme colours that appear in almost every Wix site's CSS. They are UI
+# defaults, not brand evidence; keeping them made every scraped brand blue.
+PLATFORM_UI_COLORS = {
+    '#116dff', '#f9ad4d', '#f4b8b9', '#f9d6d7', '#597dff',
+    '#acbeff', '#ed8f90', '#d7b7fb', '#d5dfff',
+}
+
+# Sub-brand / non-venue keywords that should NOT appear in the logo slot
+SUB_BRAND_KEYWORDS = (
+    'loyalty', 'gift card', 'gift-card', 'voucher', 'the circle', 'the-circle',
+    'reward', 'club card', 'membership', 'app-store', 'appstore', 'google-play',
+    'payment', 'visa', 'mastercard', 'amex', 'paypal', 'klarna',
+)
+
+FAVICON_KEYWORDS = (
+    'favicon', 'apple-touch-icon', 'apple-touch', 'android-chrome',
+    'mstile', 'app-icon', 'appicon', 'safari-pinned', 'browserconfig',
+)
+
+ICON_KEYWORDS = (
+    'sprite', 'ui-icon', 'ui_icon', 'social-icon', 'social_icon',
+    'icon-', '-icon.', 'icon_', 'glyph',
+)
+LOGO_REJECT_KEYWORDS = (
+    'hero', 'banner', 'storefront', 'interior', 'exterior', 'food-photo',
+    'gallery', 'thumbnail', 'thumb', 'cropped', 'crop-',
+)
+
+
+# =========================================================
+# PER-SITE CONFIGURATION
+# =========================================================
+def web_site_slug(url):
+    parsed = urlparse(url)
+    host = parsed.netloc.lower()
+    if host.startswith("www."):
+        host = host[4:]
+    path = parsed.path.strip("/") or "root"
+    slug = f"{host}_{path}"
+    slug = re.sub(r'[^A-Za-z0-9_.-]', '_', slug)
+    return slug
+
+
+def brand_slug(url):
+    """Short slug for the brand folder: '02-boteco-do-brasil'."""
+    parsed = urlparse(url)
+    host = parsed.netloc.lower()
+    if host.startswith("www."):
+        host = host[4:]
+    # Strip the domain suffix and keep the subdomain/name
+    host = re.sub(r'\.(co\.uk|com|org|net|io|uk|scot|co)$', '', host)
+    host = re.sub(r'[^A-Za-z0-9]+', '-', host).strip('-')
+    return host or 'brand'
+
+
+def configure_site(base_url):
+    global BASE_URL, OUTPUT_DIR, DOWNLOAD_DIR, IMAGE_DIR, VIDEO_DIR, TEXT_DIR, BRAND_KIT_DIR
+    global EXPORT_DISCOVERED_URLS_CSV, EXPORT_VIDEO_EMBEDS_CSV, CRAWL_CHECKPOINT_FILE
+    global BASE_DOMAIN, BASE_DOMAIN_SUFFIX, BASE_SCOPE_PATH
+    global PERMANENTLY_FAILED, PRIORITY_SEED_URLS
+    global _page_cache
+
+    parsed = urlparse(base_url)
+    slug = web_site_slug(base_url)
+
+    BASE_URL = base_url
+    OUTPUT_DIR = os.path.join(OUTPUT_ROOT, slug)
+    DOWNLOAD_DIR = os.path.join(OUTPUT_DIR, "documents")
+    IMAGE_DIR = os.path.join(OUTPUT_DIR, "images")
+    VIDEO_DIR = os.path.join(OUTPUT_DIR, "videos")
+    TEXT_DIR = os.path.join(OUTPUT_DIR, "pages_text")
+    BRAND_KIT_DIR = os.path.join(OUTPUT_DIR, "brand-kit")
+
+    EXPORT_DISCOVERED_URLS_CSV = os.path.join(OUTPUT_DIR, "discovered_media.csv")
+    EXPORT_VIDEO_EMBEDS_CSV = os.path.join(OUTPUT_DIR, "discovered_video_embeds.csv")
+    CRAWL_CHECKPOINT_FILE = os.path.join(OUTPUT_DIR, "crawl_state.json")
+
+    BASE_DOMAIN = parsed.netloc.lower()
+    BASE_DOMAIN_SUFFIX = (
+        BASE_DOMAIN[4:] if BASE_DOMAIN.startswith("www.") else BASE_DOMAIN
+    )
+    BASE_SCOPE_PATH = parsed.path or "/"
+    if not BASE_SCOPE_PATH.endswith("/"):
+        BASE_SCOPE_PATH += "/"
+
+    PERMANENTLY_FAILED = set()
+    PRIORITY_SEED_URLS = [base_url]
+    _page_cache = {}
+
+
+# =========================================================
+# UTILITY FUNCTIONS
+# =========================================================
+def fix_response_encoding(resp):
+    """requests assumes ISO-8859-1 for text/* without a charset, which mangles UTF-8
+    (en-dashes, £, é ...). Honour <meta charset> when present, otherwise assume UTF-8."""
+    try:
+        ctype = (resp.headers.get('content-type') or '').lower()
+        if 'charset' in ctype or not (ctype.startswith('text/') or 'xml' in ctype or 'json' in ctype):
+            return resp
+        head = resp.content[:4096]
+        match = re.search(rb'<meta[^>]+charset=["\']?\s*([A-Za-z0-9_-]+)', head, re.IGNORECASE)
+        resp.encoding = match.group(1).decode('ascii') if match else 'utf-8'
+    except Exception:
+        pass
+    return resp
+
+
+def get(url, stream=False, retries=3, log_errors=True, allow_redirects=True):
+    current_headers = HEADERS.copy()
+    for attempt in range(retries):
+        try:
+            if attempt >= 1:
+                current_headers = HEADERS_FALLBACK.copy()
+
+            resp = requests.get(
+                url,
+                headers=current_headers,
+                timeout=30,
+                stream=stream,
+                allow_redirects=allow_redirects,
+            )
+
+            if resp.status_code == 429:
+                wait = 5 * (attempt + 1)
+                print(f"Rate limited, waiting {wait}s...")
+                time.sleep(wait)
+                continue
+
+            if resp.status_code in (404, 410, 403):
+                if log_errors:
+                    print(f"Permanent client error {resp.status_code} for {url}")
+                PERMANENTLY_FAILED.add(url)
+                return None
+
+            if resp.status_code >= 400:
+                if log_errors:
+                    print(f"Request failed: {resp.status_code} for {url}")
+                return None
+
+            resp.raise_for_status()
+            if not stream:
+                fix_response_encoding(resp)
+            return resp
+
+        except requests.exceptions.SSLError:
+            if log_errors:
+                print(f"SSL error for {url} (permanent, skipping)")
+            PERMANENTLY_FAILED.add(url)
+            return None
+        except requests.RequestException as e:
+            if log_errors:
+                print(f"Request failed (attempt {attempt + 1}): {e}")
+            time.sleep(2 ** attempt)
+    return None
+
+
+def fetch_text_cached(url):
+    """Fetch HTML/CSS once; used by brand extraction."""
+    if url in _page_cache:
+        return _page_cache[url]
+    resp = get(url, log_errors=False)
+    text = resp.text if resp else None
+    _page_cache[url] = text
+    return text
+
+
+def is_same_domain(url):
+    host = urlparse(url).netloc.lower()
+    if host == BASE_DOMAIN:
+        return True
+    if not ALLOW_SUBDOMAINS:
+        return False
+    return host == BASE_DOMAIN_SUFFIX or host.endswith(f".{BASE_DOMAIN_SUFFIX}")
+
+
+def is_page_in_scope(url):
+    parsed = urlparse(url)
+    if not is_same_domain(url):
+        return False
+    if not RESTRICT_CRAWL_TO_BASE_PATH or BASE_SCOPE_PATH == "/":
+        return True
+    path = parsed.path or "/"
+    return path.startswith(BASE_SCOPE_PATH)
+
+
+def is_document_url(url):
+    path = urlparse(url).path.lower()
+    if any(path.endswith(ext) for ext in DOCUMENT_EXTENSIONS):
+        return True
+    if re.search(r"/(download|baixar)(/|$)", path):
+        return True
+    query = parse_qs(urlparse(url).query or "", keep_blank_values=True)
+    for key in ("download", "arquivo", "anexo", "file", "nomearquivo"):
+        if any(str(v).strip() for v in query.get(key, [])):
+            return True
+    return False
+
+
+def is_image_url(url):
+    path = urlparse(url).path.lower()
+    return any(path.endswith(ext) for ext in IMAGE_EXTENSIONS)
+
+
+def is_video_url(url):
+    path = urlparse(url).path.lower()
+    return any(path.endswith(ext) for ext in VIDEO_EXTENSIONS)
+
+
+def is_media_url(url):
+    return is_document_url(url) or is_image_url(url) or is_video_url(url)
+
+
+def classify_media(url):
+    if is_image_url(url):
+        return 'image'
+    if is_video_url(url):
+        return 'video'
+    if is_document_url(url):
+        return 'document'
+    return None
+
+
+def web_safe_filename(url):
+    parsed = urlparse(url)
+    name = os.path.basename(parsed.path)
+    if not name:
+        name = "file_" + hashlib.md5(url.encode("utf-8")).hexdigest()[:12]
+    if '?' in name:
+        name = name.split('?')[0]
+    return name
+
+
+def sanitize_filename(name):
+    cleaned = os.path.basename(unescape(name or ""))
+    cleaned = re.sub(r"[\\/:*?\"<>|]", "_", cleaned)
+    cleaned = cleaned.strip().strip('.')
+    return cleaned or "file"
+
+
+def text_safe_filename(url):
+    parsed = urlparse(url)
+    path = parsed.path.strip('/')
+    if not path:
+        path = "index"
+    name = path.replace('/', '_')
+    if parsed.query:
+        name += '_' + parsed.query[:50].replace('&', '_')
+    name = re.sub(r'[\\/*?:"<>|]', '_', name)
+    if not name.endswith('.txt'):
+        name += '.txt'
+    return name
+
+
+def file_hash(path):
+    """SHA-256 hash of a file (for de-duplication)."""
+    h = hashlib.sha256()
+    try:
+        with open(path, 'rb') as f:
+            for chunk in iter(lambda: f.read(65536), b''):
+                h.update(chunk)
+        return h.hexdigest()
+    except OSError:
+        return None
+
+
+def image_info_without_pillow(path):
+    """Read common raster dimensions and formats using only the standard library."""
+    try:
+        with open(path, 'rb') as image_file:
+            header = image_file.read(32)
+            if header.startswith(b'\x89PNG\r\n\x1a\n') and len(header) >= 24:
+                return (int.from_bytes(header[16:20], 'big'),
+                        int.from_bytes(header[20:24], 'big'), 'PNG')
+            if header[:6] in (b'GIF87a', b'GIF89a') and len(header) >= 10:
+                return (int.from_bytes(header[6:8], 'little'),
+                        int.from_bytes(header[8:10], 'little'), 'GIF')
+            if header.startswith(b'BM') and len(header) >= 26:
+                width = int.from_bytes(header[18:22], 'little', signed=True)
+                height = abs(int.from_bytes(header[22:26], 'little', signed=True))
+                return (abs(width), height, 'BMP')
+            if header.startswith(b'RIFF') and header[8:12] == b'WEBP':
+                if header[12:16] == b'VP8X' and len(header) >= 30:
+                    width = 1 + int.from_bytes(header[24:27], 'little')
+                    height = 1 + int.from_bytes(header[27:30], 'little')
+                    return (width, height, 'WEBP')
+                if header[12:16] == b'VP8L' and len(header) >= 25 and header[20] == 0x2f:
+                    bits = header[21:25]
+                    width = 1 + bits[0] + ((bits[1] & 0x3f) << 8)
+                    height = 1 + (bits[1] >> 6) + (bits[2] << 2) + ((bits[3] & 0x0f) << 10)
+                    return (width, height, 'WEBP')
+                if header[12:16] == b'VP8 ' and len(header) >= 30:
+                    if header[23:26] == b'\x9d\x01\x2a':
+                        width = int.from_bytes(header[26:28], 'little') & 0x3fff
+                        height = int.from_bytes(header[28:30], 'little') & 0x3fff
+                        return (width, height, 'WEBP')
+            if header.startswith(b'\xff\xd8'):
+                image_file.seek(2)
+                while True:
+                    if image_file.read(1) != b'\xff':
+                        break
+                    marker = image_file.read(1)
+                    while marker == b'\xff':
+                        marker = image_file.read(1)
+                    if not marker:
+                        break
+                    if marker[0] in (0xd8, 0xd9):
+                        continue
+                    segment_length = image_file.read(2)
+                    if len(segment_length) != 2:
+                        break
+                    length = int.from_bytes(segment_length, 'big')
+                    if marker[0] in (0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7,
+                                     0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf):
+                        frame = image_file.read(5)
+                        if len(frame) == 5:
+                            return (int.from_bytes(frame[3:5], 'big'),
+                                    int.from_bytes(frame[1:3], 'big'), 'JPEG')
+                        break
+                    image_file.seek(max(0, length - 2), os.SEEK_CUR)
+    except OSError:
+        return None
+    return None
+
+
+def get_image_info(path):
+    """Return (width, height, format) or None."""
+    if not path or not os.path.isfile(path):
+        return None
+    if HAVE_PIL:
+        try:
+            with Image.open(path) as img:
+                return (img.width, img.height, img.format or 'UNKNOWN')
+        except Exception:
+            return None
+    return image_info_without_pillow(path)
+
+
+def fix_image_extension(path):
+    """Rename a file whose bytes are WebP (etc.) but whose extension is .jpg."""
+    if not path or not os.path.isfile(path):
+        return path
+    info = get_image_info(path)
+    if not info:
+        return path
+    fmt = info[2].upper()
+    expected = {
+        'JPEG': '.jpg', 'PNG': '.png', 'WEBP': '.webp',
+        'GIF': '.gif', 'BMP': '.bmp', 'TIFF': '.tif',
+    }.get(fmt)
+    if not expected:
+        return path
+    current = os.path.splitext(path)[1].lower()
+    if current in (expected, expected.replace('.jpg', '.jpeg'),
+                   expected.replace('.tif', '.tiff')):
+        return path
+    new_path = os.path.splitext(path)[0] + expected
+    if new_path == path:
+        return path
+    if os.path.exists(new_path):
+        base = os.path.splitext(new_path)[0]
+        counter = 1
+        while os.path.exists(f'{base}_{counter}{expected}'):
+            counter += 1
+        new_path = f'{base}_{counter}{expected}'
+    try:
+        os.rename(path, new_path)
+        return new_path
+    except OSError:
+        return path
+
+
+def extract_urls_from_text(text):
+    if not text:
+        return []
+    text = unescape(str(text))
+    pattern = (
+        r"https?://[^\s'\"<>]+"
+        r"|[A-Za-z0-9_./-]+\.(?:pdf|doc|docx|xls|xlsx|csv|ppt|pptx|odt|ods|odp|rtf|txt|zip|rar|7z"
+        r"|jpg|jpeg|png|gif|webp|svg|bmp|tiff|tif|ico|avif"
+        r"|mp4|webm|ogv|mov|avi|mkv|m4v|flv|wmv|mpg|mpeg)(?:\?[^\s'\"<>]*)?"
+        r"|/[A-Za-z0-9_./-]*(?:download|baixar)[^\s'\"<>]*"
+    )
+    return re.findall(pattern, text, flags=re.IGNORECASE)
+
+
+def normalize_candidate_url(raw, current_url):
+    if not raw:
+        return None
+    value = unescape(str(raw)).strip().strip("'\"()[]{}")
+    if not value or value.startswith('#') or value.lower().startswith("javascript:"):
+        return None
+    value = value.replace('\\/', '/')
+    absolute = urljoin(current_url, value)
+    absolute = absolute.split('#')[0].strip().rstrip(".,;)")
+    return absolute or None
+
+
+def extract_srcset_urls(srcset_value):
+    """Parse srcset without splitting on the commas inside CDN URLs.
+
+    Wix/Squarespace URLs contain commas in their transform segments
+    (``w_1200,h_800``); a naive ``split(',')`` turns them into fragments like
+    ``v.WEBP``. Srcset entries are separated by a descriptor, so match
+    ``<url> <number><w|x>`` instead.
+    """
+    urls = []
+    if not srcset_value:
+        return urls
+    value = str(srcset_value)
+    for match in re.finditer(r'(\S+?)\s+(\d+(?:\.\d+)?)([wx])', value, re.IGNORECASE):
+        url_part = match.group(1).strip().rstrip(',')
+        if url_part and not url_part.startswith('data:'):
+            urls.append(url_part)
+    if urls:
+        return urls
+    # Fallback for descriptor-less srcsets (rare, but legal).
+    for candidate in value.split(','):
+        url_part = candidate.strip().split()[0] if candidate.strip() else ''
+        if url_part and not url_part.startswith('data:'):
+            urls.append(url_part)
+    return urls
+
+
+def extract_css_background_urls(css_text):
+    if not css_text:
+        return []
+    return CSS_URL_PATTERN.findall(css_text)
+
+
+def filename_from_response(url, resp):
+    content_disposition = resp.headers.get('content-disposition') or ''
+    filename = None
+    match = re.search(r"filename\*=UTF-8''([^;]+)", content_disposition, flags=re.IGNORECASE)
+    if match:
+        filename = unquote(match.group(1))
+    else:
+        match = re.search(r'filename="?([^\";]+)"?', content_disposition, flags=re.IGNORECASE)
+        if match:
+            filename = match.group(1)
+    filename = sanitize_filename(filename or web_safe_filename(url))
+    content_type = (resp.headers.get('content-type') or '').split(';', 1)[0].strip().lower()
+    base, ext = os.path.splitext(filename)
+    if not ext and content_type:
+        guessed = mimetypes.guess_extension(content_type)
+        if guessed:
+            filename = f"{base}{guessed}"
+    return filename
+
+
+def extract_page_text(html):
+    try:
+        soup = BeautifulSoup(html, 'lxml')
+        for tag in soup(['script', 'style', 'nav', 'footer', 'header', 'aside', 'noscript']):
+            tag.decompose()
+        text = soup.get_text(separator='\n', strip=True)
+        text = re.sub(r'\n\s*\n', '\n', text)
+        return text
+    except Exception:
+        return ""
+
+
+def is_media_host_allowed(url):
+    if ALLOW_EXTERNAL_DOCUMENTS:
+        return True
+    if is_same_domain(url):
+        return True
+    host = (urlparse(url).hostname or '').lower()
+    if not host:
+        return False
+    return any(host == suffix or host.endswith('.' + suffix)
+               for suffix in MEDIA_HOST_SUFFIXES)
+
+
+# =========================================================
+# CONTACT VALIDATION
+# =========================================================
+def normalize_phone(phone):
+    """Normalize a UK phone number to a clean local/international form."""
+    if not phone:
+        return None
+    raw = str(phone).strip()
+    digits = re.sub(r'[^\d+]', '', raw)
+    if not digits:
+        return None
+    if digits.startswith('+44'):
+        national = digits[3:]
+    elif digits.startswith('0044'):
+        national = digits[4:]
+    elif digits.startswith('44') and len(digits) > 10:
+        national = digits[2:]
+    else:
+        national = digits
+    if national.startswith('0'):
+        national = national[1:]
+    local = '0' + national
+    if not local.isdigit() or len(local) not in (10, 11):
+        return None
+    return local
+
+
+def is_valid_email(email):
+    if not email or '@' not in email:
+        return False
+    return bool(re.match(r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$',
+                         email.strip()))
+
+
+def dedupe_emails(emails):
+    """Validate and de-duplicate exact email addresses without guessing typos."""
+    return sorted(set(e.lower().strip() for e in emails if is_valid_email(e)))
+
+
+# website-crawl key -> social-crawler key
+SOCIAL_KEY_MAP = {'twitter': 'x'}
+
+GENERIC_TITLE_SEGMENTS = {
+    'home', 'homepage', 'welcome', 'official site', 'official website',
+    'menu', 'about', 'about us', 'contact', 'contact us',
+}
+
+
+def normalize_social_link(platform, url):
+    """Validate a harvested link and return a canonical profile URL.
+
+    Returns None for share buttons, tracking pixels, widget links and
+    look-alike hosts (e.g. wix.com is not x.com), so only real profile links
+    reach the brand tokens and the social crawler.
+    """
+    if not url or not isinstance(url, str):
+        return None
+    url = url.strip()
+    if url.startswith('//'):
+        url = 'https:' + url
+    if not url.lower().startswith(('http://', 'https://')):
+        return None
+    key = SOCIAL_KEY_MAP.get(platform, platform)
+    if key == 'facebook':
+        parsed = urlparse(url)
+        if parsed.path.rstrip('/').lower().endswith('profile.php'):
+            ids = parse_qs(parsed.query).get('id') or []
+            if ids and ids[0].isdigit():
+                return f'https://www.facebook.com/profile.php?id={ids[0]}'
+            return None
+    if key in SOCIAL_URL_PATTERNS:
+        handle = handle_from_url(key, url)
+        return canonical_social_url(key, handle) if handle else None
+    if key == 'tripadvisor':
+        if re.search(r'tripadvisor\.[a-z.]+/[A-Za-z]+_Review-', url):
+            return url.split('#')[0].split('?')[0]
+        return None
+    return None
+
+
+def clean_social_links(raw_social):
+    """{platform: url | [urls]} -> {platform: [validated canonical urls]} (page order)."""
+    cleaned = {}
+    for platform, value in (raw_social or {}).items():
+        values = value if isinstance(value, (list, tuple, set)) else [value]
+        urls = []
+        for item in values:
+            link = normalize_social_link(platform, item)
+            if link and link not in urls:
+                urls.append(link)
+        if urls:
+            cleaned[platform] = urls
+    return cleaned
+
+
+def tidy_brand_name(raw, url):
+    """Pick the brand-like part of a page title such as 'Home | The Adamson – St Andrews'."""
+    if not raw:
+        return raw
+    parts = [p.strip() for p in re.split(r'\s+[|–—·•:]\s+|\s*\|\s*|\s+-\s+', raw) if p and p.strip()]
+    parts = [p for p in parts if p.lower() not in GENERIC_TITLE_SEGMENTS]
+    if not parts:
+        return raw.strip()
+    if len(parts) == 1:
+        return parts[0]
+    host = urlparse(url).netloc.lower()
+    core = re.sub(r'[^a-z0-9]', '', re.sub(r'^www\.', '', host).split('.')[0])
+
+    def score(item):
+        index, part = item
+        flat = re.sub(r'[^a-z0-9]', '', part.lower())
+        if flat and core and flat == core:
+            return (2, -index)
+        if flat and core and (flat in core or core in flat):
+            return (1, -index)
+        return (0, -index)
+
+    return max(enumerate(parts), key=score)[1]
+
+
+def build_contact_block(brand_data):
+    """Build the importer-native contact block from tokens + page text."""
+    raw = brand_data['contact']
+    phones = sorted(set(filter(None, (normalize_phone(p) for p in raw['phones']))))
+    emails = dedupe_emails(raw['emails'])
+    social = clean_social_links(raw.get('social', {}))
+    result = {
+        'address': raw.get('address') or None,
+        'phones': phones,
+        'emails': emails,
+        'website': BASE_URL,
+        'socialLinks': social,
     }
+    for platform, urls in social.items():
+        result[platform] = urls[0] if urls else None
+    for platform in SOCIAL_PATTERNS:
+        result.setdefault(platform, None)
+    return result
+
+
+# =========================================================
+# CSS / BRAND EXTRACTION
+# =========================================================
+def parse_css_color(value):
+    """Return (hex_lower, (r, g, b)) or None."""
+    if value is None:
+        return None
+    value = str(value).strip()
+    if value.lower() in CSS_NAMED_COLORS:
+        return parse_css_color(CSS_NAMED_COLORS[value.lower()])
+    if value.startswith('#'):
+        h = value[1:]
+        if len(h) in (3, 4):
+            h = ''.join(c * 2 for c in h[:3])
+        elif len(h) in (6, 8):
+            h = h[:6]
+        else:
+            return None
+        if not re.match(r'^[0-9a-fA-F]{6}$', h):
+            return None
+        rgb = tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+        return ('#' + h.lower(), rgb)
+    m = re.match(r'rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)', value)
+    if m:
+        rgb = tuple(max(0, min(255, int(x))) for x in m.groups())
+        return ('#%02x%02x%02x' % rgb, rgb)
+    return None
+
+
+def rgb_to_cmyk(rgb):
+    r, g, b = [x / 255.0 for x in rgb]
+    k = 1 - max(r, g, b)
+    if k >= 1:
+        return (0, 0, 0, 100)
+    c = (1 - r - k) / (1 - k)
+    m = (1 - g - k) / (1 - k)
+    y = (1 - b - k) / (1 - k)
+    return tuple(round(v * 100) for v in (c, m, y, k))
+
+
+def hex_to_rgb(hex_color):
+    h = hex_color.lstrip('#')
+    if len(h) == 3:
+        h = ''.join(c * 2 for c in h)
+    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def relative_luminance(rgb):
+    def ch(v):
+        v = v / 255.0
+        return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+    r, g, b = rgb
+    return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b)
+
+
+def contrast_ratio(rgb1, rgb2):
+    l1 = relative_luminance(rgb1)
+    l2 = relative_luminance(rgb2)
+    if l1 < l2:
+        l1, l2 = l2, l1
+    return (l1 + 0.05) / (l2 + 0.05)
+
+
+def color_saturation(rgb):
+    r, g, b = [x / 255.0 for x in rgb]
+    mx, mn = max(r, g, b), min(r, g, b)
+    if mx == 0:
+        return 0
+    return (mx - mn) / mx
+
+
+def cluster_colors(counts, threshold=40):
+    """Merge perceptually close colors. Returns {representative_hex: count}."""
+    merged = {}
+    for hex_color, count in counts.items():
+        rgb = hex_to_rgb(hex_color)
+        matched = None
+        for existing_hex in merged:
+            existing_rgb = hex_to_rgb(existing_hex)
+            dist = sum((a - b) ** 2 for a, b in zip(rgb, existing_rgb)) ** 0.5
+            if dist < threshold:
+                matched = existing_hex
+                break
+        if matched:
+            merged[matched] += count
+        else:
+            merged[hex_color] = count
+    return merged
+
+
+def derive_color_name(hex_color, css_variables):
+    """If a CSS variable matches this color, use its name."""
+    for prop, value in css_variables.items():
+        parsed = parse_css_color(value)
+        if parsed and parsed[0] == hex_color:
+            name = prop.lstrip('-').replace('-', ' ').replace('_', ' ').title()
+            for prefix in ('Color ', 'Colour ', 'Brand ', 'Theme ', 'Primary ', 'Secondary '):
+                if name.startswith(prefix):
+                    name = name[len(prefix):]
+            if name:
+                return name
+    return None
+
+
+def extract_css_tokens_into(css_text, tokens):
+    """Accumulate font faces, families, observed type sizes, colors and variables."""
+    if not css_text:
+        return
+
+    # @font-face
+    for m in re.finditer(r'@font-face\s*\{([^}]+)\}', css_text):
+        block = m.group(1)
+        fam = re.search(r'font-family\s*:\s*[\'"]?([^\'";]+)', block)
+        weight = re.search(r'font-weight\s*:\s*([^;]+)', block)
+        style = re.search(r'font-style\s*:\s*([^;]+)', block)
+        src = re.search(r'src\s*:\s*([^;]+)', block)
+        if fam:
+            tokens['font_faces'].append({
+                'family': fam.group(1).strip(),
+                'weight': (weight.group(1).strip() if weight else '400'),
+                'style': (style.group(1).strip() if style else 'normal'),
+                'src': (src.group(1).strip() if src else None),
+            })
+
+    # Custom properties
+    for m in re.finditer(r'(--[a-zA-Z0-9_-]+)\s*:\s*([^;}]+)', css_text):
+        prop, value = m.group(1), m.group(2).strip()
+        tokens['variables'][prop] = value
+        parsed = parse_css_color(value)
+        if parsed:
+            tokens['colors'][parsed[0]] += 5
+
+    # font-family declarations
+    for m in re.finditer(r'font-family\s*:\s*([^;}{]+)', css_text):
+        for fam in m.group(1).split(','):
+            fam = fam.strip().strip('\'"').strip()
+            if not fam or fam.startswith('var('):
+                continue
+            if fam.lower() in ('inherit', 'initial', 'unset', 'revert',
+                               'serif', 'sans-serif', 'monospace', 'cursive', 'fantasy'):
+                continue
+            tokens['families'].add(fam)
+
+    # Capture observed sizes from common text selectors; do not invent a scale.
+    for rule in re.finditer(r'([^{}]+)\{([^{}]+)\}', css_text):
+        selectors, declarations = rule.groups()
+        size_match = re.search(
+            r'font-size\s*:\s*(\d+(?:\.\d+)?px)\b', declarations, re.IGNORECASE
+        )
+        if not size_match:
+            continue
+        family_match = re.search(r'font-family\s*:\s*([^;]+)', declarations, re.IGNORECASE)
+        family = family_match.group(1).split(',')[0].strip().strip('\'"') if family_match else None
+        for selector in selectors.split(','):
+            selector = selector.strip().lower()
+            role = None
+            if re.search(r'(^|[\s>+~])h1(?:[:.#\s]|$)', selector):
+                role = 'h1'
+            elif re.search(r'(^|[\s>+~])h2(?:[:.#\s]|$)', selector):
+                role = 'h2'
+            elif re.search(r'(^|[\s>+~])h3(?:[:.#\s]|$)', selector):
+                role = 'h3'
+            elif selector in ('body', 'html', 'p'):
+                role = 'body'
+            if role:
+                tokens.setdefault('type_scale', []).append({
+                    'id': role,
+                    'family': family,
+                    'size': size_match.group(1),
+                    'px': round(float(size_match.group(1)[:-2])),
+                })
+
+    # generic color usage
+    for m in re.finditer(r'(?:background-color|color|border-color|fill|stroke)\s*:\s*([^;}]+)', css_text):
+        parsed = parse_css_color(m.group(1))
+        if parsed:
+            tokens['colors'][parsed[0]] += 1
+
+
+def extract_logo_candidates(soup, page_url):
+    """Return list of {kind, url, source} for logo candidates."""
+    out = []
+    seen = set()
+
+    def add(url, source, kind='logo', label=''):
+        if not url:
+            return
+        url = urljoin(page_url, url)
+        if url in seen:
+            return
+        seen.add(url)
+        out.append({'url': url, 'source': source, 'kind': kind, 'label': label})
+
+    # <img> with logo hints
+    for img in soup.find_all('img'):
+        haystack = ' '.join([
+            str(img.get('src', '')),
+            str(img.get('data-src', '')),
+            str(img.get('data-lazy-src', '')),
+            str(img.get('alt', '')),
+            str(img.get('class', '')),
+            str(img.get('id', '')),
+        ]).lower()
+        if any(h in haystack for h in LOGO_HINTS):
+            src = (img.get('src') or img.get('data-src')
+                   or img.get('data-lazy-src') or img.get('data-original'))
+            if src:
+                add(src, 'img', 'logo', haystack)
+
+    # favicon / apple-touch-icon
+    for link in soup.find_all('link', href=True):
+        rel = [r.lower() for r in (link.get('rel') or [])]
+        if any('icon' in r for r in rel):
+            add(link['href'], 'favicon', 'mark', ' '.join(rel))
+
+    # og:image and twitter:image
+    for prop in ('og:image', 'twitter:image'):
+        meta = soup.find('meta', property=prop) or soup.find('meta', attrs={'name': prop})
+        if meta and meta.get('content'):
+            add(meta['content'], prop, 'logo', prop)
+
+    # Inline SVGs — often the clearest cut
+    for i, svg in enumerate(soup.find_all('svg')):
+        parent = svg.parent
+        in_nav = False
+        depth = 0
+        while parent and depth < 4:
+            name = getattr(parent, 'name', '') or ''
+            cls = ' '.join(parent.get('class', []) if parent.has_attr('class') else [])
+            if name in ('header', 'nav') or 'logo' in cls.lower() or 'brand' in cls.lower():
+                in_nav = True
+                break
+            parent = parent.parent
+            depth += 1
+        svg_context = ' '.join([
+            ' '.join(svg.get('class', [])) if isinstance(svg.get('class'), list)
+            else str(svg.get('class', '')),
+            str(svg.get('id', '')),
+            str(svg.get('aria-label', '')),
+            ' '.join(parent.get('class', [])) if parent and isinstance(parent.get('class'), list)
+            else '',
+        ]).lower()
+        has_logo_hint = any(hint in svg_context for hint in LOGO_HINTS)
+        if (in_nav or has_logo_hint) and not any(
+            word in svg_context for word in ('social', 'sprite', 'facebook', 'instagram',
+                                             'tiktok', 'twitter', 'youtube')
+        ):
+            out.append({
+                'url': None,
+                'source': 'inline-svg',
+                'kind': 'logo',
+                'inline_svg': str(svg),
+                'index': i,
+                'label': svg_context,
+            })
+
+    return out
+
+
+def extract_photography_candidates(soup, page_url, page_text_len=0):
+    """Return hero-then-body image URLs, preferring the largest srcset cut."""
+    hero = []
+    body = []
+    seen = set()
+
+    def add(value, bucket):
+        if not value:
+            return
+        url = urljoin(page_url, value)
+        if not url.lower().startswith(('http://', 'https://')) or url in seen:
+            return
+        seen.add(url)
+        bucket.append(url)
+
+    for img in soup.find_all('img'):
+        haystack = ' '.join([
+            str(img.get('src', '')),
+            str(img.get('data-src', '')),
+            str(img.get('alt', '')),
+            str(img.get('class', '')),
+        ]).lower()
+        if any(h in haystack for h in LOGO_HINTS):
+            continue
+        if any(x in haystack for x in ('icon', 'sprite', 'favicon', 'avatar')):
+            continue
+        src = (img.get('src') or img.get('data-src')
+               or img.get('data-lazy-src') or img.get('data-original'))
+        srcset = (img.get('srcset') or img.get('data-srcset')
+                  or img.get('data-lazy-srcset') or '')
+        largest = None
+        best = -1.0
+        for match in re.finditer(r'(\S+?)\s+(\d+(?:\.\d+)?)([wx])', srcset or '', re.I):
+            candidate = match.group(1).strip().rstrip(',')
+            score = float(match.group(2))
+            if score > best:
+                best = score
+                largest = candidate
+        if not src and not largest:
+            continue
+        cls = str(img.get('class', '')).lower()
+        bucket = hero if any(k in cls for k in ('hero', 'banner', 'cover', 'featured')) else body
+        # srcset usually holds the full-size Wix/Squarespace cut.
+        add(largest, bucket)
+        add(src, bucket)
+
+    # <picture><source srcset="..."> is how Wix galleries expose the full-size
+    # cut; the sibling <img> is often only a thumbnail.
+    for source in soup.find_all('source'):
+        srcset = source.get('srcset') or source.get('data-srcset') or ''
+        largest = None
+        best = -1.0
+        for match in re.finditer(r'(\S+?)\s+(\d+(?:\.\d+)?)([wx])', srcset, re.I):
+            candidate = match.group(1).strip().rstrip(',')
+            score = float(match.group(2))
+            if score > best:
+                best = score
+                largest = candidate
+        add(largest, body)
+
+    for tag in soup.find_all(style=True):
+        style = tag.get('style') or ''
+        if 'background' not in style.lower():
+            continue
+        for value in extract_css_background_urls(style):
+            add(value, body)
+
+    og = soup.find('meta', property='og:image')
+    if og and og.get('content'):
+        add(og['content'], hero)
+    twitter = soup.find('meta', attrs={'name': 'twitter:image'})
+    if twitter and twitter.get('content'):
+        add(twitter['content'], hero)
+
+    return hero + body
+
+
+def extract_contact_info(soup):
+    contacts = {
+        'phones': set(), 'emails': set(), 'social': {}, 'address': None,
+        'location': {}, 'category': None,
+    }
+
+    def add_social(platform, url):
+        links = contacts['social'].setdefault(platform, [])
+        if not isinstance(links, list):
+            links = [links]
+            contacts['social'][platform] = links
+        if url not in links:
+            links.append(url)
+
+    for a in soup.find_all('a', href=True):
+        href = a['href']
+        if href.startswith('tel:'):
+            contacts['phones'].add(href[4:].strip())
+        elif href.startswith('mailto:'):
+            contacts['emails'].add(href[7:].split('?')[0].strip())
+        else:
+            for platform, pat in SOCIAL_PATTERNS.items():
+                if re.search(pat, href, re.IGNORECASE):
+                    add_social(platform, href)
+
+    for script in soup.find_all('script', type='application/ld+json'):
+        try:
+            data = json.loads(script.string or '')
+        except Exception:
+            continue
+        items = data if isinstance(data, list) else [data]
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            type_ = item.get('@type') or ''
+            type_list = type_ if isinstance(type_, list) else [type_]
+            if not any(t in ('Organization', 'LocalBusiness', 'Restaurant',
+                             'Hotel', 'LodgingBusiness', 'Store', 'Corporation')
+                       for t in type_list):
+                if not any(t in ('BarOrPub', 'CafeOrCoffeeShop', 'FoodEstablishment')
+                           for t in type_list):
+                    continue
+            category_map = {
+                'Restaurant': 'Restaurant', 'BarOrPub': 'Bar',
+                'CafeOrCoffeeShop': 'Cafe', 'FoodEstablishment': 'Restaurant',
+            }
+            if not contacts['category']:
+                contacts['category'] = next(
+                    (category_map[t] for t in type_list if t in category_map), None
+                )
+            if item.get('telephone'):
+                contacts['phones'].add(item['telephone'])
+            if item.get('email'):
+                contacts['emails'].add(item['email'].replace('mailto:', ''))
+            addr = item.get('address')
+            if isinstance(addr, dict):
+                parts = [addr.get('streetAddress'), addr.get('addressLocality'),
+                         addr.get('addressRegion'), addr.get('postalCode'),
+                         addr.get('addressCountry')]
+                addr_str = ', '.join(p for p in parts if p)
+                if addr_str:
+                    contacts['address'] = addr_str
+                contacts['location'] = {
+                    key: addr.get(source)
+                    for key, source in (
+                        ('city', 'addressLocality'),
+                        ('region', 'addressRegion'),
+                        ('country', 'addressCountry'),
+                    ) if addr.get(source)
+                }
+            elif isinstance(addr, str) and addr:
+                contacts['address'] = addr
+            for same in (item.get('sameAs') or []):
+                for platform, pat in SOCIAL_PATTERNS.items():
+                    if isinstance(same, str) and re.search(pat, same, re.IGNORECASE):
+                        add_social(platform, same)
+
+    return contacts
+
+
+def extract_og_meta(soup):
+    meta = {}
+    for prop in ('og:site_name', 'og:title', 'og:description', 'og:image', 'og:type', 'og:url'):
+        tag = soup.find('meta', property=prop)
+        if tag and tag.get('content'):
+            meta[prop] = tag['content'].strip()
+    desc = soup.find('meta', attrs={'name': 'description'})
+    if desc and desc.get('content'):
+        meta.setdefault('description', desc['content'].strip())
+    theme = soup.find('meta', attrs={'name': 'theme-color'})
+    if theme and theme.get('content'):
+        parsed = parse_css_color(theme['content'])
+        if parsed:
+            meta['theme_color'] = parsed[0]
+    title = soup.find('title')
+    if title and title.string:
+        meta.setdefault('title', title.string.strip())
+    return meta
+
+
+def extract_brand_data(start_url, visited_pages):
+    """Fetch home + a handful of key pages; return the brand dict."""
+    brand = {
+        'name': None,
+        'description': None,
+        'logo_candidates': [],
+        'photography_urls': [],
+        'guide_urls': [],
+        'menu_urls': [],
+        'css_tokens': {
+            'font_faces': [],
+            'families': set(),
+            'colors': Counter(),
+            'variables': {},
+            'type_scale': [],
+        },
+        'contact': {'phones': set(), 'emails': set(), 'social': {}, 'address': None},
+        'location': {},
+        'category': None,
+        'og': {},
+        'theme_color': None,
+        'stylesheet_urls': set(),
+        'cover_url': None,
+        'inline_svgs': [],
+    }
+
+    key_pages = [start_url]
+    for u in sorted(visited_pages):
+        low = u.lower()
+        if any(k in low for k in ('/about', '/press', '/contact', '/brand', '/media')):
+            key_pages.append(u)
+    key_pages = list(dict.fromkeys(key_pages))[:8]
+
+    for page_url in key_pages:
+        html = fetch_text_cached(page_url)
+        if not html:
+            continue
+        soup = BeautifulSoup(html, 'lxml')
+
+        og = extract_og_meta(soup)
+        if og:
+            for k, v in og.items():
+                brand['og'].setdefault(k, v)
+            if not brand['name']:
+                brand['name'] = og.get('og:site_name') or og.get('title')
+            if not brand['description']:
+                brand['description'] = og.get('og:description') or og.get('description')
+            if og.get('theme_color') and not brand['theme_color']:
+                brand['theme_color'] = og['theme_color']
+            if og.get('og:image') and not brand['cover_url']:
+                brand['cover_url'] = urljoin(page_url, og['og:image'])
+
+        for logo in extract_logo_candidates(soup, page_url):
+            brand['logo_candidates'].append(logo)
+            if logo.get('inline_svg'):
+                brand['inline_svgs'].append(logo)
+
+        brand['photography_urls'].extend(
+            extract_photography_candidates(soup, page_url)
+        )
+
+        contact = extract_contact_info(soup)
+        brand['contact']['phones'].update(contact['phones'])
+        brand['contact']['emails'].update(contact['emails'])
+        if contact['address']:
+            brand['contact']['address'] = contact['address']
+        if contact.get('location'):
+            brand['location'].update(contact['location'])
+        if contact.get('category'):
+            brand['category'] = contact['category']
+        for k, v in contact['social'].items():
+            links = brand['contact']['social'].setdefault(k, [])
+            if not isinstance(links, list):
+                links = [links]
+                brand['contact']['social'][k] = links
+            values = v if isinstance(v, (list, tuple, set)) else [v]
+            for value in values:
+                if value not in links:
+                    links.append(value)
+
+        for link in soup.find_all('link', rel='stylesheet'):
+            href = link.get('href')
+            if href and not href.startswith('data:'):
+                brand['stylesheet_urls'].add(urljoin(page_url, href))
+
+        for style in soup.find_all('style'):
+            if style.string:
+                extract_css_tokens_into(style.string, brand['css_tokens'])
+
+        # Brand-guide / press-kit / menu links
+        for a in soup.find_all('a', href=True):
+            href = urljoin(page_url, a['href'])
+            text = (a.get_text(' ', strip=True) or '').lower()
+            haystack = text + ' ' + href.lower()
+            if any(k in haystack for k in ('brand guide', 'brand-guideline', 'press kit',
+                                           'media kit', 'brand-kit', 'brandbook',
+                                           'brand-book', 'logo pack', 'logo-pack')):
+                brand['guide_urls'].append(href)
+            if '.pdf' in href.lower() or '/menu' in href.lower():
+                if 'menu' in text or 'menu' in href.lower():
+                    brand['menu_urls'].append(href)
+
+    # Fetch up to 12 stylesheets for tokens
+    for css_url in sorted(brand['stylesheet_urls'])[:12]:
+        css = fetch_text_cached(css_url)
+        if css:
+            extract_css_tokens_into(css, brand['css_tokens'])
+
+    # Page-title names ('Home | The Adamson – St Andrews') are tidied; og:site_name is trusted as-is.
+    if brand['name'] and brand['name'] != brand['og'].get('og:site_name'):
+        brand['name'] = tidy_brand_name(brand['name'], start_url)
+    # Last-resort name
+    if not brand['name']:
+        parsed = urlparse(start_url)
+        host = parsed.netloc.replace('www.', '')
+        brand['name'] = host.split('.')[0].title()
+
+    # If no cover, take the first photography URL
+    if not brand['cover_url'] and brand['photography_urls']:
+        brand['cover_url'] = brand['photography_urls'][0]
+
+    return brand
+
+
+# =========================================================
+# PHASE 1: WORDPRESS REST API
+# =========================================================
+def discover_wp_media_endpoints():
+    candidates = []
+
+    def add_candidate(value):
+        if value and value not in candidates:
+            candidates.append(value)
+
+    add_candidate(urljoin(BASE_URL, "wp-json/wp/v2/media"))
+    add_candidate(urljoin(BASE_URL, "/wp-json/wp/v2/media"))
+
+    start_page = get(BASE_URL, log_errors=False)
+    if start_page:
+        soup = BeautifulSoup(start_page.text, 'lxml')
+        for link in soup.find_all('link', href=True):
+            rel = link.get('rel') or []
+            if any("api.w.org" in str(r) for r in rel):
+                rest_base = urljoin(BASE_URL, link['href']).rstrip('/')
+                add_candidate(f"{rest_base}/wp/v2/media")
+    return candidates
+
+
+def get_wp_media_items():
+    found = set()
+    per_page = 100
+    endpoints = discover_wp_media_endpoints()
+    if not endpoints:
+        print("REST API: no endpoint candidates discovered.")
+        return found
+
+    for base in endpoints:
+        probe = get(f"{base}?per_page=1&page=1", log_errors=False)
+        if not probe:
+            continue
+        print(f"REST API: using endpoint {base}")
+
+        for mime in ALL_MEDIA_MIME_TYPES:
+            page = 1
+            while True:
+                url = f"{base}?per_page={per_page}&page={page}&mime_type={mime}"
+                resp = get(url, log_errors=False)
+                if not resp:
+                    break
+                try:
+                    data = resp.json()
+                except Exception:
+                    break
+                if not data or not isinstance(data, list):
+                    break
+                for item in data:
+                    source_url = item.get('source_url') or item.get('guid', {}).get('rendered')
+                    if source_url and is_media_url(source_url):
+                        found.add(source_url)
+                if len(data) < per_page:
+                    break
+                page += 1
+                time.sleep(WEB_REQUEST_DELAY)
+        break
+
+    print(f"REST API: found {len(found)} media URLs.")
+    return found
+
+
+# =========================================================
+# PHASE 2: XML SITEMAP
+# =========================================================
+def parse_sitemap(sitemap_url):
+    urls = set()
+    if sitemap_url in PERMANENTLY_FAILED:
+        return urls
+    resp = get(sitemap_url)
+    if not resp:
+        return urls
+    try:
+        root = ET.fromstring(resp.content)
+    except ET.ParseError:
+        return urls
+
+    ns = {'sm': 'http://www.sitemaps.org/schemas/sitemap/0.9'}
+    for url_elem in root.findall('url/loc') or root.findall('.//sm:loc', ns):
+        if url_elem is not None and url_elem.text:
+            urls.add(url_elem.text.strip())
+    for sitemap_elem in root.findall('sitemap/loc') or root.findall('.//sm:sitemap/sm:loc', ns):
+        if sitemap_elem is not None and sitemap_elem.text:
+            sub_url = sitemap_elem.text.strip()
+            urls.update(parse_sitemap(sub_url))
+    return urls
+
+
+def get_sitemap_urls():
+    sitemap_candidates = []
+
+    def add_candidate(candidate):
+        if candidate and candidate not in sitemap_candidates:
+            sitemap_candidates.append(candidate)
+
+    for name in ("wp-sitemap.xml", "sitemap.xml", "sitemap_index.xml"):
+        add_candidate(urljoin(BASE_URL, name))
+        add_candidate(urljoin(BASE_URL, f"/{name}"))
+
+    for robots_url in (urljoin(BASE_URL, "robots.txt"), urljoin(BASE_URL, "/robots.txt")):
+        robots_resp = get(robots_url, log_errors=False)
+        if not robots_resp:
+            continue
+        for line in robots_resp.text.splitlines():
+            if line.lower().startswith("sitemap:"):
+                maybe = line.split(":", 1)[1].strip()
+                if maybe:
+                    add_candidate(maybe)
+
+    all_urls = set()
+    for sitemap_url in sitemap_candidates:
+        print(f"Trying sitemap: {sitemap_url}")
+        urls = parse_sitemap(sitemap_url)
+        if urls:
+            all_urls.update(urls)
+
+    media_urls = {u for u in all_urls if is_media_url(u)}
+    print(f"Sitemap: {len(all_urls)} total URLs, {len(media_urls)} media URLs.")
+    return media_urls, all_urls
+
+
+# =========================================================
+# PHASE 3: PAGE CRAWLING
+# =========================================================
+def crawl_pages(start_urls):
+    visited = set()
+    to_visit = []
+    media_urls = set()
+    text_pages = set()
+    video_embeds = set()
+
+    if ENABLE_CRAWL_CHECKPOINT:
+        checkpoint = load_crawl_checkpoint(CRAWL_CHECKPOINT_FILE)
+        if checkpoint:
+            visited = set(checkpoint.get("visited", []))
+            to_visit = list(checkpoint.get("to_visit", []))
+            media_urls = set(checkpoint.get("media_urls", []))
+            text_pages = set(checkpoint.get("text_pages", []))
+            video_embeds = {tuple(x) for x in checkpoint.get("video_embeds", [])}
+            print(f"Resuming checkpoint: {len(visited)} visited, {len(to_visit)} queued, "
+                  f"{len(media_urls)} media, {len(text_pages)} text pages")
+
+    for seed in start_urls:
+        if seed and seed not in visited and seed not in to_visit and seed not in PERMANENTLY_FAILED:
+            if len(to_visit) < MAX_PAGE_CRAWL:
+                to_visit.append(seed)
+
+    pages_since_checkpoint = 0
+    os.makedirs(TEXT_DIR, exist_ok=True)
+
+    def record_candidate(url):
+        if not url:
+            return False
+        kind = classify_media(url)
+        if kind:
+            if is_media_host_allowed(url):
+                media_urls.add(url)
+            return True
+        return False
+
+    def handle_srcset(srcset_value, current_url):
+        for u in extract_srcset_urls(srcset_value):
+            normalized = normalize_candidate_url(u, current_url)
+            if normalized:
+                record_candidate(normalized)
+
+    def handle_css_text(css_text, current_url):
+        for u in extract_css_background_urls(css_text):
+            normalized = normalize_candidate_url(u, current_url)
+            if normalized:
+                record_candidate(normalized)
+
+    def handle_iframe(src, source_page):
+        for pattern, platform in VIDEO_EMBED_PATTERNS:
+            if re.search(pattern, src):
+                video_embeds.add((platform, src, source_page))
+                return
+
+    def extract_links(html, current_url):
+        soup = BeautifulSoup(html, 'lxml')
+        seen_here = set()
+
+        def evaluate_candidate(raw_value, parse_embedded=False):
+            if not raw_value:
+                return
+            candidates = []
+            if not parse_embedded:
+                candidates.append(raw_value)
+            else:
+                # Only absolute/path URLs from the HTML blob. Bare filenames
+                # inside script/JSON payloads (_M3A9150.jpg, v.WEBP) are not
+                # real links and used to produce hundreds of 404 downloads.
+                for token in extract_urls_from_text(raw_value):
+                    if token.startswith(('http://', 'https://', '//', '/', './', '../')):
+                        candidates.append(token)
+            for token in candidates:
+                href = normalize_candidate_url(token, current_url)
+                if not href or href in seen_here:
+                    continue
+                seen_here.add(href)
+
+                if record_candidate(href):
+                    continue
+
+                if not is_same_domain(href):
+                    continue
+                if href in visited or href in PERMANENTLY_FAILED:
+                    continue
+                if len(to_visit) >= MAX_PAGE_CRAWL:
+                    continue
+                if href in to_visit:
+                    continue
+                if not is_page_in_scope(href):
+                    continue
+                if href.lower().endswith(NON_HTML_SUFFIXES):
+                    continue
+                to_visit.append(href)
+
+        for tag in soup.find_all(True):
+            for attr in ('srcset', 'data-srcset', 'data-lazy-srcset'):
+                val = tag.get(attr)
+                if val:
+                    handle_srcset(val, current_url)
+
+            style_val = tag.get('style')
+            if style_val:
+                handle_css_text(style_val, current_url)
+
+            if tag.name == 'iframe':
+                src = tag.get('src') or tag.get('data-src') or tag.get('data-lazy-src')
+                if src:
+                    handle_iframe(src, current_url)
+                    evaluate_candidate(src)
+
+            for attr in EXTRA_LINK_ATTRIBUTES:
+                value = tag.get(attr)
+                if not value:
+                    continue
+                if attr in ('srcset', 'data-srcset', 'data-lazy-srcset'):
+                    continue
+                evaluate_candidate(value, parse_embedded=(attr == 'onclick'))
+
+        for source_tag in soup.find_all('source'):
+            src = source_tag.get('src')
+            if src:
+                evaluate_candidate(src)
+            srcset = source_tag.get('srcset')
+            if srcset:
+                handle_srcset(srcset, current_url)
+
+        for style_tag in soup.find_all('style'):
+            if style_tag.string:
+                handle_css_text(style_tag.string, current_url)
+
+        evaluate_candidate(html, parse_embedded=True)
+
+    with ThreadPoolExecutor(max_workers=WEB_MAX_WORKERS) as executor:
+        futures = {}
+        while to_visit and len(visited) < MAX_PAGE_CRAWL:
+            while to_visit and len(futures) < WEB_MAX_WORKERS * 2:
+                url = to_visit.pop(0)
+                if url in visited or url in PERMANENTLY_FAILED:
+                    continue
+                visited.add(url)
+                pages_since_checkpoint += 1
+                futures[executor.submit(get, url)] = url
+
+            for future in as_completed(futures):
+                url = futures.pop(future)
+                try:
+                    resp = future.result()
+                    if resp and resp.status_code == 200:
+                        ctype = (resp.headers.get('content-type') or '').lower()
+                        if 'html' in ctype or not ctype:
+                            _page_cache[url] = resp.text
+                            if url not in text_pages:
+                                try:
+                                    text = extract_page_text(resp.text)
+                                    if text.strip():
+                                        txt_path = os.path.join(TEXT_DIR, text_safe_filename(url))
+                                        with open(txt_path, 'w', encoding='utf-8') as f:
+                                            f.write(text)
+                                        text_pages.add(url)
+                                except Exception as e:
+                                    print(f"Text extraction error for {url}: {e}")
+                            try:
+                                extract_links(resp.text, url)
+                            except Exception as e:
+                                print(f"Link extraction error for {url}: {e}")
+                except Exception as e:
+                    print(f"Error crawling {url}: {e}")
+                time.sleep(WEB_REQUEST_DELAY)
+
+            if ENABLE_CRAWL_CHECKPOINT and pages_since_checkpoint >= CRAWL_CHECKPOINT_SAVE_EVERY:
+                save_crawl_checkpoint(
+                    CRAWL_CHECKPOINT_FILE, visited, to_visit,
+                    media_urls, text_pages, video_embeds
+                )
+                pages_since_checkpoint = 0
+
+    if ENABLE_CRAWL_CHECKPOINT:
+        if CLEAR_CHECKPOINT_ON_COMPLETE and not to_visit:
+            clear_crawl_checkpoint(CRAWL_CHECKPOINT_FILE)
+        else:
+            save_crawl_checkpoint(
+                CRAWL_CHECKPOINT_FILE, visited, to_visit,
+                media_urls, text_pages, video_embeds
+            )
+
+    print(f"Page crawl: visited {len(visited)} pages, "
+          f"found {len(media_urls)} media links, "
+          f"saved text for {len(text_pages)} pages, "
+          f"detected {len(video_embeds)} video embeds.")
+    return media_urls, text_pages, video_embeds, visited
+
+
+# =========================================================
+# CHECKPOINT HELPERS
+# =========================================================
+def load_crawl_checkpoint(path):
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            return data
+    except Exception as e:
+        print(f"Could not load checkpoint '{path}': {e}")
+    return None
+
+
+def save_crawl_checkpoint(path, visited, to_visit, media_urls, text_pages, video_embeds):
+    payload = {
+        "visited": list(visited),
+        "to_visit": list(to_visit),
+        "media_urls": list(media_urls),
+        "text_pages": list(text_pages),
+        "video_embeds": list(video_embeds),
+        "saved_at": int(time.time()),
+    }
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(payload, f, ensure_ascii=False)
+
+
+def clear_crawl_checkpoint(path):
+    if os.path.exists(path):
+        os.remove(path)
+
+
+def export_discovered_urls_csv(media_urls, csv_path):
+    directory = os.path.dirname(csv_path)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+    with open(csv_path, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        writer.writerow(["url", "host", "path", "type"])
+        for url in sorted(media_urls):
+            parsed = urlparse(url)
+            writer.writerow([url, parsed.netloc, parsed.path, classify_media(url) or "unknown"])
+    print(f"Exported discovered URLs to '{csv_path}'")
+
+
+def export_video_embeds_csv(embeds, csv_path):
+    if not embeds:
+        return
+    directory = os.path.dirname(csv_path)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+    with open(csv_path, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        writer.writerow(["platform", "embed_url", "source_page"])
+        for platform, embed_url, source_page in sorted(embeds):
+            writer.writerow([platform, embed_url, source_page])
+    print(f"Exported {len(embeds)} video embed(s) to '{csv_path}'")
+
+
+# =========================================================
+# PHASE 4: DOWNLOAD
+# =========================================================
+def target_dir_for(url):
+    kind = classify_media(url)
+    if kind == 'image':
+        return IMAGE_DIR
+    if kind == 'video':
+        return VIDEO_DIR
+    return DOWNLOAD_DIR
+
+
+def download_media_file(url):
+    try:
+        resp = get(url, stream=True)
+        if not resp:
+            return None
+
+        content_type = (resp.headers.get('content-type') or '').lower()
+        kind = classify_media(url)
+
+        # A media URL can still return an HTML error page (Wix/Squarespace
+        # 404s, hotlink walls). Never save that as an image or a video.
+        if content_type.startswith('text/html'):
+            print(f"Skipping HTML response at {url} (content-type: {content_type})")
+            return None
+
+        target_dir = target_dir_for(url)
+        os.makedirs(target_dir, exist_ok=True)
+
+        filename = filename_from_response(url, resp)
+        filepath = os.path.join(target_dir, filename)
+        base, ext = os.path.splitext(filename)
+        counter = 1
+        while os.path.exists(filepath):
+            filepath = os.path.join(target_dir, f"{base}_{counter}{ext}")
+            counter += 1
+
+        total = int(resp.headers.get('content-length', 0))
+        if total:
+            print(f"Downloading {filename} ({total // 1024} KB)...")
+        else:
+            print(f"Downloading {filename}...")
+
+        with open(filepath, 'wb') as f:
+            for chunk in resp.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+
+        # Validate the bytes, not just the URL/headers.
+        if kind == 'image':
+            info = get_image_info(filepath)
+            if not info:
+                print(f"Discarding non-image download at {url}")
+                try:
+                    os.remove(filepath)
+                except OSError:
+                    pass
+                return None
+            if info[0] < 32 or info[1] < 32:
+                print(f"Discarding tiny image {info[0]}x{info[1]} at {url}")
+                try:
+                    os.remove(filepath)
+                except OSError:
+                    pass
+                return None
+        elif kind == 'video':
+            if os.path.getsize(filepath) < 4096:
+                try:
+                    os.remove(filepath)
+                except OSError:
+                    pass
+                return None
+        # Normalise MIME/extension (WebP saved as .jpg, etc.)
+        return fix_image_extension(filepath)
+    except Exception as e:
+        print(f"Failed to download {url}: {e}")
+        return None
+
+
+def download_all(media_urls):
+    os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+    os.makedirs(IMAGE_DIR, exist_ok=True)
+    os.makedirs(VIDEO_DIR, exist_ok=True)
+
+    url_to_path = {}
+    with ThreadPoolExecutor(max_workers=WEB_MAX_WORKERS) as executor:
+        futures = {executor.submit(download_media_file, url): url for url in media_urls}
+        for future in as_completed(futures):
+            url = futures[future]
+            try:
+                result = future.result()
+                if result:
+                    url_to_path[url] = result
+            except Exception as e:
+                print(f"Error on {url}: {e}")
+    return url_to_path
+
+
+# =========================================================
+def normalize_inline_svg(text):
+    """Repair case-sensitive SVG attributes and give the root a real size.
+
+    BeautifulSoup/lxml serialises ``viewBox`` as ``viewbox``, so browsers fall
+    back to 300x150 and a 10:1 wordmark is squashed/clipped when the studio
+    renders it. Restore the camel-case names and add width/height from viewBox.
+    """
+    if not text:
+        return text
+    value = str(text)
+    value = re.sub(r'\bviewbox\s*=', 'viewBox=', value, flags=re.I)
+    value = re.sub(r'\bpreserveaspectratio\s*=', 'preserveAspectRatio=', value, flags=re.I)
+    match = re.search(r'viewBox=["\']([-\d.]+)[ ,]+([-\d.]+)[ ,]+([-\d.]+)[ ,]+([-\d.]+)["\']', value)
+    if match:
+        width, height = match.group(3), match.group(4)
+        open_tag = re.search(r'<svg\b[^>]*>', value, re.I)
+        if open_tag:
+            tag = open_tag.group(0)
+            if not re.search(r'\bwidth\s*=', tag, re.I):
+                tag = tag[:-1] + f' width="{width}">'
+            if not re.search(r'\bheight\s*=', tag, re.I):
+                tag = tag[:-1] + f' height="{height}">'
+            value = value[:open_tag.start()] + tag + value[open_tag.end():]
+    return value
+
+
+# PHASE 5: BRAND PACK WRITER
+# =========================================================
+# ------------------------------------------------------------------
+# LOGO CURATION
+# ------------------------------------------------------------------
+def is_favicon_url(url):
+    low = (url or '').lower()
+    return any(k in low for k in FAVICON_KEYWORDS)
+
+
+def is_icon_url(url):
+    low = (url or '').lower()
+    return any(k in low for k in ICON_KEYWORDS)
+
+
+def is_sub_brand(url_or_text):
+    low = (url_or_text or '').lower()
+    return any(k in low for k in SUB_BRAND_KEYWORDS)
+
+
+def is_logo_sized(path):
+    """True if the file could be a real logo (not a favicon-sized icon)."""
+    info = get_image_info(path)
+    if not info:
+        return os.path.splitext(path)[1].lower() == '.svg'
+    w, h, fmt = info
+    if fmt == 'SVG':
+        return True
+    if w < LOGO_MIN_EDGE or h < LOGO_MIN_EDGE:
+        # A wide wordmark could legitimately be 455×100, so accept very wide flatter files
+        if w >= 400 and h >= 40 and w / max(h, 1) >= 3:
+            return True
+        return False
+    return True
+
+
+def classify_logo_variant(url_or_html, kind='logo'):
+    haystack = (url_or_html or '').lower()
+    if any(x in haystack for x in ('monochrome', 'mono', 'black-white', 'black_white')):
+        return 'mono'
+    if any(x in haystack for x in ('logo-white', 'logo-light', 'logo-reverse',
+                                   '-white.', '-light.', '_white.', '_light.')):
+        return 'light'
+    if any(x in haystack for x in ('logo-dark', 'logo-black', '-dark.', '-black.')):
+        return 'dark'
+    if any(x in haystack for x in ('logo-color', 'logo-colour', 'logo-full',
+                                   '-color.', '-colour.')):
+        return 'color'
+    return 'primary'
+
+
+def classify_logo_kind(url_or_html):
+    haystack = (url_or_html or '').lower()
+    if 'wordmark' in haystack:
+        return 'wordmark'
+    if any(x in haystack for x in ('mark', 'symbol', 'icon', 'emblem')):
+        return 'mark'
+    return 'logo'
+
+
+def dedupe_files(paths):
+    """Return unique files by content hash (first wins)."""
+    seen = set()
+    unique = []
+    for p in paths:
+        if not p or not os.path.isfile(p):
+            continue
+        h = file_hash(p)
+        if not h or h in seen:
+            continue
+        seen.add(h)
+        unique.append(p)
+    return unique
+
+
+def select_curated_logos(brand_data, url_to_path):
+    """Return the final list of logo file records after curation."""
+    candidates = []
+    for i, cand in enumerate(brand_data['logo_candidates']):
+        url = cand.get('url')
+        if not url:
+            continue
+        if cand.get('source') in ('og:image', 'twitter:image', 'favicon'):
+            continue
+        if is_favicon_url(url):
+            continue
+        if is_icon_url(url):
+            continue
+        label = cand.get('label', '')
+        candidate_text = url + ' ' + label
+        if is_sub_brand(candidate_text):
+            continue
+        if any(keyword in candidate_text.lower() for keyword in LOGO_REJECT_KEYWORDS):
+            continue
+        if re.search(r'-\d{2,4}x\d{2,4}(?:\.[a-z0-9]+)?$', urlparse(url).path.lower()):
+            continue
+        local = url_to_path.get(url)
+        if not local or not os.path.isfile(local):
+            continue
+        if not is_logo_sized(local):
+            continue
+        variant = classify_logo_variant(url + ' ' + cand.get('label', ''), cand['kind'])
+        kind = classify_logo_kind(url + ' ' + cand.get('label', ''))
+        candidates.append({
+            'url': url,
+            'local': local,
+            'variant': variant,
+            'kind': kind,
+            'source': cand['source'],
+            'index': i,
+        })
+    # De-dup by file hash
+    seen_hashes = set()
+    unique = []
+    for c in candidates:
+        h = file_hash(c['local'])
+        if not h or h in seen_hashes:
+            continue
+        seen_hashes.add(h)
+        unique.append(c)
+    return unique
+
+
+def select_curated_photography(brand_data, url_to_path, cover_local=None):
+    """Return up to six distinct, print-capable photography files.
+
+    The same Wix/Squarespace image arrives as several sizes (``~mv2.jpg``,
+    ``~mv2_1.jpg``, ...). Group by the underlying media id and keep the largest
+    cut so a gallery does not become five copies of one photo.
+    """
+    reject = ('logo', 'icon', 'favicon', 'sprite', 'avatar', 'snakeandstaff',
+              'pattern', 'texture', 'frame', 'badge', 'placeholder')
+    by_stem = {}
+    for url in brand_data['photography_urls']:
+        local = url_to_path.get(url)
+        if not local or not os.path.isfile(local):
+            continue
+        if cover_local and local == cover_local:
+            continue
+        low = unquote(url).lower()
+        if any(word in low for word in reject):
+            continue
+        info = get_image_info(local)
+        if not info or info[2] == 'SVG':
+            continue
+        width, height, _ = info
+        short = min(width, height)
+        if short < PHOTO_MIN_SHORT_EDGE:
+            continue
+        path = unquote(urlparse(url).path)
+        stem = re.sub(r'(_\d+)?\.(?:jpe?g|png|webp|avif|gif)$', '', path, flags=re.I)
+        digest = file_hash(local)
+        if not digest:
+            continue
+        current = by_stem.get(stem)
+        score = (width * height, short)
+        if not current or score > current[0]:
+            by_stem[stem] = (score, local)
+
+    ranked = sorted(by_stem.values(), key=lambda item: item[0], reverse=True)
+    chosen = []
+    seen_hashes = set()
+    for _score, local in ranked:
+        digest = file_hash(local)
+        if not digest or digest in seen_hashes:
+            continue
+        seen_hashes.add(digest)
+        chosen.append(local)
+        if len(chosen) >= 6:
+            break
+    return chosen
+
+
+def select_cover(brand_data, url_to_path):
+    """Return the best cover file or None."""
+    candidates = []
+    if brand_data.get('cover_url'):
+        candidates.append(brand_data['cover_url'])
+    candidates.extend(brand_data['photography_urls'][:3])
+
+    best = None
+    best_score = -1
+    for url in candidates:
+        local = url_to_path.get(url)
+        if not local or not os.path.isfile(local):
+            continue
+        if is_sub_brand(url) or is_favicon_url(url) or is_icon_url(url):
+            continue
+        info = get_image_info(local)
+        if not info:
+            continue
+        w, h, fmt = info
+        if fmt == 'SVG':
+            continue
+        if w < COVER_MIN_WIDTH or h < COVER_MIN_HEIGHT:
+            continue
+        score = w * h
+        if score > best_score:
+            best = local
+            best_score = score
+    return best
+
+
+# ------------------------------------------------------------------
+# PALETTE + TYPOGRAPHY
+# ------------------------------------------------------------------
+def build_palette(css_tokens, theme_color=None):
+    """Rank cluster colors and assign roles/tiers."""
+    if theme_color and theme_color not in css_tokens['colors']:
+        css_tokens['colors'][theme_color] += 10
+
+    if not css_tokens['colors']:
+        return []
+
+    colours = dict(css_tokens['colors'])
+    filtered = {
+        hex_value: count for hex_value, count in colours.items()
+        if hex_value.lower() not in PLATFORM_UI_COLORS
+    }
+    if len(filtered) >= 5:
+        colours = filtered
+
+    total = sum(colours.values())
+    clustered = cluster_colors(colours)
+
+    clustered = {h: c for h, c in clustered.items() if c >= 1}
+    if not clustered:
+        return []
+
+    ranked = sorted(clustered.items(), key=lambda kv: -kv[1])[:14]
+
+    palette = []
+    for i, (hex_color, count) in enumerate(ranked):
+        rgb = hex_to_rgb(hex_color)
+        cmyk = rgb_to_cmyk(rgb)
+        lum = relative_luminance(rgb)
+        sat = color_saturation(rgb)
+        tier = 'primary' if i < 3 else ('secondary' if i < 6 else 'tertiary')
+        name = derive_color_name(hex_color, css_tokens['variables']) or hex_color.upper()
+        palette.append({
+            'name': name,
+            'hex': hex_color,
+            'rgb': list(rgb),
+            'cmyk': list(cmyk),
+            'share': round(count / total, 3) if total else 0,
+            'tier': tier,
+            'luminance': round(lum, 3),
+            'saturation': round(sat, 3),
+            'role': 'neutral',
+        })
+
+    if palette:
+        by_lum = sorted(palette, key=lambda p: p['luminance'])
+        by_lum[-1]['role'] = 'ground'
+        by_lum[0]['role'] = 'ink'
+        remaining = [p for p in palette if p['role'] == 'neutral']
+        if remaining:
+            accent = max(remaining, key=lambda p: (p['saturation'] * (1.2 if p['tier'] == 'primary' else 1.0)))
+            accent['role'] = 'accent'
+    return palette
+
+
+def is_real_font_family(name):
+    """True if the name is a plausible brand font, not a framework internal."""
+    if not name or len(name) < 2:
+        return False
+    n = name.strip()
+    if FONT_INTERNAL_PATTERNS.match(n):
+        return False
+    if any(c in n for c in ('px', '%', '{', '}', ';', ':', ')', '(', '!')):
+        return False
+    if n.startswith('var(') or n.startswith('--'):
+        return False
+    if n.lower() in ('inherit', 'initial', 'unset', 'revert',
+                     'serif', 'sans-serif', 'monospace', 'cursive', 'fantasy',
+                     'system-ui', '-apple-system', 'blinkmacsystemfont'):
+        return False
+    return True
+
+
+FONT_ALIASES = {
+    'brandon-grot-w01-light': 'Brandon Grotesque',
+    'brandon-grotesque': 'Brandon Grotesque',
+    'bree-w01-thin-oblique': 'Bree',
+    'din-next-w01-light': 'DIN Next',
+    'playfair display': 'Playfair Display',
+    'montserrat': 'Montserrat',
+    'raleway': 'Raleway',
+    'cinzel': 'Cinzel',
+    'bree': 'Bree',
+}
+GENERIC_FONT_FAMILIES = {
+    'arial', 'helvetica', 'consolas', 'menlo', 'inconsolata', 'madefor',
+    'wix madefor text', 'system-ui', 'sans-serif', 'serif', 'monospace',
+}
+
+
+def _is_generic_font(name):
+    low = (name or '').lower()
+    return (low in GENERIC_FONT_FAMILIES
+            or any(term in low for term in ('hiragino', 'meiryo', 'yu gothic',
+                                            'noto sans cjk', 'ヒラギノ', 'メイリオ')))
+
+
+def _font_display_name(name):
+    low = (name or '').strip().lower()
+    if low in FONT_ALIASES:
+        return FONT_ALIASES[low]
+    if low in GENERIC_FONT_FAMILIES:
+        return name.strip().title() if low != 'arial' else 'Arial'
+    return ' '.join(part.capitalize() if part.islower() else part
+                    for part in name.strip().split())
+
+
+def build_typography(css_tokens):
+    faces = css_tokens['font_faces']
+    declared = sorted(css_tokens['families'])
+
+    families = {}
+    for face in faces:
+        fam = face['family']
+        if not is_real_font_family(fam):
+            continue
+        display = _font_display_name(fam)
+        families.setdefault(display, {'name': display, 'weights': set(), 'styles': set(),
+                                      'role': None, 'source': 'css-font-face'})
+        families[display]['weights'].add(face['weight'])
+        families[display]['styles'].add(face['style'])
+
+    for fam in declared:
+        if not is_real_font_family(fam):
+            continue
+        display = _font_display_name(fam)
+        if display not in families:
+            families[display] = {'name': display, 'weights': {'400'}, 'styles': {'normal'},
+                                 'role': None, 'source': 'css-font-family'}
+
+    ordered = [value for value in families.values()
+               if not _is_generic_font(value['name'])]
+    if not ordered:
+        ordered = list(families.values())
+    if len(ordered) >= 2:
+        ordered[0]['role'] = 'display'
+        ordered[1]['role'] = 'body'
+    elif ordered:
+        ordered[0]['role'] = 'body'
+
+    ordered = ordered[:8]
+    out_families = [f['name'] for f in ordered]
+    weights = {f['name']: sorted(f['weights']) for f in ordered}
+    return {'families': out_families, 'weights': weights}
+
+
+def build_type_scale(observed_sizes, display_family=None, body_family=None):
+    """Return a usable scale; synthesize one when the CSS only yields body text."""
+    by_role = {}
+    for entry in observed_sizes:
+        if not isinstance(entry, dict):
+            continue
+        role = entry.get('id')
+        size = entry.get('size')
+        px = entry.get('px')
+        family = entry.get('family')
+        if role and family and size and px and role not in by_role:
+            by_role[role] = {
+                'id': role,
+                'family': family,
+                'size': size,
+                'px': px,
+            }
+
+    if len(by_role) < 2:
+        display = display_family or body_family or 'Arial'
+        body = body_family or display
+        return [
+            {'id': 'display', 'family': display, 'size': '40px', 'px': 40},
+            {'id': 'h1', 'family': display, 'size': '28px', 'px': 28},
+            {'id': 'h2', 'family': display, 'size': '20px', 'px': 20},
+            {'id': 'body', 'family': body, 'size': '16px', 'px': 16},
+            {'id': 'caption', 'family': body, 'size': '12px', 'px': 12},
+        ]
+    return list(by_role.values())
+
+
+# ------------------------------------------------------------------
+# CONTENT PACK (menu / hours / booking URL)
+# ------------------------------------------------------------------
+def _clean_menu_line(line):
+    """Strip page chrome that survives text extraction (Wix/Squarespace)."""
+    value = (line or '').replace('\xa0', ' ').strip()
+    value = re.sub(r'\s+', ' ', value)
+    if not value:
+        return ''
+    low = value.lower()
+    if low in {'top of page', 'bottom of page', 'book a table', 'scroll',
+               'menu', 'home', 'back', 'search', 'close'}:
+        return ''
+    if re.match(r'^[A-Z][A-Za-z &]+\s*\|\s*[A-Z]', value):
+        return ''                     # page title: "COCKTAILS | The Physician"
+    if re.match(r'^(?:https?://|www\.)', low):
+        return ''
+    if len(value) > 140:
+        return ''
+    return value
+
+
+def _is_menu_description(line):
+    """True when a line reads like an ingredient/description, not an item name."""
+    if not line:
+        return False
+    low = line.lower()
+    if line.endswith(('.', '!', '?')):
+        return True
+    if len(line) > 78:
+        return True
+    if ',' in line and len(line) > 24:
+        return True
+    if re.match(r'^(with|served|includes?|topped|on a|in a|from the|our)\b', low):
+        return True
+    return False
+
+
+def extract_menu_sections(text, max_sections=12):
+    """Parse a menu-ish page into sections with items and prices.
+
+    Supports both common shapes:
+
+        THE PHYSICIAN            THE PHYSICIAN            £11
+        Absolut, lime, mint      Absolut, lime, mint
+        £11
+
+    The previous version only understood a price on the same line, which meant
+    most Wix/Squarespace menus produced an empty content pack.
+    """
+    price_re = re.compile(r'[£$€]\s*\d{1,4}(?:[.,]\d{1,2})?')
+    sections = []
+    current = {'name': 'Menu', 'items': []}
+    block = []
+
+    def ensure_section(name):
+        nonlocal current
+        name = (name or '').strip()
+        if not name:
+            return
+        if current['items']:
+            sections.append(current)
+            current = {'name': name, 'items': []}
+        elif current['name'] == 'Menu':
+            current['name'] = name
+        elif current['name'] != name:
+            sections.append(current)
+            current = {'name': name, 'items': []}
+
+    def add_item(name, price, description=''):
+        name = (name or '').strip(' .-—:|')
+        if not name or len(name) > 90:
+            return
+        item = {'name': name, 'price': price}
+        description = (description or '').strip(' .-—:|')
+        if description:
+            item['description'] = description
+        current['items'].append(item)
+
+    def flush(price):
+        nonlocal block
+        lines = [line for line in block if line]
+        block = []
+        if not lines:
+            return
+
+        def all_caps(value):
+            letters = [c for c in value if c.isalpha()]
+            return bool(letters) and all(c.isupper() for c in letters)
+
+        known_section = re.compile(
+            r'^(cocktails?|drinks?|wine|beer|spirits?|food|menu|breakfast|brunch|'
+            r'lunch|dinner|small plates|starters?|mains?|desserts?|sides?|'
+            r'snacks?|coffee|tea|soft drinks|house calls|repeat prescriptions)$',
+            re.IGNORECASE,
+        )
+
+        # Walk past section labels: known menu headings and Title-case labels
+        # that introduce an ALL-CAPS item.
+        headings = []
+        while len(lines) >= 2:
+            first = lines[0]
+            if known_section.match(first) or (
+                not all_caps(first) and all_caps(lines[1]) and len(first) <= 45
+            ):
+                headings.append(lines.pop(0))
+                continue
+            break
+
+        name = lines[0]
+        description = ' '.join(lines[1:]) if len(lines) > 1 else ''
+        if headings:
+            ensure_section(headings[-1])
+        add_item(name, price, description)
+
+    for raw_line in text.splitlines():
+        line = _clean_menu_line(raw_line)
+        if not line:
+            continue
+        prices = list(price_re.finditer(line))
+        if not prices:
+            block.append(line)
+            continue
+        # A same-line item can still have a heading collected in the block.
+        if len(prices) == 1 and line[:prices[0].start()].strip():
+            if block:
+                ensure_section(block[-1])
+                block = []
+            name = line[:prices[0].start()].strip()
+            description = line[prices[0].end():].strip()
+            add_item(name, prices[0].group(0), description)
+            continue
+        if len(prices) == 1 and not line[:prices[0].start()].strip():
+            flush(prices[0].group(0))
+            continue
+        # Multiple prices on one line: treat the whole line as one item at the
+        # first price (wine lists often show glass/bottle pairs).
+        if block:
+            ensure_section(block[-1])
+            block = []
+        name = line[:prices[0].start()].strip()
+        description = line[prices[0].end():].strip()
+        add_item(name, prices[0].group(0), description)
+
+    # Trailing block with no price is not an item; drop it.
+    if current['items']:
+        sections.append(current)
+    # Keep labels but drop empty sections; cap the number.
+    cleaned = [s for s in sections if s['items']]
+    return cleaned[:max_sections]
+def extract_hours(text):
+    """Best-effort extraction of opening hours from page text."""
+    hours = {}
+    days = (
+        ('mon', r'mon(?:day)?'), ('tue', r'tue(?:sday)?'),
+        ('wed', r'wed(?:nesday)?'), ('thu', r'thu(?:rsday)?'),
+        ('fri', r'fri(?:day)?'), ('sat', r'sat(?:urday)?'),
+        ('sun', r'sun(?:day)?'),
+    )
+    day_re = re.compile(r'\b(' + '|'.join(pattern for _, pattern in days) + r')\b',
+                        re.IGNORECASE)
+    day_names = [name for name, _ in days]
+    time_re = re.compile(
+        r'(\d{1,2}(?::\d{2})?\s*(?:am|pm|AM|PM)?)\s*(?:[–—\-]|to)\s*'
+        r'(\d{1,2}(?::\d{2})?\s*(?:am|pm|AM|PM)?)'
+    )
+    for line in text.splitlines():
+        day_matches = list(day_re.finditer(line))
+        time_match = time_re.search(line)
+        if not day_matches or not time_match:
+            continue
+        day_keys = []
+        for match in day_matches:
+            token = match.group(1).lower()[:3]
+            if token not in day_keys:
+                day_keys.append(token)
+        interval = f'{time_match.group(1).strip()}–{time_match.group(2).strip()}'
+        if len(day_keys) >= 2:
+            start = day_names.index(day_keys[0])
+            end = day_names.index(day_keys[-1])
+            step = 1 if end >= start else -1
+            day_keys = [day_names[i] for i in range(start, end + step, step)]
+        for day in day_keys:
+            hours[day] = interval
+    return hours
+
+
+def extract_booking_url(text):
+    for m in re.finditer(r'https?://[^\s<>"\']+(book|reserv|opentable|sevenrooms|resdiary)[^\s<>"\']*',
+                         text, re.IGNORECASE):
+        return m.group(0)
+    return None
+
+
+def extract_content_pack(pages_texts, pdf_texts):
+    """Assemble a content/<brand>.json for Asset Studio."""
+    menu_text = ''
+    drinks_text = ''
+    hours_source = ''
+    booking_source = ''
+    for name, text in list(pages_texts.items()) + list(pdf_texts.items()):
+        low = name.lower()
+        if 'menu' in low and 'drink' not in low and 'wine' not in low:
+            menu_text = menu_text or text
+        if 'drink' in low or 'wine' in low or 'cocktail' in low:
+            drinks_text = drinks_text or text
+        hours_source += '\n' + text
+        booking_source += '\n' + text
+
+    menu_sections = extract_menu_sections(menu_text) if menu_text else []
+    drink_sections = extract_menu_sections(drinks_text) if drinks_text else []
+    hours = extract_hours(hours_source)
+    booking = extract_booking_url(booking_source)
+
+    content = {}
+    if menu_sections:
+        content['menu'] = {
+            'title': 'Menu',
+            'sections': menu_sections,
+        }
+    if drink_sections:
+        content['drinks'] = {
+            'title': 'Drinks',
+            'sections': drink_sections,
+        }
+    if hours:
+        content['hours'] = hours
+    if booking:
+        content['bookingUrl'] = booking
+    return content
+
+
+def extract_pdf_text(pdf_path):
+    """Extract text from a PDF using pypdf / PyPDF2 / pdftotext, in that order."""
+    errors = []
+    # pypdf (modern)
+    try:
+        from pypdf import PdfReader
+        reader = PdfReader(pdf_path)
+        return '\n'.join((p.extract_text() or '') for p in reader.pages)
+    except ImportError:
+        pass
+    except Exception as e:
+        errors.append(f'pypdf: {e}')
+    # PyPDF2 (older)
+    try:
+        from PyPDF2 import PdfReader
+        reader = PdfReader(pdf_path)
+        return '\n'.join((p.extract_text() or '') for p in reader.pages)
+    except ImportError:
+        pass
+    except Exception as e:
+        errors.append(f'PyPDF2: {e}')
+    # pdftotext (poppler)
+    try:
+        import subprocess
+        result = subprocess.run(
+            ['pdftotext', '-layout', pdf_path, '-'],
+            capture_output=True, text=True, timeout=30
+        )
+        if result.returncode == 0:
+            return result.stdout
+        errors.append(f'pdftotext exited {result.returncode}: {result.stderr.strip()}')
+    except FileNotFoundError:
+        errors.append('pdftotext is not installed')
+    except Exception as e:
+        errors.append(f'pdftotext: {e}')
+    print(f"Could not extract PDF text from {pdf_path}: {'; '.join(errors)}")
+    return ''
+
+
+# ------------------------------------------------------------------
+# VOICE / APPLICATIONS / BRAND FIT
+# ------------------------------------------------------------------
+def extract_voice_samples(pages_texts, max_samples=5):
+    """Pick real, human-sounding sentences from about/home pages."""
+    samples = []
+    for name, text in pages_texts.items():
+        low = name.lower()
+        if 'index' not in low and 'about' not in low and 'home' not in low:
+            continue
+        for raw in text.splitlines():
+            line = raw.strip()
+            if not (40 <= len(line) <= 220):
+                continue
+            lower = line.lower()
+            if any(x in lower for x in ('cookie', 'privacy', 'copyright', '©',
+                                        'sign up', 'subscribe', 'newsletter',
+                                        'all rights reserved', 'we use cookies')):
+                continue
+            if line.count('!') > 2 or line.count('?') > 2:
+                continue
+            samples.append(line)
+            if len(samples) >= max_samples:
+                return samples
+    return samples
+
+
+def infer_applications(brand_data, extras, content):
+    apps = []
+    menu_urls_lower = [u.lower() for u in brand_data.get('menu_urls', [])]
+    has_menu = any('menu' in u for u in menu_urls_lower) or 'menu' in content
+    has_drinks = any(('drink' in u or 'wine' in u or 'cocktail' in u)
+                     for u in menu_urls_lower) or 'drinks' in content
+
+    if has_menu:
+        apps.append({'asset': 'menu', 'sizes': ['A4', 'A5'], 'priority': 1})
+    if has_drinks:
+        apps.append({'asset': 'drinks-list', 'sizes': ['A4', 'DL'], 'priority': 1})
+    apps.append({'asset': 'business-card', 'sizes': ['90x55mm'], 'priority': 2})
+    apps.append({'asset': 'social-posts', 'sizes': ['1080x1080', '1080x1350', '1080x1920'],
+                 'priority': 1})
+    apps.append({'asset': 'a-board', 'sizes': ['A1'], 'priority': 2})
+    return apps
+
+
+def infer_brand_fit(brand_data, extras, content):
+    fit = ['social', 'stationery']
+    if any('menu' in u.lower() for u in brand_data.get('menu_urls', [])) or 'menu' in content:
+        fit.append('menus')
+    if any('drink' in u.lower() or 'wine' in u.lower()
+           for u in brand_data.get('menu_urls', [])) or 'drinks' in content:
+        fit.append('drinks')
+    if brand_data.get('contact', {}).get('address'):
+        fit.append('signage')
+    if extras.get('photography'):
+        fit.append('photography-led')
+    return fit
+
+
+# ------------------------------------------------------------------
+# ASSET WRITING
+# ------------------------------------------------------------------
+def copy_brand_assets(brand_data, url_to_path, brand_dir):
+    """Write curated assets into <brand_dir>/assets/ and cover at brand root."""
+    assets = {
+        'logos':       os.path.join(brand_dir, 'assets', 'logos'),
+        'colors':      os.path.join(brand_dir, 'assets', 'colors'),
+        'type':        os.path.join(brand_dir, 'assets', 'type'),
+        'photography': os.path.join(brand_dir, 'assets', 'photography'),
+    }
+    for d in assets.values():
+        os.makedirs(d, exist_ok=True)
+    os.makedirs(os.path.join(brand_dir, 'tokens'), exist_ok=True)
+    os.makedirs(os.path.join(brand_dir, 'content'), exist_ok=True)
+
+    # ---- Logos (curated + deduped) ----
+    logo_files = []
+    curated = select_curated_logos(brand_data, url_to_path)
+    inline_hashes = set()
+    for i, c in enumerate(curated):
+        ext = os.path.splitext(c['local'])[1].lower() or '.png'
+        name = f"logo-{c['variant']}-{c['kind']}-{i}{ext}"
+        dest = os.path.join(assets['logos'], name)
+        try:
+            shutil.copy(c['local'], dest)
+            logo_files.append({
+                'file': f'assets/logos/{name}',
+                'variant': c['variant'],
+                'kind': c['kind'],
+                'source': c['source'],
+                'rights': 'unknown; verify before publication',
+            })
+        except OSError as e:
+            print(f"Could not copy logo {c['local']}: {e}")
+
+    # Inline SVGs — only keep ones that look like real logos (filtered by sub-brand keywords)
+    for svg in brand_data.get('inline_svgs', []):
+        text = svg.get('inline_svg', '')
+        digest = hashlib.sha256(text.encode('utf-8')).hexdigest()
+        if (digest in inline_hashes or is_sub_brand(text[:300])
+                or is_icon_url(svg.get('label', '') + ' ' + text[:500])):
+            continue
+        # Skip very tiny icon sprites
+        viewbox_match = re.search(r'viewBox=["\']([^"\']+)', text)
+        skip = False
+        if viewbox_match:
+            parts = viewbox_match.group(1).split()
+            if len(parts) == 4:
+                try:
+                    w, h = float(parts[2]), float(parts[3])
+                    if w < 30 and h < 30:
+                        skip = True
+                except ValueError:
+                    pass
+        if skip:
+            continue
+        name = f"logo-inline-{svg['index']}.svg"
+        dest = os.path.join(assets['logos'], name)
+        try:
+            with open(dest, 'w', encoding='utf-8') as f:
+                f.write(normalize_inline_svg(text))
+            inline_hashes.add(digest)
+            logo_files.append({
+                'file': f'assets/logos/{name}',
+                'variant': 'primary',
+                'kind': 'logo',
+                'source': 'inline-svg',
+            })
+        except OSError as e:
+            print(f"Could not write inline SVG logo {dest}: {e}")
+
+    # ---- Photography ----
+    photo_files = []
+    cover = select_cover(brand_data, url_to_path)
+    curated_photos = select_curated_photography(
+        brand_data, url_to_path, cover_local=cover,
+    )
+    if not cover and curated_photos:
+        cover = curated_photos[0]
+    copied_hashes = set()
+    for i, local in enumerate(curated_photos):
+        digest = file_hash(local)
+        if not digest or digest in copied_hashes:
+            continue
+        copied_hashes.add(digest)
+        ext = os.path.splitext(local)[1].lower() or '.img'
+        name = f"photo-{i + 1:02d}{ext}"
+        dest = os.path.join(assets['photography'], name)
+        try:
+            shutil.copy2(local, dest)
+            info = get_image_info(local)
+            photo_files.append({
+                'file': f'assets/photography/{name}',
+                'width': info[0] if info else None,
+                'height': info[1] if info else None,
+                'printReady': bool(info and min(info[0], info[1]) >= PHOTO_PRINT_SHORT_EDGE),
+                'source': next(
+                    (url for url, path in url_to_path.items() if path == local), None
+                ),
+                'rights': 'unknown; verify before publication',
+            })
+        except OSError as e:
+            print(f"Could not copy photography asset {local}: {e}")
+
+    cover_file = None
+    if cover:
+        ext = os.path.splitext(cover)[1].lower() or '.img'
+        cover_file = f'cover{ext}'
+        try:
+            shutil.copy2(cover, os.path.join(brand_dir, cover_file))
+        except OSError as e:
+            print(f"Could not copy cover image {cover}: {e}")
+            cover_file = None
+
+    # ---- Palette and typography specimens ----
+    palette = build_palette(
+        brand_data['css_tokens'], brand_data.get('theme_color')
+    )
+    if HAVE_PIL and palette:
+        palette_path = os.path.join(assets['colors'], 'palette.png')
+        try:
+            width, height = 900, 140
+            image = Image.new('RGB', (width, height), 'white')
+            draw = ImageDraw.Draw(image)
+            swatch_width = width // len(palette)
+            for i, color in enumerate(palette):
+                x0 = i * swatch_width
+                x1 = width if i == len(palette) - 1 else (i + 1) * swatch_width
+                draw.rectangle((x0, 0, x1, 85), fill=color['hex'])
+                draw.text((x0 + 5, 95), color['hex'], fill='black')
+            image.save(palette_path)
+        except OSError as e:
+            print(f"Could not render palette image: {e}")
+    elif palette:
+        palette_path = os.path.join(assets['colors'], 'palette.svg')
+        swatch_width = 900 / len(palette)
+        swatches = []
+        for i, color in enumerate(palette):
+            x = i * swatch_width
+            label = xml_escape(color['hex'])
+            swatches.append(
+                f'<rect x="{x:.2f}" y="0" width="{swatch_width:.2f}" height="88" '
+                f'fill="{color["hex"]}"/>'
+                f'<text x="{x + 5:.2f}" y="112" font-size="16">{label}</text>'
+            )
+        with open(palette_path, 'w', encoding='utf-8') as f:
+            f.write(
+                '<svg xmlns="http://www.w3.org/2000/svg" width="900" height="140">'
+                + ''.join(swatches) + '</svg>'
+            )
+
+    typography = build_typography(brand_data['css_tokens'])
+    type_scale = build_type_scale(
+        brand_data['css_tokens'].get('type_scale', []),
+        display_family=(typography['families'][0] if typography['families'] else None),
+        body_family=(typography['families'][1] if len(typography['families']) > 1
+                     else (typography['families'][0] if typography['families'] else None)),
+    )
+    typography['scale'] = type_scale
+    typography['specimen'] = []
+    if HAVE_PIL and typography['families']:
+        specimen_path = os.path.join(assets['type'], 'specimen.png')
+        try:
+            image = Image.new('RGB', (1000, 260), 'white')
+            draw = ImageDraw.Draw(image)
+            default_font = ImageFont.load_default()
+            draw.text((24, 20), brand_data['name'], fill='#222222', font=default_font)
+            y = 65
+            for family in typography['families'][:4]:
+                draw.text((24, y), f"{family}: The quick brown fox", fill='#333333',
+                          font=default_font)
+                y += 42
+            image.save(specimen_path)
+            typography['specimen'].append('assets/type/specimen.png')
+        except OSError as e:
+            print(f"Could not render typography specimen: {e}")
+    elif typography['families']:
+        specimen_path = os.path.join(assets['type'], 'specimen.svg')
+        rows = []
+        for i, family in enumerate(typography['families'][:5]):
+            family_attr = xml_escape(family, {'"': '&quot;', "'": '&apos;'})
+            y = 55 + i * 44
+            rows.append(
+                f'<text x="24" y="{y}" font-family="{family_attr}" font-size="24">'
+                f'{xml_escape(family)} — The quick brown fox</text>'
+            )
+        with open(specimen_path, 'w', encoding='utf-8') as f:
+            f.write(
+                '<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="280">'
+                '<rect width="100%" height="100%" fill="white"/>'
+                + ''.join(rows) + '</svg>'
+            )
+        typography['specimen'].append('assets/type/specimen.svg')
+
+    return {
+        'logos': logo_files,
+        'photography': photo_files,
+        'cover': cover_file,
+        'palette': palette,
+        'typography': typography,
+    }
+
+
+def build_brand_tokens(brand_data, extras, content):
+    contact = build_contact_block(brand_data)
+    applications = infer_applications(brand_data, extras, content)
+    return {
+        'brand': {
+            'name': brand_data['name'],
+            'slug': brand_slug(BASE_URL),
+            'wordmark': brand_data['name'],
+            'tagline': None,
+            'url': BASE_URL,
+            'locale': DEFAULT_LOCALE,
+            'currency': DEFAULT_CURRENCY,
+        },
+        'color': extras['palette'],
+        'typography': extras['typography'],
+        'voice': {
+            'attributes': [],
+            'prefer': [],
+            'avoid': [],
+            'samples': extras['voice_samples'],
+        },
+        'contact': contact,
+        'applications': applications,
+        'brandFit': infer_brand_fit(brand_data, extras, content),
+        'menuUrls': sorted(set(brand_data.get('menu_urls', []))),
+        'og': brand_data.get('og', {}),
+        'source': BASE_URL,
+        'scrapedAt': int(time.time()),
+        'themeColor': brand_data.get('theme_color'),
+    }
+
+
+def build_guide_json(brand_data, extras, content, tokens):
+    contact = tokens['contact']
+    return {
+        'brand': tokens['brand'],
+        'positioning': {
+            'description': brand_data.get('description'),
+            'source': 'website metadata',
+        },
+        'applications': tokens['applications'],
+        'brandFit': tokens['brandFit'],
+        'contact': {
+            'address': contact['address'],
+            'phones': contact['phones'],
+            'emails': contact['emails'],
+            'website': contact['website'],
+            'social': contact['socialLinks'],
+        },
+        'typography': {
+            'families': extras['typography']['families'],
+            'weights': extras['typography']['weights'],
+            'scale': extras['typography']['scale'],
+        },
+        'logos': extras['logos'],
+        'logoRules': {
+            'status': 'recommendations; confirm with the brand owner',
+            'clearSpace': 'Maintain clear space around the mark; exact measurement unknown.',
+            'minimumSize': 'Minimum reproduction size has not been supplied.',
+            'backgrounds': 'Use a contrast-appropriate logo variant; verify approved variants.',
+        },
+        'photography': extras['photography'],
+        'cover': extras['cover'],
+        'content': content,
+        'rights': 'Asset rights and licensing were not verified by this crawl.',
+    }
+
+
+def write_brand_pack_contents(brand_data, url_to_path, brand_dir, pages_texts,
+                              pdf_texts):
+    assets = copy_brand_assets(brand_data, url_to_path, brand_dir)
+    content = extract_content_pack(pages_texts, pdf_texts)
+    voice_samples = extract_voice_samples(pages_texts)
+    extras = dict(assets)
+    extras['voice_samples'] = voice_samples
+    tokens = build_brand_tokens(brand_data, extras, content)
+    guide = build_guide_json(brand_data, extras, content, tokens)
+    slug = brand_slug(BASE_URL)
+    outputs = (
+        (os.path.join(brand_dir, 'tokens', f'{slug}.tokens.json'), tokens),
+        (os.path.join(brand_dir, 'brand-guide.json'), guide),
+        (os.path.join(brand_dir, 'content', f'{slug}.json'), content),
+    )
+    for path, data in outputs:
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+            f.write('\n')
+    write_brand_guide_docx(guide, os.path.join(brand_dir, f'{slug}-Brand-Guide.docx'))
+    return extras
+
+
+def xml_text(value):
+    value = str(value if value is not None else '')
+    value = ''.join(c for c in value if c in '\t\n\r' or ord(c) >= 32)
+    return xml_escape(value)
+
+
+def docx_paragraph(text, style=None, bold=False):
+    style_xml = f'<w:pPr><w:pStyle w:val="{style}"/></w:pPr>' if style else ''
+    bold_xml = '<w:b/>' if bold else ''
+    return (
+        f'<w:p>{style_xml}<w:r><w:rPr>{bold_xml}</w:rPr>'
+        f'<w:t xml:space="preserve">{xml_text(text)}</w:t></w:r></w:p>'
+    )
+
+
+def docx_table(headers, rows):
+    def cell(value, header=False):
+        bold = '<w:rPr><w:b/></w:rPr>' if header else ''
+        return (
+            '<w:tc><w:tcPr><w:tcW w:w="3000" w:type="dxa"/></w:tcPr><w:p><w:r>'
+            f'{bold}<w:t xml:space="preserve">{xml_text(value)}</w:t>'
+            '</w:r></w:p></w:tc>'
+        )
+
+    rows_xml = ['<w:tr>' + ''.join(cell(h, True) for h in headers) + '</w:tr>']
+    rows_xml.extend('<w:tr>' + ''.join(cell(v) for v in row) + '</w:tr>' for row in rows)
+    borders = (
+        '<w:tblBorders>'
+        '<w:top w:val="single" w:sz="4"/><w:left w:val="single" w:sz="4"/>'
+        '<w:bottom w:val="single" w:sz="4"/><w:right w:val="single" w:sz="4"/>'
+        '<w:insideH w:val="single" w:sz="4"/><w:insideV w:val="single" w:sz="4"/>'
+        '</w:tblBorders>'
+    )
+    return (
+        '<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/>'
+        f'{borders}</w:tblPr><w:tblGrid>'
+        + ''.join('<w:gridCol w:w="3000"/>' for _ in headers)
+        + '</w:tblGrid>' + ''.join(rows_xml) + '</w:tbl>'
+    )
+
+
+def write_docx(path, title, sections):
+    body = [docx_paragraph(title, 'Title')]
+    for section in sections:
+        body.append(docx_paragraph(section['heading'], 'Heading1'))
+        if section.get('text'):
+            body.append(docx_paragraph(section['text']))
+        if section.get('rows'):
+            body.append(docx_table(section['headers'], section['rows']))
+        for paragraph in section.get('paragraphs', []):
+            body.append(docx_paragraph(paragraph))
+    document = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        '<w:body>' + ''.join(body) + '<w:sectPr/></w:body></w:document>'
+    )
+    styles = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        '<w:style w:type="paragraph" w:styleId="Normal"><w:name w:val="Normal"/>'
+        '<w:rPr><w:sz w:val="22"/></w:rPr></w:style>'
+        '<w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/>'
+        '<w:basedOn w:val="Normal"/><w:rPr><w:b/><w:sz w:val="36"/></w:rPr></w:style>'
+        '<w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/>'
+        '<w:basedOn w:val="Normal"/><w:rPr><w:b/><w:sz w:val="28"/></w:rPr></w:style>'
+        '</w:styles>'
+    )
+    content_types = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+        '<Default Extension="xml" ContentType="application/xml"/>'
+        '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
+        '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>'
+        '</Types>'
+    )
+    root_rels = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>'
+        '</Relationships>'
+    )
+    document_rels = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+        '</Relationships>'
+    )
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED) as docx:
+        docx.writestr('[Content_Types].xml', content_types)
+        docx.writestr('_rels/.rels', root_rels)
+        docx.writestr('word/document.xml', document)
+        docx.writestr('word/styles.xml', styles)
+        docx.writestr('word/_rels/document.xml.rels', document_rels)
+
+
+def write_brand_guide_docx(guide, path):
+    """Render the Word brand guide from the brand-guide.json structure.
+
+    Working from the JSON (not from in-memory crawl objects) means the .docx can
+    be regenerated later, e.g. after the social phase adds reputation data.
+    """
+    brand = guide.get('brand') or {}
+    contact = guide.get('contact') or {}
+    typography = guide.get('typography') or {}
+    content = guide.get('content') or {}
+    contact_rows = [
+        ['Address', contact.get('address') or 'Not found'],
+        ['Phone', ', '.join(contact.get('phones') or []) or 'Not found'],
+        ['Email', ', '.join(contact.get('emails') or []) or 'Not found'],
+        ['Website', contact.get('website') or ''],
+    ]
+    for platform, urls in (contact.get('social') or {}).items():
+        urls = urls if isinstance(urls, (list, tuple)) else [urls]
+        if urls and urls[0]:
+            contact_rows.append([platform.title(), urls[0]])
+    app_rows = [
+        [item['asset'], ', '.join(item.get('sizes', [])), str(item.get('priority', ''))]
+        for item in guide.get('applications') or []
+    ]
+    type_rows = [
+        [item['id'], item.get('family') or 'Unknown', item['size']]
+        for item in typography.get('scale') or []
+    ]
+    sections = [
+        {'heading': 'Positioning',
+         'text': (guide.get('positioning') or {}).get('description') or 'Not found in site metadata.'},
+        {'heading': 'Applications', 'headers': ['Application', 'Suggested sizes', 'Priority'],
+         'rows': app_rows or [['No menu/drinks application evidence found', '', '']]},
+        {'heading': 'Contact', 'headers': ['Field', 'Value'], 'rows': contact_rows},
+        {'heading': 'Typography', 'headers': ['Role', 'Family', 'Observed size'],
+         'rows': type_rows or [['No observed type scale', '', '']],
+         'paragraphs': ['Families: ' + (', '.join(typography.get('families') or []) or 'Not found')]},
+        {'heading': 'Logo rules', 'paragraphs': [
+            'Keep clear space around the mark; exact measurement is not known.',
+            'No minimum reproduction size was supplied. Confirm approved variants and sizes with the brand owner.',
+        ]},
+        {'heading': 'Brand fit', 'text': ', '.join(guide.get('brandFit') or []) or 'No fit tags inferred.'},
+        {'heading': 'Content',
+         'text': json.dumps(content, ensure_ascii=False) if content else 'No menu or hours data extracted.'},
     ]
 
+    reputation = guide.get('reputation')
+    if reputation:
+        scores = reputation.get('scores') or {}
+        rows = [
+            ['Consensus rating', format_number(reputation.get('consensusRating')) or '—'],
+            ['Total reviews', format_number(reputation.get('totalReviews')) or '—'],
+            ['Overall score (0-100)', str(scores.get('overall', '—'))],
+            ['Reputation / Social / Content / Discoverability',
+             ' / '.join(str(scores.get(k, '—')) for k in
+                        ('reputation', 'social_strength', 'content_health', 'discoverability'))],
+        ]
+        for source, entry in (reputation.get('perSource') or {}).items():
+            if entry.get('rating') or entry.get('count'):
+                rows.append([f'{source} rating',
+                             f"{entry.get('rating') or '—'} ({format_number(entry.get('count')) or '—'} reviews)"])
+        paragraphs = []
+        if reputation.get('strengths'):
+            paragraphs.append('Strengths: ' + '; '.join(map(str, reputation['strengths'][:5])))
+        if reputation.get('weaknesses'):
+            paragraphs.append('Weaknesses: ' + '; '.join(map(str, reputation['weaknesses'][:5])))
+        if reputation.get('risks'):
+            paragraphs.append('Risks: ' + '; '.join(map(str, reputation['risks'][:5])))
+        sections.append({'heading': 'Reputation', 'headers': ['Metric', 'Value'], 'rows': rows,
+                         'paragraphs': paragraphs})
+    presence = (guide.get('socialPresence') or {}).get('platforms')
+    if presence:
+        rows = [[p.get('label') or p.get('platform') or '',
+                 p.get('handle') or p.get('url') or '',
+                 format_number(p.get('followers')) or '—',
+                 p.get('lastPost') or '—'] for p in presence if p.get('present')]
+        if rows:
+            sections.append({'heading': 'Social presence',
+                             'headers': ['Platform', 'Handle / URL', 'Followers', 'Last post'],
+                             'rows': rows})
+    sections.append({'heading': 'Rights',
+                     'text': 'Asset rights and licensing were not verified by this crawl.'})
+    write_docx(path, f"{brand.get('name') or 'Brand'} — Brand Guide", sections)
 
-OUTPUT_ROOT = os.path.join("crawler_output", "_social_output",
-                           "Julie-Dalton-STAndrews")
-GROUP_NAME = "Julie-Dalton-STAndrews"
+
+def make_zip(source_dir, zip_path, include_paths=None):
+    os.makedirs(os.path.dirname(zip_path), exist_ok=True)
+    roots = include_paths or ['.']
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as archive:
+        archived = set()
+        for relative in roots:
+            target = source_dir if relative == '.' else os.path.join(source_dir, relative)
+            if os.path.isfile(target):
+                if relative not in archived:
+                    archive.write(target, relative)
+                    archived.add(relative)
+                continue
+            if not os.path.isdir(target):
+                continue
+            for root, dirs, files in os.walk(target):
+                dirs.sort()
+                for filename in sorted(files):
+                    full_path = os.path.join(root, filename)
+                    arcname = os.path.relpath(full_path, source_dir)
+                    if arcname not in archived:
+                        archive.write(full_path, arcname)
+                        archived.add(arcname)
 
 
+
+
+
+
+def read_site_texts():
+    pages = {}
+    if os.path.isdir(TEXT_DIR):
+        for filename in sorted(os.listdir(TEXT_DIR)):
+            path = os.path.join(TEXT_DIR, filename)
+            if filename.endswith('.txt') and os.path.isfile(path):
+                try:
+                    with open(path, 'r', encoding='utf-8') as f:
+                        pages[filename] = f.read()
+                except OSError as e:
+                    print(f"Could not read page text {path}: {e}")
+    pdfs = {}
+    if os.path.isdir(DOWNLOAD_DIR):
+        for filename in sorted(os.listdir(DOWNLOAD_DIR)):
+            path = os.path.join(DOWNLOAD_DIR, filename)
+            if not filename.lower().endswith('.pdf') or not os.path.isfile(path):
+                continue
+            if not any(k in filename.lower() for k in ('menu', 'drink', 'wine', 'cocktail')):
+                continue
+            text = extract_pdf_text(path)
+            if text.strip():
+                pdfs[filename] = text
+    return pages, pdfs
+
+
+def build_social_target(brand_data, pages_texts):
+    """Derive the social-crawler target record from what the website crawl learned.
+
+    Same shape as a TARGET_OVERRIDES entry, plus `hints` (validated address /
+    phones / emails) that the social phase uses as fallbacks for NAP checks.
+    """
+    contact = brand_data.get('contact', {})
+    location = dict(brand_data.get('location') or {})
+    address = contact.get('address') or ''
+    all_text = '\n'.join(pages_texts.values())
+    location_text = f'{address}\n{all_text}'
+
+    if not location.get('city'):
+        postcode = re.search(
+            r'\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b', address, re.IGNORECASE
+        )
+        if postcode:
+            preceding = address[:postcode.start()].rstrip(' ,')
+            components = [part.strip() for part in preceding.split(',') if part.strip()]
+            if components:
+                candidate = components[-1]
+                if not re.search(r'\d', candidate):
+                    location['city'] = candidate
+    if not location.get('city'):
+        for candidate in KNOWN_CITIES:
+            if re.search(r'\b' + re.escape(candidate) + r'\b', location_text, re.IGNORECASE):
+                location['city'] = candidate
+                break
+
+    if not location.get('region') and (location.get('city') or '').casefold() == 'st andrews':
+        location['region'] = 'Scotland'
+    if not location.get('region') and re.search(r'\bScotland\b', location_text, re.IGNORECASE):
+        location['region'] = 'Scotland'
+    if not location.get('country'):
+        if re.search(r'\b(?:United Kingdom|UK|GB)\b', location_text, re.IGNORECASE):
+            location['country'] = 'United Kingdom'
+        elif re.search(r'\bScotland\b', location_text, re.IGNORECASE):
+            location['country'] = 'United Kingdom'
+
+    category = brand_data.get('category')
+    if not category:
+        category_text = ' '.join([
+            brand_data.get('name') or '',
+            brand_data.get('description') or '',
+            brand_data.get('og', {}).get('title') or '',
+            all_text[:5000],
+        ]).lower()
+        if re.search(r'\b(cafe|café|coffee shop|coffeehouse)\b', category_text):
+            category = 'Cafe'
+        elif re.search(r'\b(restaurant|eatery|dining)\b', category_text):
+            category = 'Restaurant'
+        elif re.search(r'\b(bar|pub|cocktail bar)\b', category_text):
+            category = 'Bar'
+
+    # Only validated profile links (no share buttons / widgets); first = most prominent.
+    profiles = {}
+    for platform, urls in clean_social_links(contact.get('social', {})).items():
+        key = SOCIAL_KEY_MAP.get(platform, platform)
+        if urls and (key in SOCIAL_SOURCES or key in REVIEW_SOURCES):
+            profiles[key] = urls[0]
+
+    validated = build_contact_block(brand_data)
+    name = brand_data.get('name') or brand_slug(BASE_URL)
+    aliases = []
+    if category and category.casefold() not in name.casefold():
+        aliases.append(f'{name} {category}')
+    return {
+        'name': name,
+        'slug': brand_slug(BASE_URL),
+        'city': location.get('city'),
+        'region': location.get('region'),
+        'country': location.get('country'),
+        'category': category,
+        'aliases': aliases,
+        'website': BASE_URL,
+        'profiles': profiles,
+        'hints': {
+            'address': validated['address'],
+            'phones': validated['phones'],
+            'emails': validated['emails'],
+        },
+    }
+
+
+def write_social_targets(path, targets):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(targets, f, ensure_ascii=False, indent=2)
+        f.write('\n')
+
+
+# =========================================================================
+# PART B — SOCIAL & REPUTATION CRAWLER
+# (original crawler-social.py)
+# =========================================================================
 # =========================================================================
 # 2. TUNABLES
 # =========================================================================
@@ -365,8 +3553,8 @@ class State:
     deep = False
     max_reviews = MAX_REVIEWS_PER_SOURCE
     use_cache = True
-    output_root = OUTPUT_ROOT
-    group = GROUP_NAME
+    output_root = os.path.join(OUTPUT_ROOT, "_social")   # set again in configure_run()
+    group = BRAND_PACK_GROUP_NAME or "group"
     only = None            # set of source keys
     skip = set()
     log_file = None
@@ -857,6 +4045,8 @@ def fetch(url, platform="default", retries=HTTP_RETRIES, stream=False,
                                allow_redirects=True, headers=headers or None,
                                params=params)
             elapsed = time.time() - started
+            if not stream and not json_response:
+                fix_response_encoding(resp)
 
             if resp.status_code in (429, 503) or resp.status_code == 403 and "rate" in resp.text.lower()[:2000]:
                 wait = min(60, REQUEST_DELAY.get(platform, 1.0) * (attempt + 1) * 4)
@@ -1090,6 +4280,13 @@ class Browser:
 # 5. CREDENTIALS & CACHE BOOTSTRAP
 # =========================================================================
 def load_credentials(cookies_path="cookies.json", tokens_path="tokens.json"):
+    def _locate(name):
+        for candidate in (name, os.path.join(SCRIPT_DIR, name)):
+            if os.path.exists(candidate):
+                return candidate
+        return name
+
+    cookies_path, tokens_path = _locate(cookies_path), _locate(tokens_path)
     State.cookies = read_json(cookies_path, {}) if os.path.exists(cookies_path) else {}
     State.tokens = read_json(tokens_path, {}) if os.path.exists(tokens_path) else {}
     for env_key, token_key in (("FB_GRAPH_TOKEN", "fb_graph_token"),
@@ -1612,7 +4809,7 @@ SOCIAL_URL_PATTERNS = {
     "facebook": re.compile(r"(?:https?://)?(?:[a-z]{2}-[a-z]{2}\.)?(?:www\.|m\.|web\.)?facebook\.com/(?!login|watch|sharer|share\.php|dialog|plugins|photo|event|groups|hashtag|permalink)([A-Za-z0-9_.\-]{2,120})", re.I),
     "tiktok": re.compile(r"(?:https?://)?(?:www\.)?tiktok\.com/@([A-Za-z0-9_.]{2,40})", re.I),
     "youtube": re.compile(r"(?:https?://)?(?:www\.|m\.)?youtube\.com/(?:@|c/|channel/|user/)([A-Za-z0-9_.\-]{2,80})", re.I),
-    "x": re.compile(r"(?:https?://)?(?:www\.|mobile\.)?(?:x|twitter)\.com/(?!i/|intent|share|home|hashtag|search)([A-Za-z0-9_]{2,15})(?:/|$)", re.I),
+    "x": re.compile(r"(?<![A-Za-z0-9-])(?:https?://)?(?:www\.|mobile\.)?(?:x|twitter)\.com/(?!i/|intent|share|home|hashtag|search)([A-Za-z0-9_]{2,15})(?:/|$)", re.I),
     "threads": re.compile(r"(?:https?://)?(?:www\.)?threads\.(?:net|com)/@([A-Za-z0-9_.]{2,40})", re.I),
     "pinterest": re.compile(r"(?:https?://)?(?:[a-z]{2}\.)?(?:www\.)?pinterest\.(?:com|co\.uk)/([A-Za-z0-9_\-]{2,50})/?(?:$|\?)", re.I),
     "linkedin": re.compile(r"(?:https?://)?(?:[a-z]{2}\.)?(?:www\.)?linkedin\.com/(?:company|in)/([A-Za-z0-9_\-%]{2,90})", re.I),
@@ -1662,6 +4859,9 @@ def handle_from_url(platform, url):
         return None
     handle = match.group(1).strip().strip("/")
     handle = handle.split("?")[0]
+    if platform == "facebook" and handle.lower() == "profile.php":
+        ids = up.parse_qs(up.urlparse(url if "://" in url else "https://" + url).query).get("id") or []
+        return ids[0] if ids and ids[0].isdigit() else None
     if platform == "facebook" and handle.lower() in FB_NON_HANDLE:
         return None
     if platform == "youtube":
@@ -1674,6 +4874,8 @@ def canonical_social_url(platform, handle):
         return None
     if platform == "youtube" and handle.startswith("UC") and len(handle) > 20:
         return f"https://www.youtube.com/channel/{handle}"
+    if platform == "facebook" and str(handle).isdigit():
+        return f"https://www.facebook.com/profile.php?id={handle}"
     template = CANONICAL_URL.get(platform)
     return template.format(handle) if template else None
 
@@ -1715,7 +4917,7 @@ def link_harvest(soup, base_url):
     return found
 
 
-def discover_from_website(business):
+def discover_from_website(business, max_pages=None):
     """Crawl the business site shallowly; harvest profiles + facts."""
     websites = []
     if business.get("website"):
@@ -1731,7 +4933,8 @@ def discover_from_website(business):
     text_blob_parts = []
     external_urls = []
     external_hosts = Counter()
-    while queue and fetched < MAX_PAGES_WEBSITE:
+    page_limit = max(1, int(max_pages or MAX_PAGES_WEBSITE))
+    while queue and fetched < page_limit:
         url = queue.pop(0)
         key = url.rstrip("/").lower()
         if key in seen:
@@ -1750,11 +4953,18 @@ def discover_from_website(business):
             result["website"] = page.url
         soup = page.soup
         schema = extract_schema_business(soup, page.url, "website")
-        title = (meta_tags(soup).get("title") or "")[:160]
+        meta = extract_og_meta(soup)
+        title = (meta.get("title") or "")[:160]
         result["pages"].append({"url": page.url, "title": title,
                                 "schema": bool(schema.get("rating") or schema.get("address"))})
         if fetched == 1:
             result["facts"].update({k: v for k, v in schema.items() if k != "reviews"})
+            result["facts"].setdefault(
+                "name",
+                (schema.get("name") or meta.get("og:site_name")
+                 or meta.get("og:title") or meta.get("title") or "").strip(),
+            )
+            result["facts"].setdefault("description", meta.get("og:description") or meta.get("description") or "")
         else:
             for key_name, value in schema.items():
                 if key_name in ("telephone", "email", "hours", "address", "geo",
@@ -1811,14 +5021,23 @@ def discover_from_website(business):
     result["external_hosts"] = external_hosts.most_common(40)
     if not result["facts"].get("telephone") and result["facts"]["phones"]:
         result["facts"]["telephone"] = result["facts"]["phones"][0]
+    # Validated NAP from the full website crawl fills any gap in this shallow pass.
+    hints = business.get("hints") or {}
+    if not result["facts"].get("emails") and hints.get("emails"):
+        result["facts"]["emails"] = list(hints["emails"])
+    if not result["facts"]["phones"] and hints.get("phones"):
+        result["facts"]["phones"] = list(hints["phones"])
+        result["facts"].setdefault("telephone", hints["phones"][0])
+    if hints.get("address") and not result["facts"].get("address"):
+        result["facts"]["address"] = {"full": hints["address"]}
     return result
 
 
-def discover_profiles(business):
+def discover_profiles(business, max_pages=None):
     """Resolve platform profiles: seeds > website links > aggregators > search."""
     profiles = {}
     evidence = {}
-    website_data = discover_from_website(business)
+    website_data = discover_from_website(business, max_pages=max_pages)
     links = website_data.get("links", {})
 
     for platform, entries in links.items():
@@ -1964,6 +5183,510 @@ def search_for_profile(business, platform):
     if not scored:
         return None
     return scored[0][1]
+
+
+
+# =========================================================================
+# 8b. BUSINESS SEARCH + TARGET DISCOVERY (for the studio intake UI)
+# =========================================================================
+JSON_MARKER = "@@CRAWLER_JSON@@"
+PLATFORM_LABELS = {
+    "instagram": "Instagram", "facebook": "Facebook", "tiktok": "TikTok",
+    "youtube": "YouTube", "tripadvisor": "Tripadvisor", "google": "Google",
+    "x": "X", "threads": "Threads", "linkedin": "LinkedIn",
+}
+DISCOVERY_PLATFORMS = ("instagram", "facebook", "tiktok", "tripadvisor", "google", "youtube")
+
+
+def _clean_display(value):
+    text = re.sub(r"[\ue000-\uf8ff]+", " ", str(value or ""))
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
+def _http_url(value):
+    value = (value or "").strip()
+    if not value:
+        return None
+    if value.startswith("//"):
+        value = "https:" + value
+    if not re.match(r"^https?://", value, re.I):
+        value = "https://" + value
+    return value
+
+
+def _domain(url):
+    try:
+        return (urlparse(url).hostname or "").lower().removeprefix("www.")
+    except Exception:
+        return ""
+
+
+def _candidate_key(candidate):
+    host = _domain(candidate.get("website") or "")
+    if host:
+        return host
+    return normalize_text(f"{candidate.get('name','')} {candidate.get('address','')}")
+
+
+def google_maps_search(query, city=""):
+    """Resolve a business through Google Maps in a real browser (no API key)."""
+    if not HAVE_PLAYWRIGHT:
+        raise RuntimeError("Playwright is not installed; Maps search needs it.")
+    search = query.strip()
+    if city and city.lower() not in search.lower():
+        search = f"{search} {city}".strip()
+    url = "https://www.google.com/maps/search/" + up.quote_plus(search) + "/?hl=en&gl=gb"
+    warnings = []
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(headless=True, args=["--no-sandbox"])
+        try:
+            context = browser.new_context(
+                locale="en-GB",
+                user_agent=("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                            "AppleWebKit/537.36 (KHTML, like Gecko) "
+                            "Chrome/131.0.0.0 Safari/537.36"),
+            )
+            page = context.new_page()
+            page.goto(url, wait_until="domcontentloaded", timeout=45000)
+            page.wait_for_timeout(4500)
+            # A list view can appear for ambiguous queries; open the first place.
+            if page.locator('[data-item-id="address"]').count() == 0:
+                links = page.locator("a.hfpxzc")
+                if links.count():
+                    links.first.click()
+                    page.wait_for_timeout(3500)
+            name = ""
+            if page.locator("h1").count():
+                name = _clean_display(page.locator("h1").first.inner_text())
+            address = ""
+            if page.locator('[data-item-id="address"]').count():
+                aria = page.locator('[data-item-id="address"]').first.get_attribute("aria-label") or ""
+                address = _clean_display(re.sub(r"^Address:\s*", "", aria))
+            phone = ""
+            phone_loc = page.locator('[data-item-id^="phone:"]')
+            if phone_loc.count():
+                aria = phone_loc.first.get_attribute("aria-label") or ""
+                phone = _clean_display(re.sub(r"^Phone:\s*", "", aria))
+            website = ""
+            web_loc = page.locator('a[data-item-id="authority"]')
+            if web_loc.count():
+                website = web_loc.first.get_attribute("href") or ""
+            category = ""
+            if page.locator('button[jsaction*="category"]').count():
+                category = _clean_display(page.locator('button[jsaction*="category"]').first.inner_text())
+            rating = None
+            reviews = None
+            stars = page.locator('span[aria-label*="stars"]')
+            for index in range(min(stars.count(), 6)):
+                label = stars.nth(index).get_attribute("aria-label") or ""
+                match = re.match(r"\s*([\d.]+)\s+stars?", label, re.I)
+                if match:
+                    rating = float(match.group(1))
+                    break
+            body_text = ""
+            try:
+                body_text = page.locator("body").inner_text()
+            except Exception:
+                pass
+            match = re.search(r"\(([\d,]+)\)", body_text)
+            if match:
+                reviews = int(match.group(1).replace(",", ""))
+            hours = ""
+            hours_match = re.search(r"((?:Open|Closed)[^\n|]{0,80})", body_text)
+            if hours_match:
+                hours = _clean_display(hours_match.group(1))
+            place_url = page.url
+        finally:
+            browser.close()
+
+    if not name:
+        raise RuntimeError("Google Maps returned no place for that search.")
+    if not website:
+        warnings.append("The Google Maps listing has no website.")
+    candidate = {
+        "name": name, "website": _http_url(website) or "",
+        "address": address, "phone": phone, "category": category,
+        "rating": rating, "reviews": reviews, "hours": hours,
+        "placeUrl": place_url, "source": "google-maps", "confidence": 0.95,
+    }
+    return candidate, warnings
+
+
+def nominatim_search(query, city="", limit=5):
+    """Free OpenStreetMap fallback: name + address, sometimes a website tag."""
+    search = " ".join(part for part in (query, city) if part)
+    headers = {"User-Agent": "studio-layers-crawler/1.0 (internal brand research)"}
+    response = requests.get(
+        "https://nominatim.openstreetmap.org/search",
+        params={"q": search, "format": "jsonv2", "addressdetails": "1",
+                "extratags": "1", "limit": str(limit)},
+        headers=headers, timeout=25,
+    )
+    response.raise_for_status()
+    out = []
+    for item in response.json() or []:
+        tags = item.get("extratags") or {}
+        display = _clean_display(item.get("display_name"))
+        name = _clean_display(item.get("name") or display.split(",")[0])
+        website = tags.get("website") or tags.get("contact:website") or ""
+        phone = tags.get("phone") or tags.get("contact:phone") or ""
+        category = _clean_display(tags.get("amenity") or item.get("type") or "")
+        out.append({
+            "name": name, "website": _http_url(website) or "",
+            "address": display, "phone": phone, "category": category.title() if category else "",
+            "rating": None, "reviews": None, "hours": tags.get("opening_hours") or "",
+            "placeUrl": f"https://www.openstreetmap.org/{item.get('osm_type','node')}/{item.get('osm_id','')}",
+            "source": "nominatim", "confidence": 0.6,
+        })
+    return out
+
+
+def places_api_search(query, city="", limit=5):
+    key = os.environ.get("GOOGLE_PLACES_API_KEY") or State.tokens.get("google_places_api_key")
+    if not key:
+        return []
+    response = requests.post(
+        "https://places.googleapis.com/v1/places:searchText",
+        headers={
+            "X-Goog-Api-Key": key,
+            "X-Goog-FieldMask": ("places.displayName,places.websiteUri,places.formattedAddress,"
+                                 "places.nationalPhoneNumber,places.primaryTypeDisplayName,"
+                                 "places.rating,places.userRatingCount,places.googleMapsUri"),
+        },
+        json={"textQuery": " ".join(part for part in (query, city) if part), "pageSize": limit},
+        timeout=25,
+    )
+    response.raise_for_status()
+    out = []
+    for place in (response.json().get("places") or []):
+        out.append({
+            "name": _clean_display((place.get("displayName") or {}).get("text")),
+            "website": place.get("websiteUri") or "",
+            "address": _clean_display(place.get("formattedAddress")),
+            "phone": _clean_display(place.get("nationalPhoneNumber")),
+            "category": _clean_display((place.get("primaryTypeDisplayName") or {}).get("text")),
+            "rating": place.get("rating"), "reviews": place.get("userRatingCount"),
+            "hours": "", "placeUrl": place.get("googleMapsUri") or "",
+            "source": "google-places", "confidence": 0.98,
+        })
+    return out
+
+
+def web_search_candidates(query, city="", limit=6):
+    """Last-resort candidates from the existing Bing/DDG web_search helper."""
+    results = web_search(" ".join(part for part in (query, city) if part), count=max(limit * 2, 8))
+    tokens = [t for t in normalize_text(query).split() if len(t) > 2]
+    out = []
+    for item in results:
+        url = item.get("url") or ""
+        platform, _handle = classify_url(url)
+        if platform in SOCIAL_SOURCES or platform in REVIEW_SOURCES:
+            continue
+        if not _http_url(url):
+            continue
+        haystack = normalize_text(f"{item.get('title','')} {url}")
+        if tokens and not any(token in haystack for token in tokens):
+            continue
+        out.append({
+            "name": _clean_display(re.sub(r"\s*[|–—]\s*.*$", "", item.get("title") or "") or query),
+            "website": url, "address": "", "phone": "", "category": "",
+            "rating": None, "reviews": None, "hours": "",
+            "placeUrl": url, "source": "web-search", "confidence": 0.45,
+        })
+        if len(out) >= limit:
+            break
+    return out
+
+
+def search_businesses(query, city="", limit=6, provider="auto"):
+    """Search by business name and return ranked, deduplicated candidates."""
+    query = (query or "").strip()
+    if len(query) < 2:
+        raise ValueError("Enter at least two characters of the business name.")
+    warnings = []
+    candidates = []
+    provider = (provider or "auto").lower()
+
+    if provider in ("auto", "places"):
+        try:
+            candidates = places_api_search(query, city, limit)
+        except Exception as exc:
+            warnings.append(f"Google Places search failed: {exc}")
+    if not candidates and provider in ("auto", "maps"):
+        try:
+            candidate, map_warnings = google_maps_search(query, city)
+            candidates = [candidate]
+            warnings.extend(map_warnings)
+        except Exception as exc:
+            warnings.append(f"Google Maps search failed: {exc}")
+    if not candidates and provider in ("auto", "nominatim"):
+        try:
+            candidates = nominatim_search(query, city, limit)
+            if candidates:
+                warnings.append("Using OpenStreetMap: some listings have no website.")
+        except Exception as exc:
+            warnings.append(f"OpenStreetMap search failed: {exc}")
+    if not candidates and provider in ("auto", "web"):
+        try:
+            candidates = web_search_candidates(query, city, limit)
+        except Exception as exc:
+            warnings.append(f"Web search failed: {exc}")
+
+    deduped = []
+    seen = set()
+    for candidate in candidates:
+        key = _candidate_key(candidate)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        if not candidate.get("website"):
+            candidate["warnings"] = ["No website found; enter it manually to continue."]
+        deduped.append(candidate)
+    if not deduped:
+        raise RuntimeError("No business found. Try adding the town/city, or paste the website URL.")
+    return {
+        "ok": True, "query": query, "city": city,
+        "provider": deduped[0].get("source", "web-search"),
+        "candidates": deduped[:limit], "warnings": warnings,
+    }
+
+
+def _address_city(address):
+    if not address:
+        return ""
+    match = re.search(r",\s*([A-Za-z .'\-]+?)\s+(?:[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}|[A-Z]{1,2}\d)", address)
+    if match:
+        return match.group(1).strip()
+    for city in KNOWN_CITIES:
+        if re.search(r"\b" + re.escape(city) + r"\b", address, re.I):
+            return city
+    parts = [part.strip() for part in address.split(",") if part.strip()]
+    return parts[-1] if parts else ""
+
+
+def _contact_address(value):
+    if isinstance(value, dict):
+        return _clean_display(value.get("full") or ", ".join(
+            str(value.get(key) or "") for key in ("streetAddress", "addressLocality", "addressRegion", "postalCode", "addressCountry")
+            if value.get(key)
+        ))
+    return _clean_display(value)
+
+
+def _canonical_profile(platform, url):
+    url = _http_url(url)
+    if not url:
+        return None
+    if platform == "facebook" and "profile.php" in url:
+        return url
+    if platform in SOCIAL_SOURCES:
+        guessed, handle = classify_url(url)
+        if guessed == platform and handle:
+            return canonical_social_url(platform, handle)
+    return url
+
+
+def build_discovery(website, name="", city="", category="", region="", country="",
+                    profiles=None, maps=None, guess_profiles=False, search_profiles=False,
+                    max_pages=8):
+    """Shallow website + profile discovery, with an explicit status per platform."""
+    website = _http_url(website)
+    if not website:
+        raise ValueError("A website URL is required.")
+    maps = maps or {}
+    seeds = {}
+    for platform, url in (profiles or {}).items():
+        if url:
+            seeds[platform] = url
+    business = {
+        "name": name or maps.get("name") or _domain(website),
+        "website": website,
+        "city": city or maps.get("address") or "",
+        "category": category or maps.get("category") or "",
+        "profiles": seeds,
+    }
+    discovery = discover_profiles(business, max_pages=max_pages)
+    website_data = discovery.get("website") or {}
+    facts = website_data.get("facts") or {}
+    warnings = list(website_data.get("warnings") or [])
+
+    business_name = _clean_display(name or maps.get("name") or facts.get("name") or business["name"])
+    address = _clean_display(maps.get("address") or _contact_address(facts.get("address")))
+    phones = [_clean_display(p) for p in (facts.get("phones") or []) if p]
+    if facts.get("telephone") and facts["telephone"] not in phones:
+        phones.insert(0, _clean_display(facts["telephone"]))
+    if maps.get("phone") and maps["phone"] not in phones:
+        phones.insert(0, _clean_display(maps["phone"]))
+    emails = sorted({str(e).strip() for e in (facts.get("emails") or []) if e})
+    resolved_city = city or maps.get("city") or _address_city(address)
+    resolved_category = category or maps.get("category") or facts.get("category") or ""
+    resolved_region = region or ("Scotland" if resolved_city == "St Andrews" else "")
+    resolved_country = country or (
+        "United Kingdom"
+        if (re.search(r"\b(?:UK|United Kingdom|Scotland|Fife)\b", address, re.I)
+            or re.search(r"\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b", address))
+        else ""
+    )
+
+    profiles_found = {}
+    evidence = dict(discovery.get("evidence") or {})
+    platform_rows = []
+    for platform in DISCOVERY_PLATFORMS:
+        label = PLATFORM_LABELS.get(platform, platform)
+        url = _canonical_profile(platform, (discovery.get("profiles") or {}).get(platform))
+        source = evidence.get(platform) or ""
+        reason = ""
+        status = "missing"
+        metrics = {}
+
+        if platform == "google" and maps.get("rating") is not None:
+            url = maps.get("placeUrl") or url
+            status = "found"
+            source = "google-maps"
+            metrics = {"rating": maps.get("rating"), "reviews": maps.get("reviews")}
+            reason = "Rating and review count found on Google Maps."
+        elif url:
+            status = "found"
+            reason = {
+                "seed": "Confirmed profile URL.",
+                "website": "Linked from the website.",
+                "website-schema": "Declared in the website structured data.",
+                "guessed": "Handle verified from the business name.",
+                "search": "Found through a profile search.",
+            }.get(source, "Found.")
+        else:
+            if not website_data.get("website"):
+                reason = "The website could not be fetched."
+            elif platform == "google":
+                reason = "Collected during the full social run."
+                status = "not_checked"
+            else:
+                reason = f"No {label} link on the website."
+            if guess_profiles and platform in ("instagram", "facebook", "tiktok"):
+                try:
+                    guessed = discover_by_handle_guess(business, platform)
+                except Exception:
+                    guessed = None
+                if guessed:
+                    url = _canonical_profile(platform, guessed)
+                    status = "found"
+                    source = "guessed"
+                    reason = "Handle verified from the business name."
+            if not url and search_profiles:
+                try:
+                    found = search_for_profile(business, platform)
+                except Exception as exc:
+                    warnings.append(f"{label} search failed: {exc}")
+                    found = None
+                if found:
+                    url = _canonical_profile(platform, found)
+                    status = "found"
+                    source = "search"
+                    reason = "Found through a profile search."
+            if not url and status == "missing" and search_profiles:
+                reason = f"No {label} link on the website and no matching profile in search."
+
+        row = {
+            "key": platform, "label": label, "status": status,
+            "url": url or "", "evidence": source, "reason": reason,
+            "metrics": metrics,
+        }
+        platform_rows.append(row)
+        if url:
+            profiles_found[platform] = url
+
+    target = {
+        "name": business_name,
+        "slug": brand_slug(website),
+        "city": resolved_city,
+        "region": resolved_region,
+        "country": resolved_country,
+        "category": resolved_category,
+        "aliases": [],
+        "website": website_data.get("website") or website,
+        "profiles": profiles_found,
+        "hints": {"address": address, "phones": phones, "emails": emails},
+    }
+    found = [row for row in platform_rows if row["status"] == "found"]
+    return {
+        "ok": True,
+        "business": {
+            "name": business_name,
+            "website": target["website"],
+            "address": address,
+            "city": resolved_city,
+            "region": resolved_region,
+            "country": resolved_country,
+            "category": resolved_category,
+            "phone": phones[0] if phones else "",
+            "emails": emails,
+            "rating": maps.get("rating"),
+            "reviews": maps.get("reviews"),
+        },
+        "platforms": platform_rows,
+        "profiles": profiles_found,
+        "target": target,
+        "website": {
+            "pages": (website_data.get("pages") or [])[:12],
+            "warnings": warnings[:8],
+        },
+        "summary": {
+            "found": len(found),
+            "missing": len([row for row in platform_rows if row["status"] == "missing"]),
+            "notChecked": len([row for row in platform_rows if row["status"] == "not_checked"]),
+        },
+        "warnings": warnings[:8],
+    }
+
+
+def crawler_status():
+    import platform as _platform
+    return {
+        "ok": True,
+        "python": _platform.python_version(),
+        "executable": sys.executable,
+        "venv": sys.prefix != getattr(sys, "base_prefix", sys.prefix),
+        "script": os.path.abspath(__file__),
+        "schema": SCHEMA_VERSION,
+        "playwright": HAVE_PLAYWRIGHT,
+        "pillow": HAVE_PIL,
+        "pdftotext": bool(shutil.which("pdftotext")),
+        "ffmpeg": bool(shutil.which("ffmpeg")),
+        "keys": {
+            "google_places": bool(os.environ.get("GOOGLE_PLACES_API_KEY")),
+            "serpapi": bool(os.environ.get("SERPAPI_KEY")),
+            "facebook": bool(os.environ.get("FB_GRAPH_TOKEN")),
+            "tiktok": bool(os.environ.get("TIKTOK_RESEARCH_TOKEN")),
+        },
+        "output_root": OUTPUT_ROOT,
+    }
+
+
+def load_json_arg(value, default=None):
+    if not value:
+        return default if default is not None else {}
+    if os.path.isfile(value):
+        with open(value, encoding="utf-8") as handle:
+            return json.load(handle)
+    return json.loads(value)
+
+
+def emit_json(payload):
+    print(JSON_MARKER + json.dumps(payload, ensure_ascii=False))
+
+
+def json_mode(fn):
+    buffer = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buffer):
+            payload = fn()
+        emit_json(payload)
+        return 0 if payload.get("ok", True) else 1
+    except Exception as exc:
+        emit_json({"ok": False, "error": str(exc),
+                   "log": buffer.getvalue().strip().splitlines()[-8:]})
+        return 1
 
 
 # =========================================================================
@@ -4618,6 +8341,20 @@ def assemble_profile(ctx, assets):
     reviews = aggregate_reviews(results)
     social = analyze_social(results)
     identity = reconcile_identity(results, ctx.business)
+    # A confirmed intake target wins over the majority vote. Group sites often
+    # repeat another venue's address in a footer, so the website alone can
+    # resolve to the wrong NAP.
+    hints = ctx.business.get("hints") or {}
+    if hints.get("address"):
+        identity["canonical"]["address"] = hints["address"]
+        if hints["address"] not in identity.get("addresses_seen", []):
+            identity.setdefault("addresses_seen", []).insert(0, hints["address"])
+    if hints.get("phones"):
+        identity["canonical"]["phone"] = hints["phones"][0]
+    if hints.get("emails"):
+        merged = list(hints["emails"]) + [e for e in identity["canonical"].get("emails", [])
+                                          if e not in hints["emails"]]
+        identity["canonical"]["emails"] = merged[:6]
     website = results.get("website") or {}
     web = {
         "url": website.get("url"),
@@ -5447,7 +9184,7 @@ def run_business(business, index=1, total=1):
     write_json(os.path.join(out_dir, "business.profile.json"), profile)
     write_json(os.path.join(out_dir, "reviews.all.json"), review_data["reviews"])
     write_json(os.path.join(out_dir, "social.json"), profile["social"])
-    write_json(os.path.join(out_dir, "social.tokens.json"),
+    write_json(os.path.join(out_dir, "social-profile.json"),
                build_tokens(profile, review_data, profile["social"]))
     write_reviews_csv(os.path.join(out_dir, "reviews.csv"), review_data["reviews"])
     write_insights_md(os.path.join(out_dir, "insights.md"), profile, review_data)
@@ -5516,7 +9253,7 @@ def run_report_only(business):
     write_json(os.path.join(out_dir, "business.profile.json"), profile)
     write_json(os.path.join(out_dir, "reviews.all.json"), review_data["reviews"])
     write_json(os.path.join(out_dir, "social.json"), profile["social"])
-    write_json(os.path.join(out_dir, "social.tokens.json"),
+    write_json(os.path.join(out_dir, "social-profile.json"),
                build_tokens(profile, review_data, profile["social"]))
     write_reviews_csv(os.path.join(out_dir, "reviews.csv"), review_data["reviews"])
     write_insights_md(os.path.join(out_dir, "insights.md"), profile, review_data)
@@ -5549,10 +9286,10 @@ def collect_all_profiles():
     return profiles
 
 
-def write_group_report(summaries, profiles):
+def write_group_report(summaries, profiles, out_dir=None):
     if not profiles:
         return
-    group_dir = State.output_root
+    group_dir = out_dir or State.output_root
     os.makedirs(group_dir, exist_ok=True)
 
     ranked = sorted(profiles, key=lambda p: -(p.get("scores", {}).get("overall") or 0))
@@ -5646,240 +9383,853 @@ def write_group_report(summaries, profiles):
 
 
 # =========================================================================
-# 25. CLI
+# PART C — PIPELINE: website crawl -> social crawl -> one consolidated pack
 # =========================================================================
 PARALLEL = True
 FORCE_REFRESH = False
 MERGE_PREVIOUS_RUNS = True
 
+# Files copied from the social working dir into <brand>/social/
+SOCIAL_DELIVERABLES = (
+    "business.profile.json", "social.json", "social-profile.json",
+    "reviews.all.json", "reviews.csv", "insights.md", "report.html",
+)
 
+
+# ---------------------------------------------------------------------------
+# targets: website crawl -> social crawl hand-off
+# ---------------------------------------------------------------------------
+def host_key(url):
+    host = urlparse(url or "").netloc.lower()
+    return host[4:] if host.startswith("www.") else host
+
+
+def find_override(url):
+    """Hand-confirmed TARGET_OVERRIDES entry for this site (matched by host)."""
+    key = host_key(url)
+    for item in TARGET_OVERRIDES:
+        if item.get("website") and host_key(item["website"]) == key:
+            return item
+    return None
+
+
+def merge_target(derived, override):
+    """Overrides win; empty override values never erase crawled ones."""
+    target = dict(derived)
+    if not override:
+        return target
+    for key, value in override.items():
+        if key == "profiles":
+            merged = dict(derived.get("profiles") or {})
+            merged.update({k: v for k, v in (value or {}).items() if v})
+            target["profiles"] = merged
+        elif key == "aliases":
+            target["aliases"] = dedupe(list(value or []) + list(derived.get("aliases") or []))
+        elif value not in (None, "", [], {}):
+            target[key] = value
+    return target
+
+
+def load_targets_file(path):
+    data = read_json(path, [])
+    if isinstance(data, dict):
+        data = data.get("targets") or []
+    if not isinstance(data, list):
+        raise SystemExit(f"--targets {path}: expected a JSON list of target objects")
+    return [item for item in data if isinstance(item, dict) and item.get("website")]
+
+
+def saved_targets_path():
+    return os.path.join(OUTPUT_ROOT, "targets.json")
+
+
+def load_saved_targets():
+    """Targets from the last website phase; falls back to TARGET_OVERRIDES."""
+    data = read_json(saved_targets_path(), [])
+    targets = [t for t in data if isinstance(t, dict) and t.get("name")] if isinstance(data, list) else []
+    if targets:
+        return targets
+    log("no saved targets.json - using TARGET_OVERRIDES as the target list", "warn")
+    return [dict(item) for item in TARGET_OVERRIDES if item.get("name")]
+
+
+def save_targets(new_targets):
+    """Merge into targets.json by slug so a partial run (--business) never drops other sites."""
+    existing = read_json(saved_targets_path(), [])
+    by_slug = {}
+    for item in (existing if isinstance(existing, list) else []):
+        if isinstance(item, dict) and item.get("slug"):
+            by_slug[item["slug"]] = item
+    for item in new_targets:
+        by_slug[item["slug"]] = item
+    merged = list(by_slug.values())
+    write_social_targets(saved_targets_path(), merged)
+    return merged
+
+
+# ---------------------------------------------------------------------------
+# phase 1: website
+# ---------------------------------------------------------------------------
+def crawl_site(base_url):
+    """Website phase for one site; returns everything later phases need."""
+    configure_site(base_url)
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    if FORCE_REFRESH:
+        clear_crawl_checkpoint(CRAWL_CHECKPOINT_FILE)
+    print(f"Output directory: {OUTPUT_DIR}")
+
+    wp_media = get_wp_media_items()
+    sitemap_media, sitemap_urls = get_sitemap_urls()
+    media_urls, text_pages, video_embeds, visited = crawl_pages([BASE_URL])
+    media_urls.update(wp_media)
+    media_urls.update(sitemap_media)
+    export_discovered_urls_csv(media_urls, EXPORT_DISCOVERED_URLS_CSV)
+    export_video_embeds_csv(video_embeds, EXPORT_VIDEO_EMBEDS_CSV)
+
+    print(f"Sitemap discovered {len(sitemap_urls)} URLs.")
+    url_to_path = download_all(media_urls)
+    brand_data = extract_brand_data(BASE_URL, visited)
+    pages_texts, pdf_texts = read_site_texts()
+    return {
+        "base_url": BASE_URL,
+        "brand_data": brand_data,
+        "url_to_path": url_to_path,
+        "visited": visited,
+        "pages_texts": pages_texts,
+        "pdf_texts": pdf_texts,
+        # HTML already downloaded: handed to the social phase so it is not fetched twice
+        "page_html": {u: _page_cache[u] for u in visited if isinstance(_page_cache.get(u), str)},
+    }
+
+
+def brand_dir_for(site_url, index, group_dir):
+    slug = brand_slug(site_url)
+    if group_dir:
+        return os.path.join(group_dir, f"{index:02d}-{slug}")
+    return os.path.join(OUTPUT_ROOT, web_site_slug(site_url), "brand-kit", f"01-{slug}")
+
+
+# ---------------------------------------------------------------------------
+# phase 2: social
+# ---------------------------------------------------------------------------
+def prime_social_cache(page_html):
+    """Seed the social fetch cache with pages the website crawl already holds."""
+    State.page_cache.clear()
+    for url, html in (page_html or {}).items():
+        State.page_cache[url] = FetchResult(ok=True, status=200, url=url, text=html,
+                                            via="website-crawl")
+
+
+def summary_from_profile(profile, out_dir):
+    rep = profile.get("reputation") or {}
+    social = (profile.get("social") or {}).get("totals") or {}
+    return {
+        "business": profile["business"]["name"], "slug": profile["business"]["slug"],
+        "ok": True, "directory": out_dir,
+        "consensus_rating": rep.get("consensus_rating"),
+        "total_reviews": rep.get("total_reviews"),
+        "collected_reviews": rep.get("collected_reviews"),
+        "sources": rep.get("sources_present") or [],
+        "followers": social.get("followers"),
+        "platforms_present": social.get("platforms_present"),
+        "scores": profile.get("scores") or {},
+        "red_flags": len(rep.get("red_flags") or []),
+        "insights": os.path.join(out_dir, "insights.md"),
+        "report": os.path.join(out_dir, "report.html"),
+    }
+
+
+def run_social(target, index, total, page_html=None, report_only=False):
+    """Social phase for one target. Never raises (except Ctrl-C)."""
+    prime_social_cache(page_html)
+    try:
+        if report_only:
+            profile = run_report_only(target)
+            if not profile:
+                return {"business": target["name"], "slug": target.get("slug"), "ok": False,
+                        "error": "no saved platform data to rebuild from"}
+            return summary_from_profile(profile, business_dir(target))
+        return run_business(target, index, total)
+    except KeyboardInterrupt:
+        raise
+    except Exception as exc:
+        log(f"{target['name']} social phase failed: {exc}", "error")
+        if State.verbose:
+            traceback.print_exc()
+        return {"business": target["name"], "slug": target.get("slug"), "ok": False,
+                "error": str(exc)}
+    finally:
+        State.log_file = None
+        State.page_cache.clear()
+
+
+# ---------------------------------------------------------------------------
+# phase 3: consolidation
+# ---------------------------------------------------------------------------
+def build_social_guide_blocks(profile):
+    """Compact, additive blocks for brand-guide.json derived from business.profile.json."""
+    rep = profile.get("reputation") or {}
+    social = profile.get("social") or {}
+    web = profile.get("web") or {}
+    signals = profile.get("signals") or {}
+    compliance = profile.get("compliance") or None
+    return {
+        "reputation": {
+            "consensusRating": rep.get("consensus_rating"),
+            "totalReviews": rep.get("total_reviews"),
+            "collectedReviews": rep.get("collected_reviews"),
+            "perSource": {s: {"rating": e.get("rating"), "count": e.get("count")}
+                          for s, e in (rep.get("sources") or {}).items()},
+            "sentiment": rep.get("sentiment"),
+            "ownerResponseRate": rep.get("owner_response_rate"),
+            "topThemes": list((rep.get("themes") or {}).keys())[:8],
+            "redFlags": rep.get("red_flags") or [],
+            "foodHygiene": compliance,
+            "scores": profile.get("scores") or {},
+            "strengths": (signals.get("strengths") or [])[:6],
+            "weaknesses": (signals.get("weaknesses") or [])[:6],
+            "opportunities": (signals.get("opportunities") or [])[:6],
+            "risks": (signals.get("risks") or [])[:6],
+            "generatedAt": profile.get("generated_at"),
+            "detail": "social/business.profile.json",
+        },
+        "socialPresence": {
+            "totals": social.get("totals") or {},
+            "gaps": social.get("gaps") or [],
+            "platforms": [{
+                "platform": row.get("source"), "label": row.get("label"),
+                "url": row.get("url"), "handle": row.get("handle"),
+                "present": row.get("present"), "followers": row.get("followers"),
+                "lastPost": row.get("last_post"),
+            } for row in (social.get("matrix") or [])],
+        },
+        "webPresence": {
+            "hasOnlineBooking": web.get("has_online_booking"),
+            "bookingProviders": web.get("booking_providers") or [],
+            "deliveryProviders": web.get("delivery_providers") or [],
+            "hasMenuOnline": web.get("has_menu_online"),
+            "tech": web.get("tech") or [],
+            "pressMentions": web.get("mention_count"),
+        },
+    }
+
+
+def attach_social_to_brand_pack(brand_dir, profile):
+    """Add reputation / social sections to brand-guide.json and re-render the Word guide."""
+    guide_path = os.path.join(brand_dir, "brand-guide.json")
+    guide = read_json(guide_path, {})
+    if not isinstance(guide, dict) or not guide.get("brand"):
+        log(f"no brand-guide.json in {brand_dir}; reputation block not attached", "warn")
+        return False
+    guide.update(build_social_guide_blocks(profile))
+    write_json(guide_path, guide)
+    docx_path = os.path.join(brand_dir, f"{guide['brand'].get('slug') or 'brand'}-Brand-Guide.docx")
+    write_brand_guide_docx(guide, docx_path)
+    return True
+
+
+def consolidate_social(target, brand_dir):
+    """Copy the social deliverables into <brand>/social and enrich the brand guide."""
+    out_dir = business_dir(target)
+    profile = read_json(os.path.join(out_dir, "business.profile.json"), {})
+    if not profile:
+        return None
+    dest = os.path.join(brand_dir, "social")
+    os.makedirs(dest, exist_ok=True)
+    for name in SOCIAL_DELIVERABLES:
+        src = os.path.join(out_dir, name)
+        if os.path.isfile(src):
+            shutil.copy2(src, os.path.join(dest, name))
+    assets_src = os.path.join(out_dir, "assets")
+    if INCLUDE_SOCIAL_ASSETS_IN_PACK and os.path.isdir(assets_src):
+        shutil.copytree(assets_src, os.path.join(dest, "assets"), dirs_exist_ok=True)
+    if ENRICH_BRAND_GUIDE:
+        attach_social_to_brand_pack(brand_dir, profile)
+    return profile
+
+
+def find_brand_dir(target, group_dir):
+    """Locate the brand folder written by an earlier website phase."""
+    slug = target.get("slug") or brand_slug(target.get("website") or "")
+    if group_dir:
+        if os.path.isdir(group_dir):
+            for name in sorted(os.listdir(group_dir)):
+                if re.match(r"^\d{2}-", name) and name[3:] == slug \
+                        and os.path.isdir(os.path.join(group_dir, name)):
+                    return os.path.join(group_dir, name)
+        return None
+    path = brand_dir_for(target.get("website") or "", 1, None)
+    return path if os.path.isdir(path) else None
+
+
+# ---------------------------------------------------------------------------
+# group outputs (built from what is on disk, so partial / repeated runs stay correct)
+# ---------------------------------------------------------------------------
+def scan_brand_dirs(root):
+    entries = []
+    if not os.path.isdir(root):
+        return entries
+    for name in sorted(os.listdir(root)):
+        path = os.path.join(root, name)
+        if not (os.path.isdir(path) and re.match(r"^\d{2}-", name)):
+            continue
+        if name == "00-portfolio":
+            continue
+        guide = read_json(os.path.join(path, "brand-guide.json"), {})
+        brand = guide.get("brand") or {}
+        profile = read_json(os.path.join(path, "social", "business.profile.json"), {}) or None
+        entries.append({
+            "folder": name, "dir": path, "guide": guide, "profile": profile,
+            "name": brand.get("name") or name[3:], "slug": brand.get("slug") or name[3:],
+            "website": brand.get("url") or "",
+        })
+    return entries
+
+
+def entry_metrics(entry):
+    profile = entry.get("profile") or {}
+    rep = profile.get("reputation") or {}
+    social = (profile.get("social") or {}).get("totals") or {}
+    return {
+        "rating": rep.get("consensus_rating"), "reviews": rep.get("total_reviews"),
+        "followers": social.get("followers"),
+        "platforms": social.get("platforms_present"),
+        "overall": (profile.get("scores") or {}).get("overall"),
+    }
+
+
+def write_group_readme(group_dir, entries, failures):
+    lines = [f"# {BRAND_PACK_GROUP_NAME}", "", BRAND_PACK_GROUP_DESCRIPTION, "", "## Brands", ""]
+    for entry in entries:
+        line = f"- {entry['folder']} — {entry['name']} ({entry['website']})"
+        if entry.get("profile"):
+            m = entry_metrics(entry)
+            line += (f" · rating {format_number(m['rating'])} from {format_number(m['reviews'])} reviews"
+                     f" · {format_number(m['followers'])} followers · score {format_number(m['overall'])}/100")
+        else:
+            line += " · no social data"
+        lines.append(line)
+    for failure in failures:
+        lines.append(f"- {failure['base_url']} — crawl failed: {failure['error']}")
+    lines += [
+        "", "## Contents", "",
+        "- `00-portfolio/` — portfolio overview (.docx / .json) and the cross-business benchmark "
+        "(`group.report.md`, `group.summary.json`).",
+        "- `NN-<brand>/` — brand guide (.docx, `brand-guide.json`), `tokens/`, `content/`, "
+        "`assets/`, and `social/` (reputation + social dossier: `insights.md`, `report.html`, "
+        "`business.profile.json`, `reviews.csv`, ...).",
+        "- `targets.json` — the business records handed from the website crawl to the social crawl.",
+        "",
+    ]
+    with open(os.path.join(group_dir, "README.md"), "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+
+
+def write_portfolio_outputs(portfolio_dir, entries, failures):
+    rows = []
+    for entry in entries:
+        m = entry_metrics(entry)
+        rows.append([entry["name"], entry["website"], entry["folder"],
+                     format_number(m["rating"]), format_number(m["reviews"]),
+                     format_number(m["followers"]), format_number(m["overall"])])
+    filename = re.sub(r"[^A-Za-z0-9_.-]+", "-", BRAND_PACK_GROUP_NAME).strip("-") + "-Overview.docx"
+    write_docx(
+        os.path.join(portfolio_dir, filename), BRAND_PACK_GROUP_NAME,
+        [{"heading": "Portfolio", "text": BRAND_PACK_GROUP_DESCRIPTION,
+          "headers": ["Brand", "Website", "Folder", "Rating", "Reviews", "Followers", "Score"],
+          "rows": rows}],
+    )
+    write_json(os.path.join(portfolio_dir, "portfolio.json"), {
+        "group": BRAND_PACK_GROUP_NAME,
+        "description": BRAND_PACK_GROUP_DESCRIPTION,
+        "generatedAt": iso_now(),
+        "brands": [{
+            "folder": e["folder"], "name": e["name"], "slug": e["slug"], "website": e["website"],
+            "metrics": entry_metrics(e), "scores": (e.get("profile") or {}).get("scores"),
+            "hasSocialData": bool(e.get("profile")),
+        } for e in entries],
+        "failures": failures,
+    })
+
+
+def finalize_group(group_dir, failures=None):
+    """Rebuild README, portfolio, benchmark and the single ZIP from the folders on disk."""
+    failures = failures or []
+    portfolio_dir = os.path.join(group_dir, "00-portfolio")
+    os.makedirs(os.path.join(portfolio_dir, "assets"), exist_ok=True)
+    entries = scan_brand_dirs(group_dir)
+    if not entries:
+        print("No brand folders to package.")
+        return None
+    profiles = [e["profile"] for e in entries if e.get("profile") and e["profile"].get("schema_version")]
+    if profiles:
+        write_group_report([], profiles, out_dir=portfolio_dir)
+    write_portfolio_outputs(portfolio_dir, entries, failures)
+    write_group_readme(group_dir, entries, failures)
+    saved = saved_targets_path()
+    if os.path.isfile(saved):
+        shutil.copy2(saved, os.path.join(group_dir, "targets.json"))
+    zip_path = os.path.join(OUTPUT_ROOT, f"{BRAND_PACK_GROUP_SLUG}.zip")
+    included = ["README.md", "targets.json", "00-portfolio"] + [e["folder"] for e in entries]
+    make_zip(group_dir, zip_path, included)
+    return zip_path
+
+
+def finalize_standalone(result):
+    """Per-site README + brand-kit.zip (standalone mode)."""
+    kit_dir = os.path.join(OUTPUT_ROOT, web_site_slug(result["base_url"]), "brand-kit")
+    with open(os.path.join(kit_dir, "README.md"), "w", encoding="utf-8") as f:
+        f.write(f"# {result['name']} Brand Kit\n\nSource: {result['base_url']}\n")
+    zip_path = os.path.join(OUTPUT_ROOT, web_site_slug(result["base_url"]), "brand-kit.zip")
+    make_zip(kit_dir, zip_path)
+    return zip_path
+
+
+# ---------------------------------------------------------------------------
+# orchestration
+# ---------------------------------------------------------------------------
+def process_site(url, index, total, group_dir, do_social):
+    """Website -> brand pack -> social -> consolidation for one site."""
+    result = {"base_url": url}
+    site = crawl_site(url)
+    if not site["page_html"] and not site["pages_texts"]:
+        # Nothing was fetched (DNS failure, blocked, wrong URL): do not build a junk
+        # brand pack or spend a social crawl on a business called after the hostname.
+        raise RuntimeError("no pages could be fetched from the site (unreachable, blocked, or wrong URL)")
+    brand_data = site["brand_data"]
+    target = merge_target(build_social_target(brand_data, site["pages_texts"]), find_override(url))
+
+    # A confirmed target (Maps/search/UI or TARGET_OVERRIDES) wins over the
+    # website's footer address. Wix sites in a group often repeat another
+    # venue's address in the footer, which used to put 127 South Street on The
+    # Physician's cards.
+    hints = target.get("hints") or {}
+    if hints.get("address"):
+        brand_data.setdefault("contact", {})["address"] = hints["address"]
+    if hints.get("phones"):
+        brand_data["contact"]["phones"] = hints["phones"]
+    if hints.get("emails"):
+        brand_data["contact"]["emails"] = hints["emails"]
+
+    brand_dir = brand_dir_for(url, index, group_dir)
+    os.makedirs(brand_dir, exist_ok=True)
+    extras = write_brand_pack_contents(
+        brand_data, site["url_to_path"], brand_dir, site["pages_texts"], site["pdf_texts"]
+    )
+    result.update({
+        "name": brand_data["name"], "brand_dir": brand_dir, "target": target,
+        "logo_count": len(extras["logos"]), "photo_count": len(extras["photography"]),
+        "page_count": len(site["visited"]), "media_count": len(site["url_to_path"]),
+    })
+    print(f"\nSocial target: {target['name']} · {target.get('city') or '?'} · "
+          f"{target.get('category') or '?'} · profiles: "
+          f"{', '.join(sorted(target.get('profiles') or {})) or 'none yet'}")
+
+    if do_social:
+        summary = run_social(target, index, total, page_html=site["page_html"])
+        result["social"] = summary
+        if summary.get("ok"):
+            if not consolidate_social(target, brand_dir):
+                result["social_error"] = "social output missing"
+        else:
+            result["social_error"] = summary.get("error") or "social phase produced no data"
+    return result
+
+
+def run_website_and_social(urls, numbering, group_dir, do_social):
+    results = []
+    interrupted = False
+    for position, url in enumerate(urls, 1):
+        print(f"\n[{position}/{len(urls)}] {url}")
+        try:
+            results.append(process_site(url, numbering[url], len(urls), group_dir, do_social))
+        except KeyboardInterrupt:
+            print("\ninterrupted - packaging what is finished so far")
+            interrupted = True
+            break
+        except RuntimeError as e:          # expected failure (e.g. site unreachable)
+            print(f"  x {url}: {e}")
+            results.append({"base_url": url, "error": str(e)})
+        except Exception as e:
+            traceback.print_exc()
+            results.append({"base_url": url, "error": str(e)})
+    targets = [r["target"] for r in results if r.get("target")]
+    if targets:
+        save_targets(targets)
+    return results, interrupted
+
+
+def run_social_only(args, targets, group_dir):
+    results = []
+    for index, target in enumerate(targets, 1):
+        summary = run_social(target, index, len(targets), report_only=args.report_only)
+        result = {"base_url": target.get("website") or "", "name": target["name"],
+                  "target": target, "social": summary}
+        brand_dir = find_brand_dir(target, group_dir)
+        result["brand_dir"] = brand_dir
+        if summary.get("ok"):
+            if brand_dir:
+                consolidate_social(target, brand_dir)
+            else:
+                log(f"no brand folder found for {target['name']}; run the website phase first "
+                    f"(social output stays in {business_dir(target)})", "warn")
+        else:
+            result["social_error"] = summary.get("error") or "social phase produced no data"
+        results.append(result)
+    return results
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(
-        description="Deep social + reputation crawler for hospitality businesses.",
+        description="Website brand crawl followed by a social & reputation crawl, one consolidated pack.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 examples:
-  %(prog)s --list
-  %(prog)s --business bar-91 --dry-run
-  %(prog)s --business bar-91
-  %(prog)s --all --no-browser
-  %(prog)s --business bar-91 --only google,instagram --deep --max-reviews 120
-  %(prog)s --all --report-only
+  %(prog)s                              both phases for every configured site
+  %(prog)s https://example.com/         one ad-hoc site
+  %(prog)s --business hatch --no-browser
+  %(prog)s --skip-social                website phase only
+  %(prog)s --social-only --deep         re-run the social phase on saved targets
+  %(prog)s --report-only                rebuild reports from saved platform data
+  %(prog)s --dry-run
         """)
-    parser.add_argument("--business", action="append", default=[],
-                        metavar="SLUG|NAME", help="business slug or name (repeatable)")
-    parser.add_argument("--all", action="store_true", help="run every configured business")
-    parser.add_argument("--list", action="store_true", help="list configured businesses")
-    parser.add_argument("--only", default=None,
-                        help="comma separated source keys to run, e.g. google,instagram")
-    parser.add_argument("--skip", default=None,
-                        help="comma separated source keys to skip")
-    parser.add_argument("--deep", action="store_true",
-                        help="paginate reviews, search for missing profiles, try more sources")
-    parser.add_argument("--max-reviews", type=int, default=MAX_REVIEWS_PER_SOURCE,
-                        help=f"max reviews per source (default {MAX_REVIEWS_PER_SOURCE})")
-    parser.add_argument("--max-posts", type=int, default=MAX_POSTS_PER_PROFILE,
-                        help=f"max posts per profile (default {MAX_POSTS_PER_PROFILE})")
-    parser.add_argument("--no-browser", action="store_true",
-                        help="disable Playwright (HTTP + JSON-LD only; Google reviews will be missing)")
-    parser.add_argument("--no-cache", action="store_true", help="bypass the HTTP cache")
-    parser.add_argument("--no-assets", action="store_true", help="skip image downloads")
-    parser.add_argument("--keep-raw", action="store_true", help="store raw HTML per source")
-    parser.add_argument("--sequential", action="store_true", help="disable parallel HTTP connectors")
-    parser.add_argument("--force", action="store_true", help="ignore checkpoints and refetch")
-    parser.add_argument("--no-merge", action="store_true",
-                        help="do not fold earlier platform JSON files into this run")
-    parser.add_argument("--dry-run", action="store_true", help="print the plan, do no network I/O")
-    parser.add_argument("--report-only", action="store_true",
-                        help="rebuild reports from previously saved platforms/*.json")
-    parser.add_argument("--output-root", default=None, help="override the output directory")
-    parser.add_argument("--group", default=None, help="group name used for reporting")
-    parser.add_argument("--verbose", "-v", action="store_true", help="debug logging")
+    parser.add_argument("urls", nargs="*", help="site URLs (default: SITES in the config block)")
+
+    pipe = parser.add_argument_group("pipeline")
+    pipe.add_argument("--business", action="append", default=[], metavar="TEXT",
+                      help="only sites whose url / slug / name contains TEXT (repeatable)")
+    pipe.add_argument("--standalone", action="store_true",
+                      help="one brand-kit.zip per site instead of one group ZIP")
+    pipe.add_argument("--skip-social", action="store_true", help="website phase only")
+    pipe.add_argument("--social-only", action="store_true",
+                      help="skip the website crawl; run the social phase on saved targets.json")
+    pipe.add_argument("--report-only", action="store_true",
+                      help="rebuild reports from saved platforms/*.json (no network); implies --social-only")
+    pipe.add_argument("--targets", metavar="FILE",
+                      help="JSON list of extra TARGET_OVERRIDES-style entries (win over built-ins)")
+    pipe.add_argument("--output-root", default=None, help="override OUTPUT_ROOT")
+    pipe.add_argument("--group", default=None, help="group name (also names the brand kit)")
+    pipe.add_argument("--group-description", default=None,
+                      help="one-line description used in the README and portfolio")
+
+    intake = parser.add_argument_group("intake / discovery (studio UI)")
+    intake.add_argument("--status-json", action="store_true",
+                        help="print Python/browser/dependency readiness as JSON and exit")
+    intake.add_argument("--search-json", metavar="QUERY",
+                        help="search for a business by name and print candidates as JSON")
+    intake.add_argument("--search-city", default="", help="city hint for --search-json")
+    intake.add_argument("--search-provider", choices=("auto", "places", "maps", "nominatim", "web"),
+                        default="auto", help="search provider (default: auto)")
+    intake.add_argument("--search-limit", type=int, default=6, help="max candidates (default 6)")
+    intake.add_argument("--discover-json", action="store_true",
+                        help="discover website + social profiles for --website and print JSON")
+    intake.add_argument("--website", default="", help="business website for --discover-json")
+    intake.add_argument("--name", default="", help="business name for --discover-json")
+    intake.add_argument("--city", default="", help="city for --discover-json")
+    intake.add_argument("--region", default="", help="region for --discover-json")
+    intake.add_argument("--country", default="", help="country for --discover-json")
+    intake.add_argument("--category", default="", help="category for --discover-json")
+    intake.add_argument("--profiles-json", default="",
+                        help="JSON object (or path) of confirmed profile URLs")
+    intake.add_argument("--maps-json", default="",
+                        help="JSON object (or path) with Maps rating/address/phone")
+    intake.add_argument("--guess-profiles", action="store_true",
+                        help="try name-based handles for missing Instagram/Facebook/TikTok")
+    intake.add_argument("--search-profiles", action="store_true",
+                        help="web-search for missing profiles (can be slow/blocked)")
+    intake.add_argument("--discover-pages", type=int, default=8,
+                        help="website pages to read during discovery (default 8)")
+    pipe.add_argument("--max-pages", type=int, default=None,
+                      help=f"website pages per site (default {MAX_PAGE_CRAWL})")
+    pipe.add_argument("--force", action="store_true",
+                      help="ignore website and social checkpoints and refetch")
+    pipe.add_argument("--dry-run", action="store_true", help="print the plan, do no network I/O")
+    pipe.add_argument("--list", action="store_true", help="list configured sites and overrides")
+    pipe.add_argument("--verbose", "-v", action="store_true", help="debug logging")
+
+    soc = parser.add_argument_group("social phase")
+    soc.add_argument("--only", default=None,
+                     help="comma separated source keys to run, e.g. google,instagram")
+    soc.add_argument("--skip", default=None, help="comma separated source keys to skip")
+    soc.add_argument("--deep", action="store_true",
+                     help="paginate reviews, search for missing profiles, try more sources")
+    soc.add_argument("--max-reviews", type=int, default=MAX_REVIEWS_PER_SOURCE,
+                     help=f"max reviews per source (default {MAX_REVIEWS_PER_SOURCE})")
+    soc.add_argument("--max-posts", type=int, default=MAX_POSTS_PER_PROFILE,
+                     help=f"max posts per profile (default {MAX_POSTS_PER_PROFILE})")
+    soc.add_argument("--no-browser", action="store_true",
+                     help="disable Playwright (HTTP + JSON-LD only; Google reviews will be missing)")
+    soc.add_argument("--no-cache", action="store_true", help="bypass the social HTTP cache")
+    soc.add_argument("--no-assets", action="store_true", help="skip social image downloads")
+    soc.add_argument("--keep-raw", action="store_true", help="store raw HTML per source")
+    soc.add_argument("--sequential", action="store_true", help="disable parallel HTTP connectors")
+    soc.add_argument("--no-merge", action="store_true",
+                     help="do not fold earlier platform JSON files into this run")
     return parser.parse_args(argv)
 
 
-def select_businesses(args):
-    if not args.business and not args.all:
-        return TARGETS
-    wanted = {part.strip().lower()
-              for value in args.business if value.strip()
-              for part in value.split(",") if part.strip()}
-    if args.all:
-        return TARGETS
-    selected = []
-    for business in TARGETS:
-        keys = {str(business.get("slug", "")).lower(), business["name"].lower(),
-                slugify(business["name"]), slugify(str(business.get("slug", "")))}
-        if keys & wanted:
-            selected.append(business)
-            continue
-        # tolerate prefixes and partial names ("ronzio", "boteco")
-        if any(key.startswith(value) or value in key for value in wanted
-               for key in keys if key):
-            selected.append(business)
-    missing = wanted - {k for b in selected for k in
-                        {str(b.get("slug", "")).lower(), b["name"].lower()}}
-    if missing:
-        log(f"unknown business(es): {', '.join(sorted(missing))}", "warn")
-    return selected
+def configure_run(args):
+    """Apply CLI flags to module settings and the social crawler's State."""
+    global OUTPUT_ROOT, BRAND_PACK_GROUP_NAME, BRAND_PACK_GROUP_SLUG, MAX_PAGE_CRAWL
+    global PARALLEL, FORCE_REFRESH, MERGE_PREVIOUS_RUNS
+    global MAX_POSTS_PER_PROFILE, KEEP_RAW_HTML, DOWNLOAD_ASSETS, RUN_SOCIAL_PHASE
+    if args.output_root:
+        OUTPUT_ROOT = args.output_root
+    if args.group:
+        BRAND_PACK_GROUP_NAME = args.group
+        BRAND_PACK_GROUP_SLUG = re.sub(r"[^A-Za-z0-9_.-]+", "-", args.group).strip("-") + "-brand-kit"
+    if args.group_description:
+        globals()["BRAND_PACK_GROUP_DESCRIPTION"] = args.group_description
+    elif args.group and args.group not in ("Julie-Dalton", "Dalton family venues"):
+        globals()["BRAND_PACK_GROUP_DESCRIPTION"] = (
+            f"Brand kit generated from a studio intake crawl for {args.group}."
+        )
+    if args.max_pages:
+        MAX_PAGE_CRAWL = max(1, args.max_pages)
+    if args.skip_social:
+        RUN_SOCIAL_PHASE = False
 
-
-def print_list():
-    print(f"\nConfigured businesses ({len(TARGETS)}) — group {GROUP_NAME}\n")
-    for business in TARGETS:
-        profiles = business.get("profiles") or {}
-        print(f"  {business.get('slug') or site_slug(business['name'])}")
-        print(f"    name:     {business['name']}")
-        city = business.get("city") or ""
-        print(f"    location: {city}{', ' + business.get('region', '') if business.get('region') else ''}")
-        print(f"    website:  {business.get('website') or '(will be discovered)'}")
-        print(f"    seeds:    {', '.join(sorted(profiles)) or '(none — discovery only)'}")
-        print()
-    print("Sources available:")
-    print("  reviews: " + ", ".join(sorted(REVIEW_SOURCES)))
-    print("  social:  " + ", ".join(sorted(SOCIAL_SOURCES)))
-    print()
-
-
-def print_summary(summaries):
-    head("Summary")
-    rows = []
-    for summary in summaries:
-        if not summary:
-            continue
-        rows.append([
-            summary.get("business"),
-            format_number(summary.get("consensus_rating")),
-            format_number(summary.get("total_reviews")),
-            format_number(summary.get("followers")),
-            (summary.get("scores") or {}).get("overall"),
-            summary.get("red_flags"),
-            "ok" if summary.get("ok") else "failed",
-        ])
-    print(md_table(["Business", "Rating", "Reviews", "Followers", "Score", "Flags", "State"], rows))
-    for summary in summaries:
-        if not summary or not summary.get("ok"):
-            continue
-        print(f"  {summary['business']}")
-        print(f"    insights: {summary['insights']}")
-        print(f"    report:   {summary['report']}")
-        print(f"    sources:  {', '.join(summary.get('sources') or []) or '—'}")
-    group_report = os.path.join(State.output_root, "group.report.md")
-    if os.path.exists(group_report):
-        print(f"\n  group report: {group_report}\n")
-
-
-def main(argv=None):
-    global PARALLEL, FORCE_REFRESH, MAX_POSTS_PER_PROFILE, KEEP_RAW_HTML, DOWNLOAD_ASSETS
-    global MERGE_PREVIOUS_RUNS
-    args = parse_args(argv)
     State.verbose = args.verbose
     State.use_browser = not args.no_browser
     State.deep = args.deep
     State.max_reviews = max(1, args.max_reviews)
-    MAX_POSTS_PER_PROFILE = max(1, args.max_posts)
     State.use_cache = not args.no_cache
-    if args.output_root:
-        State.output_root = args.output_root
-    if args.group:
-        State.group = args.group
+    State.output_root = os.path.join(OUTPUT_ROOT, "_social")
+    State.group = BRAND_PACK_GROUP_NAME or "group"
     State.only = ({s.strip().lower() for s in args.only.split(",") if s.strip()}
                   if args.only else None)
     State.skip = {s.strip().lower() for s in (args.skip or "").split(",") if s.strip()}
+    MAX_POSTS_PER_PROFILE = max(1, args.max_posts)
     KEEP_RAW_HTML = bool(args.keep_raw)
     DOWNLOAD_ASSETS = not args.no_assets
     PARALLEL = not args.sequential
     FORCE_REFRESH = args.force
     MERGE_PREVIOUS_RUNS = not args.no_merge
 
+
+def select_sites(args):
+    """-> (urls to run, {url: stable folder number}). Numbers follow the full list
+    so `--business hatch` re-uses 03-hatchstandrews instead of creating 01-."""
+    all_urls = list(dict.fromkeys(args.urls or SITES))
+    numbering = {url: i for i, url in enumerate(all_urls, 1)}
+    wanted = [part.strip().lower() for value in args.business for part in value.split(",")
+              if part.strip()]
+    if not wanted:
+        return all_urls, numbering
+    chosen = []
+    for url in all_urls:
+        override = find_override(url) or {}
+        haystack = " ".join([url, brand_slug(url), override.get("name", ""),
+                             override.get("slug", "")]).lower()
+        if any(w in haystack for w in wanted):
+            chosen.append(url)
+    return chosen, numbering
+
+
+def select_saved_targets(args):
+    targets = load_saved_targets()
+    wanted = [part.strip().lower() for value in args.business for part in value.split(",")
+              if part.strip()]
+    if not wanted:
+        return targets
+    return [t for t in targets
+            if any(w in " ".join([t.get("name", ""), t.get("slug", ""),
+                                  t.get("website", "")]).lower() for w in wanted)]
+
+
+def print_list():
+    print(f"\nConfigured sites ({len(SITES)}) — group {BRAND_PACK_GROUP_NAME or '(standalone)'}\n")
+    for i, url in enumerate(SITES, 1):
+        override = find_override(url)
+        print(f"  {i:02d}-{brand_slug(url)}")
+        print(f"    url:      {url}")
+        if override:
+            profiles = override.get("profiles") or {}
+            print(f"    override: {override.get('name')} · {override.get('city') or '?'} · "
+                  f"{override.get('category') or '?'}")
+            print(f"    seeds:    {', '.join(sorted(profiles)) or '(none)'}")
+        else:
+            print("    override: (none — fully derived from the crawl)")
+        print()
+    print("Social sources available:")
+    print("  reviews: " + ", ".join(sorted(REVIEW_SOURCES)))
+    print("  social:  " + ", ".join(sorted(SOCIAL_SOURCES)))
+    print()
+
+
+def print_dry_run(args, urls, numbering, group_dir):
+    head("Dry run — plan only")
+    print(f"output root : {OUTPUT_ROOT}")
+    print(f"mode        : {'group ZIP -> ' + group_dir if group_dir else 'standalone (one ZIP per site)'}")
+    social_on = RUN_SOCIAL_PHASE
+    phases = (["social (saved targets)"] if (args.social_only or args.report_only)
+              else ["website"] + (["social"] if social_on else []))
+    print(f"phases      : {' -> '.join(phases)}")
+    print(f"browser     : {'enabled' if State.use_browser else 'disabled'}")
+    print(f"social src  : {', '.join(sorted(State.only)) if State.only else 'auto'}")
+    print()
+    if args.social_only or args.report_only:
+        for target in select_saved_targets(args):
+            print(f"  {target['name']}  ({target.get('website')})")
+            print(f"    seeds: {', '.join(sorted(target.get('profiles') or {})) or '(none)'}")
+            print(f"    out:   {business_dir(target)}")
+        return
+    for url in urls:
+        override = find_override(url)
+        print(f"  {numbering[url]:02d}-{brand_slug(url)}  {url}")
+        print(f"    website out: {os.path.join(OUTPUT_ROOT, web_site_slug(url))}")
+        print(f"    brand dir:   {brand_dir_for(url, numbering[url], group_dir)}")
+        if social_on:
+            seeds = ', '.join(sorted((override or {}).get('profiles') or {})) or '(discovered from the site)'
+            print(f"    social seeds: {seeds}")
+    print()
+
+
+def print_summary(results):
+    head("Summary")
+    rows = []
+    for r in results:
+        social = r.get("social") or {}
+        if r.get("error"):
+            rows.append([r["base_url"], "-", "-", "-", "-", "-", "failed: " + str(r["error"])[:40]])
+            continue
+        if social.get("ok"):
+            state = "ok"
+        elif r.get("social_error"):
+            state = "social: " + str(r["social_error"])[:30]
+        elif "social" in r:
+            state = "social failed"
+        else:
+            state = "website only"
+        rows.append([
+            r.get("name"), r.get("page_count", "-"), r.get("media_count", "-"),
+            format_number(social.get("consensus_rating")) if social.get("ok") else "-",
+            format_number(social.get("total_reviews")) if social.get("ok") else "-",
+            format_number(social.get("followers")) if social.get("ok") else "-",
+            state,
+        ])
+    print(md_table(["Business", "Pages", "Media", "Rating", "Reviews", "Followers", "State"], rows))
+    for r in results:
+        social = r.get("social") or {}
+        if social.get("ok"):
+            print(f"  {r['name']}: score {(social.get('scores') or {}).get('overall')} · "
+                  f"{social.get('insights')}")
+            print(f"    report: {social.get('report')}")
+
+
+def main(argv=None):
+    args = parse_args(argv)
+    configure_run(args)
+
+    if args.status_json:
+        emit_json(crawler_status())
+        return 0
+
+    if args.search_json:
+        return json_mode(lambda: search_businesses(
+            args.search_json, args.search_city, args.search_limit, args.search_provider
+        ))
+
+    if args.discover_json:
+        def _discover():
+            profiles = load_json_arg(args.profiles_json, {})
+            maps = load_json_arg(args.maps_json, {})
+            return build_discovery(
+                args.website, name=args.name, city=args.city, category=args.category,
+                region=args.region, country=args.country, profiles=profiles, maps=maps,
+                guess_profiles=args.guess_profiles, search_profiles=args.search_profiles,
+                max_pages=args.discover_pages,
+            )
+        return json_mode(_discover)
+
+    if args.targets:
+        TARGET_OVERRIDES[:0] = load_targets_file(args.targets)
     if args.list:
         print_list()
         return 0
 
-    if State.only:
-        unknown = State.only - set(CONNECTORS) - {"all"}
-        if unknown:
-            log(f"unknown --only keys ignored: {', '.join(sorted(unknown))}", "warn")
-
-    load_credentials()
-    bootstrap_cache()
-
-    if not HAVE_PLAYWRIGHT and State.use_browser:
-        log("playwright not installed — browser tier disabled "
-            "(pip install playwright && playwright install chromium)", "warn")
-        State.use_browser = False
-
-    businesses = select_businesses(args)
-    if not businesses:
-        log("no businesses selected", "error")
-        return 1
+    social_only = args.social_only or args.report_only
+    do_social = RUN_SOCIAL_PHASE and not args.skip_social
+    group_mode = bool(BRAND_PACK_GROUP_NAME) and not args.standalone
+    group_dir = os.path.join(OUTPUT_ROOT, BRAND_PACK_GROUP_SLUG) if group_mode else None
+    urls, numbering = select_sites(args)
 
     if args.dry_run:
-        head("Dry run — plan only")
-        print(f"output root : {State.output_root}")
-        print(f"group       : {State.group}")
-        print(f"browser     : {'enabled' if State.use_browser else 'disabled'}")
-        print(f"sources     : {', '.join(sorted(State.only)) if State.only else 'auto'}")
-        print()
-        for business in businesses:
-            profiles = business.get("profiles") or {}
-            print(f"  {business['name']}")
-            print(f"    seeds: {', '.join(sorted(profiles)) or '(none)'}")
-            print(f"    out:   {business_dir(business)}")
-            print(f"    will run: website, google, "
-                  f"{', '.join(sorted(profiles)) or 'discovery-only'}")
-            print()
+        print_dry_run(args, urls, numbering, group_dir)
         return 0
+    if social_only and not RUN_SOCIAL_PHASE:
+        print("--social-only/--report-only conflict with --skip-social")
+        return 2
 
-    if args.report_only:
-        for business in businesses:
-            run_report_only(business)
-        write_group_report([], collect_all_profiles())
-        return 0
+    if do_social:
+        load_credentials()
+        bootstrap_cache()
+        if not HAVE_PLAYWRIGHT and State.use_browser:
+            log("playwright not installed — browser tier disabled "
+                "(pip install playwright && playwright install chromium)", "warn")
+            State.use_browser = False
 
-    head(f"Deep social & reputation crawl — {len(businesses)} business(es)")
-    print(f"  output : {State.output_root}")
-    print(f"  browser: {'on' if State.use_browser else 'off'} · "
-          f"parallel: {'on' if PARALLEL else 'off'} · deep: {'on' if State.deep else 'off'}")
-    print(f"  reviews/source cap: {State.max_reviews}")
-
-    summaries = []
     started = time.time()
-    for index, business in enumerate(businesses, 1):
-        try:
-            summaries.append(run_business(business, index, len(businesses)))
-        except KeyboardInterrupt:
-            log("interrupted by user", "warn")
-            break
-        except Exception as exc:
-            log(f"{business['name']} failed: {exc}", "error")
-            if State.verbose:
-                traceback.print_exc()
-            summaries.append({"business": business["name"],
-                              "slug": business.get("slug"),
-                              "ok": False, "error": str(exc)})
+    interrupted = False
+    try:
+        if social_only:
+            targets = select_saved_targets(args)
+            if not targets:
+                print("No targets selected.")
+                return 1
+            head(f"Social & reputation phase — {len(targets)} business(es)")
+            results = run_social_only(args, targets, group_dir)
+            failures = []
+        else:
+            if not urls:
+                print("No sites selected.")
+                return 1
+            if group_mode:
+                print(f"Group mode: writing {BRAND_PACK_GROUP_NAME} to {group_dir}")
+                os.makedirs(os.path.join(group_dir, "00-portfolio", "assets"), exist_ok=True)
+            results, interrupted = run_website_and_social(urls, numbering, group_dir, do_social)
+            failures = [{"base_url": r["base_url"], "error": r["error"]}
+                        for r in results if r.get("error")]
 
-    write_group_report(summaries, collect_all_profiles())
-    print_summary(summaries)
-    elapsed = time.time() - started
-    print(f"  finished in {elapsed:.0f}s · cache hits {State.stats['cache_hits']} · "
-          f"browser fetches {State.stats['browser_fetches']} · "
-          f"assets {State.stats['assets_downloaded']}")
+        packaged = None
+        if group_mode:
+            if any(not r.get("error") for r in results) or social_only:
+                packaged = finalize_group(group_dir, failures)
+        else:
+            packaged = []
+            for r in results:
+                if r.get("error") or not r.get("brand_dir") or not os.path.isdir(r["brand_dir"]):
+                    continue
+                r["zip_path"] = finalize_standalone(r)
+                packaged.append(r["zip_path"])
+    finally:
+        if do_social:
+            Browser.close()
 
-    Browser.close()
-    failures = [s for s in summaries if s and not s.get("ok")]
-    return 0 if len(failures) < len(summaries or [1]) else 1
+    print_summary(results)
+    if packaged:
+        print("\nBrand pack: " + (packaged if isinstance(packaged, str) else ", ".join(packaged)))
+    if os.path.isfile(saved_targets_path()):
+        print(f"Social crawler targets: {saved_targets_path()}")
+    print(f"Finished in {time.time() - started:.0f}s"
+          + (f" · cache hits {State.stats['cache_hits']} · browser fetches "
+             f"{State.stats['browser_fetches']} · assets {State.stats['assets_downloaded']}"
+             if do_social else ""))
+    if interrupted:
+        return 130
+    return 1 if not results or all(r.get("error") for r in results) else 0
 
 
 if __name__ == "__main__":
     try:
         sys.exit(main())
     except KeyboardInterrupt:
-        Browser.close()
-        print("\ninterrupted")
-        sys.exit(130)
-    finally:
         try:
             Browser.close()
         except Exception:
             pass
+        print("\ninterrupted")
+        sys.exit(130)

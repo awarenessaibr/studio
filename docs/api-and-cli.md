@@ -22,6 +22,7 @@ PORT=8010 HOST=127.0.0.1 node server.js
 | `STUDIO_OPENAI_API_KEY` | — | Enables the remote vision provider for *Organize with AI* |
 | `STUDIO_OPENAI_MODEL` | — | That provider's vision model |
 | `STUDIO_OPENAI_BASE_URL` | `https://api.openai.com/v1` | Any OpenAI-compatible endpoint |
+| `STUDIO_PYTHON` | `.venv/bin/python` → `python3` | Interpreter used by the intake crawler |
 
 The server serves the pages and `/data/` statically, and handles `/api/*`.
 Requests are JSON unless stated. Binary payloads travel as **base64 data
@@ -121,6 +122,72 @@ not per project.
 See [brand-packs.md](brand-packs.md) for structure, inference and limits.
 
 ---
+
+### Crawler / brand intake
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/crawler/status` | Python/Playwright/PDF readiness |
+| POST | `/api/crawler/search` | business-name search (`{query, city}`) |
+| POST | `/api/crawler/discover` | website + social profile discovery |
+| POST | `/api/crawler/runs` | start a managed crawl from `{target}` or `{targets:[...]}` (max two concurrent; group max 12) |
+| GET | `/api/crawler/runs` | recent runs |
+| GET | `/api/crawler/runs/:id` | state, phase, targets/currentIndex, log tail, ZIP |
+| POST | `/api/crawler/runs/:id/cancel` | cancel the process group |
+| GET | `/api/crawler/runs/:id/zip` | download the finished pack |
+| POST | `/api/crawler/runs/:id/import` | import the ZIP into Asset Studio (idempotent) |
+
+The full behaviour, UI flow, output contract and limits are documented in
+[crawler.md](crawler.md).
+
+### Business Asset Intelligence
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/assets/status` | Pillow/OCR/PDF/vision readiness + health |
+| GET | `/api/assets/taxonomy` | classes, operations and rule codes |
+| GET | `/api/assets` | filterable asset summaries |
+| GET | `/api/assets/health` | counts, duplicates, orphaned, palette drift |
+| POST | `/api/assets/ingest` | base64 file uploads (60 files / 200 MB per request) |
+| POST | `/api/assets/index-pack` | index a pack's assets (idempotent) |
+| GET/PATCH/DELETE | `/api/assets/:id` | read, edit/archive, purge uploads |
+| POST | `/api/assets/:id/verify` | verified / rejected |
+| POST | `/api/assets/:id/classify` | Pillow analysis + optional local vision |
+| POST | `/api/assets/:id/operations/:op` | resize, crop, recolour, extract |
+| GET | `/api/assets/:id/file/:variant` | original, thumb or variant bytes |
+| POST | `/api/assets/usage` | best-effort usage events |
+| GET | `/api/assets/:id/usage` | counts and recent events |
+
+See [asset-library.md](asset-library.md) for the record contract and rules.
+
+### Social intelligence
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/social/sources` | indexed social profiles + health (`?refresh=1`) |
+| GET | `/api/social/by-brand?brandId=&name=` | best match for a brand pack |
+| GET | `/api/social/:id` | full normalised social dataset |
+
+The index is read-only; the crawler remains the only writer. See
+[social-intelligence.md](social-intelligence.md).
+
+### Voice / TTS
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/tts/status` | MLX-Audio lifecycle, models, cache and error |
+| POST | `/api/tts/start` | reuse or spawn MLX-Audio and register the cached voice model |
+| POST | `/api/tts/stop` | stop a server owned by this process |
+| GET | `/api/tts/models` | proxied `/v1/models` |
+| GET | `/api/tts/voices?model=…` | proxied voice list |
+| POST | `/api/tts/speech` | WAV/MP3 speech bytes |
+| GET/POST | `/api/tts/design/sessions` | per-user voice-design sessions |
+| GET/DELETE | `/api/tts/design/sessions/:id` | read/delete a session |
+| POST | `/api/tts/design/suggest` | two voice proposals + persisted turn |
+| POST | `/api/tts/design/proposals/:id/preview` | audition |
+| POST | `/api/tts/design/proposals/:id/applied` | mark applied |
+
+See [voice-studio.md](voice-studio.md) for the port, setup and limits.
 
 ## 3. Limits
 

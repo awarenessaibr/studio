@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Business Asset Intelligence — the library of what a business already owns, with review, usage rules and brand fit.">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231a1a2e'/%3E%3Ctext x='16' y='23' font-family='Georgia,serif' font-size='18' fill='%23f2eee7' text-anchor='middle'%3EB%3C/text%3E%3C/svg%3E">
+    <title>Asset library — Studio Layers</title>
+    <link rel="stylesheet" href="asset-studio/app.css">
+    <link rel="stylesheet" href="library.css">
+</head>
+
+<body>
+    <header class="lib-topbar">
+        <a class="lib-brand" href="studio-v2.html" aria-label="Studio Layers home">
+            <span class="lib-mark">B</span>
+            <span class="lib-brand-copy"><strong>Studio Layers</strong><small>Asset library</small></span>
+        </a>
+        <nav class="lib-nav" aria-label="Studio">
+            <a href="studio-v2.html">Studio</a>
+            <a href="asset-studio.html">Asset Studio</a>
+            <a href="crawler.html">Brand intake</a>
+            <a class="is-current" href="library.html" aria-current="page">Library</a>
+            <a href="voice.html">Voice</a>
+        </nav>
+    </header>
+
+    <main class="library">
+        <section class="lib-hero">
+            <div>
+                <p class="eyebrow">Business Asset Intelligence</p>
+                <h1>What the business already owns.</h1>
+                <p class="lib-lede">A reference-first asset library: pack logos and photography, staff uploads, menus and
+                    compliance documents. Every asset carries a review state, usage rules and a brand-fit reading.</p>
+            </div>
+            <div class="lib-hero-actions">
+                <button type="button" class="button" id="reviewBtn">Review queue</button>
+                <button type="button" class="button" id="indexBtn">Index a pack</button>
+                <button type="button" class="button primary" id="uploadBtn">Upload assets</button>
+            </div>
+        </section>
+
+        <section class="health-strip" id="healthStrip" aria-label="Library health">
+            <div class="health-card"><span>Total</span><strong id="healthTotal">—</strong></div>
+            <div class="health-card"><span>Verified</span><strong id="healthVerified">—</strong></div>
+            <div class="health-card"><span>Proposed</span><strong id="healthProposed">—</strong></div>
+            <div class="health-card"><span>Duplicates</span><strong id="healthDuplicates">—</strong></div>
+            <div class="health-card"><span>Orphaned</span><strong id="healthOrphaned">—</strong></div>
+            <div class="health-card"><span>Palette drift</span><strong id="healthDrift">—</strong></div>
+            <p class="health-side" id="sidecarStatus">Checking image analysis…</p>
+        </section>
+
+        <section class="lib-toolbar" aria-label="Filters">
+            <label class="field grow">
+                <span>Search</span>
+                <input id="filterQ" type="search" placeholder="Name, tag, class…" autocomplete="off">
+            </label>
+            <label class="field">
+                <span>Pack</span>
+                <select id="filterPack"><option value="">All packs</option></select>
+            </label>
+            <label class="field">
+                <span>Brand</span>
+                <select id="filterBrand"><option value="">All brands</option></select>
+            </label>
+            <label class="field">
+                <span>Class</span>
+                <select id="filterClass"><option value="">All classes</option></select>
+            </label>
+            <label class="field">
+                <span>Review</span>
+                <select id="filterState">
+                    <option value="">Any state</option>
+                    <option value="proposed">Proposed</option>
+                    <option value="verified">Verified</option>
+                    <option value="rejected">Rejected</option>
+                </select>
+            </label>
+            <label class="field">
+                <span>Operation</span>
+                <select id="filterOperation"><option value="">Any operation</option></select>
+            </label>
+            <label class="check"><input type="checkbox" id="filterVerified"> Verified only</label>
+            <button type="button" class="button small" id="clearFilters">Clear</button>
+        </section>
+
+        <div class="lib-actions">
+            <div class="lib-count" id="assetCount">Loading…</div>
+            <div class="lib-batch">
+                <label class="check"><input type="checkbox" id="selectAll"> Select page</label>
+                <button type="button" class="button small" id="batchVerify" disabled>Verify selected</button>
+                <button type="button" class="button small" id="refreshBtn">Refresh</button>
+            </div>
+        </div>
+
+        <section id="assetGrid" class="asset-grid" aria-live="polite"></section>
+        <div id="emptyState" class="empty-state" hidden>
+            <strong>No assets match.</strong>
+            <p>Index one of the shipped brand packs or upload a file to start the library.</p>
+        </div>
+    </main>
+
+    <aside id="drawer" class="asset-drawer" hidden aria-label="Asset detail">
+        <div class="drawer-backdrop" id="drawerBackdrop"></div>
+        <section class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
+            <header class="drawer-head">
+                <div>
+                    <p class="eyebrow" id="drawerEyebrow">Asset</p>
+                    <h2 id="drawerTitle">Asset</h2>
+                </div>
+                <button type="button" class="icon-button" id="drawerClose" aria-label="Close">×</button>
+            </header>
+            <div id="drawerBody" class="drawer-body"></div>
+        </section>
+    </aside>
+
+    <section id="uploadDialog" class="lib-dialog" hidden aria-label="Upload assets">
+        <div class="dialog-backdrop" id="uploadBackdrop"></div>
+        <form class="dialog-panel" id="uploadForm">
+            <header class="dialog-head">
+                <div>
+                    <p class="eyebrow">Add to the library</p>
+                    <h2>Upload assets</h2>
+                </div>
+                <button type="button" class="icon-button" id="uploadClose" aria-label="Close">×</button>
+            </header>
+            <label class="drop-zone" id="dropZone">
+                <input type="file" id="uploadFiles" multiple accept="image/*,.pdf,.docx,.txt,.mp4,.mov">
+                <strong>Choose files or drop them here</strong>
+                <span>Images, PDF, DOCX, text · up to 40 MB each · 60 files</span>
+            </label>
+            <div class="dialog-grid">
+                <label class="field">
+                    <span>Bind to pack <em>optional</em></span>
+                    <select id="uploadPack"><option value="">No pack</option></select>
+                </label>
+                <label class="field">
+                    <span>Bind to brand <em>optional</em></span>
+                    <select id="uploadBrand"><option value="">No brand</option></select>
+                </label>
+                <label class="field">
+                    <span>Class <em>automatic if blank</em></span>
+                    <select id="uploadClass"><option value="">Auto-detect</option></select>
+                </label>
+                <label class="field">
+                    <span>Rights</span>
+                    <select id="uploadRights">
+                        <option value="unknown">Unknown</option>
+                        <option value="brand-owned">Brand-owned</option>
+                        <option value="licensed">Licensed</option>
+                        <option value="staff-supplied">Staff-supplied</option>
+                    </select>
+                </label>
+                <label class="field">
+                    <span>Consent</span>
+                    <select id="uploadConsent">
+                        <option value="not-applicable">Not applicable</option>
+                        <option value="granted">Granted</option>
+                        <option value="missing">Missing</option>
+                    </select>
+                </label>
+            </div>
+            <div id="uploadPreview" class="upload-preview"></div>
+            <p id="uploadStatus" class="hint" role="status"></p>
+            <div class="dialog-actions">
+                <button type="button" class="button" id="uploadCancel">Cancel</button>
+                <button type="submit" class="button primary" id="uploadSubmit">Upload</button>
+            </div>
+        </form>
+    </section>
+
+    <section id="indexDialog" class="lib-dialog" hidden aria-label="Index a pack">
+        <div class="dialog-backdrop" id="indexBackdrop"></div>
+        <div class="dialog-panel narrow">
+            <header class="dialog-head">
+                <div>
+                    <p class="eyebrow">Seed the library</p>
+                    <h2>Index a brand pack</h2>
+                </div>
+                <button type="button" class="icon-button" id="indexClose" aria-label="Close">×</button>
+            </header>
+            <p class="hint">Pack files stay where they are; indexing creates references, not copies. Re-running is idempotent.</p>
+            <div id="indexPacks" class="index-list"></div>
+            <p id="indexStatus" class="hint" role="status"></p>
+            <div class="dialog-actions">
+                <button type="button" class="button" id="indexCancel">Close</button>
+                <button type="button" class="button primary" id="indexAll">Index all packs</button>
+            </div>
+        </div>
+    </section>
+
+    <script src="asset-intel.js"></script>
+    <script src="library.js"></script>
+</body>
+
+</html>

@@ -443,6 +443,35 @@
     // ---------------------------------------------------------------------
     // Brand / pack normalization
     // ---------------------------------------------------------------------
+    function normalizeContent(value) {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+        const out = {};
+        for (const key of ['menu', 'drinks']) {
+            const menu = value[key];
+            if (!menu || typeof menu !== 'object' || !Array.isArray(menu.sections)) continue;
+            const sections = menu.sections.slice(0, 12).map((section) => ({
+                name: text(section?.name, 80),
+                items: (Array.isArray(section?.items) ? section.items : []).slice(0, 60).map((item) => ({
+                    name: text(item?.name, 140),
+                    price: text(item?.price, 40),
+                    description: text(item?.description, 220),
+                })).filter((item) => item.name),
+            })).filter((section) => section.items.length);
+            if (sections.length) out[key] = { title: text(menu.title, 80), sections };
+        }
+        if (value.hours && typeof value.hours === 'object' && !Array.isArray(value.hours)) {
+            const hours = {};
+            Object.entries(value.hours).slice(0, 7).forEach(([day, hoursText]) => {
+                const label = text(hoursText, 60);
+                if (label) hours[text(day, 12)] = label;
+            });
+            if (Object.keys(hours).length) out.hours = hours;
+        }
+        const bookingUrl = normalizeAssetUrl(value.bookingUrl);
+        if (bookingUrl) out.bookingUrl = bookingUrl;
+        return Object.keys(out).length ? out : null;
+    }
+
     function normalizeBrand(value, index) {
         const source = value && typeof value === 'object' ? value : {};
         const id = ID_PATTERN.test(String(source.id || ''))
@@ -462,6 +491,7 @@
             palette: normalizePalette(source.palette || source.color),
             typography: normalizeTypography(source.typography),
             voice: normalizeVoice(source.voice),
+            content: normalizeContent(source.content),
             logos: normalizeLogos(source.logos),
             photography: normalizePhotos(source.photography),
             paletteImages: normalizeGallery(source.paletteImages),

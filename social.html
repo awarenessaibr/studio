@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Business social intelligence — channels, reputation, themes and voice from scraped social data.">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231a1a2e'/%3E%3Ctext x='16' y='23' font-family='Georgia,serif' font-size='18' fill='%23f2eee7' text-anchor='middle'%3ES%3C/text%3E%3C/svg%3E">
+    <title>Social intelligence — Studio Layers</title>
+    <link rel="stylesheet" href="asset-studio/app.css">
+    <link rel="stylesheet" href="social.css">
+</head>
+
+<body>
+    <header class="social-topbar">
+        <a class="social-brand" href="studio-v2.html" aria-label="Studio Layers home">
+            <span class="social-mark">S</span>
+            <span class="social-brand-copy"><strong>Studio Layers</strong><small>Social intelligence</small></span>
+        </a>
+        <nav class="social-nav" aria-label="Studio">
+            <a href="studio-v2.html">Studio</a>
+            <a href="asset-studio.html">Asset Studio</a>
+            <a href="crawler.html">Brand intake</a>
+            <a href="library.html">Library</a>
+            <a href="voice.html">Voice</a>
+            <a class="is-current" href="social.html" aria-current="page">Social</a>
+        </nav>
+    </header>
+
+    <main class="social">
+        <section class="social-hero">
+            <div>
+                <p class="eyebrow">Business social intelligence</p>
+                <h1>What the business sounds like online.</h1>
+                <p class="social-lede">Channels, reputation, themes and the voice behind the reviews — read from the
+                    crawler’s social profile, with the evidence and the gaps left visible.</p>
+            </div>
+            <div class="social-source-box">
+                <label for="socialSource">Business</label>
+                <select id="socialSource"><option value="">Loading…</option></select>
+                <button type="button" class="button small" id="socialRefresh">Refresh</button>
+            </div>
+        </section>
+
+        <div id="socialEmpty" class="social-empty" hidden>
+            <strong>No social profile has been scraped yet.</strong>
+            <p>Run the business intake with the social phase enabled, then come back. The page reads
+                <code>business.profile.json</code>, <code>social.tokens.json</code> and the review data.</p>
+            <a class="button" href="crawler.html">Open Brand intake →</a>
+        </div>
+
+        <div id="socialContent" hidden>
+            <section class="social-meta-line">
+                <span id="socialBusinessMeta"></span>
+                <span id="socialSourceMeta"></span>
+            </section>
+
+            <section class="social-overview">
+                <article class="posture" id="posture">
+                    <div class="posture-top">
+                        <span class="posture-label">Reading</span>
+                        <span class="posture-tone" id="postureTone"></span>
+                    </div>
+                    <h2 id="postureTitle"></h2>
+                    <p id="postureSummary"></p>
+                    <div class="posture-strengths" id="postureStrengths"></div>
+                </article>
+                <div class="metric-grid" id="metricGrid"></div>
+                <article class="scores-card">
+                    <header><h2>Signal scores</h2><span class="panel-pill">crawler</span></header>
+                    <div id="scoreRows"></div>
+                </article>
+            </section>
+
+            <section class="social-section" id="footprintSection">
+                <header class="section-head">
+                    <div><p class="eyebrow">Footprint</p><h2>Where they show up</h2></div>
+                    <span class="section-note" id="footprintNote"></span>
+                </header>
+                <div class="channel-grid" id="channelGrid"></div>
+                <div class="gap-line" id="gapLine"></div>
+            </section>
+
+            <div class="social-columns">
+                <section class="social-section" id="publishingSection">
+                    <header class="section-head">
+                        <div><p class="eyebrow">Publishing</p><h2>What they post</h2></div>
+                    </header>
+                    <div id="publishingBody"></div>
+                </section>
+
+                <section class="social-section" id="reputationSection">
+                    <header class="section-head">
+                        <div><p class="eyebrow">Reputation</p><h2>What guests say</h2></div>
+                    </header>
+                    <div id="reputationBody"></div>
+                </section>
+            </div>
+
+            <section class="social-section" id="themesSection">
+                <header class="section-head">
+                    <div><p class="eyebrow">Themes</p><h2>What comes up</h2></div>
+                    <span class="section-note" id="themesNote"></span>
+                </header>
+                <div class="theme-grid" id="themeGrid"></div>
+            </section>
+
+            <section class="social-section" id="voiceSection">
+                <header class="section-head">
+                    <div><p class="eyebrow">Voice</p><h2>What they sound like</h2></div>
+                </header>
+                <div class="voice-grid" id="voiceGrid"></div>
+            </section>
+
+            <section class="social-section" id="actionsSection">
+                <header class="section-head">
+                    <div><p class="eyebrow">Direction</p><h2>What to do next</h2></div>
+                    <span class="section-note">Evidence-backed, not a strategy deck.</span>
+                </header>
+                <div class="action-grid" id="actionGrid"></div>
+                <div class="opportunity-list" id="opportunityList"></div>
+            </section>
+
+            <section class="social-section evidence" id="evidenceSection">
+                <header class="section-head">
+                    <div><p class="eyebrow">Evidence</p><h2>Where this came from</h2></div>
+                </header>
+                <div id="evidenceBody"></div>
+            </section>
+        </div>
+    </main>
+
+    <script src="social.js"></script>
+</body>
+
+</html>

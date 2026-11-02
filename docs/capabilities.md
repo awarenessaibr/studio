@@ -23,12 +23,18 @@ button-level detail.
 | A finished, on-brand flyer/menu/voucher/social post | **Asset Studio** | 50 print-aware layouts, live brand theming |
 | A CMYK PDF with bleed and crop marks | **Asset Studio → Print pack** | Bleed/trim boxes, marks, safe-zone preflight |
 | A brand system imported from a kit ZIP | **Brand identity** | Palette, type, logos, guides, starter templates |
+| A new business turned into a brand pack | **Brand intake** | Name → website/profiles → website + social crawl → importable ZIP |
+| What the business already owns | **Asset library** | Referenced pack files + uploads, review, usage rules, print gate |
+| A spoken line or a designed voice | **Voice Studio** | Local MLX-Audio speech + two-direction voice agent |
+| What the public says | **Social intelligence** | Channels, reviews, themes and voice from scraped profiles |
 | 40 menu variants from a spreadsheet | **Brief ingestion** (studio or CLI) | One row per creative, formats × locales |
 | Let a local vision model suggest animation | **Animation ideas** | Reads the final image, proposes preset commands |
 | Let an LLM direct the scene or a character | **Agent protocol** | Structured JSON commands, validated |
 | Rename 60 meaningless cut-outs | **Organize with AI** | Vision model proposes name/group/role |
 
-The rule of thumb: **Layer Studio composes and animates, Asset Studio
+The rule of thumb: **Brand intake finds the source material, the asset library
+remembers and governs it, Social intelligence reads the public evidence, Voice
+Studio gives it a voice, Layer Studio composes and animates, Asset Studio
 finishes, Brand identity supplies the rules.** Anything created by a brand
 pack is an ordinary composition, so it opens in Layer Studio like any other
 scene; Asset Studio themes its own layouts from the same pack.
@@ -353,6 +359,9 @@ fadeOut, zoom, spin, shake, hop, swing, orbit, nod, blinkIn`
 | Variables and bindings | ✓ | — | — | ✓ (fill) |
 | Brand kit / validation | ✓ | — | ✓ (theming) | — |
 | Brand pack import | ✓ | — | ✓ (consumes) | — |
+| Business asset library | ✓ (health tab) | — | ✓ (photo/gate) | `/library.html` |
+| Voice / TTS | — | — | — | `/voice.html` |
+| Social intelligence | ✓ (Social tab) | — | — | `/social.html` |
 | Brief ingestion | ✓ | — | — | ✓ |
 | Print pack (CMYK PDF) | — | — | ✓ | — |
 | Agent spec / commands | ✓ | ✓ | — | — |

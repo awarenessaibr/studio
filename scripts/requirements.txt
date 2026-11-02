@@ -1,0 +1,8 @@
+# Python side of the brand-intake crawler. The browser studio and Node server
+# remain dependency-free; install these into .venv only.
+requests>=2.31
+beautifulsoup4>=4.12
+lxml>=5.0
+pillow>=10.0
+playwright>=1.45
+pypdf>=5.0

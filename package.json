@@ -14,6 +14,8 @@
     "test:asset-studio": "node tests/asset-studio.js",
     "test:visual": "node tests/visual.js",
     "test:visual:report": "node tests/visual.js --report",
-    "test:all": "npm test && npm run test:smoke && npm run test:asset-studio && npm run test:visual"
+    "test:all": "npm test && npm run test:smoke && npm run test:asset-studio && npm run test:visual",
+    "crawl": ".venv/bin/python scripts/crawler-combined.py",
+    "test:crawler": "node --test tests/crawler.test.js"
   }
 }

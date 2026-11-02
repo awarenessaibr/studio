@@ -324,6 +324,10 @@
             detail.appendChild(renderTemplates(brand));
         } else if (state.tab === 'guidelines') {
             detail.appendChild(renderGuidelines(brand));
+        } else if (state.tab === 'library') {
+            detail.appendChild(renderLibraryHealth(brand));
+        } else if (state.tab === 'social') {
+            detail.appendChild(renderSocialHealth(brand));
         } else {
             detail.appendChild(renderIdentity(brand));
         }
@@ -334,6 +338,8 @@
             ['identity', 'Identity'],
             ['templates', 'Templates'],
             ['guidelines', 'Guidelines'],
+            ['library', 'Library'],
+            ['social', 'Social'],
         ];
         return h('div', { class: 'brand-detail-section-tabs', role: 'tablist', 'aria-label': 'Brand detail' }, tabs.map(([id, label]) => h('button', {
             type: 'button',
@@ -405,6 +411,96 @@
         if (applications.length) {
             panel.appendChild(renderApplications(applications, 'The group’s applications'));
         }
+        return panel;
+    }
+
+    function renderLibraryHealth(brand) {
+        const panel = h('div', { class: 'brand-panel' });
+        panel.appendChild(h('div', { class: 'brand-card' }, [
+            h('header', null, [
+                h('h4', { text: 'Business asset library' }),
+                h('span', { class: 'brand-count', text: 'read-only' }),
+            ]),
+            h('p', { class: 'brand-pack-summary', text: 'Pack files are referenced, not copied. Photography and covers stay proposed until reviewed.' }),
+        ]));
+        const body = h('div', { class: 'brand-library-health', text: 'Loading library health…' });
+        panel.appendChild(body);
+        fetch(`api/assets/health?brandId=${encodeURIComponent(brand.id)}`, { cache: 'no-store' })
+            .then((response) => response.json())
+            .then((health) => {
+                body.textContent = '';
+                const grid = h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(110px,1fr))', gap: '8px' } });
+                [['Total', health.total], ['Verified', health.verified], ['Proposed', health.proposed],
+                    ['Duplicates', health.duplicates], ['Orphaned', health.orphaned], ['Palette drift', health.paletteDrift]]
+                    .forEach(([label, value]) => {
+                        grid.appendChild(h('div', { class: 'brand-card', style: { padding: '10px' } }, [
+                            h('span', { class: 'brand-count', text: String(value ?? '—') }),
+                            h('p', { class: 'brand-pack-summary', text: label }),
+                        ]));
+                    });
+                body.appendChild(grid);
+                const link = h('a', {
+                    href: `library.html?brandId=${encodeURIComponent(brand.id)}`,
+                    target: '_blank',
+                    rel: 'noopener',
+                    text: 'Open the library for this brand →',
+                });
+                link.style.cssText = 'display:inline-block;margin-top:12px;color:var(--ls-accent);font-size:11px;font-weight:700';
+                body.appendChild(link);
+            })
+            .catch((error) => { body.textContent = error.message; });
+        return panel;
+    }
+
+    function renderSocialHealth(brand) {
+        const panel = h('div', { class: 'brand-panel' });
+        panel.appendChild(h('div', { class: 'brand-card' }, [
+            h('header', null, [
+                h('h4', { text: 'Business social intelligence' }),
+                h('span', { class: 'brand-count', text: 'read-only' }),
+            ]),
+            h('p', { class: 'brand-pack-summary', text: 'Channels, reputation, themes and voice from the latest scraped social profile.' }),
+        ]));
+        const body = h('div', { class: 'brand-library-health', text: 'Loading social profile…' });
+        panel.appendChild(body);
+        fetch(`api/social/by-brand?brandId=${encodeURIComponent(brand.id)}&name=${encodeURIComponent(brand.name || '')}`, { cache: 'no-store' })
+            .then((response) => response.json())
+            .then((payload) => {
+                body.textContent = '';
+                const dataset = payload.dataset;
+                if (!dataset) {
+                    body.appendChild(h('p', { class: 'brand-pack-summary', text: 'No scraped social profile matched this brand yet. Run Brand intake with the social phase enabled.' }));
+                    const crawler = h('a', { href: 'crawler.html', text: 'Open Brand intake →' });
+                    crawler.style.cssText = 'display:inline-block;margin-top:10px;color:var(--ls-accent);font-size:11px;font-weight:700';
+                    body.appendChild(crawler);
+                    return;
+                }
+                const intel = dataset.intelligence || {};
+                const grid = h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(105px,1fr))', gap: '8px' } });
+                [
+                    ['Followers', dataset.intelligence?.totalFollowers],
+                    ['Rating', dataset.reputation?.rating == null ? '—' : dataset.reputation.rating.toFixed(1)],
+                    ['Reviews', dataset.reputation?.totalReviews],
+                    ['Channels', dataset.intelligence?.presentChannels],
+                    ['Actions', intel.actions?.length || 0],
+                ].forEach(([label, value]) => {
+                    grid.appendChild(h('div', { class: 'brand-card', style: { padding: '10px' } }, [
+                        h('span', { class: 'brand-count', text: String(value ?? '—') }),
+                        h('p', { class: 'brand-pack-summary', text: label }),
+                    ]));
+                });
+                body.appendChild(grid);
+                body.appendChild(h('p', { class: 'brand-pack-summary', style: { marginTop: '10px', color: intel.tone === 'risk' ? '#a3342b' : '' }, text: `${intel.title || 'Social reading'} — ${intel.summary || ''}` }));
+                const link = h('a', {
+                    href: `social.html?brandId=${encodeURIComponent(brand.id)}&name=${encodeURIComponent(brand.name || '')}`,
+                    target: '_blank',
+                    rel: 'noopener',
+                    text: 'Open the full social reading →',
+                });
+                link.style.cssText = 'display:inline-block;margin-top:12px;color:var(--ls-accent);font-size:11px;font-weight:700';
+                body.appendChild(link);
+            })
+            .catch((error) => { body.textContent = error.message; });
         return panel;
     }
 

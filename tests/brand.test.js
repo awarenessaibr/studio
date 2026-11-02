@@ -227,6 +227,32 @@ test('normalizeBrandPack carries palette, type, voice and assets', () => {
     assert.strictEqual(brand.guidelines.applications.length, 2);
 });
 
+test('normalizeBrandPack keeps structured crawler menu content', () => {
+    const pack = Brand.normalizeBrandPack({
+        name: 'Content Pack',
+        brands: [{
+            id: 'content-brand',
+            name: 'Content Brand',
+            content: {
+                menu: {
+                    title: 'Menu',
+                    sections: [{
+                        name: 'Small plates',
+                        items: [{ name: 'Bread', price: '£4', description: 'butter' }],
+                    }],
+                },
+                hours: { mon: '12–10pm' },
+                bookingUrl: 'https://content.example/book',
+            },
+        }],
+    });
+    const brand = pack.brands[0];
+    assert.equal(brand.content.menu.sections[0].name, 'Small plates');
+    assert.equal(brand.content.menu.sections[0].items[0].price, '£4');
+    assert.equal(brand.content.hours.mon, '12–10pm');
+    assert.equal(brand.content.bookingUrl, 'https://content.example/book');
+});
+
 test('normalizeBrandPack preserves percent-encoded asset URLs', () => {
     const pack = Brand.normalizeBrandPack({
         name: 'Encoded pack',

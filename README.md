@@ -19,6 +19,10 @@ runs unchanged under Node for tests.
 | **Layer Studio v2** | `/` or `/studio-v2.html` | Compose, animate and export layered scenes and templates. Segments, keyframes, presets, text, formats, variables, characters, AI animation ideas. | [layer-studio.md](docs/layer-studio.md) |
 | **Asset Studio** | `/asset-studio.html` | Produce final, on-brand artwork fast: flyers, menus, vouchers, cards, social, signage, packaging and compliance labels, with print- and screen-ready output. | [asset-studio.md](docs/asset-studio.md) |
 | **Brand identity** | sidebar of the studio | Import a brand-kit ZIP, read the Word guides, browse palette/type/logos/guidelines and generate starter templates. Also available as a drawer inside Asset Studio. | [brand-packs.md](docs/brand-packs.md) |
+| **Brand intake** | `/crawler.html` | Search a business, confirm its website/social profiles, queue several restaurants as a group, run the combined crawler one by one and import the finished group ZIP into Asset Studio. | [crawler.md](docs/crawler.md) |
+| **Asset library** | `/library.html` | Business Asset Intelligence: index pack assets and uploads, review and classify them, apply usage rules and feed the Asset Studio photo slot and print gate. | [asset-library.md](docs/asset-library.md) |
+| **Voice Studio** | `/voice.html` | Local MLX-Audio speech, two-direction voice design, auditions and saving spoken audio to the asset library. | [voice-studio.md](docs/voice-studio.md) |
+| **Social intelligence** | `/social.html` | Channels, reputation, review themes and voice read from scraped social profiles, with a per-brand tab. | [social-intelligence.md](docs/social-intelligence.md) |
 
 Two more entry points exist and are documented but secondary:
 `/studio.html` is the **classic, frozen** Layer Studio (layers + animation
@@ -58,6 +62,10 @@ modules: none.
 | Multi-format templates | One design must fit feed, story, leaderboard, print | Format bar / Variables | [layer-studio.md](docs/layer-studio.md#7-formats-and-templates) |
 | Typed template variables | Copy, colours or images should be swapped per channel | Variables panel | [layer-studio.md](docs/layer-studio.md#7-formats-and-templates) |
 | Brief ingestion | One CSV/XLSX row per creative → N exports | Tools → *Brief…* or CLI | [api-and-cli.md](docs/api-and-cli.md#5-briefs-in-detail) |
+| New business intake | A name needs a complete brand pack, not a hand-built ZIP | Brand intake | [crawler.md](docs/crawler.md) |
+| Existing business assets | A team already owns logos, photos, menus and documents and needs to find, verify and reuse them | Asset library | [asset-library.md](docs/asset-library.md) |
+| A spoken brand line | Copy needs a voice, or a voice needs to be designed from a description | Voice Studio | [voice-studio.md](docs/voice-studio.md) |
+| What the public says | Channels, reviews, themes and voice need to be read together, with the gaps visible | Social intelligence | [social-intelligence.md](docs/social-intelligence.md) |
 | Brand packs + guides | You have a scraped brand-kit ZIP with Word guides | Brand identity | [brand-packs.md](docs/brand-packs.md) |
 | Starter brand templates | A new brand needs a menu/card/flyer/voucher in seconds | Brand identity → Templates | [brand-packs.md](docs/brand-packs.md#6-starter-templates) |
 | Final brand assets | You need a finished social post or print PDF, not a scene | Asset Studio | [asset-studio.md](docs/asset-studio.md) |
@@ -82,6 +90,25 @@ studio-layers/
 ├── studio-v2.js            ← its page behaviour (tree, zoom, organizer, saved)
 ├── studio.html             ← classic studio (frozen, banner in page)
 ├── asset-studio.html       ← final-asset surface
+├── crawler.html            ← brand intake (search → crawl → import)
+├── crawler.css / crawler.js ← its styles and behaviour
+├── crawler-service.js      ← crawler JSON calls + background run manager
+├── library.html            ← Business Asset Intelligence library
+├── library.css / library.js ← review, filters, operations, upload
+├── asset-intel.js          ← shared asset schema, taxonomy and usage rules
+├── asset-store.js          ← reference-first asset store and indexing
+├── asset-service.js        ← optional Pillow sidecar runner
+├── voice.html              ← Voice Studio (speak + design)
+├── voice.css / voice.js    ← its styles and behaviour
+├── tts-server.mjs          ← MLX-Audio lifecycle and speech proxy
+├── voice-design-agent.mjs  ← two-direction voice recipes
+├── tts-config.mjs          ← STUDIO_TTS_* configuration
+├── social.html             ← Social intelligence (channels + reputation)
+├── social.css / social.js  ← its styles and behaviour
+├── social-intel.js         ← social normaliser and evidence actions
+├── social-store.js         ← read-only social dataset index
+├── scripts/
+│   └── crawler-combined.py ← website + social crawler (Python)
 ├── _.css                   ← shared Layer Studio styles
 ├── _.js                    ← Layer Studio engine (single IIFE, ~9.5k lines)
 ├── studio-core.js          ← shared schema + the one render path (browser + Node)
@@ -122,6 +149,10 @@ git; back it up like any other document folder.
 | [layer-studio.md](docs/layer-studio.md) | Every panel, control and workflow in Layer Studio v2 (plus the classic page) |
 | [asset-studio.md](docs/asset-studio.md) | Asset Studio: gate, categories, controls, saved assets, PNG/print/print-pack |
 | [brand-packs.md](docs/brand-packs.md) | Brand-kit ZIP structure, what the importer reads, identity UI, templates, brand kits |
+| [crawler.md](docs/crawler.md) | Brand intake UI, combined website + social crawler, search/discovery, run jobs and output contract |
+| [asset-library.md](docs/asset-library.md) | Business Asset Intelligence: record schema, store, review library, usage rules and Asset Studio integration |
+| [voice-studio.md](docs/voice-studio.md) | Local speech, the MLX-Audio lifecycle, the two-direction voice-design agent and audio library integration |
+| [social-intelligence.md](docs/social-intelligence.md) | Scraped social channels, reputation, themes, voice and the deterministic reading behind them |
 | [architecture.md](docs/architecture.md) | Module boundaries, data model, single render path, storage layout |
 | [agent-protocol.md](docs/agent-protocol.md) | `layer-studio/agent/v1`: spec shape, commands, presets, character control |
 | [api-and-cli.md](docs/api-and-cli.md) | Every endpoint, the CLI, briefs, limits and environment variables |
@@ -129,13 +160,14 @@ git; back it up like any other document folder.
 | [scraped-brand-kit-review.md](docs/scraped-brand-kit-review.md) | Audit of the AseniGroup/Monteleone scrape: what is usable, what the importer reads, and what a brand-pack drop still needs |
 | [scraped-july-dalton-review.md](docs/scraped-july-dalton-review.md) | Audit of the v2 Julie Dalton / St Andrews drop: schema progress, asset regressions, social scrape, and merge guidance for the existing Dalton pack |
 | [history.md](docs/history.md) | How the project got here, what changed, where the old plans live |
+| [business-asset-intelligence.md](docs/business-asset-intelligence.md) | **Proposal, not built:** the asset-intelligence layer above brand packs and Asset Studio — audit of the brief against the code, asset schema, API, studio hooks, phases and limits |
 
 ---
 
 ## Verify a checkout
 
 ```bash
-npm test                  # 104 Node tests: schema, render path, server guards, CLI
+npm test                  # 127 Node tests: schema, render path, server guards, crawler safety, asset intelligence, social intelligence, voice design, CLI
 npm run test:smoke        # 68 checks in Chromium against the real studio
 npm run test:asset-studio # 57 checks in Chromium across all five brand groups
 npm run test:visual       # 8 fixtures × formats, DOM vs canvas vs SVG
@@ -150,8 +182,12 @@ installed Chrome (`CHROME_PATH` overrides it). They write screenshots to
 
 ## Principles
 
-- **No build step, no dependencies.** Browser-native APIs and the Node
-  standard library only. `package.json` contains scripts, not packages.
+- **No build step, no dependencies** for the browser studio or Node server.
+  Browser-native APIs and the Node standard library only. `package.json`
+  contains scripts, not packages. The optional Python intake crawler,
+  image-analysis sidecar and MLX-Audio runtime live outside the Node app; see
+  [crawler.md](docs/crawler.md), [asset-library.md](docs/asset-library.md) and
+  [voice-studio.md](docs/voice-studio.md).
 - **One render path.** Screen, PNG, GIF, video, SVG, contact sheet, batch and
   agent exports all resolve layers through `resolveLayer()` and lay out text
   through `layoutText()`. See [architecture.md](docs/architecture.md).

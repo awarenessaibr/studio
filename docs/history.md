@@ -75,6 +75,46 @@ shapes with a transparent PNG and a vector cut line, tabular copy blocks
 export profiles (print / screen / thermal), large-format dpi defaults,
 multi-slide rendering and numbered slide export.
 
+### Phase 8 — brand intake
+The website and social crawlers were consolidated into
+`scripts/crawler-combined.py`, then given an intake UI (`crawler.html` +
+`crawler-service.js`) so a business name can be searched, confirmed and
+crawled without editing the script's `SITES` block. The first review of this
+pipeline (July Dalton) exposed and fixed the Wix CDN/`srcset` image loss,
+HTML-as-image downloads, next-line menu prices, SVG `viewBox` casing, Wix
+palette colours, framework font names, the phantom `social` brand on import
+and footer addresses overriding a confirmed target.
+
+### Phase 9 — Business Asset Intelligence
+The asset library turns the brand packs into a reference-first business library:
+191 pack assets indexed into a reviewable record schema, uploads, optional
+Pillow inspection, usage profiles, brand fit, dedupe and a print/export gate.
+Asset Studio gains a Business library section, menu-row insertion and usage
+events; Brand identity gains a per-brand Library tab; `/library.html` is the
+review surface. The shared contract lives in `asset-intel.js`; the store in
+`asset-store.js`; the optional sidecar in `scripts/asset-intel.py`.
+
+### Phase 10 — Voice Studio
+The TTS seam from OIA (`tts-server.mjs`) and its voice-design agent
+(`voice-design-agent.mjs`) were ported into Studio Layers: optional managed
+MLX-Audio, a two-direction agent with a labelled curated fallback, a focused
+`voice.html`, and audio saved as a library `content` asset. Connectors, auth,
+approvals, segmentation, transcription and embedding search remain out of scope.
+
+### Phase 11 — Business social intelligence
+The crawler's social profiles become a readable surface: `/social.html` shows
+channels, reputation, themes, voice and deterministic actions; Brand identity
+adds a per-brand Social tab. `social-intel.js` normalises and qualifies the
+evidence, and `social-store.js` indexes scraped/run/pack copies read-only. The
+page explicitly labels thin review samples and missing channels.
+
+### Phase 12 — Restaurant groups in intake
+The intake can queue up to 12 restaurants as one group, persisted locally and
+de-duplicated by website. The Node service writes all targets to `target.json`
+and passes every URL to the existing sequential Python pipeline; the progress
+panel shows the queue and the current `[n/N]` position. One group ZIP comes out,
+not one run per restaurant.
+
 ---
 
 ## 2. Deliberate deviations from the original plans
@@ -124,7 +164,7 @@ download), so scripts and tests can read the spec.
 - Test harnesses honour `PLAYWRIGHT_PATH` instead of hard-coding one machine
   path.
 
-The current state is verified by 104 Node tests, 68 studio checks and 38
+The current state is verified by 127 Node tests, 68 studio checks and 57
 Asset Studio checks in Chromium, plus the visual corpus.
 
 ---

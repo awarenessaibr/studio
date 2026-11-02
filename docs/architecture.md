@@ -38,6 +38,17 @@ brand-aware canvas engine. Dependency-free modules sit between them:
 | `_.js` | browser | The Layer Studio engine: state, DOM, canvas, timeline, characters, exports, agent protocol |
 | `studio-v2.js` | browser | The studio page's own behaviour: zoom/fit, segment tree, group export, organizer dialog, saved projects |
 | `asset-studio/*.js` | browser | Brand adapter, 50 designs, canvas engine (shapes, tabular blocks, motifs), CMYK PDF writer with cut lines |
+| `crawler-service.js` | Node | Spawns the Python crawler, validates intake targets, manages background runs and logs |
+| `asset-intel.js` | browser + Node | Asset schema, taxonomy, fit/usage rules and pHash helpers |
+| `asset-store.js` | Node | Reference-first asset records, pack indexing, ingest, operations, usage and health |
+| `asset-service.js` | Node | Optional Pillow sidecar runner |
+| `tts-server.mjs` | Node | Optional MLX-Audio lifecycle, model registration and speech proxy |
+| `voice-design-agent.mjs` | Node | Two-direction voice recipes, validation and per-user sessions |
+| `tts-config.mjs` | Node | MLX-Audio/cache configuration |
+| `social-intel.js` | browser + Node | Social normaliser, posture/action rules and brand matching |
+| `social-store.js` | Node | Read-only index of scraped social profiles |
+| `scripts/crawler-combined.py` | Python | Website crawl + social/reputation crawl + brand-pack writer (the only dependency-bearing part) |
+| `scripts/asset-intel.py` | Python | Optional Pillow inspection, thumbnails, image operations, PDF/DOCX/OCR text |
 | `brand-identity.js` | browser | Brand identity workspace (dialog, gallery, templates) |
 
 There is no bundler. Each page loads exactly the scripts it needs, in order.
@@ -237,7 +248,7 @@ intentional unlink. Those rules are covered by `tests/server.test.js`.
 
 ## 6. Server
 
-`server.js` is ~3.9k lines of Node standard library. It contains:
+`server.js` is ~4k lines of Node standard library. It contains:
 
 | Area | Notes |
 |---|---|

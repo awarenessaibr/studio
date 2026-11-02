@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Voice Studio — speak brand copy through a local MLX-Audio server, design a voice from a sentence, audition two directions and save the audio to the business asset library.">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231a1a2e'/%3E%3Ctext x='16' y='23' font-family='Georgia,serif' font-size='18' fill='%23f2eee7' text-anchor='middle'%3EV%3C/text%3E%3C/svg%3E">
+    <title>Voice Studio — Studio Layers</title>
+    <link rel="stylesheet" href="asset-studio/app.css">
+    <link rel="stylesheet" href="voice.css">
+</head>
+
+<body>
+    <header class="voice-topbar">
+        <a class="voice-brand" href="studio-v2.html" aria-label="Studio Layers home">
+            <span class="voice-mark">V</span>
+            <span class="voice-brand-copy"><strong>Studio Layers</strong><small>Voice Studio</small></span>
+        </a>
+        <nav class="voice-nav" aria-label="Studio">
+            <a href="studio-v2.html">Studio</a>
+            <a href="asset-studio.html">Asset Studio</a>
+            <a href="crawler.html">Brand intake</a>
+            <a href="library.html">Library</a>
+            <a href="social.html">Social</a>
+            <a class="is-current" href="voice.html" aria-current="page">Voice</a>
+        </nav>
+    </header>
+
+    <main class="voice">
+        <section class="voice-hero">
+            <div>
+                <p class="eyebrow">Local speech, brand voice</p>
+                <h1>Give the brand a voice.</h1>
+                <p class="voice-lede">Speak a line through MLX-Audio, or describe the voice you want and let the
+                    voice director return two complete directions. Audition both, apply one, save the audio to the
+                    business asset library.</p>
+            </div>
+            <div class="voice-hero-actions">
+                <a class="button" href="library.html?class=content">Audio in the library</a>
+                <button type="button" class="button" id="ttsStopBtn" hidden>Stop server</button>
+            </div>
+        </section>
+
+        <section class="tts-status" id="ttsStatus" aria-live="polite">
+            <span class="tts-dot"></span>
+            <div>
+                <strong id="ttsStatusTitle">Checking the speech server…</strong>
+                <p id="ttsStatusText">MLX-Audio is optional. Start it here once the cached model is available.</p>
+            </div>
+            <div class="tts-status-actions">
+                <button type="button" class="button primary" id="ttsStartBtn">Start MLX-Audio</button>
+                <button type="button" class="button small" id="ttsRefreshBtn">Refresh</button>
+            </div>
+        </section>
+
+        <div class="voice-layout">
+            <section class="voice-panel" aria-labelledby="speakTitle">
+                <header class="panel-head">
+                    <div>
+                        <p class="eyebrow">Speak</p>
+                        <h2 id="speakTitle">Text to speech</h2>
+                    </div>
+                    <span class="panel-pill" id="modelPill">no model</span>
+                </header>
+
+                <div class="voice-grid">
+                    <label class="field">
+                        <span>Model</span>
+                        <select id="speakModel"><option value="">Start the server to list models</option></select>
+                    </label>
+                    <label class="field">
+                        <span>Voice <em>optional</em></span>
+                        <select id="speakVoice"><option value="">Designed voice / model default</option></select>
+                    </label>
+                    <label class="field">
+                        <span>Language</span>
+                        <select id="speakLanguage">
+                            <option value="auto">Automatic</option>
+                            <option value="english">English</option>
+                            <option value="portuguese">Portuguese</option>
+                            <option value="spanish">Spanish</option>
+                            <option value="french">French</option>
+                            <option value="german">German</option>
+                            <option value="italian">Italian</option>
+                            <option value="japanese">Japanese</option>
+                            <option value="chinese">Chinese</option>
+                            <option value="korean">Korean</option>
+                        </select>
+                    </label>
+                    <label class="field">
+                        <span>Format</span>
+                        <select id="speakFormat">
+                            <option value="wav">WAV</option>
+                            <option value="mp3">MP3</option>
+                        </select>
+                    </label>
+                </div>
+
+                <label class="field">
+                    <span>Text to speak</span>
+                    <textarea id="speakText" rows="6" maxlength="20000">A calm voice can make a complicated story easier to follow.</textarea>
+                </label>
+                <label class="field">
+                    <span>Voice direction <em>instruct</em></span>
+                    <textarea id="speakInstruct" rows="3" maxlength="1600" placeholder="Use a warm delivery. Speak slowly. Close and intimate."></textarea>
+                </label>
+                <div class="speak-controls">
+                    <label class="range-field">
+                        <span>Rate <output id="rateOut">1.00×</output></span>
+                        <input id="speakRate" type="range" min="0.5" max="2" step="0.05" value="1">
+                    </label>
+                    <button type="button" class="button primary" id="speakBtn">Generate speech</button>
+                </div>
+
+                <div id="speakStatus" class="inline-status" hidden></div>
+                <div id="audioResult" class="audio-result" hidden>
+                    <audio id="audioPlayer" controls preload="metadata"></audio>
+                    <div class="audio-actions">
+                        <a class="button small" id="audioDownload" download="voice.wav">Download</a>
+                        <span class="hint" id="audioMeta"></span>
+                    </div>
+                    <div class="save-library">
+                        <div class="save-library-head">
+                            <strong>Save to asset library</strong>
+                            <span>Keep the spoken line as a content asset.</span>
+                        </div>
+                        <div class="voice-grid">
+                            <label class="field">
+                                <span>Pack <em>optional</em></span>
+                                <select id="savePack"><option value="">No pack</option></select>
+                            </label>
+                            <label class="field">
+                                <span>Brand <em>optional</em></span>
+                                <select id="saveBrand"><option value="">No brand</option></select>
+                            </label>
+                        </div>
+                        <div class="audio-actions">
+                            <button type="button" class="button small" id="saveAudioBtn">Save audio</button>
+                            <span class="hint" id="saveAudioStatus"></span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="voice-panel agent-panel" aria-labelledby="agentTitle">
+                <header class="panel-head">
+                    <div>
+                        <p class="eyebrow">Agent</p>
+                        <h2 id="agentTitle">Design a voice by describing it</h2>
+                    </div>
+                    <button type="button" class="button small" id="newSessionBtn">New session</button>
+                </header>
+                <p class="panel-note">Exactly two complete, distinct directions. Audition both, then apply one to the
+                    speech form. Sessions are stored locally.</p>
+
+                <div id="agentTranscript" class="agent-transcript" aria-live="polite"></div>
+
+                <form id="agentForm" class="agent-composer">
+                    <label class="field">
+                        <span>Describe the voice</span>
+                        <textarea id="agentMessage" rows="3" maxlength="2000" placeholder="Warm documentary narrator in Brazilian Portuguese, adult male, measured and intimate, dry studio."></textarea>
+                    </label>
+                    <div class="agent-examples" id="agentExamples">
+                        <button type="button" class="example-chip" data-example="Warm documentary narrator in Brazilian Portuguese, adult male, measured and intimate, dry studio.">Warm documentary</button>
+                        <button type="button" class="example-chip" data-example="Energetic sports promo, British English, bright and punchy, wide stadium space.">Sports promo</button>
+                        <button type="button" class="example-chip" data-example="Gentle bedtime-story voice, European Portuguese, slow and breathy, close and cozy.">Bedtime story</button>
+                        <button type="button" class="example-chip" data-example="Stern investigative reporter, American English, crisp articulation, dry room, low register.">Investigative</button>
+                    </div>
+                    <div class="agent-actions">
+                        <span class="hint" id="agentHint">The two proposals are saved for this local user.</span>
+                        <button type="submit" class="button primary" id="agentBtn">Generate 2 directions</button>
+                    </div>
+                </form>
+
+                <div class="agent-history">
+                    <button type="button" class="linkish" id="historyToggle" aria-expanded="false">History</button>
+                    <div id="historyList" class="history-list" hidden></div>
+                </div>
+            </section>
+        </div>
+
+        <section class="voice-help">
+            <article>
+                <strong>What runs where</strong>
+                <p>The page talks to this Studio server. The server manages an optional MLX-Audio process on
+                    <code>127.0.0.1:8771</code>; model weights stay in the existing Hugging Face cache.</p>
+            </article>
+            <article>
+                <strong>What is honest</strong>
+                <p>No speech server means no audio. The voice agent falls back to two curated directions when no local
+                    language model is available; it never invents a reference transcript.</p>
+            </article>
+            <article>
+                <strong>What this is not</strong>
+                <p>No WhatsApp/Drive/email connectors, auth, approvals, segmentation, transcription or embedding search
+                    in this increment. No freeform Asset Studio placement: audio is saved as a library content asset.</p>
+            </article>
+        </section>
+    </main>
+
+    <script src="voice.js"></script>
+</body>
+
+</html>

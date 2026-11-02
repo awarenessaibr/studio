@@ -1412,3 +1412,77 @@ img { max-width: 100%; }
     font-size: 11px;
     line-height: 1.5;
 }
+
+/* ── Business library in the Image tab ─────────────────────────────── */
+
+.business-library {
+    margin: 14px 0 18px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface-2);
+}
+
+.business-library-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 9px;
+}
+
+.business-library-head h3 { font-size: 12px; font-weight: 800; }
+.business-library-head p { margin-top: 2px; color: var(--muted); font-size: 10.5px; line-height: 1.4; }
+.business-library-link { color: var(--accent); font-size: 10.5px; font-weight: 750; text-decoration: none; white-space: nowrap; }
+.business-library-link:hover { text-decoration: underline; }
+
+.business-library-filters { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; margin-bottom: 9px; }
+.library-filter {
+    padding: 3px 7px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 9px;
+    font-weight: 750;
+    text-transform: capitalize;
+}
+.library-filter[data-active="true"] { border-color: var(--ink); background: var(--ink); color: var(--surface); }
+.business-library-filters .check { margin-left: auto; font-size: 9.5px; }
+
+.business-library-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
+    gap: 6px;
+}
+
+.business-library-tile {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+    padding: 4px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--ink);
+    text-align: left;
+}
+.business-library-tile:hover { border-color: var(--accent); }
+.business-library-tile img {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 5px;
+    background: #fff;
+    object-fit: contain;
+}
+.library-tile-name { overflow: hidden; font-size: 9px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.library-tile-meta { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 8px; text-transform: capitalize; }
+.library-state { width: 5px; height: 5px; flex: 0 0 auto; border-radius: 50%; background: var(--warn, #b28a3d); }
+.library-state[data-state="verified"] { background: var(--ok, #2e7d53); }
+.library-state[data-state="rejected"] { background: var(--danger); }
+
+.btn:disabled,
+.ghost:disabled {
+    cursor: not-allowed;
+    opacity: .45;
+}

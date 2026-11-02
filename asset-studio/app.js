@@ -81,6 +81,9 @@
         none: 'None',
     };
 
+    let printWarnings = [];
+    let printWarningAcknowledged = false;
+
     const printOptions = {
         bleed: 3,
         safe: 4,
@@ -524,11 +527,17 @@ Chocolate hazelnut spread | Deez Nuts`,
         saved: [],
         activeTab: 'colours',
         loadingPack: false,
+        libraryAssets: [],
+        libraryRows: [],
+        libraryClass: '',
+        libraryVerifiedOnly: false,
+        libraryLoadedBrand: '',
     };
 
     const el = {};
     const imageCache = new Map();
     const packCache = new Map();
+    const libraryCache = new Map();
     const LAST_BRANDS_KEY = 'assetStudio.lastBrands.v1';
     const defaultTextCache = new Map();
     let previewFrame = 0;
@@ -690,6 +699,35 @@ Chocolate hazelnut spread | Deez Nuts`,
         if (defaultTextCache.has(key)) return { ...defaultTextCache.get(key) };
         const text = {};
         const source = { ...(template.t || {}) };
+        // A crawler pack carries structured menu content. Prefill the menu
+        // designs with it instead of the generic scallops/beef set.
+        const brandContent = state.brand?.content;
+        if (state.categoryId === 'menu' && brandContent) {
+            const menu = brandContent.menu || brandContent.drinks;
+            if (menu && Array.isArray(menu.sections) && menu.sections.length) {
+                const lines = [];
+                // A printed menu needs air. The crawler can return 30+ dishes;
+                // keep the first three sections / ten lines so the layout
+                // stays legible, and let the user paste more in the Text tab.
+                menu.sections.slice(0, 3).forEach((section) => {
+                    if (lines.length >= 10) return;
+                    const items = Array.isArray(section.items) ? section.items : [];
+                    if (!items.length) return;
+                    if (section.name) lines.push(`# ${section.name}`);
+                    items.slice(0, 5).forEach((item) => {
+                        if (!item || !item.name || lines.length >= 10) return;
+                        const description = item.description && item.description.length <= 70
+                            ? item.description
+                            : '';
+                        lines.push([item.name, description, item.price || ''].join(' | '));
+                    });
+                });
+                if (lines.length) {
+                    source.items = lines.join('\n');
+                    source.title = menu.title || 'Menu';
+                }
+            }
+        }
         const copy = BRAND_COPY[state.brand?.id];
         if (copy) {
             Object.entries(copy).forEach(([field, value]) => {
@@ -883,7 +921,7 @@ Chocolate hazelnut spread | Deez Nuts`,
         const instagram = contactValue('Instagram') || '';
         const site = website();
         const tagline = brand.tagline || '';
-        return value
+        let result = value
             .replace(/the adamson\s*\|\s*THE PHYSICIAN/gi, brand.name)
             .replace(/THE PHYSICIAN/g, brand.name.toUpperCase())
             .replace(/The Physician/g, brand.name)
@@ -893,9 +931,18 @@ Chocolate hazelnut spread | Deez Nuts`,
             .replace(/www\.hatchstandrews\.com/gi, site)
             .replace(/@thephysician_standrews/gi, instagram)
             .replace(/@theadamsonstandrews/gi, instagram)
-            .replace(/@hatch_standrews/gi, instagram)
-            .replace(/129 South Street, St Andrews, KY16 9UH/gi, address)
-            .replace(/127 South Street, St Andrews, KY16 9UH/gi, address)
+            .replace(/@hatch_standrews/gi, instagram);
+        // Only swap the template's address if it is not already using the
+        // brand's address. Applying both 129 and 127 replacements in sequence
+        // double-appends the country when the contact value ends in ", GB".
+        if (!result.includes(address)) {
+            if (/129 South Street, St Andrews, KY16 9UH/i.test(result)) {
+                result = result.replace(/129 South Street, St Andrews, KY16 9UH/gi, address);
+            } else if (/127 South Street, St Andrews, KY16 9UH/i.test(result)) {
+                result = result.replace(/127 South Street, St Andrews, KY16 9UH/gi, address);
+            }
+        }
+        return result
             .replace(/reservations@theadamson\.com/gi, email)
             .replace(/reservations@hatchstandrews\.com/gi, email)
             .replace(/01334\s*479191/g, phone)
@@ -903,7 +950,8 @@ Chocolate hazelnut spread | Deez Nuts`,
             .replace(/Find your cure\./gi, tagline)
             .replace(/\s*·\s*·\s*/g, ' · ')
             .replace(/^\s*·\s*/, '')
-            .replace(/\s*·\s*$/, '');
+            .replace(/\s*·\s*$/, '')
+            .replace(/(,\s*GB)(,\s*GB)+/gi, ', GB');
     };
 
     const applyTheme = () => {
@@ -1169,7 +1217,9 @@ Chocolate hazelnut spread | Deez Nuts`,
             const session = readSession();
             const sessionPack = session?.brandId ? packSummaryForBrand(session.brandId) : null;
             const savedPackId = localStorage.getItem('assetStudio.packId');
-            const packId = sessionPack?.id
+            const requestedPackId = new URLSearchParams(location.search).get('pack');
+            const packId = (requestedPackId && packs.some((pack) => pack.id === requestedPackId) ? requestedPackId : null)
+                || sessionPack?.id
                 || (session?.packId && packs.some((pack) => pack.id === session.packId) ? session.packId : null)
                 || (packs.some((pack) => pack.id === savedPackId) ? savedPackId : packs[0].id);
             const pack = await loadPackData(packId);
@@ -1178,7 +1228,9 @@ Chocolate hazelnut spread | Deez Nuts`,
             renderGroupSelect();
             buildBrandSwitch();
             buildGate();
-            if (session && state.brands.some((brand) => brand.id === session.brandId)) {
+            if (requestedPackId === pack.id && state.brands.length === 1) {
+                await selectBrand(state.brands[0].id);
+            } else if (session && state.brands.some((brand) => brand.id === session.brandId)) {
                 await selectBrand(session.brandId, { restoreSession: true, session });
             } else {
                 showGate();
@@ -1497,6 +1549,11 @@ Chocolate hazelnut spread | Deez Nuts`,
         state.photoSources = media.sources.map((source) => ({ ...source }));
         state.photoIndex = 0;
         state.qr = '';
+        state.libraryAssets = [];
+        state.libraryRows = [];
+        state.libraryLoadedBrand = '';
+        libraryCache.clear();
+        loadLibraryForBrand(brand);
         state.fonts = defaultFontsForBrand(brand);
         applyBrandPalette();
 
@@ -1864,6 +1921,187 @@ Chocolate hazelnut spread | Deez Nuts`,
             'WOFF2, WOFF, TTF or OTF · max 2 MB. Uploaded fonts are stored by the studio backend and become available in every design.'));
     };
 
+    // ─── Business library (BAI) ─────────────────────────────────────
+    const loadLibraryForBrand = async (brand) => {
+        if (!brand?.id || state.libraryLoadedBrand === brand.id) return;
+        state.libraryLoadedBrand = brand.id;
+        try {
+            const data = await fetchJson(`${API}/assets?brandId=${encodeURIComponent(brand.id)}&limit=100`);
+            if (state.brand?.id !== brand.id) return;
+            state.libraryAssets = Array.isArray(data?.assets) ? data.assets : [];
+            state.libraryAssets.forEach((asset) => libraryCache.set(asset.id, asset));
+        } catch {
+            state.libraryAssets = [];
+        }
+        try {
+            const docs = await fetchJson(`${API}/assets?brandId=${encodeURIComponent(brand.id)}&class=business-document&limit=20`);
+            const rows = [];
+            for (const summary of (docs?.assets || [])) {
+                if (!summary.extracted?.rows) continue;
+                try {
+                    const { asset } = await fetchJson(`${API}/assets/${encodeURIComponent(summary.id)}`);
+                    if (asset?.extracted?.rows?.length) rows.push(...asset.extracted.rows);
+                } catch { /* ignore one bad document */ }
+                if (rows.length) break;
+            }
+            if (state.brand?.id === brand.id) state.libraryRows = rows;
+        } catch {
+            state.libraryRows = [];
+        }
+        if (state.brand?.id === brand.id && ['image', 'text'].includes(state.activeTab)) renderControlBody();
+    };
+
+    const libraryRecord = (id) => {
+        if (!id) return null;
+        const cached = libraryCache.get(id);
+        if (cached?.identity) return cached;
+        const summary = state.libraryAssets.find((asset) => asset.id === id);
+        if (!summary) return cached || null;
+        return {
+            ...summary,
+            identity: {
+                width: summary.width, height: summary.height, format: summary.format,
+                bytes: summary.bytes, palette: [],
+            },
+            review: { state: summary.state, by: 'library', at: null, note: '' },
+            binding: { packId: summary.packId, brandId: summary.brandId, match: 'declared', confidence: 1 },
+            source: { kind: 'pack', packId: summary.packId, brandId: summary.brandId, path: '', originName: summary.name },
+            status: summary.status || 'active',
+            master: summary.master || { isMaster: true, of: null },
+            usageLog: { designs: 0, downloads: 0, lastUsedAt: null },
+        };
+    };
+
+    const activeLibraryAsset = () => {
+        const source = state.photoSources[state.photoIndex];
+        return source?.assetId ? libraryRecord(source.assetId) : null;
+    };
+
+    const exportVerdict = (surface = 'export') => {
+        const asset = activeLibraryAsset();
+        if (!asset || !window.AssetIntel) return { ok: true, blockers: [], warnings: [] };
+        return window.AssetIntel.evaluateUsage([asset], {
+            spec: currentPrintSpec() || { w: currentSize().w, h: currentSize().h },
+            size: currentSize(),
+            profile: currentProfile(),
+            surface,
+        });
+    };
+
+    const recordAssetUsage = (action, extra = {}) => {
+        const source = state.photoSources[state.photoIndex];
+        if (!source?.assetId) return;
+        const events = [{
+            assetId: source.assetId,
+            action,
+            designId: extra.designId || '',
+            size: currentSize()?.n || '',
+            profile: currentProfile(),
+        }];
+        fetch(`${API}/assets/usage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ events }),
+            keepalive: true,
+        }).catch(() => {});
+    };
+
+    const selectLibraryAsset = async (summary) => {
+        try {
+            const { asset } = await fetchJson(`${API}/assets/${encodeURIComponent(summary.id)}`);
+            libraryCache.set(asset.id, asset);
+            if (!['image', 'photo', 'cover', 'logo'].includes(asset.role) && /pdf|docx/.test(asset.identity.format || '')) {
+                toast('This is a document, not a photo. Use its extracted rows in the Text tab.', true);
+                return;
+            }
+            const src = `/api/assets/${encodeURIComponent(asset.id)}/file/original`;
+            const image = await loadImage(src);
+            state.photos.push(image);
+            state.photoSources.push({
+                name: asset.name,
+                src,
+                uploaded: asset.source.kind === 'upload',
+                assetId: asset.id,
+                class: asset.class,
+                verified: asset.review.state === 'verified',
+            });
+            state.photoIndex = state.photos.length - 1;
+            renderControlBody();
+            schedulePreviewAndThumbs();
+            queueSession();
+            toast(`Using “${asset.name}” from the library.`);
+        } catch (error) {
+            toast(error.message || 'That asset could not be loaded.', true);
+        }
+    };
+
+    const renderLibrarySection = () => {
+        if (!state.libraryAssets.length && !state.libraryRows.length) return;
+        const wrap = make('section', 'business-library');
+        const head = make('div', 'business-library-head');
+        const title = make('div', null);
+        title.append(make('h3', null, 'Business library'), make('p', null,
+            'Pack files, staff uploads and documents. Only verified assets are used without a warning.'));
+        const link = make('a', 'business-library-link', 'Open library →');
+        link.href = `library.html?brandId=${encodeURIComponent(state.brand.id)}`;
+        head.append(title, link);
+        wrap.append(head);
+
+        const visualAssets = state.libraryAssets.filter((asset) => !['business-document', 'content'].includes(asset.class));
+        const classes = [...new Set(visualAssets.map((asset) => asset.class))];
+        const filters = make('div', 'business-library-filters');
+        ['', ...classes].forEach((value) => {
+            const chip = button(value ? value.replace(/-/g, ' ') : 'All', 'library-filter', () => {
+                state.libraryClass = value;
+                renderControlBody();
+            });
+            chip.dataset.active = String(state.libraryClass === value);
+            filters.append(chip);
+        });
+        const verified = make('label', 'check');
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = state.libraryVerifiedOnly;
+        checkbox.addEventListener('change', () => {
+            state.libraryVerifiedOnly = checkbox.checked;
+            renderControlBody();
+        });
+        verified.append(checkbox, document.createTextNode('Verified only'));
+        filters.append(verified);
+        wrap.append(filters);
+
+        const visible = visualAssets.filter((asset) => (
+            (!state.libraryClass || asset.class === state.libraryClass)
+            && (!state.libraryVerifiedOnly || asset.state === 'verified')
+        ));
+        if (!visible.length) {
+            wrap.append(make('p', 'hint', 'No library assets match this filter.'));
+            el.controlBody.append(wrap);
+            return;
+        }
+        const grid = make('div', 'business-library-grid');
+        visible.slice(0, 18).forEach((asset) => {
+            const tile = button(null, 'business-library-tile', () => selectLibraryAsset(asset));
+            const image = document.createElement('img');
+            image.src = asset.thumb || asset.sourceUrl;
+            image.alt = asset.name;
+            image.loading = 'lazy';
+            image.addEventListener('error', () => {
+                if (image.src !== location.origin + asset.sourceUrl) image.src = asset.sourceUrl;
+            });
+            tile.append(image);
+            tile.append(make('span', 'library-tile-name', asset.name));
+            const meta = make('span', 'library-tile-meta');
+            meta.append(make('i', 'library-state', ''));
+            meta.lastChild.dataset.state = asset.state;
+            meta.append(document.createTextNode(asset.class.replace(/-/g, ' ')));
+            tile.append(meta);
+            grid.append(tile);
+        });
+        wrap.append(grid);
+        el.controlBody.append(wrap);
+    };
+
     const renderImagePanel = () => {
         const template = currentTemplate();
         if (!templateHasPhoto(template)) {
@@ -1873,6 +2111,8 @@ Chocolate hazelnut spread | Deez Nuts`,
         }
         el.controlBody.append(make('p', 'control-note',
             'Brand photography is loaded from the active brand pack. Upload a shot to add it to this asset; it travels with a saved asset.'));
+
+        renderLibrarySection();
 
         const grid = make('div', 'photo-grid');
         state.photoSources.forEach((source, index) => {
@@ -2007,6 +2247,17 @@ Chocolate hazelnut spread | Deez Nuts`,
                 queueSession();
             });
             field.append(control);
+            if ((key === 'items' || key === 'wines') && state.libraryRows.length) {
+                const insert = button('Insert menu rows from the library', 'btn small', () => {
+                    control.value = state.libraryRows.join('\n');
+                    state.text[key] = control.value;
+                    schedulePreview();
+                    scheduleThumbs();
+                    queueSession();
+                    toast('Menu rows inserted. Edit them freely.');
+                });
+                field.append(insert);
+            }
             el.controlBody.append(field);
         });
         if (!fields.length) {
@@ -2120,11 +2371,34 @@ Chocolate hazelnut spread | Deez Nuts`,
         el.printBtn.hidden = !canPrint;
         el.jpgBtn.hidden = profile !== 'screen';
         el.downloadBtn.textContent = profile === 'thermal' ? 'Download greyscale PNG' : 'Download PNG';
-        el.exportNote.textContent = profile === 'screen'
+        const printVerdict = canPrint ? exportVerdict('print') : { blockers: [], warnings: [] };
+        const exportVerdictNow = exportVerdict('export');
+        const blocked = printVerdict.blockers.length > 0;
+        el.printPackBtn.disabled = blocked;
+        el.printBtn.disabled = blocked;
+        el.jpgBtn.disabled = exportVerdictNow.blockers.length > 0;
+        const note = profile === 'screen'
             ? 'Screen design · PNG or JPG · no print pack'
             : profile === 'thermal'
                 ? 'Thermal label · greyscale PNG · no CMYK'
                 : `${size.d ? `${size.d} · ` : ''}full resolution PNG`;
+        el.exportNote.textContent = note;
+        if (blocked) {
+            const reason = printVerdict.blockers[0].message;
+            el.exportNote.textContent = `${note} · ${reason}`;
+            el.printPackBtn.title = reason;
+            el.printBtn.title = reason;
+        } else {
+            el.printPackBtn.title = '';
+            el.printBtn.title = '';
+        }
+        const warnings = [...new Set([
+            ...printVerdict.warnings.map((warning) => warning.message),
+            ...exportVerdictNow.warnings.map((warning) => warning.message),
+        ])];
+        if (warnings.length && !blocked) {
+            el.exportNote.textContent = `${el.exportNote.textContent} · ${warnings[0]}`;
+        }
         el.designMeta.textContent = `${state.templateIndex + 1} of ${category.tpls.length}`;
         el.topbarHint.textContent = `${state.brand.name} · ${categoryLabel()} · ${template.n}`;
         document.title = `${state.brand.name} — ${template.n} · Asset Studio`;
@@ -2248,6 +2522,7 @@ Chocolate hazelnut spread | Deez Nuts`,
             const name = `${assetBaseName()}${profile === 'thermal' ? '-thermal' : ''}.png`;
             toast('Rendering the full-resolution PNG…');
             saveCanvas(canvas, name).then((blob) => {
+                if (blob) recordAssetUsage('download');
                 toast(blob ? `Downloaded ${name}` : 'The PNG could not be encoded. Try a smaller size.', !blob);
             });
         } catch (error) {
@@ -2256,6 +2531,11 @@ Chocolate hazelnut spread | Deez Nuts`,
     };
 
     const downloadJpg = () => {
+        const verdict = exportVerdict('export');
+        if (verdict.blockers.length) {
+            toast(verdict.blockers[0].message, true);
+            return;
+        }
         try {
             const source = fullSizeCanvas();
             const canvas = document.createElement('canvas');
@@ -2268,6 +2548,7 @@ Chocolate hazelnut spread | Deez Nuts`,
             const name = `${assetBaseName()}.jpg`;
             toast('Rendering the full-resolution JPG…');
             saveCanvas(canvas, name, 'image/jpeg', 0.92).then((blob) => {
+                if (blob) recordAssetUsage('download');
                 toast(blob ? `Downloaded ${name}` : 'The JPG could not be encoded.', !blob);
             });
         } catch (error) {
@@ -2296,6 +2577,11 @@ Chocolate hazelnut spread | Deez Nuts`,
     };
 
     const printAsset = () => {
+        const verdict = exportVerdict('print');
+        if (verdict.blockers.length) {
+            toast(verdict.blockers[0].message, true);
+            return;
+        }
         const canvas = fullSizeCanvas();
         const image = canvas.toDataURL('image/png');
         const win = window.open('', '_blank');
@@ -2543,6 +2829,13 @@ Chocolate hazelnut spread | Deez Nuts`,
             toast('This size cannot be prepared for print.', true);
             return;
         }
+        const verdict = exportVerdict('print');
+        if (verdict.blockers.length) {
+            toast(verdict.blockers[0].message, true);
+            return;
+        }
+        printWarnings = verdict.warnings;
+        printWarningAcknowledged = false;
         if (Number(spec.dpi)) printOptions.dpi = Number(spec.dpi);
         syncPrintOptions();
         el.printStatus.textContent = '';
@@ -2551,6 +2844,9 @@ Chocolate hazelnut spread | Deez Nuts`,
         el.printDialog.hidden = false;
         document.body.style.overflow = 'hidden';
         refreshPrintPreview();
+        if (printWarnings.length) {
+            el.printStatus.textContent = `Warnings: ${printWarnings.map((warning) => warning.message).join(' ')} Click Download once to acknowledge.`;
+        }
         el.printClose.focus();
     };
 
@@ -2567,6 +2863,18 @@ Chocolate hazelnut spread | Deez Nuts`,
             toast('This size cannot be prepared for print.', true);
             return;
         }
+        const verdict = exportVerdict('print');
+        if (verdict.blockers.length) {
+            toast(verdict.blockers[0].message, true);
+            return;
+        }
+        if (verdict.warnings.length && !printWarningAcknowledged) {
+            printWarnings = verdict.warnings;
+            printWarningAcknowledged = true;
+            el.printStatus.textContent = `Warnings: ${verdict.warnings.map((warning) => warning.message).join(' ')} Click Download print pack again to continue.`;
+            return;
+        }
+        if (verdict.warnings.length) printWarnings = verdict.warnings;
         const sides = printSides();
         const bleed = printOptions.bleed;
         const marks = printOptions.marks;
@@ -2623,6 +2931,7 @@ Chocolate hazelnut spread | Deez Nuts`,
             link.remove();
             window.setTimeout(() => URL.revokeObjectURL(url), 2000);
             el.printStatus.textContent = `PDF ready · ${(blob.size / 1024 / 1024).toFixed(1)} MB`;
+            recordAssetUsage('download');
             toast(`Downloaded ${filename} (${(blob.size / 1024 / 1024).toFixed(1)} MB).`);
         } catch (error) {
             el.printStatus.textContent = error.message || 'The print pack could not be written.';
@@ -2681,6 +2990,7 @@ Chocolate hazelnut spread | Deez Nuts`,
         }
         renderControlTabs();
         setActiveTab('saved');
+        recordAssetUsage('design', { designId: entry.id });
         toast(`Saved “${entry.name}”.`);
     };
 
@@ -2769,18 +3079,50 @@ Chocolate hazelnut spread | Deez Nuts`,
             return null;
         });
         if (!dataUrl) return;
-        const image = await loadImage(dataUrl).catch(() => null);
+        let source = { name: file.name || 'Uploaded image', src: dataUrl, uploaded: true };
+        let libraryAsset = null;
+        try {
+            const result = await fetchJson(`${API}/assets/ingest`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    packId: state.pack?.id,
+                    brandId: state.brand.id,
+                    files: [{ name: file.name || 'upload.jpg', dataUrl, rights: 'unknown' }],
+                }),
+            });
+            libraryAsset = result?.created?.[0] || null;
+            if (libraryAsset) {
+                source = {
+                    name: libraryAsset.name,
+                    src: libraryAsset.sourceUrl,
+                    uploaded: true,
+                    assetId: libraryAsset.id,
+                    class: libraryAsset.class,
+                    verified: false,
+                };
+                state.libraryAssets = [libraryAsset, ...state.libraryAssets.filter((item) => item.id !== libraryAsset.id)];
+                libraryCache.set(libraryAsset.id, libraryAsset);
+            }
+        } catch (error) {
+            // The studio still works when the backend is unavailable: keep the
+            // local data URL and let the operator save it later.
+            toast(`Library unavailable: ${error.message}`, true);
+        }
+        const image = await loadImage(source.src).catch(() => null);
         if (!image) {
             toast('That image could not be decoded.', true);
             return;
         }
         state.photos.push(image);
-        state.photoSources.push({ name: file.name || 'Uploaded image', src: dataUrl, uploaded: true });
+        state.photoSources.push(source);
         state.photoIndex = state.photos.length - 1;
         renderControlBody();
         schedulePreviewAndThumbs();
         queueSession();
-        toast(`Added “${file.name || 'image'}” to this asset.`);
+        toast(libraryAsset
+            ? `Added “${file.name || 'image'}” to this asset and the library.`
+            : `Added “${file.name || 'image'}” to this asset.`);
     };
 
     const uploadFont = async (file) => {

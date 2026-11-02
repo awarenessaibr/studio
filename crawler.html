@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Brand intake crawler — search a business, confirm its profiles, run the website + social crawl and import the resulting brand pack into Asset Studio.">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23e1543a'/%3E%3Ctext x='16' y='23' font-family='Georgia,serif' font-size='18' fill='%23fffdf9' text-anchor='middle'%3EI%3C/text%3E%3C/svg%3E">
+    <title>Brand intake — Studio Layers</title>
+    <link rel="stylesheet" href="asset-studio/app.css">
+    <link rel="stylesheet" href="crawler.css">
+</head>
+
+<body>
+    <header class="intake-topbar">
+        <a class="intake-brand" href="studio-v2.html" aria-label="Studio Layers home">
+            <span class="intake-mark">L</span>
+            <span class="intake-brand-copy"><strong>Studio Layers</strong><small>Brand intake</small></span>
+        </a>
+        <nav class="intake-nav" aria-label="Studio">
+            <a href="studio-v2.html">Studio</a>
+            <a href="asset-studio.html">Asset Studio</a>
+            <a class="is-current" href="crawler.html" aria-current="page">Intake</a>
+            <a href="library.html">Library</a>
+            <a href="voice.html">Voice</a>
+            <a href="social.html">Social</a>
+        </nav>
+    </header>
+
+    <main class="intake">
+        <section class="intake-hero">
+            <p class="eyebrow">From a name to a brand pack</p>
+            <h1>Find the business. Confirm what we found. Run the crawl.</h1>
+            <p class="intake-lede">Search by name, check the website and social profiles, then run the website +
+                reputation crawler. The finished ZIP imports straight into Asset Studio.</p>
+        </section>
+
+        <div id="readiness" class="readiness" role="status" aria-live="polite">
+            <span class="readiness-dot"></span>
+            <p>Checking the crawler…</p>
+        </div>
+
+        <div class="intake-layout">
+            <div class="intake-main">
+                <ol class="intake-steps">
+                    <li class="intake-step" data-step="search">
+                        <header class="step-head">
+                            <span class="step-number">1</span>
+                            <div>
+                                <h2>Find the business</h2>
+                                <p>Search a name; add the town if the name is common.</p>
+                            </div>
+                        </header>
+
+                        <form id="searchForm" class="search-form" autocomplete="off">
+                            <label class="field grow">
+                                <span>Business name</span>
+                                <input id="businessQuery" name="query" type="search" placeholder="e.g. The Physician"
+                                    required minlength="2" maxlength="160">
+                            </label>
+                            <label class="field city">
+                                <span>Town / city <em>optional</em></span>
+                                <input id="businessCity" name="city" type="text" placeholder="e.g. St Andrews" maxlength="100">
+                            </label>
+                            <button type="submit" class="button primary" id="searchBtn">Search</button>
+                        </form>
+
+                        <div class="search-foot">
+                            <p id="searchHint" class="hint">Uses Google Maps in a headless browser. If that is blocked,
+                                it falls back to OpenStreetMap and web search.</p>
+                            <button type="button" class="linkish" id="manualToggle">I know the website →</button>
+                        </div>
+
+                        <form id="manualForm" class="manual-form" hidden>
+                            <label class="field grow">
+                                <span>Website URL</span>
+                                <input id="manualWebsite" type="url" placeholder="https://example.com" required>
+                            </label>
+                            <label class="field city">
+                                <span>Business name</span>
+                                <input id="manualName" type="text" placeholder="Optional" maxlength="120">
+                            </label>
+                            <button type="submit" class="button" id="manualBtn">Use website</button>
+                        </form>
+
+                        <div id="searchStatus" class="inline-status" hidden></div>
+                        <div id="candidateList" class="candidate-list" aria-live="polite"></div>
+                    </li>
+
+                    <li class="intake-step" data-step="confirm" hidden>
+                        <header class="step-head">
+                            <span class="step-number">2</span>
+                            <div>
+                                <h2>Confirm what we found</h2>
+                                <p>Correct the details or paste a missing profile before the full run.</p>
+                            </div>
+                            <button type="button" class="linkish step-back" id="backToSearch">Start over</button>
+                        </header>
+
+                        <div id="businessCard" class="business-card"></div>
+
+                        <div class="confirm-grid">
+                            <label class="field">
+                                <span>Business name</span>
+                                <input id="confirmName" type="text" maxlength="120" required>
+                            </label>
+                            <label class="field">
+                                <span>Website</span>
+                                <input id="confirmWebsite" type="url" required>
+                            </label>
+                            <label class="field">
+                                <span>Town / city</span>
+                                <input id="confirmCity" type="text" maxlength="100">
+                            </label>
+                            <label class="field">
+                                <span>Category</span>
+                                <input id="confirmCategory" type="text" maxlength="100" placeholder="Restaurant, bar, café…">
+                            </label>
+                            <label class="field span-2">
+                                <span>Address</span>
+                                <input id="confirmAddress" type="text" maxlength="300">
+                            </label>
+                            <label class="field">
+                                <span>Phone</span>
+                                <input id="confirmPhone" type="text" maxlength="80">
+                            </label>
+                        </div>
+
+                        <section class="profiles-panel" aria-labelledby="profilesTitle">
+                            <header class="profiles-head">
+                                <div>
+                                    <h3 id="profilesTitle">Social &amp; review profiles</h3>
+                                    <p id="profilesHint">Checked against the website, then verified where possible.</p>
+                                </div>
+                                <div class="profiles-actions">
+                                    <label class="check"><input type="checkbox" id="guessProfiles"> Try handle guesses</label>
+                                    <button type="button" class="button small" id="rediscoverBtn">Re-check</button>
+                                </div>
+                            </header>
+                            <div id="platformList" class="platform-list" aria-live="polite"></div>
+                            <p class="hint profiles-note">A profile marked <strong>NO</strong> is not a blocker — paste the
+                                URL if you know it, or run without it. The crawler records what it could not find.</p>
+                        </section>
+
+                        <div class="step-actions">
+                            <button type="button" class="button primary" id="toRunBtn">Continue to the run</button>
+                            <button type="button" class="button" id="addToGroupBtn">Add to group</button>
+                            <p id="confirmHint" class="hint">The crawler will fetch the website, menus, logos and photos,
+                                then the social and reputation data.</p>
+                        </div>
+                    </li>
+
+                    <li class="intake-step" data-step="run" hidden>
+                        <header class="step-head">
+                            <span class="step-number">3</span>
+                            <div>
+                                <h2>Run the crawl</h2>
+                                <p>Website first, then social, then the importable brand pack.</p>
+                            </div>
+                            <button type="button" class="linkish step-back" id="backToConfirm">Back to details</button>
+                        </header>
+
+                        <div id="runSummary" class="run-summary"></div>
+
+                        <section class="run-options" aria-labelledby="runOptionsTitle">
+                            <h3 id="runOptionsTitle">Run options</h3>
+                            <div class="options-grid">
+                                <label class="field">
+                                    <span>Group name</span>
+                                    <input id="runGroup" type="text" maxlength="120">
+                                </label>
+                                <label class="field">
+                                    <span>Pages to crawl</span>
+                                    <select id="runPages">
+                                        <option value="20">Quick — 20</option>
+                                        <option value="60" selected>Standard — 60</option>
+                                        <option value="120">Deep — 120</option>
+                                    </select>
+                                </label>
+                                <label class="field">
+                                    <span>Reviews per source</span>
+                                    <select id="runReviews">
+                                        <option value="0">None</option>
+                                        <option value="20" selected>20</option>
+                                        <option value="60">60</option>
+                                        <option value="200">200</option>
+                                    </select>
+                                </label>
+                                <label class="field">
+                                    <span>Social posts per profile</span>
+                                    <select id="runPosts">
+                                        <option value="0">None</option>
+                                        <option value="6" selected>6</option>
+                                        <option value="12">12</option>
+                                        <option value="30">30</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <div class="toggles">
+                                <label class="check"><input type="checkbox" id="runSocial" checked> Social &amp; reputation phase</label>
+                                <label class="check"><input type="checkbox" id="runBrowser" checked> Use a headless browser (Google reviews, JS sites)</label>
+                                <label class="check"><input type="checkbox" id="runDeep"> Deep search for missing profiles</label>
+                            </div>
+                            <p class="hint">A standard run takes roughly 1–3 minutes. The log updates live; you can
+                                leave this page and come back through Recent runs.</p>
+                        </section>
+
+                        <div class="step-actions">
+                            <button type="button" class="button primary" id="startRunBtn">Start full crawl</button>
+                            <button type="button" class="button danger" id="cancelRunBtn" hidden>Cancel run</button>
+                        </div>
+
+                        <section id="runProgress" class="run-progress" hidden aria-live="polite">
+                            <header class="progress-head">
+                                <div>
+                                    <p class="eyebrow">Crawler run</p>
+                                    <h3 id="progressTitle">Starting…</h3>
+                                </div>
+                                <span id="progressState" class="state-pill">running</span>
+                            </header>
+                            <div class="phase-track" id="phaseTrack">
+                                <span data-phase="website">Website</span>
+                                <span data-phase="social">Social</span>
+                                <span data-phase="packaging">Package</span>
+                                <span data-phase="done">Done</span>
+                            </div>
+                            <div id="runQueue" class="run-queue" hidden></div>
+                            <pre id="runLog" class="run-log" tabindex="0" aria-label="Crawler log"></pre>
+                        </section>
+
+                        <section id="runResult" class="run-result" hidden aria-live="polite">
+                            <div class="result-mark" aria-hidden="true">✓</div>
+                            <div class="result-copy">
+                                <p class="eyebrow">Brand pack ready</p>
+                                <h3 id="resultTitle">The crawl finished.</h3>
+                                <p id="resultText" class="hint"></p>
+                                <div id="resultActions" class="result-actions"></div>
+                            </div>
+                        </section>
+                    </li>
+                </ol>
+            </div>
+
+            <aside class="intake-aside" aria-label="Run history and output">
+                <section class="aside-card group-card" id="groupCard" hidden>
+                    <header class="aside-head">
+                        <h2>Restaurant group</h2>
+                        <button type="button" class="linkish" id="clearGroup">Clear</button>
+                    </header>
+                    <p id="groupHint" class="hint">Add restaurants one at a time. The crawler runs them in order and builds one group pack.</p>
+                    <div id="groupList" class="group-list"></div>
+                    <button type="button" class="button primary group-run" id="runGroupBtn">Run group</button>
+                </section>
+
+                <section class="aside-card">
+                    <header class="aside-head">
+                        <h2>Recent runs</h2>
+                        <button type="button" class="linkish" id="refreshRuns">Refresh</button>
+                    </header>
+                    <div id="runHistory" class="run-history">
+                        <p class="hint">No runs yet.</p>
+                    </div>
+                </section>
+
+                <section class="aside-card output-card">
+                    <h2>What the pack contains</h2>
+                    <ul class="output-list">
+                        <li><strong>Brand guide</strong><span>DOCX + structured JSON: positioning, contact, applications, rights.</span></li>
+                        <li><strong>Tokens</strong><span>Palette with CMYK, type families and a display → body scale.</span></li>
+                        <li><strong>Assets</strong><span>Logos, photography, cover, palette and type specimen.</span></li>
+                        <li><strong>Content</strong><span>Menus, drinks, hours and booking link where found.</span></li>
+                        <li><strong>Social dossier</strong><span>Profiles, rating, reviews, themes and NAP research.</span></li>
+                    </ul>
+                </section>
+            </aside>
+        </div>
+    </main>
+
+    <script src="crawler.js"></script>
+</body>
+
+</html>

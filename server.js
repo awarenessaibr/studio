@@ -25,6 +25,10 @@ const crypto = require('crypto');
 const Core = require('./studio-core.js');
 const StudioBrand = require('./brand-pack.js');
 const { parseBrandDocx } = require('./brand-docx.js');
+const Crawler = require('./crawler-service.js');
+const AssetStore = require('./asset-store.js');
+const AssetService = require('./asset-service.js');
+const SocialStore = require('./social-store.js');
 
 const ROOT = __dirname;
 const DATA_DIR = path.join(ROOT, 'data');
@@ -253,6 +257,17 @@ function detectImageFormat(buffer) {
 }
 
 function readImageSize(buffer, format) {
+    if (format === 'svg') {
+        const source = buffer.toString('utf8', 0, Math.min(buffer.length, 4096));
+        const width = source.match(/<svg\b[^>]*\bwidth=["']([\d.]+)/i);
+        const height = source.match(/<svg\b[^>]*\bheight=["']([\d.]+)/i);
+        if (width && height) {
+            return { width: Math.round(Number(width[1])), height: Math.round(Number(height[1])) };
+        }
+        const box = source.match(/viewBox=["']([-\d.]+)[ ,]+([-\d.]+)[ ,]+([-\d.]+)[ ,]+([-\d.]+)/i);
+        if (box) return { width: Math.round(Number(box[3])), height: Math.round(Number(box[4])) };
+        return null;
+    }
     if (format === 'png') {
         if (buffer.length < 24) return null;
         return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
@@ -2540,6 +2555,7 @@ async function deleteBrandPack(id) {
     // one keeps its embedded snapshot and falls back to it.
     const { pack } = await readBrandPack(id).catch(() => ({ pack: null }));
     await fsp.rm(dir, { recursive: true, force: true });
+    await AssetStore.markPackOrphaned(id).catch(() => {});
     for (const brand of pack?.brands || []) {
         if (brand.brandKitId) await deleteBrandKit(brand.brandKitId).catch(() => {});
     }
@@ -2580,6 +2596,10 @@ function topLevelOf(relative) {
 function dirBeforeTokens(relative) {
     const value = String(relative || '');
     if (!/\.tokens\.json$/i.test(baseNameOf(value))) return null;
+    // `social/social.tokens.json` is a reputation snapshot, not a brand folder.
+    // Treating it as one used to add a phantom "<brand>-social" brand to every
+    // imported crawler pack.
+    if (/(^|\/)(social|00-portfolio)\//i.test(value)) return null;
     let dir = dirOf(value);
     if (/(^|\/)tokens$/i.test(dir)) dir = dir.replace(/(^|\/)tokens$/i, '');
     return dir.replace(/\/$/, '');
@@ -2691,11 +2711,30 @@ function sanitizeSvgBuffer(buffer) {
             }
             seen.add(lower);
             const value = attribute[3] !== undefined ? attribute[3] : attribute[4];
-            attrs.push(`${name}="${String(value).replace(/"/g, '&quot;')}"`);
+            const canonical = tag.toLowerCase() === 'svg' && lower === 'viewbox'
+                ? 'viewBox'
+                : (tag.toLowerCase() === 'svg' && lower === 'preserveaspectratio' ? 'preserveAspectRatio' : name);
+            attrs.push(`${canonical}="${String(value).replace(/"/g, '&quot;')}"`);
         }
-        if (tag.toLowerCase() === 'svg' && !seen.has('xmlns')) {
-            attrs.unshift('xmlns="http://www.w3.org/2000/svg"');
-            repaired += 1;
+        if (tag.toLowerCase() === 'svg') {
+            if (!seen.has('xmlns')) {
+                attrs.unshift('xmlns="http://www.w3.org/2000/svg"');
+                repaired += 1;
+            }
+            const box = attrs.find((entry) => /^viewBox="/.test(entry));
+            if (box) {
+                const numbers = box.slice(9, -1).trim().split(/[\s,]+/);
+                if (numbers.length === 4) {
+                    if (!seen.has('width')) {
+                        attrs.push(`width="${numbers[2]}"`);
+                        repaired += 1;
+                    }
+                    if (!seen.has('height')) {
+                        attrs.push(`height="${numbers[3]}"`);
+                        repaired += 1;
+                    }
+                }
+            }
         }
         return `<${tag}${attrs.length ? ` ${attrs.join(' ')}` : ''}${slash}>`;
     });
@@ -2798,6 +2837,19 @@ async function brandFromDirectory(options) {
         }
     }
 
+    // Content pack (menus / drinks / hours) is written by the crawler; keep it
+    // on the brand so Asset Studio can prefill menu designs.
+    let content = null;
+    const contentFile = inDir.find((file) => /(^|\/)content\/[^/]+\.json$/i.test(relativeToBrand(file)));
+    if (contentFile) {
+        try {
+            const raw = extractZipEntry(zipBuffer, contentFile.entry);
+            if (raw.length <= 2 * 1024 * 1024) content = JSON.parse(raw.toString('utf8'));
+        } catch (error) {
+            warnings.push(`Could not read ${contentFile.relative}: ${error.message}`);
+        }
+    }
+
     // Assets.
     const logos = [];
     const photography = [];
@@ -2809,6 +2861,8 @@ async function brandFromDirectory(options) {
     for (const file of inDir) {
         const relative = relativeToBrand(file);
         if (!BRAND_ASSET_EXT.test(relative)) continue;
+        // Reputation avatars/covers are research, not brand photography.
+        if (/(^|\/)social\//i.test(relative)) continue;
         if (assetCount >= MAX_BRAND_ASSETS) {
             warnings.push(`Skipped the remaining assets in ${brandDir || 'the root'}: the ${MAX_BRAND_ASSETS}-asset limit was reached.`);
             break;
@@ -2840,6 +2894,11 @@ async function brandFromDirectory(options) {
             const sanitized = sanitizeSvgBuffer(buffer);
             if (sanitized.repaired) warnings.push(`Repaired ${fileNameForWarning(relative)} (invalid SVG attributes).`);
             buffer = sanitized.data;
+            try {
+                size = readImageSize(buffer, 'svg');
+            } catch {
+                size = null;
+            }
         }
         const stored = await writeBrandAsset(filesDir, id, relative, buffer);
         if (!stored) {
@@ -2894,6 +2953,7 @@ async function brandFromDirectory(options) {
         palette: tokens.color || {},
         typography: tokens.typography || {},
         voice: tokens.voice || {},
+        content,
         logos,
         photography,
         paletteImages,
@@ -3016,7 +3076,7 @@ async function createBrandPackImport(payload) {
         }
         // A pack with tokens at the root is a single brand.
         const rootTokensFile = files.find((file) => /^tokens\/[^/]+\.tokens\.json$/i.test(file.relative))
-            || files.find((file) => /^[^/]+\.tokens\.json$/i.test(file.relative));
+            || files.find((file) => /^[^/]+\.tokens\.json$/i.test(file.relative) && !/(^|\/)(social|00-portfolio)\//i.test(file.relative));
         const rootTokens = rootTokensFile
             ? parseTokensJson(extractZipEntry(zipBuffer, rootTokensFile.entry).toString('utf8'))
             : null;
@@ -3425,6 +3485,81 @@ function parseBriefFile(name, buffer, options) {
     return { source: 'csv', sheet: null, sheets: [], ...table };
 }
 
+async function readJsonRequest(req, limit = 2 * 1024 * 1024) {
+    const body = await readBody(req, limit);
+    try {
+        return JSON.parse(body.toString('utf8') || '{}');
+    } catch {
+        throw httpError(400, 'The request must be valid JSON.');
+    }
+}
+
+let voiceModulesPromise = null;
+function voiceModules() {
+    if (!voiceModulesPromise) {
+        voiceModulesPromise = Promise.all([
+            import('./tts-server.mjs'),
+            import('./voice-design-agent.mjs'),
+        ]).then(([server, agent]) => ({ server, agent }));
+    }
+    return voiceModulesPromise;
+}
+
+async function askVoiceEngine(prompt) {
+    const llm = await getLlmCatalog();
+    if (!llm.available) throw httpError(503, llm.error || 'The local voice-design engine is unavailable.');
+    const model = resolveModelId('', llm.defaults.text, llm.models);
+    const result = await callOllama(model, [{ role: 'user', content: prompt }], {
+        temperature: 0.6, numPredict: 1800, numCtx: 16384,
+    });
+    const content = result?.message?.content;
+    if (typeof content !== 'string' || !content.trim()) throw httpError(502, 'The voice-design engine returned an empty reply.');
+    return content;
+}
+
+function fallbackProposals(message, context, agent) {
+    const text = String(message || '').toLowerCase();
+    const language = ['portuguese', 'english', 'spanish', 'french', 'german', 'italian', 'japanese']
+        .find((entry) => text.includes(entry)) || context.current?.language || 'english';
+    const presentation = /female|feminine|woman/.test(text) ? 'feminine'
+        : (/male|masculine|man/.test(text) ? 'masculine' : 'androgynous');
+    const age = /child|young/.test(text) ? 'youthful' : (/old|mature|elder/.test(text) ? 'mature' : 'adult');
+    const sample = language === 'portuguese'
+        ? 'Uma voz calma pode tornar uma história complicada mais fácil de acompanhar.'
+        : 'A calm voice can make a complicated story easier to follow.';
+    const base = {
+        model: context.current?.model || context.models?.[0] || agent.FALLBACK_MODEL,
+        language, locale: context.current?.locale || '',
+        sample, presentation, age, sample,
+    };
+    return [
+        agent.normalizeProposal({
+            ...base,
+            direction: 'Grounded documentary',
+            name: 'Grounded documentary',
+            delivery: 'warm',
+            description: 'A grounded, intimate narrator with measured pacing and a warm low register. The voice sounds close to the listener, never theatrical.',
+            refine: { rate: 0.9, energy: 0.35, pause: 'measured', register: 'low', brightness: 0.35, breathiness: 0.35, proximity: 'close' },
+            rationale: 'A safe, human default for a story-led request when no language model is available.',
+            changes: ['Slow the pace', 'Bring the voice closer', 'Lower the register'],
+        }, context, 0),
+        agent.normalizeProposal({
+            ...base,
+            direction: 'Bright editorial',
+            name: 'Bright editorial',
+            delivery: 'energetic',
+            description: 'A bright, forward editorial voice with crisp articulation and a little lift. It carries a room without sounding like an advert.',
+            refine: { rate: 1.05, energy: 0.65, pause: 'tight', register: 'mid-high', brightness: 0.7, proximity: 'mid' },
+            rationale: 'A contrasting, more projected alternative built from the same request.',
+            changes: ['Lift the energy', 'Brighten the tone', 'Tighten the pauses'],
+        }, context, 1),
+    ];
+}
+
+function analysisUnavailable(reason) {
+    return `${reason} Image analysis is still available; confirm the class in the library.`;
+}
+
 async function handleApi(req, res, pathname) {
     if (pathname === '/api/health' && req.method === 'GET') {
         sendJson(res, 200, { ok: true });
@@ -3439,6 +3574,478 @@ async function handleApi(req, res, pathname) {
     if (pathname === '/api/llm/organizer-models' && req.method === 'GET') {
         sendJson(res, 200, await getOrganizerModelCatalog());
         return;
+    }
+
+    if (pathname === '/api/crawler/status' && req.method === 'GET') {
+        sendJson(res, 200, await Crawler.status());
+        return;
+    }
+
+    if (pathname === '/api/crawler/search' && req.method === 'POST') {
+        const body = await readJsonRequest(req);
+        sendJson(res, 200, await Crawler.search(body));
+        return;
+    }
+
+    if (pathname === '/api/crawler/discover' && req.method === 'POST') {
+        const body = await readJsonRequest(req);
+        sendJson(res, 200, await Crawler.discover(body));
+        return;
+    }
+
+    if (pathname === '/api/crawler/runs' && req.method === 'GET') {
+        sendJson(res, 200, { runs: await Crawler.listRuns() });
+        return;
+    }
+
+    if (pathname === '/api/crawler/runs' && req.method === 'POST') {
+        const body = await readJsonRequest(req);
+        sendJson(res, 202, await Crawler.startRun(body));
+        return;
+    }
+
+    const crawlerRunMatch = pathname.match(/^\/api\/crawler\/runs\/([A-Za-z0-9_-]{1,120})(?:\/(log|cancel|import|zip))?$/);
+    if (crawlerRunMatch) {
+        const runId = crawlerRunMatch[1];
+        const action = crawlerRunMatch[2] || '';
+        if (!action && req.method === 'GET') {
+            sendJson(res, 200, await Crawler.getRun(runId));
+            return;
+        }
+        if (action === 'log' && req.method === 'GET') {
+            const run = await Crawler.getRun(runId);
+            sendJson(res, 200, { id: run.id, state: run.state, phase: run.phase, log: run.log });
+            return;
+        }
+        if (action === 'cancel' && req.method === 'POST') {
+            sendJson(res, 200, await Crawler.cancelRun(runId));
+            return;
+        }
+        if (action === 'zip' && req.method === 'GET') {
+            const zipPath = await Crawler.zipForRun(runId);
+            const stat = await fsp.stat(zipPath);
+            res.writeHead(200, {
+                'Content-Type': 'application/zip',
+                'Content-Length': stat.size,
+                'Content-Disposition': `attachment; filename="${path.basename(zipPath).replace(/[^A-Za-z0-9_.-]/g, '-')}"`,
+                'Cache-Control': 'no-store',
+            });
+            fs.createReadStream(zipPath).pipe(res);
+            return;
+        }
+        if (action === 'import' && req.method === 'POST') {
+            const run = await Crawler.getRun(runId);
+            if (run.importedPackId) {
+                sendJson(res, 200, { alreadyImported: true, packId: run.importedPackId });
+                return;
+            }
+            const zipPath = await Crawler.zipForRun(runId);
+            const stat = await fsp.stat(zipPath);
+            if (stat.size > MAX_BRAND_PACK_ZIP) {
+                throw httpError(413, 'The crawler ZIP is larger than the brand-pack import limit.');
+            }
+            const zipBuffer = await fsp.readFile(zipPath);
+            const imported = await createBrandPackImport({
+                zip: `data:application/zip;base64,${zipBuffer.toString('base64')}`,
+                zipName: path.basename(zipPath),
+            });
+            await Crawler.markImported(runId, imported.pack.id);
+            sendJson(res, 201, imported);
+            return;
+        }
+        throw httpError(405, 'Method not allowed for this crawler action.');
+    }
+
+    // ─── Business social intelligence ───────────────────────────────
+    if (pathname === '/api/social/sources' && req.method === 'GET') {
+        const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+        if (url.searchParams.get('refresh')) SocialStore.refresh({ force: true });
+        sendJson(res, 200, { sources: SocialStore.listSources(), health: SocialStore.health() });
+        return;
+    }
+
+    if (pathname === '/api/social/by-brand' && req.method === 'GET') {
+        const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+        const dataset = SocialStore.findByBrand({
+            brandId: String(url.searchParams.get('brandId') || ''),
+            name: String(url.searchParams.get('name') || ''),
+        });
+        sendJson(res, 200, { dataset, matched: Boolean(dataset) });
+        return;
+    }
+
+    const socialMatch = pathname.match(/^\/api\/social\/(soc_[a-f0-9]{12})$/);
+    if (socialMatch && req.method === 'GET') {
+        const dataset = SocialStore.get(socialMatch[1]);
+        if (!dataset) throw httpError(404, 'Social dataset not found.');
+        sendJson(res, 200, { dataset });
+        return;
+    }
+
+    // ─── TTS and the voice-design agent ─────────────────────────────
+
+    if (pathname === '/api/tts/status' && req.method === 'GET') {
+        const { server } = await voiceModules();
+        sendJson(res, 200, await server.ttsStatus());
+        return;
+    }
+
+    if (pathname === '/api/tts/start' && req.method === 'POST') {
+        const { server } = await voiceModules();
+        sendJson(res, 200, await server.ensureTtsServer());
+        return;
+    }
+
+    if (pathname === '/api/tts/stop' && req.method === 'POST') {
+        const { server } = await voiceModules();
+        const result = server.stopTtsServer();
+        sendJson(res, 200, { ...result, ...(await server.ttsStatus()) });
+        return;
+    }
+
+    if (pathname === '/api/tts/models' && req.method === 'GET') {
+        const { server } = await voiceModules();
+        try {
+            await server.ensureTtsServer();
+            sendJson(res, 200, await server.ttsJson('/v1/models'));
+        } catch (error) {
+            throw httpError(error.status || 502, error.message || 'TTS models are unavailable.');
+        }
+        return;
+    }
+
+    if (pathname === '/api/tts/voices' && req.method === 'GET') {
+        const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+        const model = url.searchParams.get('model');
+        if (!model) throw httpError(400, 'A model query parameter is required.');
+        const { server } = await voiceModules();
+        try {
+            await server.ensureTtsServer();
+            sendJson(res, 200, await server.ttsJson(`/v1/audio/voices?model=${encodeURIComponent(model)}`));
+        } catch (error) {
+            throw httpError(error.status || 502, error.message || 'TTS voices are unavailable.');
+        }
+        return;
+    }
+
+    if (pathname === '/api/tts/speech' && req.method === 'POST') {
+        const body = await readJsonRequest(req);
+        const input = String(body?.input ?? body?.text ?? '').trim();
+        const model = String(body?.model ?? '').trim();
+        if (!input) throw httpError(400, 'The text to speak is required.');
+        if (!model) throw httpError(400, 'A TTS model is required.');
+        if (input.length > 20000) throw httpError(413, 'Text is limited to 20,000 characters.');
+        const payload = { model, input };
+        for (const key of ['instruct', 'voice', 'speed', 'lang_code', 'ref_audio', 'ref_text',
+            'temperature', 'top_p', 'top_k', 'repetition_penalty', 'response_format', 'stream']) {
+            if (body[key] !== undefined && body[key] !== null && body[key] !== '') payload[key] = body[key];
+        }
+        if (!payload.response_format) payload.response_format = 'wav';
+        if (/voicedesign/i.test(model) && !payload.instruct) {
+            payload.instruct = 'A clear, natural voice with a warm, measured delivery.';
+        }
+        const { server } = await voiceModules();
+        try {
+            const audio = await server.ttsSpeech(payload);
+            res.writeHead(200, {
+                'Content-Type': audio.contentType,
+                'Content-Length': audio.bytes.length,
+                'Cache-Control': 'no-store',
+                'X-Studio-TTS-Engine': audio.engine,
+            });
+            res.end(audio.bytes);
+        } catch (error) {
+            throw httpError(error.status || 502, error.message || 'Speech synthesis failed.');
+        }
+        return;
+    }
+
+    if (pathname === '/api/tts/design/sessions' && req.method === 'GET') {
+        const { agent } = await voiceModules();
+        const userId = agent.resolveUserId(req);
+        const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+        sendJson(res, 200, {
+            ...agent.listSessions(userId, { limit: Number(url.searchParams.get('limit')) || 20 }),
+            user_id: userId,
+        });
+        return;
+    }
+
+    if (pathname === '/api/tts/design/sessions' && req.method === 'POST') {
+        const { agent } = await voiceModules();
+        const body = await readJsonRequest(req);
+        sendJson(res, 200, { session: agent.createSession(agent.resolveUserId(req), { title: body?.title }) });
+        return;
+    }
+
+    const voiceSessionMatch = pathname.match(/^\/api\/tts\/design\/sessions\/([^/]+)$/);
+    if (voiceSessionMatch) {
+        const { agent } = await voiceModules();
+        const userId = agent.resolveUserId(req);
+        const id = decodeURIComponent(voiceSessionMatch[1]);
+        if (req.method === 'GET') {
+            const session = agent.getSession(userId, id);
+            if (!session) throw httpError(404, 'Voice-design session not found.');
+            sendJson(res, 200, { session });
+            return;
+        }
+        if (req.method === 'DELETE') {
+            const removed = agent.deleteSession(userId, id);
+            sendJson(res, removed ? 200 : 404, removed ? { ok: true, id } : { error: 'Voice-design session not found.' });
+            return;
+        }
+        throw httpError(405, 'Method not allowed for this voice-design session.');
+    }
+
+    if (pathname === '/api/tts/design/suggest' && req.method === 'POST') {
+        const { agent } = await voiceModules();
+        const body = await readJsonRequest(req);
+        const message = String(body?.message || '').trim().slice(0, 2000);
+        if (!message) throw httpError(400, 'Describe the voice you want.');
+        const userId = agent.resolveUserId(req);
+        const previousSession = body?.session_id ? agent.getSession(userId, String(body.session_id)) : null;
+        const context = body?.context && typeof body.context === 'object' ? body.context : {};
+        let result;
+        let fallback = false;
+        try {
+            result = await agent.generateProposals(askVoiceEngine, {
+                message, context,
+                history: previousSession?.messages || [],
+                previous: previousSession?.proposals || [],
+            });
+        } catch (error) {
+            // A local LLM is optional. Two curated, complete directions keep the
+            // audition path usable and are clearly labelled as a fallback.
+            if (error.status && error.status !== 503 && error.status !== 502) throw error;
+            const proposals = fallbackProposals(message, context, agent);
+            result = { proposals, attempts: [{ attempt: 0, note: 'deterministic fallback' }], elapsed_ms: 0 };
+            fallback = true;
+        }
+        const assistantText = result.proposals
+            .map((proposal, index) => `${index + 1}. ${proposal.direction} — ${proposal.rationale}`)
+            .join('\n');
+        const session = agent.appendTurn(userId, previousSession?.id, {
+            message, proposals: result.proposals, assistantText,
+        });
+        sendJson(res, 200, {
+            session, proposals: result.proposals,
+            meta: {
+                attempts: result.attempts, elapsed_ms: result.elapsed_ms,
+                engine: fallback ? 'curated-fallback' : 'local-llm', user_id: userId,
+            },
+        });
+        return;
+    }
+
+    const voicePreviewMatch = pathname.match(/^\/api\/tts\/design\/proposals\/([^/]+)\/(preview|applied)$/);
+    if (voicePreviewMatch) {
+        const { server, agent } = await voiceModules();
+        const proposalId = decodeURIComponent(voicePreviewMatch[1]);
+        const action = voicePreviewMatch[2];
+        const userId = agent.resolveUserId(req);
+        const body = req.method === 'POST' ? await readJsonRequest(req) : {};
+        const session = body?.session_id ? agent.getSession(userId, String(body.session_id)) : null;
+        const proposal = session?.proposals?.find((item) => item.id === proposalId);
+        if (!proposal) throw httpError(404, 'Voice proposal not found in this session.');
+        if (action === 'applied') {
+            if (req.method !== 'POST') throw httpError(405, 'POST is required.');
+            sendJson(res, 200, { session: agent.markApplied(userId, session.id, proposalId) });
+            return;
+        }
+        if (req.method !== 'POST') throw httpError(405, 'POST is required.');
+        try {
+            const audio = await server.ttsSpeech(agent.proposalSpeechPayload(proposal));
+            res.writeHead(200, {
+                'Content-Type': audio.contentType,
+                'Content-Length': audio.bytes.length,
+                'Cache-Control': 'no-store',
+                'X-Studio-TTS-Engine': audio.engine,
+            });
+            res.end(audio.bytes);
+        } catch (error) {
+            throw httpError(error.status || 502, error.message || 'Voice preview failed.');
+        }
+        return;
+    }
+
+    // ─── Business Asset Intelligence ────────────────────────────────
+
+    if (pathname === '/api/assets/status' && req.method === 'GET') {
+        const sidecar = await AssetService.status();
+        const health = await AssetStore.assetHealth();
+        const llm = await getLlmCatalog().catch(() => ({ available: false, error: 'LLM unavailable' }));
+        sendJson(res, 200, {
+            ...sidecar,
+            vision: Boolean(llm.available && (llm.models || []).some((model) => model.vision)),
+            visionReason: llm.available ? '' : (llm.error || 'No local vision model'),
+            health,
+        });
+        return;
+    }
+
+    if (pathname === '/api/assets/taxonomy' && req.method === 'GET') {
+        sendJson(res, 200, require('./asset-intel.js').taxonomy());
+        return;
+    }
+
+    if (pathname === '/api/assets/health' && req.method === 'GET') {
+        const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+        sendJson(res, 200, await AssetStore.assetHealth({
+            packId: url.searchParams.get('packId') || '',
+            brandId: url.searchParams.get('brandId') || '',
+        }));
+        return;
+    }
+
+    if (pathname === '/api/assets' && req.method === 'GET') {
+        const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+        sendJson(res, 200, await AssetStore.listAssets({
+            packId: url.searchParams.get('packId') || '',
+            brandId: url.searchParams.get('brandId') || '',
+            class: url.searchParams.get('class') || '',
+            state: url.searchParams.get('state') || '',
+            status: url.searchParams.get('status') || '',
+            operation: url.searchParams.get('operation') || '',
+            verified: url.searchParams.get('verified') || '',
+            q: url.searchParams.get('q') || '',
+            limit: url.searchParams.get('limit') || '60',
+            offset: url.searchParams.get('offset') || '0',
+        }));
+        return;
+    }
+
+    if (pathname === '/api/assets/ingest' && req.method === 'POST') {
+        const body = await readJsonRequest(req, 220 * 1024 * 1024);
+        sendJson(res, 201, await AssetStore.ingestAssets(body));
+        return;
+    }
+
+    if (pathname === '/api/assets/index-pack' && req.method === 'POST') {
+        const body = await readJsonRequest(req);
+        if (!body?.packId) throw httpError(400, 'A pack id is required.');
+        sendJson(res, 200, await AssetStore.indexPack(String(body.packId)));
+        return;
+    }
+
+    if (pathname === '/api/assets/usage' && req.method === 'POST') {
+        const body = await readJsonRequest(req);
+        sendJson(res, 200, await AssetStore.recordUsage(body?.events || []));
+        return;
+    }
+
+    const assetMatch = pathname.match(/^\/api\/assets\/(ast_[A-Za-z0-9_-]{1,72})(?:\/(verify|master|classify|usage)|\/operations\/([a-z-]+)|\/file\/([A-Za-z0-9_-]{1,40}))?$/);
+    if (assetMatch) {
+        const id = assetMatch[1];
+        const action = assetMatch[2] || '';
+        const operation = assetMatch[3] || '';
+        const variant = assetMatch[4] || '';
+        if (!action && !operation && !variant && req.method === 'GET') {
+            sendJson(res, 200, { asset: await AssetStore.readAsset(id) });
+            return;
+        }
+        if (!action && !operation && !variant && req.method === 'PATCH') {
+            const body = await readJsonRequest(req);
+            sendJson(res, 200, { asset: await AssetStore.patchAsset(id, body || {}) });
+            return;
+        }
+        if (!action && !operation && !variant && req.method === 'DELETE') {
+            const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+            sendJson(res, 200, await AssetStore.deleteAsset(id, url.searchParams.get('purge') === '1'));
+            return;
+        }
+        if (action === 'verify' && req.method === 'POST') {
+            const body = await readJsonRequest(req);
+            sendJson(res, 200, { asset: await AssetStore.verifyAsset(id, body?.state, body?.note) });
+            return;
+        }
+        if (action === 'usage' && req.method === 'GET') {
+            sendJson(res, 200, await AssetStore.assetUsage(id));
+            return;
+        }
+        if (action === 'master' && req.method === 'POST') {
+            const body = await readJsonRequest(req);
+            const master = await AssetStore.readAsset(id);
+            master.master = { isMaster: true, of: null };
+            await AssetStore.saveAsset(master);
+            const linked = [];
+            for (const otherId of (Array.isArray(body?.of) ? body.of : []).slice(0, 50)) {
+                if (!/^ast_/.test(String(otherId)) || otherId === id) continue;
+                try {
+                    const other = await AssetStore.readAsset(otherId);
+                    other.master = { isMaster: false, of: id };
+                    await AssetStore.saveAsset(other);
+                    linked.push(otherId);
+                } catch { /* ignore */ }
+            }
+            sendJson(res, 200, { master: master.id, linked });
+            return;
+        }
+        if (action === 'classify' && req.method === 'POST') {
+            const body = await readJsonRequest(req);
+            const analyzed = await AssetStore.analyzeAsset(id);
+            let asset = analyzed.asset;
+            let warning = analyzed.warning || '';
+            let classification = null;
+            const shouldClassify = body?.force || asset.class === 'unclassified';
+            if (shouldClassify) {
+                try {
+                    const llm = await getLlmCatalog();
+                    if (!llm.available) throw new Error(llm.error || 'No local vision model is available.');
+                    const model = resolveModelId(body?.model, llm.defaults.vision, llm.models, { vision: true });
+                    const file = AssetStore.resolveFile(asset, 'original');
+                    const stat = await fsp.stat(file.path);
+                    if (stat.size > MAX_VISION_IMAGE_BYTES) throw new Error('The image is too large for the vision model.');
+                    const image = (await fsp.readFile(file.path)).toString('base64');
+                    const classes = require('./asset-intel.js').CLASSES.filter((value) => value !== 'unclassified');
+                    const prompt = [
+                        'Classify this business asset for a brand asset library.',
+                        `Allowed classes: ${classes.join(', ')}.`,
+                        'Return JSON only: {"class":"...","role":"photo|logo|cover|menu|document|specimen","tags":["..."],"caption":"...","confidence":0.0}',
+                        'Never choose brand-identity unless the image is a logo, wordmark, palette or type specimen.',
+                    ].join(' ');
+                    const result = await callOllama(model, [{
+                        role: 'user', content: prompt, images: [image],
+                    }], { temperature: 0.1, numPredict: 300, numCtx: 8192 });
+                    classification = extractJsonObject(result?.message?.content);
+                    if (!classification || !classes.includes(classification.class)) {
+                        throw new Error('The vision model returned no usable class.');
+                    }
+                    asset = await AssetStore.patchAsset(asset.id, {
+                        class: classification.class,
+                        role: String(classification.role || asset.role).slice(0, 40),
+                        tags: Array.isArray(classification.tags)
+                            ? classification.tags.map((tag) => String(tag).slice(0, 32)).slice(0, 12)
+                            : asset.tags,
+                    });
+                    warning = `Classified as ${classification.class}${classification.confidence != null
+                        ? ` (${Math.round(Number(classification.confidence) * 100)}% confidence)` : ''}. Confirm in review.`;
+                } catch (error) {
+                    warning = analysisUnavailable(error.message);
+                }
+            }
+            sendJson(res, 200, { asset, warning, classification });
+            return;
+        }
+        if (operation && req.method === 'POST') {
+            const body = await readJsonRequest(req);
+            const result = await AssetStore.runOperation(id, operation, body?.params || {});
+            sendJson(res, 201, result);
+            return;
+        }
+        if (variant && req.method === 'GET') {
+            const asset = await AssetStore.readAsset(id);
+            const file = AssetStore.resolveFile(asset, variant);
+            let stat;
+            try { stat = await fsp.stat(file.path); } catch { throw httpError(404, 'Asset file not found.'); }
+            res.writeHead(200, {
+                'Content-Type': AssetStore.mimeFor(file.format),
+                'Content-Length': stat.size,
+                'Cache-Control': 'no-store',
+            });
+            fs.createReadStream(file.path).pipe(res);
+            return;
+        }
+        throw httpError(405, 'Method not allowed for this asset action.');
     }
 
     if (pathname === '/api/brand-packs' && req.method === 'GET') {
@@ -3774,7 +4381,12 @@ function serveStatic(req, res, pathname) {
     }
     // The current studio is the v2 page; the classic one stays reachable at
     // /studio.html and final assets at /asset-studio.html.
-    let relative = pathname === '/' ? 'studio-v2.html' : pathname.replace(/^\/+/, '');
+    let relative = pathname === '/' ? 'studio-v2.html'
+        : pathname === '/crawler' ? 'crawler.html'
+        : pathname === '/library' ? 'library.html'
+        : pathname === '/voice' ? 'voice.html'
+        : pathname === '/social' ? 'social.html'
+        : pathname.replace(/^\/+/, '');
     if (!relative) relative = 'studio-v2.html';
     let target;
     try {
@@ -3854,6 +4466,10 @@ async function main() {
     server.listen(PORT, HOST, () => {
         console.log(`[studio] LayerStudio running at http://${HOST}:${PORT}/studio.html`);
         console.log(`[studio] Asset Studio running at http://${HOST}:${PORT}/asset-studio.html`);
+        console.log(`[studio] Brand intake running at http://${HOST}:${PORT}/crawler.html`);
+        console.log(`[studio] Asset library running at http://${HOST}:${PORT}/library.html`);
+        console.log(`[studio] Voice Studio running at http://${HOST}:${PORT}/voice.html`);
+        console.log(`[studio] Social intelligence running at http://${HOST}:${PORT}/social.html`);
         console.log(`[studio] imports stored in ${IMPORTS_DIR}`);
         console.log(`[studio] brand packs stored in ${BRAND_PACKS_DIR}`);
     });

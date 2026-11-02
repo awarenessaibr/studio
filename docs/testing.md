@@ -8,7 +8,7 @@ Four suites: three Node unit/integration suites, three Chromium harnesses
 ## 1. Quick reference
 
 ```bash
-npm test                  # 104 Node tests
+npm test                  # 127 Node tests
 npm run test:smoke        # 68 checks, Layer Studio in Chromium
 npm run test:asset-studio # 57 checks, Asset Studio in Chromium
 npm run test:visual       # 8 fixtures, 11 renders, visual gate
@@ -98,6 +98,28 @@ Drives the real studio through the phases:
 - asserts zero browser errors.
 
 Writes `_dev/screenshots/studio-smoke.png`.
+
+### `tests/asset-intel.test.js` — asset contract (8 checks)
+
+Normalisation, operation vocabulary, consent, screen-only print blocking,
+the page-DPI rule, palette fit, pHash distance and tabular row parsing.
+
+### `tests/social-intel.test.js` — social reading (4 checks)
+
+Channel/reputation/theme/voice normalisation, honest empty profiles, brand
+matching across slug drift, and thin-sample labelling.
+
+### `tests/voice-design.test.js` — voice agent (3 checks)
+
+Exactly two distinct complete proposals, refusal to clone one direction into
+two, and the audition payload’s composed instruct/sample.
+
+### `tests/crawler.test.js` — intake safety (7 checks)
+
+Covers the crawler service contract without network I/O: readiness shape,
+empty search rejection, private/non-http target rejection, missing run
+fields, group size bounds, long Google Maps profile URLs, and invalid run ids. The full crawl is exercised
+manually and via the Asset Studio harness after import.
 
 ### `tests/asset-studio.js` — final assets (57 checks)
 Walks the gate and the workspace: five brand groups, all eleven categories
