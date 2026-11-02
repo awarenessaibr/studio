@@ -4715,6 +4715,16 @@ function serveStatic(req, res, pathname) {
         sendText(res, 405, 'Method not allowed.');
         return;
     }
+    // Never serve local state, secrets or test/dev material as static files.
+    const privatePath = pathname === '/.env'
+        || pathname === '/server.js'
+        || pathname.startsWith('/.')
+        || ['/data', '/_dev', '/tests', '/tools', '/scripts', '/.git']
+            .some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+    if (privatePath) {
+        sendText(res, 404, 'File not found.');
+        return;
+    }
     // HTML entry points live in pages/; their URLs stay at the root.
     const page = PAGE_ROUTES[pathname];
     if (page) {

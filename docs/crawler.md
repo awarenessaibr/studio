@@ -15,7 +15,7 @@ the finished ZIP.
 | Surface | Where |
 |---|---|
 | Intake UI | `/crawler.html` (linked as **Brand intake** in Layer Studio and Asset Studio) |
-| Node job/API layer | [src/server/crawler-service.js](../crawler-service.js) |
+| Node job/API layer | [src/server/crawler-service.js](../src/server/crawler-service.js) |
 | Python crawler | [scripts/crawler-combined.py](../scripts/crawler-combined.py) |
 | Output | `data/_crawler/runs/<run-id>/output/` + the ZIP |
 | Imported pack | `data/brand-packs/<pack-id>/` |
@@ -408,7 +408,7 @@ Manual acceptance for a new business:
 
 | File | Role |
 |---|---|
-| `crawler.html` | intake page |
+| `pages/crawler.html` | intake page |
 | `src/client/crawler/crawler.css` | page styles |
 | `src/client/crawler/crawler.js` | search → confirm → run → import behaviour |
 | `src/server/crawler-service.js` | Python discovery/JSON calls + background run manager (runs live under `data/_crawler/runs/`) |

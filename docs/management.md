@@ -1,7 +1,7 @@
 # Studio management (developer only)
 
 **URL** `/admin.html` (also `/admin` and `/manage`)
-**Source** `admin.html`, `src/client/admin/admin.js`, `src/client/admin/admin.css`
+**Source** `pages/admin.html`, `src/client/admin/admin.js`, `src/client/admin/admin.css`
 **Purpose** choose which brand groups the studio shows, and in what order —
 without deleting anything from disk.
 

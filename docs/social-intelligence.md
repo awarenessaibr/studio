@@ -231,7 +231,7 @@ Manual acceptance:
 |---|---|
 | `src/server/social-intel.js` | normalisation, posture, actions, brand matching |
 | `src/server/social-store.js` | read-only dataset index, dedupe, source scan |
-| `social.html/.css/.js` | the full social reading |
+| `pages/social.html`, `src/client/social/social.js/.css` | the full social reading |
 | `src/client/brand/brand-identity.js` | per-brand Social tab |
 | `server.js` | `/api/social/*`, static `/social` |
 | `tests/social-intel.test.js` | contract and edge-case tests |

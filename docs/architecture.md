@@ -45,13 +45,21 @@ brand-aware canvas engine. Dependency-free modules sit between them:
 | `src/server/voice/tts-server.mjs` | Node | Optional MLX-Audio lifecycle, model registration and speech proxy |
 | `src/server/voice/voice-design-agent.mjs` | Node | Two-direction voice recipes, validation and per-user sessions |
 | `src/server/voice/tts-config.mjs` | Node | MLX-Audio/cache configuration |
-| `src/server/social-intel.js` | browser + Node | Social normaliser, posture/action rules and brand matching |
+| `src/server/social-intel.js` | Node | Social normaliser, posture/action rules and brand matching |
 | `src/server/social-store.js` | Node | Read-only index of scraped social profiles |
 | `scripts/crawler-combined.py` | Python | Website crawl + social/reputation crawl + brand-pack writer (the only dependency-bearing part) |
 | `scripts/asset-intel.py` | Python | Optional Pillow inspection, thumbnails, image operations, PDF/DOCX/OCR text |
 | `src/client/brand/brand-identity.js` | browser | Brand identity workspace (dialog, gallery, templates) |
 
 There is no bundler. Each page loads exactly the scripts it needs, in order.
+
+### Static serving
+
+`server.js` maps the public page URLs to `pages/` (`/` → `studio-v2.html`,
+`/asset-studio.html` → `pages/asset-studio.html`, and so on). The old root
+asset paths (`/_.js`, `/asset-studio/app.css`, `/studio-minimal/…`) are kept as
+aliases during the transition. `.env`, `data/`, `_dev/`, `tests/`, `tools/`,
+`scripts/`, `.git` and `server.js` itself are never served as static files.
 
 ### Load order
 

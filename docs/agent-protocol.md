@@ -5,7 +5,7 @@ composition without touching the internals: the studio exports what exists,
 the model returns commands, the studio validates and applies them.
 
 Schema id: `layer-studio/agent/v1` · system prompt:
-[agent-prompt.md](../agent-prompt.md)
+[agent-prompt.md](briefs/agent-prompt.md)
 
 ---
 

@@ -204,7 +204,7 @@ Manual acceptance:
 | `src/server/voice/tts-server.mjs` | MLX-Audio discovery/lifecycle/proxy (ported from OIA) |
 | `src/server/voice/voice-design-agent.mjs` | two-direction contract + per-user sessions (ported) |
 | `src/server/voice/tts-config.mjs` | `STUDIO_TTS_*` configuration and cache paths |
-| `voice.html/.js/.css` | Voice Studio |
+| `pages/voice.html`, `src/client/voice/voice.js/.css` | Voice Studio |
 | `server.js` | `/api/tts/*`, local LLM bridge, curated fallback, audio proxy |
 | `src/server/asset-store.js` / `src/client/library/library.js` | audio MIME and library preview |
 | `tests/voice-design.test.js` | agent contract tests |

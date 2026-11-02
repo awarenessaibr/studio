@@ -10,6 +10,9 @@
 # fonts. It is per-machine state, not source.
 /data/
 
+# ─── Python environment ─────────────────────────────────────────────
+.venv/
+
 # ─── Dependencies and build output ───────────────────────────────────
 # The project itself has no build step; keep these ignored in case a tool is
 # ever installed alongside it.

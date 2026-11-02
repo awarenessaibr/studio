@@ -1,7 +1,7 @@
 # Business Asset Intelligence — implementation proposal
 
 **Status:** proposal, not built. This is the engineering companion to
-[`BusinessAssetInteligence-start.md`](../BusinessAssetInteligence-start.md):
+[`BusinessAssetInteligence-start.md`](briefs/BusinessAssetInteligence-start.md):
 that document makes the market case, this one makes the code case.
 
 It answers four questions:
