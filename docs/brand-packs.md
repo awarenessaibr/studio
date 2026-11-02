@@ -4,6 +4,11 @@ A **brand pack** is a ZIP of a scraped brand-kit folder: one portfolio
 (group) plus one or more businesses, each with its own palette, type, logos,
 photography, Word guide and starter templates.
 
+> Reviewing a new scrape before importing it? See
+> [scraped-brand-kit-review.md](scraped-brand-kit-review.md) and
+> [scraped-july-dalton-review.md](scraped-july-dalton-review.md) for the audit
+> checklists and the common schema/asset traps.
+
 Importing it gives the studio a brand system it can theme, validate against
 and generate real designs from — no design tool, no per-brand coding.
 

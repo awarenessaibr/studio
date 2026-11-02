@@ -126,6 +126,8 @@ git; back it up like any other document folder.
 | [agent-protocol.md](docs/agent-protocol.md) | `layer-studio/agent/v1`: spec shape, commands, presets, character control |
 | [api-and-cli.md](docs/api-and-cli.md) | Every endpoint, the CLI, briefs, limits and environment variables |
 | [testing.md](docs/testing.md) | Node suites, Chromium harnesses, the visual gate, and how to add a test |
+| [scraped-brand-kit-review.md](docs/scraped-brand-kit-review.md) | Audit of the AseniGroup/Monteleone scrape: what is usable, what the importer reads, and what a brand-pack drop still needs |
+| [scraped-july-dalton-review.md](docs/scraped-july-dalton-review.md) | Audit of the v2 Julie Dalton / St Andrews drop: schema progress, asset regressions, social scrape, and merge guidance for the existing Dalton pack |
 | [history.md](docs/history.md) | How the project got here, what changed, where the old plans live |
 
 ---

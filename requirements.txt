@@ -1,0 +1,5 @@
+Pillow
+beautifulsoup4             4.14.3
+lxml                       6.0.2
+playwright                 1.56.0
+requests                   2.33.1
