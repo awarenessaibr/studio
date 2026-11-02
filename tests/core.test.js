@@ -7,7 +7,7 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const core = require('../studio-core.js');
+const core = require('../src/shared/studio-core.js');
 
 /** Monospace measurer: every character is half the font size wide. */
 const monoFactory = ({ sizePx }) => ({

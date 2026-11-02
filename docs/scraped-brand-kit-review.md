@@ -203,7 +203,7 @@ Decide whether to rerun it or delete the placeholder.
 
 ### 4.1 What the importer reads vs what the drop contains
 
-| The importer expects (`server.js` → `brandFromDirectory`, `brand-pack.js`) | The drop contains | Result |
+| The importer expects (`server.js` → `brandFromDirectory`, `src/shared/brand-pack.js`) | The drop contains | Result |
 |---|---|---|
 | `tokens.brand = { name, wordmark, tagline, url }` | top-level `name`, `description`, `source` | name falls back to folder → **"Bar91.Co.Uk Root"**, URL/tagline empty |
 | `tokens.color` (array/object of colour entries) | top-level `palette` (well formed) | **palette lost, 0 colours** |
@@ -734,7 +734,7 @@ studio's five existing brand packs are unchanged.
 - File inventory: `find`, `du`, `unzip -l`.
 - Image dimensions, formats, alpha and duplicate hashes: Python + Pillow.
 - PDF word counts: `pdftotext` and `pdfinfo`.
-- DOCX parsing: `brand-docx.js` with the server's ZIP reader.
+- DOCX parsing: `src/server/brand-docx.js` with the server's ZIP reader.
 - Real import behaviour: `createBrandPackImport`, `createBrandTemplateProject`
   and `deleteBrandPack` through `server.js`; artefacts deleted afterwards.
 - Source files remain untouched in `data/_scraped/`.

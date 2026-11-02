@@ -22,11 +22,12 @@ runs unchanged under Node for tests.
 | **Brand intake** | `/crawler.html` | Search a business, confirm its website/social profiles, queue several restaurants as a group, run the combined crawler one by one and import the finished group ZIP into Asset Studio. | [crawler.md](docs/crawler.md) |
 | **Asset library** | `/library.html` | Business Asset Intelligence: index pack assets and uploads, review and classify them, apply usage rules and feed the Asset Studio photo slot and print gate. | [asset-library.md](docs/asset-library.md) |
 | **Voice Studio** | `/voice.html` | Local MLX-Audio speech, two-direction voice design, auditions and saving spoken audio to the asset library. | [voice-studio.md](docs/voice-studio.md) |
-| **Social intelligence** | `/social.html` | Channels, reputation, review themes and voice read from scraped social profiles, with a per-brand tab. | [social-intelligence.md](docs/social-intelligence.md) |
+| **Social intelligence** | `/social.html` | Channels, reputation, review themes and voice read from scraped social profiles, with a per-brand tab; enabled businesses can launch a granular social re-crawl from here. | [social-intelligence.md](docs/social-intelligence.md) |
+| **Management** (dev only) | `/admin.html` | Choose which brand groups and businesses every studio surface shows, and their order. Local-only unless `STUDIO_ADMIN_KEY` is set. | [management.md](docs/management.md) |
 
 Two more entry points exist and are documented but secondary:
 `/studio.html` is the **classic, frozen** Layer Studio (layers + animation
-only), and the CLI (`composition-generator.js`) builds compositions and
+only), and the CLI (`src/server/composition-generator.js`) builds compositions and
 brief-driven batches without a browser.
 
 ---
@@ -86,54 +87,57 @@ A single end-to-end tour, with use cases and inputs/outputs, lives in
 
 ```
 studio-layers/
-├── studio-v2.html          ← Layer Studio: the current studio
-├── studio-v2.js            ← its page behaviour (tree, zoom, organizer, saved)
-├── studio.html             ← classic studio (frozen, banner in page)
-├── asset-studio.html       ← final-asset surface
-├── crawler.html            ← brand intake (search → crawl → import)
-├── crawler.css / crawler.js ← its styles and behaviour
-├── crawler-service.js      ← crawler JSON calls + background run manager
-├── library.html            ← Business Asset Intelligence library
-├── library.css / library.js ← review, filters, operations, upload
-├── asset-intel.js          ← shared asset schema, taxonomy and usage rules
-├── asset-store.js          ← reference-first asset store and indexing
-├── asset-service.js        ← optional Pillow sidecar runner
-├── voice.html              ← Voice Studio (speak + design)
-├── voice.css / voice.js    ← its styles and behaviour
-├── tts-server.mjs          ← MLX-Audio lifecycle and speech proxy
-├── voice-design-agent.mjs  ← two-direction voice recipes
-├── tts-config.mjs          ← STUDIO_TTS_* configuration
-├── social.html             ← Social intelligence (channels + reputation)
-├── social.css / social.js  ← its styles and behaviour
-├── social-intel.js         ← social normaliser and evidence actions
-├── social-store.js         ← read-only social dataset index
-├── scripts/
-│   └── crawler-combined.py ← website + social crawler (Python)
-├── _.css                   ← shared Layer Studio styles
-├── _.js                    ← Layer Studio engine (single IIFE, ~9.5k lines)
-├── studio-core.js          ← shared schema + the one render path (browser + Node)
-├── brand-identity.css/.js  ← Brand identity workspace (dialog + gallery)
-├── brand-pack.js           ← brand-pack schema, kit mapping, template builders
-├── brand-docx.js           ← zero-dependency Word guide reader
-├── studio-minimal/
-│   ├── studio-minimal.css  ← compact top bar + one-at-a-time panels
-│   └── studio-minimal.js   ← panel toggles
-├── asset-studio/
-│   ├── app.js              ← brand adapter, controls, saved assets, exports
-│   ├── app.css
-│   ├── categories.js       ← 11 categories, 50 designs
-│   ├── engine.js           ← brand-aware canvas renderer + motif library
-│   ├── print.js            ← CMYK PDF, bleed/trim boxes, crop marks
-│   └── vendor/qrcode.min.js
+├── README.md
+├── package.json            ← scripts and the Node engine requirement
+├── requirements.txt        ← Python crawler / asset-intel dependencies
+├── .env                    ← local API keys (git-ignored)
 ├── server.js               ← zero-dependency backend (static + JSON API)
-├── composition-generator.js← CLI: segments → .composition.json, briefs → batches
-├── agent-prompt.md         ← system prompt for the animation agent
-├── docs/                   ← this documentation set
+│
+├── pages/                  ← HTML entry points; their public URLs stay at the root
+│   ├── studio-v2.html      ← Layer Studio: the current studio
+│   ├── studio.html         ← classic studio (frozen)
+│   ├── asset-studio.html   ← final-asset surface
+│   ├── crawler.html        ← brand intake (search → crawl → import)
+│   ├── library.html        ← Business Asset Intelligence
+│   ├── voice.html          ← Voice Studio
+│   ├── social.html         ← Social intelligence
+│   └── admin.html          ← developer management (unlisted)
+│
+├── src/
+│   ├── shared/             ← loaded by the browser and required by Node
+│   │   ├── studio-core.js  ← schema, layout, formats, guardrails
+│   │   ├── brand-pack.js   ← brand-pack schema and template builders
+│   │   └── asset-intel.js  ← asset schema, taxonomy and usage rules
+│   ├── server/             ← Node-only modules
+│   │   ├── brand-docx.js   ← zero-dependency Word guide reader
+│   │   ├── crawler-service.js ← Python crawler runs, logs and limits
+│   │   ├── asset-store.js / asset-service.js ← asset index + Pillow sidecar
+│   │   ├── social-intel.js / social-store.js ← social normaliser + index
+│   │   ├── composition-generator.js ← CLI: segments/briefs → compositions
+│   │   └── voice/tts-server.mjs, voice-design-agent.mjs, tts-config.mjs
+│   └── client/             ← browser-only modules
+│       ├── shared/_.js / _.css ← Layer Studio engine + shared styles
+│       ├── studio/studio-v2.js, studio-minimal/
+│       ├── brand/brand-identity.js / .css
+│       ├── asset-studio/app.js, app.css, engine.js, categories.js, print.js
+│       │   └── vendor/qrcode.min.js
+│       ├── crawler/crawler.js / .css
+│       ├── library/library.js / .css
+│       ├── social/social.js / .css
+│       ├── voice/voice.js / .css
+│       └── admin/admin.js / .css
+│
+├── scripts/                ← Python crawler + asset-intel sidecar
+├── docs/                   ← documentation; briefs in docs/briefs/
 ├── tests/                  ← Node suites + Chromium harnesses
-├── tools/                  ← one-off asset/rig/preview pipelines (Beards)
+├── tools/                  ← one-off asset/rig/preview pipelines
 ├── _dev/                   ← research, plans, screenshots (not shipped)
 └── data/                   ← local studio state (git-ignored)
 ```
+
+The public page URLs are unchanged (`/`, `/asset-studio.html`, `/crawler.html`,
+`/library.html`, `/voice.html`, `/social.html`, `/admin.html`); the server maps
+them to `pages/` and keeps the old root asset paths working.
 
 `data/` is **your work, not the project**: imported ZIPs, saved
 compositions, brand packs, shared kits and uploaded fonts. It is ignored by

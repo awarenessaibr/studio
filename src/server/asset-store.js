@@ -13,10 +13,10 @@ const fs = require('fs');
 const fsp = fs.promises;
 const path = require('path');
 const crypto = require('crypto');
-const Intel = require('./asset-intel.js');
+const Intel = require('../shared/asset-intel.js');
 const AssetService = require('./asset-service.js');
 
-const ROOT = __dirname;
+const ROOT = path.join(__dirname, '..', '..');
 const DATA_DIR = path.join(ROOT, 'data');
 const ASSETS_DIR = path.join(DATA_DIR, 'assets');
 const PACKS_DIR = path.join(DATA_DIR, 'brand-packs');

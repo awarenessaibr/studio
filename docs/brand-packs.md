@@ -8,6 +8,14 @@ photography, Word guide and starter templates.
 > [scraped-brand-kit-review.md](scraped-brand-kit-review.md) and
 > [scraped-july-dalton-review.md](scraped-july-dalton-review.md) for the audit
 > checklists and the common schema/asset traps.
+>
+> The most recent group drop, its re-curated rebuild and the resulting pipeline
+> plan are in [pulpo-hospitality-review.md](pulpo-hospitality-review.md),
+> [pulpo-hospitality-refinement.md](pulpo-hospitality-refinement.md) and
+> [pulpo-hospitality-improvements.md](pulpo-hospitality-improvements.md).
+>
+> Choosing which imported packs the studio shows (developer surface):
+> [management.md](management.md).
 
 Importing it gives the studio a brand system it can theme, validate against
 and generate real designs from — no design tool, no per-brand coding.

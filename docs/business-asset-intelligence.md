@@ -39,7 +39,7 @@ of the plan, though:
    connectors.
 
 **Proposal in one sentence:** add a code-owned asset schema
-(`asset-intel.js`), a reference-first asset store (`data/assets/`), a review
+(`src/shared/asset-intel.js`), a reference-first asset store (`data/assets/`), a review
 queue and a small `/library.html` surface, then wire the *existing* Asset
 Studio photo slot, text fields and print gate to it — in four increments,
 with no new runtime dependencies and no second compositor.
@@ -78,16 +78,16 @@ with no new runtime dependencies and no second compositor.
 
 | Capability | Where | What BAI reuses |
 |---|---|---|
-| Brand-pack schema, normalisers, caps | `brand-pack.js` (`normalizeBrand` 475, `normalizeBrandPack` 521) | The record shape, text clamps, id patterns, `normalize*` discipline |
+| Brand-pack schema, normalisers, caps | `src/shared/brand-pack.js` (`normalizeBrand` 475, `normalizeBrandPack` 521) | The record shape, text clamps, id patterns, `normalize*` discipline |
 | Pack import, brand detection, asset kinds | `server.js` (`createBrandPackImport` 3002, `brandFromDirectory` 2773, `assetKind` 2740, `writeBrandAsset` 2754) | ZIP handling, logo vs photography vs specimen classification, safe file names |
 | Pack file serving with traversal guard | `server.js` 3606 | The exact route/storage pattern for asset variants |
 | Pack summary / list / delete | `server.js` 2483, 2522, 2543 | Summary shape, cascade discipline |
-| Shared kits and template builders | `brand-pack.js` (`brandKitFor` 550, `paletteRoles` 749, `createTemplateComposition` 1557) | Palette roles and brand-fit inputs |
-| 11 categories / 50 designs | `asset-studio/categories.js` | The slot model, size presets, `mm`/`dpi`/`print` metadata |
-| Per-design export profile | `asset-studio/app.js` (`currentProfile` 635) | The gate BAI extends from design level to asset level |
-| Print specs, CMYK PDF, preflight | `asset-studio/print.js` (`resolveSpec` 54, `checkBoxes`, `pageMetrics`) | Physical page size and DPI for asset-level rules |
-| Tabular copy parsers | `asset-studio/engine.js` (`parseItems` 819, `parseRows` 917) | The exact text syntax extraction must emit |
-| Saved designs already carry image sources | `asset-studio/app.js` (`saveAsset` 2685, `restoreSaved` 2738) | Adding `assetId` to `photoSources` needs no new storage |
+| Shared kits and template builders | `src/shared/brand-pack.js` (`brandKitFor` 550, `paletteRoles` 749, `createTemplateComposition` 1557) | Palette roles and brand-fit inputs |
+| 11 categories / 50 designs | `src/client/asset-studio/categories.js` | The slot model, size presets, `mm`/`dpi`/`print` metadata |
+| Per-design export profile | `src/client/asset-studio/app.js` (`currentProfile` 635) | The gate BAI extends from design level to asset level |
+| Print specs, CMYK PDF, preflight | `src/client/asset-studio/print.js` (`resolveSpec` 54, `checkBoxes`, `pageMetrics`) | Physical page size and DPI for asset-level rules |
+| Tabular copy parsers | `src/client/asset-studio/engine.js` (`parseItems` 819, `parseRows` 917) | The exact text syntax extraction must emit |
+| Saved designs already carry image sources | `src/client/asset-studio/app.js` (`saveAsset` 2685, `restoreSaved` 2738) | Adding `assetId` to `photoSources` needs no new storage |
 | Crawler ZIP contract + content packs | `scripts/crawler-combined.py`, `docs/crawler.md` | Channel ingestion and menu/hours extraction precedent |
 | Local LLM client and JSON-mode calls | `server.js` (`callOllama` 1629) | Vision classification with no new dependency |
 | Atomic writes, body caps, path guards | `server.js` (`writeFileAtomic` 788, limits 47–70) | Store safety |
@@ -131,7 +131,7 @@ business assets. Both are additions, not extensions.
 unless the asset was uploaded. `source.kind` is `pack` or `upload`. Deleting
 a pack marks its records `orphaned` instead of deleting history.
 
-**D2 — Taxonomy lives in code.** `asset-intel.js` owns `CLASSES`,
+**D2 — Taxonomy lives in code.** `src/shared/asset-intel.js` owns `CLASSES`,
 `OPERATIONS` and the class→operation matrix, exported as `taxonomy()`.
 `data/assets/taxonomy.json` is not a config file in v1: two sources of truth
 is how the brief's "eight classes" would drift from the UI.
@@ -179,7 +179,7 @@ and new sections; existing saved work keeps rendering unchanged.
 Schema id: `layer-studio/asset/v1`. One record per asset, stored at
 `data/assets/<asset-id>/metadata.json`, with `original.<ext>` only for
 uploads. `normalizeAsset()` clamps and drops unknown fields the same way
-`brand-pack.js` does.
+`src/shared/brand-pack.js` does.
 
 ### 5.1 Shape
 
@@ -303,7 +303,7 @@ T0 cannot tell a dish from an interior, and a record must be allowed to say so.
 
 ### 5.3 Operations
 
-Fixed vocabulary in `asset-intel.js`, with an executability column so the
+Fixed vocabulary in `src/shared/asset-intel.js`, with an executability column so the
 proposal does not promise segmentation or transcription it cannot deliver.
 
 | Operation | Meaning | Executable | Phase |
@@ -315,7 +315,7 @@ proposal does not promise segmentation or transcription it cannot deliver.
 | `extract-rows` | PDF/image → `Name \| Description \| Price` rows | Yes, OCR if `tesseract` present; LLM fallback | 4 |
 | `extract-text` | PDF/DOCX → plain text | Yes for DOCX (existing reader); PDF partial | 4 |
 | `transcribe` | Audio/video → text | **No** — deferred, declared by no asset | — |
-| `qr` | Link an asset/URL to a QR | In-browser only (`asset-studio/vendor/qrcode.min.js`) | 3 |
+| `qr` | Link an asset/URL to a QR | In-browser only (`src/client/asset-studio/vendor/qrcode.min.js`) | 3 |
 | `preflight` | The asset may appear in a print pack | Enforcement, not a file operation | 3 |
 
 Class→default operations (overridable per asset, never beyond the global
@@ -370,7 +370,7 @@ heuristic, but never beats consent.
 **DPI rule, using the repository's own metadata.** The studio's presets are
 not all 300 dpi: the A4 flyer page is 1240 × 1754 px at 150 dpi, the A1
 signage page is 2339 × 3311 at 100 dpi, business-card presets are 300 dpi
-(`asset-studio/categories.js` 193–201, 518–521). A blanket 300 dpi rule would
+(`src/client/asset-studio/categories.js` 193–201, 518–521). A blanket 300 dpi rule would
 block every asset against the studio's own flyer. So:
 
 ```js
@@ -399,7 +399,7 @@ Brand pack (identity rules)                data/brand-packs/<id>/pack.json + fil
         │  binding                                     │  reference (no copy)
         ▼                                              ▼
 Business Asset Intelligence               data/assets/<asset-id>/metadata.json
-  asset-intel.js  (schema, taxonomy,                   │
+  src/shared/asset-intel.js  (schema, taxonomy,                   │
   fit scoring, usage evaluation)                       │
         │                                              │
         ├──► Asset Studio   photo slot · text fields · print gate
@@ -411,16 +411,16 @@ Business Asset Intelligence               data/assets/<asset-id>/metadata.json
 
 | Module | Runs in | Responsibility |
 |---|---|---|
-| `asset-intel.js` (new) | browser **and** Node | `normalizeAsset`, `taxonomy()`, `operationsFor`, `evaluateUsage`, `brandFit`, `phashDistance`, `extractRowsFromText` |
-| `asset-store.js` (new) | Node | `listAssets`, `readAsset`, `saveAsset`, `deleteAsset`, `ingestAssets`, `indexPack`, `runOperation`, `recordUsage`, `assetHealth` |
-| `asset-service.js` (new) | Node | Optional Python sidecar runner (`inspect`, `resize`, `crop`, `recolour`, `extract`), job queue, capability status |
+| `src/shared/asset-intel.js` (new) | browser **and** Node | `normalizeAsset`, `taxonomy()`, `operationsFor`, `evaluateUsage`, `brandFit`, `phashDistance`, `extractRowsFromText` |
+| `src/server/asset-store.js` (new) | Node | `listAssets`, `readAsset`, `saveAsset`, `deleteAsset`, `ingestAssets`, `indexPack`, `runOperation`, `recordUsage`, `assetHealth` |
+| `src/server/asset-service.js` (new) | Node | Optional Python sidecar runner (`inspect`, `resize`, `crop`, `recolour`, `extract`), job queue, capability status |
 | `scripts/asset-intel.py` (new) | Python | Pillow inspection and operations; optional `tesseract` OCR; JSON on stdout |
-| `library.html` / `library.js` / `library.css` (new) | browser | Library grid, filters, review queue, operations, health |
+| `library.html` / `src/client/library/library.js` / `src/client/library/library.css` (new) | browser | Library grid, filters, review queue, operations, health |
 | `server.js` | Node | Route wiring, limits, static serving |
-| `asset-studio/app.js` | browser | Photo-slot section, text insertion, print gate, saved usage |
-| `brand-identity.js` | browser | Per-brand library health tab |
+| `src/client/asset-studio/app.js` | browser | Photo-slot section, text insertion, print gate, saved usage |
+| `src/client/brand/brand-identity.js` | browser | Per-brand library health tab |
 
-`asset-intel.js` follows `brand-pack.js`'s UMD wrapper so `require()` works in
+`src/shared/asset-intel.js` follows `src/shared/brand-pack.js`'s UMD wrapper so `require()` works in
 tests and in `server.js`, and the browser gets `window.AssetIntel`. Pure logic
 only: no `document`, no `fs`.
 
@@ -507,7 +507,7 @@ queue and lights the health panel.
 
 ### 6.7 Sidecar contract
 
-`scripts/asset-intel.py` is spawned by `asset-service.js` with a JSON
+`scripts/asset-intel.py` is spawned by `src/server/asset-service.js` with a JSON
 manifest on stdin and writes one JSON object on stdout, mirroring the
 crawler's "optional Python, reported status" pattern:
 
@@ -578,7 +578,7 @@ Every hook below is additive and individually shippable.
 
 ### 8.1 Asset Studio — Image tab
 
-`renderImagePanel()` (`asset-studio/app.js` 1910) gains a **Business library**
+`renderImagePanel()` (`src/client/asset-studio/app.js` 1910) gains a **Business library**
 section above the brand photography grid:
 
 - Class filter chips, `All` by default; a "Verified only" toggle.
@@ -652,7 +652,7 @@ Studio so the design tool stays a design tool:
 
 ### 8.6 Brand identity drawer — library health
 
-`brand-identity.js` (`renderDetailSectionTabs` 332) gains a **Library** tab
+`src/client/brand/brand-identity.js` (`renderDetailSectionTabs` 332) gains a **Library** tab
 per brand: counts by class, unverified count, orphaned count, top three
 palette-drift assets, and a link to `/library.html?brandId=…`. Read-only, so
 the drawer keeps its "everything is read from the pack" character.
@@ -709,13 +709,13 @@ Nothing here needs a new runtime dependency, a bundler or a migration.
   menu PDF, one duplicate pair, one near-duplicate pair.
 
 **Done when:** the schema in §5.1 is the schema in the fixture files and
-`asset-intel.js` normalises all of them without loss.
+`src/shared/asset-intel.js` normalises all of them without loss.
 
 ### Phase 1 — Records, store, seed (8–10 days)
 
-- `asset-intel.js`: `normalizeAsset`, `taxonomy`, `operationsFor`,
+- `src/shared/asset-intel.js`: `normalizeAsset`, `taxonomy`, `operationsFor`,
   `evaluateUsage` (rules only), `brandFit` (palette + resolution).
-- `asset-store.js` + routes: ingest (metadata-only), list, read, patch, delete,
+- `src/server/asset-store.js` + routes: ingest (metadata-only), list, read, patch, delete,
   verify, file, index-pack, health.
 - Index the five existing packs; wire `POST /api/assets/index-pack` into the
   crawler's post-import step as an explicit button (not automatic).
@@ -728,7 +728,7 @@ index all five packs, upload three files, verify one, and browse them at
 
 ### Phase 2 — Classify, dedupe, fit (8–10 days)
 
-- `scripts/asset-intel.py` + `asset-service.js`: inspect (pHash, palette,
+- `scripts/asset-intel.py` + `src/server/asset-service.js`: inspect (pHash, palette,
   alpha, EXIF, thumbnail), status endpoint, degradation path.
 - T2 vision classification through `callOllama`, with a strict JSON prompt and
   a confidence threshold of 0.75.
@@ -920,7 +920,7 @@ Two limits deserve to be stated in the product copy, not just the docs:
 | `data/assets/` holds copies of everything | Records live there; pack bytes are referenced |
 | BAI places assets into Asset Studio designs | BAI feeds the photo slot, text fields and print gate; placement stays Layer Studio's job |
 | Eight asset classes | Nine, adding `unclassified` |
-| Separate taxonomy file | Taxonomy in `asset-intel.js`, exported |
+| Separate taxonomy file | Taxonomy in `src/shared/asset-intel.js`, exported |
 | Embedding classification first | Deterministic → pHash/palette → optional vision LLM → human |
 | Operations include segmentation, transcription and QR | Only executable operations are declarable: segmentation and transcription are dropped, QR stays in-browser, the rest ship |
 | Notifications and workflows implied by "review queue" | A page with filters and batch verify; no notification system |
@@ -932,14 +932,14 @@ Two limits deserve to be stated in the product copy, not just the docs:
 
 | File | Change |
 |---|---|
-| `asset-intel.js` | **New.** Shared schema, taxonomy, fit, usage, pHash helpers |
-| `asset-store.js` | **New.** Record storage, ingest, indexing, operations, usage |
-| `asset-service.js` | **New.** Optional Python sidecar runner and status |
+| `src/shared/asset-intel.js` | **New.** Shared schema, taxonomy, fit, usage, pHash helpers |
+| `src/server/asset-store.js` | **New.** Record storage, ingest, indexing, operations, usage |
+| `src/server/asset-service.js` | **New.** Optional Python sidecar runner and status |
 | `scripts/asset-intel.py` | **New.** Pillow inspection/operations, optional OCR |
-| `library.html`, `library.js`, `library.css` | **New.** Library and review surface |
+| `library.html`, `src/client/library/library.js`, `src/client/library/library.css` | **New.** Library and review surface |
 | `server.js` | Asset routes, limits, pack-delete cascade |
-| `asset-studio/app.js` | Image library section, text insertion, export gate, usage events |
-| `brand-identity.js` | Per-brand Library health tab |
+| `src/client/asset-studio/app.js` | Image library section, text insertion, export gate, usage events |
+| `src/client/brand/brand-identity.js` | Per-brand Library health tab |
 | `tests/asset-intel.test.js` | **New.** Pure-logic suite |
 | `tests/server.test.js` | Asset endpoint guards and caps |
 | `tests/asset-studio.js` | Library selection, print block, text insertion |

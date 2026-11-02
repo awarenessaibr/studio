@@ -217,13 +217,24 @@ function sampleBackground(x, y, width, height) {
 }
 
 function logoAt(x, y, height, color, align, maxFraction) {
+    if (S) S._logoDrawn = true;
+    if (S && S.logoOn === false) return;
+    // Logo placement is per asset: the design owns the slot, and the offset
+    // and scale let the user move it without breaking the layout.
+    const offsetX = (Number(S?.logoX) || 0) * (S?._W || 0);
+    const offsetY = (Number(S?.logoY) || 0) * (S?._H || 0);
+    const logoScale = Math.max(0.3, Math.min(2.5, Number(S?.logoScale) || 1));
+    x += offsetX;
+    y += offsetY;
     const image = S?.logoWordmark || S?.logoMark;
     let ink = C(color);
     if (image && (image.naturalWidth || image.width)) {
         const aspect = (image.naturalWidth || image.width) / (image.naturalHeight || image.height);
-        let targetHeight = height * 1.18 * (S.logoScale || 1);
+        let targetHeight = height * 1.18 * logoScale;
         let targetWidth = targetHeight * aspect;
-        const maxWidth = (S._W || 1080) * (maxFraction || 0.7);
+        // The design's width guard grows with the user's scale, so a wide
+        // wordmark can actually be enlarged instead of hitting the same cap.
+        const maxWidth = (S._W || 1080) * Math.min(0.95, (maxFraction || 0.7) * Math.max(1, logoScale));
         if (targetWidth > maxWidth) {
             targetWidth = maxWidth;
             targetHeight = targetWidth / aspect;
@@ -249,6 +260,7 @@ function logoAt(x, y, height, color, align, maxFraction) {
                 side: S._side || 'f',
             });
         }
+        if (S) S._logoAnchor = { x: startX, y: startY, w: targetWidth, h: targetHeight };
         const tinted = tintedLogo(image, ink);
         X.save();
         if (colorLuma(ink) > 0.7) {
@@ -261,11 +273,11 @@ function logoAt(x, y, height, color, align, maxFraction) {
         return;
     }
     const label = String(S?.brandWordmark || 'BRAND');
-    let fontSize = height;
+    let fontSize = height * logoScale;
     let tracking = fontSize * 0.02;
     let font = `700 ${fontSize}px ${S?.fonts?.display || SERIF_STACK}`;
     let textWidth = tw(label, font, tracking);
-    const maxWidth = (S?._W || 1080) * (maxFraction || 0.72);
+    const maxWidth = (S?._W || 1080) * Math.min(0.95, (maxFraction || 0.72) * Math.max(1, logoScale));
     if (textWidth > maxWidth) {
         fontSize *= maxWidth / textWidth;
         tracking = fontSize * 0.02;
@@ -273,17 +285,19 @@ function logoAt(x, y, height, color, align, maxFraction) {
         textWidth = tw(label, font, tracking);
     }
     const boxHeight = fontSize * 1.18;
+    const boxY = y + (height - boxHeight) / 2;
     if (S && Array.isArray(S.boxes)) {
         S.boxes.push({
             kind: 'logo',
             text: label,
             x,
-            y: y + (height - boxHeight) / 2,
+            y: boxY,
             w: textWidth,
             h: boxHeight,
             side: S._side || 'f',
         });
     }
+    if (S) S._logoAnchor = { x, y: boxY, w: textWidth, h: boxHeight };
     if (S) S._inLogo = true;
     put(label, x, y + height * 0.5, font, tracking, align, ink);
     if (S) S._inLogo = false;
@@ -592,7 +606,9 @@ function drawRing(cx, cy, size, ink, accent) {
 const VECTORS = {
     sprig: (cx, cy, size, ink, accent) => sprigBase(cx, cy - size * 0.25, size, ink, accent),
     glass: (cx, cy, size, ink, accent) => glassBase(cx, cy - size / 2, size, ink, accent),
-    rod: (cx, cy, size, ink, accent) => rodBase(cx, cy - size / 2, size, ink, Math.max(2, size * 0.025)),
+    rod: (cx, cy, size, ink, accent, lineWidth) => rodBase(
+        cx, cy - size / 2, size, ink, lineWidth || Math.max(2, size * 0.025),
+    ),
     star: (cx, cy, size, ink) => drawSparkle(cx, cy, size, ink),
     sun: drawSun,
     arch: drawArch,
@@ -605,37 +621,93 @@ const VECTORS = {
     none: () => {},
 };
 
-function drawMotif(kind, cx, cy, size, ink, accent) {
-    if (!S?.motif || S.motif === 'auto') {
-        const fallback = VECTORS[kind] || VECTORS.sprig;
-        fallback(cx, cy, size, ink, accent);
+function drawLogoMotif(size, ink, contrastBox) {
+    const image = S?.logoWordmark || S?.logoMark;
+    let color = ink || C('ink');
+    // A free-standing motif can land on any ground: pick the brand ink or
+    // paper based on what is actually behind it, not on the slot's colour.
+    if (contrastBox) {
+        const background = sampleBackground(contrastBox.x, contrastBox.y, contrastBox.w, contrastBox.h);
+        if (background !== null) color = background > 0.55 ? C('ink') : C('paper');
+    }
+    if (image && (image.naturalWidth || image.width)) {
+        const imageWidth = image.naturalWidth || image.width;
+        const imageHeight = image.naturalHeight || image.height;
+        const aspect = imageWidth / Math.max(1, imageHeight);
+        let height = size;
+        let width = height * aspect;
+        const maxWidth = (S?._W || 1080) * 0.6;
+        if (width > maxWidth) {
+            width = maxWidth;
+            height = width / aspect;
+        }
+        X.drawImage(tintedLogo(image, color), -width / 2, -height / 2, width, height);
         return;
     }
-    const drawer = VECTORS[S.motif] || VECTORS[kind] || VECTORS.sprig;
-    drawer(cx, cy, size, ink, accent);
+    // No logo artwork: set the wordmark in the brand display face.
+    const label = String(S?.brandWordmark || 'BRAND');
+    let fontSize = size;
+    let font = `700 ${fontSize}px ${S?.fonts?.display || SERIF_STACK}`;
+    let width = tw(label, font, 0);
+    const maxWidth = (S?._W || 1080) * 0.6;
+    if (width > maxWidth) {
+        fontSize *= maxWidth / width;
+        font = `700 ${fontSize}px ${S?.fonts?.display || SERIF_STACK}`;
+        width = maxWidth;
+    }
+    X.fillStyle = color;
+    X.textAlign = 'center';
+    X.textBaseline = 'middle';
+    X.font = font;
+    X.fillText(label, 0, 0);
+}
+
+/**
+ * Draws the motif and records its anchor for the free-move interaction.
+ *
+ * `motifOn === false` removes every decorative motif; `motif` may name a
+ * vector, `logo`, `auto` (the design's own element) or `none`. `motifScale`,
+ * `motifX` and `motifY` are applied around the slot anchor, so the same motif
+ * can be moved and resized on any design.
+ */
+function drawMotif(kind, cx, cy, size, ink, accent, options = {}) {
+    if (!S) return;
+    // The design owns a motif slot: the universal overlay must not double it.
+    S._motifDrawn = true;
+    if (S.motifOn === false) return;
+    const id = S.motif && S.motif !== 'auto' ? S.motif : (kind || 'sprig');
+    if (!id || id === 'none') return;
+    const scale = Math.max(0.2, Math.min(4, Number(S.motifScale) || 1));
+    const ox = (Number(S.motifX) || 0) * (S._W || 0);
+    const oy = (Number(S.motifY) || 0) * (S._H || 0);
+    const ax = cx + ox;
+    const ay = cy + oy;
+    X.save();
+    X.translate(ax, ay);
+    X.scale(scale, scale);
+    if (id === 'logo') {
+        drawLogoMotif(size, ink, options.autoContrast ? {
+            x: ax - (size * scale) / 2,
+            y: ay - (size * scale) / 2,
+            w: size * scale,
+            h: size * scale,
+        } : null);
+    } else {
+        (VECTORS[id] || VECTORS[kind] || VECTORS.sprig)(0, 0, size, ink, accent, options.lineWidth);
+    }
+    X.restore();
+    S._motifAnchor = { x: ax, y: ay, size: size * scale, id };
 }
 
 function rod(cx, y, height, color, lineWidth) {
-    if (!S?.motif || S.motif === 'auto') {
-        rodBase(cx, y, height, color, lineWidth);
-        return;
-    }
-    drawMotif('rod', cx, y + height / 2, height, color, C('accent'));
+    drawMotif('rod', cx, y + height / 2, height, color, C('accent'), { lineWidth });
 }
 
 function glass(cx, y, height, color, accent) {
-    if (!S?.motif || S.motif === 'auto') {
-        glassBase(cx, y, height, color, accent);
-        return;
-    }
     drawMotif('glass', cx, y + height / 2, height, color, accent);
 }
 
 function sprig(cx, cy, height, color, accent) {
-    if (!S?.motif || S.motif === 'auto') {
-        sprigBase(cx, cy, height, color, accent);
-        return;
-    }
     drawMotif('sprig', cx, cy + height * 0.25, height, color, accent);
 }
 
@@ -1103,7 +1175,10 @@ function stampGrid(rect, options = {}) {
         X.arc(cx, cy, radius, 0, Math.PI * 2);
         X.stroke();
         if (index === 0) {
-            drawMotif(options.motif || 'star', cx, cy, radius * 1.25, C('accent'), C('accent'));
+            // Stamps are a functional grid, not a decorative motif: keep the
+            // first stamp's mark steady when the motif is swapped or removed.
+            const mark = VECTORS[options.motif || 'star'] || VECTORS.star;
+            mark(cx, cy, radius * 1.25, C('accent'), C('accent'));
         } else {
             put(String(index + 1), cx, cy, fnt('d', 700, radius * 0.85), 0, 'c', C('mute'));
         }
@@ -1140,8 +1215,14 @@ function render(canvas, size, template, state, targetWidth, options = {}) {
     S._W = width;
     S._H = sideHeight;
     S.boxes = [];
+    let motifInfo = null;
+    let logoInfo = null;
     for (let index = 0; index < sides; index += 1) {
         S._side = sides > 1 ? 'fb'[index] : (size.side || 'f');
+        S._motifDrawn = false;
+        S._motifAnchor = null;
+        S._logoDrawn = false;
+        S._logoAnchor = null;
         X.save();
         X.translate(0, index * (sideHeight + gap));
         if (shape) {
@@ -1155,12 +1236,27 @@ function render(canvas, size, template, state, targetWidth, options = {}) {
         X.fillStyle = C('paper');
         X.fillRect(0, 0, width, sideHeight);
         template.draw(width, sideHeight, S._side);
+        // Designs without a decorative slot still accept a motif: draw it as a
+        // free element in the top-right margin, then let the user move/scale it.
+        if (!S._motifDrawn && S._side !== 'b' && S.motifOn !== false) {
+            const freeId = S.motif && S.motif !== 'auto' ? S.motif : 'none';
+            if (freeId !== 'none') {
+                drawMotif(freeId, width * 0.8, sideHeight * 0.16,
+                    Math.max(20, sideHeight * 0.14), C('ink'), C('accent'), { autoContrast: true });
+            }
+        }
+        if (S._side !== 'b' && S._motifAnchor) {
+            motifInfo = { ...S._motifAnchor, canvasWidth: width, canvasHeight: sideHeight };
+        }
+        if (S._side !== 'b' && S._logoAnchor) {
+            logoInfo = { ...S._logoAnchor, canvasWidth: width, canvasHeight: sideHeight };
+        }
         X.restore();
     }
     S = previousS;
     X = previousX;
     U = previousU;
-    return { width, height, shape };
+    return { width, height, shape, motif: motifInfo, logo: logoInfo };
 }
 
 function renderToCanvas(canvas, size, template, state) {

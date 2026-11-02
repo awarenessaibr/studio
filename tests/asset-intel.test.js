@@ -2,7 +2,7 @@
 /** Pure contract tests for Business Asset Intelligence. */
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const Intel = require('../asset-intel.js');
+const Intel = require('../src/shared/asset-intel.js');
 
 const photo = (overrides = {}) => Intel.normalizeAsset({
     id: 'ast_test-photo-1',

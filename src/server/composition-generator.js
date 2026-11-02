@@ -154,7 +154,7 @@ function groupByStem(files) {
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────
-const Core = require('./studio-core.js');
+const Core = require('../shared/studio-core.js');
 
 const briefPath = typeof flags.brief === 'string' ? flags.brief : '';
 const templatePath = typeof flags.template === 'string' ? flags.template : '';
@@ -391,7 +391,7 @@ function readBriefTable(file) {
     const buffer = fs.readFileSync(file);
     if (buffer.length > 3 && buffer[0] === 0x50 && buffer[1] === 0x4B) {
         // Reuse the server's dependency-free XLSX reader.
-        const { parseBriefFile } = require('./server.js');
+        const { parseBriefFile } = require('../../server.js');
         return parseBriefFile(path.basename(file), buffer);
     }
     return Object.assign({ source: 'csv', sheet: null, sheets: [] }, Core.parseDelimitedTable(buffer.toString('utf8')));

@@ -23,7 +23,7 @@ const context = {
 };
 
 test('the agent returns exactly two distinct complete proposals', async () => {
-    const agent = await import('../voice-design-agent.mjs');
+    const agent = await import('../src/server/voice/voice-design-agent.mjs');
     const result = await agent.generateProposals(reply([
         raw('Warm documentary'),
         raw('Bright editorial', { delivery: 'energetic', presentation: 'masculine' }),
@@ -38,7 +38,7 @@ test('the agent returns exactly two distinct complete proposals', async () => {
 });
 
 test('the agent refuses to clone one proposal into two', async () => {
-    const agent = await import('../voice-design-agent.mjs');
+    const agent = await import('../src/server/voice/voice-design-agent.mjs');
     const one = raw('Warm documentary');
     await assert.rejects(
         () => agent.generateProposals(reply([one, { ...one }]), { message: 'same', context }),
@@ -47,7 +47,7 @@ test('the agent refuses to clone one proposal into two', async () => {
 });
 
 test('the preview payload uses the composed instruct and sample', async () => {
-    const agent = await import('../voice-design-agent.mjs');
+    const agent = await import('../src/server/voice/voice-design-agent.mjs');
     const result = await agent.generateProposals(reply([
         raw('Warm documentary', { language: 'portuguese', locale: 'pt-BR', sample: 'Uma linha calma.' }),
         raw('Bright editorial', { language: 'portuguese', locale: 'pt-PT', sample: 'Uma linha brilhante.' }),

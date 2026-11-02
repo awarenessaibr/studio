@@ -32,24 +32,24 @@ brand-aware canvas engine. Dependency-free modules sit between them:
 
 | Module | Runs in | Responsibility |
 |---|---|---|
-| `studio-core.js` | browser **and** Node | Schema normalisers, one text layout, one render-path resolver, formats, variables, brand-kit validation, safe zones, guardrails, brief parsing helpers |
-| `brand-pack.js` | browser **and** Node | Brand-pack schema, tokens→kit mapping, palette-role inference, seven template builders |
-| `brand-docx.js` | Node | Word `.docx` reader (ZIP + document XML) |
-| `_.js` | browser | The Layer Studio engine: state, DOM, canvas, timeline, characters, exports, agent protocol |
-| `studio-v2.js` | browser | The studio page's own behaviour: zoom/fit, segment tree, group export, organizer dialog, saved projects |
-| `asset-studio/*.js` | browser | Brand adapter, 50 designs, canvas engine (shapes, tabular blocks, motifs), CMYK PDF writer with cut lines |
-| `crawler-service.js` | Node | Spawns the Python crawler, validates intake targets, manages background runs and logs |
-| `asset-intel.js` | browser + Node | Asset schema, taxonomy, fit/usage rules and pHash helpers |
-| `asset-store.js` | Node | Reference-first asset records, pack indexing, ingest, operations, usage and health |
-| `asset-service.js` | Node | Optional Pillow sidecar runner |
-| `tts-server.mjs` | Node | Optional MLX-Audio lifecycle, model registration and speech proxy |
-| `voice-design-agent.mjs` | Node | Two-direction voice recipes, validation and per-user sessions |
-| `tts-config.mjs` | Node | MLX-Audio/cache configuration |
-| `social-intel.js` | browser + Node | Social normaliser, posture/action rules and brand matching |
-| `social-store.js` | Node | Read-only index of scraped social profiles |
+| `src/shared/studio-core.js` | browser **and** Node | Schema normalisers, one text layout, one render-path resolver, formats, variables, brand-kit validation, safe zones, guardrails, brief parsing helpers |
+| `src/shared/brand-pack.js` | browser **and** Node | Brand-pack schema, tokens→kit mapping, palette-role inference, seven template builders |
+| `src/server/brand-docx.js` | Node | Word `.docx` reader (ZIP + document XML) |
+| `src/client/shared/_.js` | browser | The Layer Studio engine: state, DOM, canvas, timeline, characters, exports, agent protocol |
+| `src/client/studio/studio-v2.js` | browser | The studio page's own behaviour: zoom/fit, segment tree, group export, organizer dialog, saved projects |
+| `src/client/asset-studio/*.js` | browser | Brand adapter, 50 designs, canvas engine (shapes, tabular blocks, motifs), CMYK PDF writer with cut lines |
+| `src/server/crawler-service.js` | Node | Spawns the Python crawler, validates intake targets, manages background runs and logs |
+| `src/shared/asset-intel.js` | browser + Node | Asset schema, taxonomy, fit/usage rules and pHash helpers |
+| `src/server/asset-store.js` | Node | Reference-first asset records, pack indexing, ingest, operations, usage and health |
+| `src/server/asset-service.js` | Node | Optional Pillow sidecar runner |
+| `src/server/voice/tts-server.mjs` | Node | Optional MLX-Audio lifecycle, model registration and speech proxy |
+| `src/server/voice/voice-design-agent.mjs` | Node | Two-direction voice recipes, validation and per-user sessions |
+| `src/server/voice/tts-config.mjs` | Node | MLX-Audio/cache configuration |
+| `src/server/social-intel.js` | browser + Node | Social normaliser, posture/action rules and brand matching |
+| `src/server/social-store.js` | Node | Read-only index of scraped social profiles |
 | `scripts/crawler-combined.py` | Python | Website crawl + social/reputation crawl + brand-pack writer (the only dependency-bearing part) |
 | `scripts/asset-intel.py` | Python | Optional Pillow inspection, thumbnails, image operations, PDF/DOCX/OCR text |
-| `brand-identity.js` | browser | Brand identity workspace (dialog, gallery, templates) |
+| `src/client/brand/brand-identity.js` | browser | Brand identity workspace (dialog, gallery, templates) |
 
 There is no bundler. Each page loads exactly the scripts it needs, in order.
 
@@ -57,11 +57,11 @@ There is no bundler. Each page loads exactly the scripts it needs, in order.
 
 | Page | Scripts |
 |---|---|
-| `studio-v2.html` | `studio-core.js` → `brand-pack.js` → `_.js` → `brand-identity.js` → `studio-minimal/studio-minimal.js` → `studio-v2.js` |
-| `studio.html` | `studio-core.js` → `_.js` |
-| `asset-studio.html` | `vendor/qrcode.min.js` → `brand-pack.js` → `engine.js` → `categories.js` → `print.js` → `app.js` |
+| `pages/studio-v2.html` | `src/shared/studio-core.js` → `src/shared/brand-pack.js` → `src/client/shared/_.js` → `src/client/brand/brand-identity.js` → `src/client/studio/studio-minimal/studio-minimal.js` → `src/client/studio/studio-v2.js` |
+| `pages/studio.html` | `src/shared/studio-core.js` → `src/client/shared/_.js` |
+| `pages/asset-studio.html` | `src/client/asset-studio/vendor/qrcode.min.js` → `src/shared/asset-intel.js` → `src/shared/brand-pack.js` → `src/client/asset-studio/engine.js` → `categories.js` → `print.js` → `app.js` |
 
-`studio-core.js` and `brand-pack.js` use a UMD-style wrapper, so the same
+`src/shared/studio-core.js` and `src/shared/brand-pack.js` use a UMD-style wrapper, so the same
 files are `require()`-able in Node (tests, server, the CLI).
 
 ---
@@ -72,18 +72,18 @@ The rule that keeps this maintainable: **pure logic in the shared module,
 DOM in the page module.**
 
 - Anything that must agree between screen, export and server belongs in
-  `studio-core.js` (schema, layout, resolution).
+  `src/shared/studio-core.js` (schema, layout, resolution).
 - Anything that touches `document`, `canvas` or a file picker belongs in the
   page module.
-- `_.js` is a single IIFE exposing `window.LayerStudio` (including
+- `src/client/shared/_.js` is a single IIFE exposing `window.LayerStudio` (including
   `LayerStudio.PRESET_NAMES`), plus `window.layerStudioShowView()` /
   `window.layerStudioHideView()` and an instance on `window.layerStudio`.
-- `studio-v2.js` is the page module: it waits for `DOMContentLoaded`, calls
+- `src/client/studio/studio-v2.js` is the page module: it waits for `DOMContentLoaded`, calls
   `layerStudioShowView()`, then wires the parts of the page the engine does
   not own (segment tree, zoom, organizer, saved projects).
 - `asset-studio` exposes `window.AssetEngine`, `window.AssetPrint`,
   `window.AssetCategories`.
-- `brand-identity.js` exposes `window.brandIdentity` and hooks into the
+- `src/client/brand/brand-identity.js` exposes `window.brandIdentity` and hooks into the
   studio through `window.layerStudio`.
 
 ---
@@ -115,7 +115,7 @@ That was the plan's biggest risk (R3), and the visual gate exists to catch a
 regression: skipping `resolveLayer()` moves the ink centroid to 12 % and
 trips the pixel budget. See [testing.md](testing.md#3-chromium-harnesses).
 
-`studio-core.js` has no DOM dependency; the canvas text measurer is injected
+`src/shared/studio-core.js` has no DOM dependency; the canvas text measurer is injected
 through `buildTextMetrics()`, with `fallbackTextMetrics()` for Node.
 
 ---
@@ -123,7 +123,7 @@ through `buildTextMetrics()`, with `fallbackTextMetrics()` for Node.
 ## 4. Data model
 
 A composition is a JSON document, currently `version: 3`. The normalisers
-live in `studio-core.js` and in `_.js` `makeLayer()`.
+live in `src/shared/studio-core.js` and in `src/client/shared/_.js` `makeLayer()`.
 
 ### Layer
 
@@ -284,7 +284,7 @@ Routes and limits are listed in [api-and-cli.md](api-and-cli.md).
 - Tests run with `node --test` and raw Chrome DevTools Protocol (no
   Playwright/Puppeteer).
 
-The trade-offs are deliberate: a large `_.js` IIFE, manual script ordering,
+The trade-offs are deliberate: a large `src/client/shared/_.js` IIFE, manual script ordering,
 and no tree-shaking. In exchange, the whole thing is readable, greppable and
 has no supply chain.
 
@@ -294,16 +294,16 @@ has no supply chain.
 
 | You want to… | Change |
 |---|---|
-| Add an animation preset | `_.js` → `PRESET_NAMES` + the `presets` map in `applyPreset()` |
-| Add a format preset | `studio-core.js` → `CHANNEL_PRESETS` |
-| Add a variable kind | `studio-core.js` → `VARIABLE_KINDS` + validation + inspector UI |
-| Add a guardrail rule | `studio-core.js` → `evaluateGuardrails()` |
-| Add a brand template | `brand-pack.js` → `TEMPLATES` + a `buildX(ctx)` |
-| Add an Asset Studio design | `asset-studio/categories.js` → a category's `tpls` |
-| Add a motif | `asset-studio/engine.js` motif library + `MOTIF_LABELS` in `app.js` |
-| Add a character part | `_.js` → `CHARACTER_PART_KEYS` + rig generation + detector |
+| Add an animation preset | `src/client/shared/_.js` → `PRESET_NAMES` + the `presets` map in `applyPreset()` |
+| Add a format preset | `src/shared/studio-core.js` → `CHANNEL_PRESETS` |
+| Add a variable kind | `src/shared/studio-core.js` → `VARIABLE_KINDS` + validation + inspector UI |
+| Add a guardrail rule | `src/shared/studio-core.js` → `evaluateGuardrails()` |
+| Add a brand template | `src/shared/brand-pack.js` → `TEMPLATES` + a `buildX(ctx)` |
+| Add an Asset Studio design | `src/client/asset-studio/categories.js` → a category's `tpls` |
+| Add a motif | `src/client/asset-studio/engine.js` motif library + `MOTIF_LABELS` in `app.js` |
+| Add a character part | `src/client/shared/_.js` → `CHARACTER_PART_KEYS` + rig generation + detector |
 | Add an API endpoint | `server.js` router + a test in `tests/server.test.js` |
-| Change the agent schema | `_.js` → `exportAgentSpec()` / `applyAgentCommands()`, then update `agent-prompt.md` |
+| Change the agent schema | `src/client/shared/_.js` → `exportAgentSpec()` / `applyAgentCommands()`, then update `agent-prompt.md` |
 
 After a change, run `npm test`; for anything visual, run `npm run test:visual`.
 
@@ -311,11 +311,11 @@ After a change, run `npm test`; for anything visual, run `npm run test:visual`.
 
 ## 9. Known constraints
 
-- **`_.js` is large.** It is one IIFE of ~9.5k lines. It is sectioned and
+- **`src/client/shared/_.js` is large.** It is one IIFE of ~9.5k lines. It is sectioned and
   greppable, and the shared logic has already been extracted to
-  `studio-core.js`, but further extraction (timeline, characters, exports)
+  `src/shared/studio-core.js`, but further extraction (timeline, characters, exports)
   would be the next structural improvement.
-- **`_.css` uses underscore names.** `_.js` / `_.css` are the historical
+- **`src/client/shared/_.css` uses underscore names.** `src/client/shared/_.js` / `src/client/shared/_.css` are the historical
   Layer Studio names. Renaming them is churn without behaviour gain; the
   docs refer to them by role.
 - **`studio.html` is frozen** with a banner. It shares the engine, so it

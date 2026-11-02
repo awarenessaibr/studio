@@ -15,7 +15,7 @@ const fs = require('fs');
 const path = require('path');
 const Intel = require('./social-intel.js');
 
-const ROOT = __dirname;
+const ROOT = path.join(__dirname, '..', '..');
 const DATA = path.join(ROOT, 'data');
 const MAX_DATASETS = 120;
 const TTL_MS = 4000;

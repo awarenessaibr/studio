@@ -8,7 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 
-const ROOT = __dirname;
+const ROOT = path.join(__dirname, '..', '..');
 const SCRIPT = path.join(ROOT, 'scripts', 'asset-intel.py');
 const VENV_PYTHON = path.join(ROOT, '.venv', 'bin', 'python');
 const TIMEOUT = 20000;

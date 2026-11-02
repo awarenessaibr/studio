@@ -427,7 +427,7 @@ report specific reasons (e.g. `Load "Brand Sans" before exporting`).
 
 ## 12. Classic studio (`studio.html`)
 
-Frozen. It shares `_.js`/`studio-core.js`, so it can **open and export** a v3
+Frozen. It shares `src/client/shared/_.js`/`src/shared/studio-core.js`, so it can **open and export** a v3
 composition — including text layers, formats and variables made in v2 — but
 it has **no UI to create them**: no text tool, no format tabs, no variables
 panel, no brand kit, no briefs, no contact sheet, no batch ZIP.

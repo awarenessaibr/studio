@@ -7,7 +7,7 @@
  */
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const Crawler = require('../crawler-service.js');
+const Crawler = require('../src/server/crawler-service.js');
 
 test('crawler status exposes a usable Python/Playwright contract', async () => {
     const status = await Crawler.status();
@@ -66,4 +66,38 @@ test('long Google Maps profile URLs are accepted for a group target', () => {
 test('unknown run ids are rejected', async () => {
     await assert.rejects(() => Crawler.getRun('../etc/passwd'), /Invalid run id/i);
     await assert.rejects(() => Crawler.cancelRun('missing-run'), /not active/i);
+});
+
+
+test('social crawl options are bounded and sources are filtered', () => {
+    const options = Crawler.cleanSocialOptions({
+        sources: ['instagram', 'not-a-source', 'google', 'instagram'],
+        deep: true,
+        maxReviews: 9999,
+        maxPosts: 0,
+        browser: false,
+        cache: false,
+        assets: false,
+        raw: true,
+        sequential: true,
+        merge: false,
+    });
+    assert.deepEqual(options.sources, ['instagram', 'google']);
+    assert.equal(options.maxReviews, 500);
+    assert.equal(options.maxPosts, 1);
+    assert.equal(options.deep, true);
+    assert.equal(options.browser, false);
+    assert.equal(options.cache, false);
+    assert.equal(options.assets, false);
+    assert.equal(options.raw, true);
+    assert.equal(options.sequential, true);
+    assert.equal(options.merge, false);
+});
+
+test('startSocialRun rejects unsafe or incomplete targets before spawning', async () => {
+    await assert.rejects(() => Crawler.startSocialRun({ target: { name: '', website: 'https://example.com' } }), /name/i);
+    await assert.rejects(
+        () => Crawler.startSocialRun({ target: { name: 'Test', website: 'http://127.0.0.1:8008/' } }),
+        /private|Internal|not allowed/i,
+    );
 });

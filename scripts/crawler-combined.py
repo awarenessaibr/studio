@@ -5879,7 +5879,9 @@ def _places_api_lookup(ctx):
         "places.regularOpeningHours", "places.currentOpeningHours",
         "places.types", "places.primaryTypeDisplayName",
         "places.editorialSummary", "places.businessStatus",
-        "places.servesCuisine", "places.takeout", "places.delivery",
+        # NB: the Places API (New) rejects places.servesCuisine in a field mask
+        # ("Cannot find matching fields"); requesting it fails the whole lookup.
+        "places.takeout", "places.delivery",
         "places.dineIn", "places.reservable", "places.reviews",
         "places.attributions", "places.iconMaskBaseUri", "places.photos",
     ])

@@ -534,6 +534,142 @@ async function main() {
         if (/okja display/i.test(okjaFont)) ok('Okja brand fonts are uploaded and active');
         else fail(`Okja display font is not Okja Display: ${okjaFont}`);
 
+        console.log('\nMotif');
+        // Engine: any design accepts a motif, including the brand logo, and
+        // motifOn/motifScale/motifX/motifY move it.
+        const overlay = await page.evaluate(() => {
+            const template = { n: 'No motif', draw() { /* deliberately empty */ } };
+            const size = { w: 400, h: 300 };
+            const base = {
+                t: {},
+                pal: { paper: '#ffffff', ink: '#111111', accent: '#cc0000' },
+                fonts: { display: 'Georgia', serif: 'Georgia', sans: 'Arial' },
+                photos: [],
+            };
+            const render = (extra) => window.AssetEngine.render(document.createElement('canvas'), size, template,
+                { ...base, ...extra }, 400);
+            const on = render({ motif: 'sprig', motifOn: true });
+            const off = render({ motif: 'sprig', motifOn: false });
+            const logo = render({ motif: 'logo', motifOn: true });
+            const moved = render({ motif: 'sprig', motifOn: true, motifX: 0.2, motifScale: 2 });
+            return {
+                on: Boolean(on?.motif),
+                off: Boolean(off?.motif),
+                logo: Boolean(logo?.motif),
+                moved: Boolean(moved?.motif) && Math.abs(moved.motif.x - on.motif.x) > 40 && moved.motif.size > on.motif.size,
+            };
+        });
+        if (overlay.on) ok('a design without a motif slot accepts one');
+        else fail('a design without a motif slot did not draw the motif');
+        if (!overlay.off) ok('the motif toggle removes the element');
+        else fail('the motif toggle did not remove the element');
+        if (overlay.logo) ok('the brand logo can be used as a motif');
+        else fail('the logo motif did not draw');
+        if (overlay.moved) ok('motif position and size transform the element');
+        else fail('motif transform did not move or scale the element');
+
+        // UI: the Motif tab is available on every design, offers the logo and
+        // placement controls, and saves the placement with the asset.
+        await page.locator('.category-tab').filter({ hasText: 'Guest cards' }).click();
+        await page.waitForTimeout(350);
+        await page.locator('.design-tile').filter({ hasText: 'Door hanger' }).click();
+        await page.waitForTimeout(500);
+        await page.getByRole('tab', { name: 'Motif' }).click();
+        await page.waitForTimeout(300);
+        if (await page.locator('#controlBody .control-note').first().innerText().then((text) => /optional on every design/i.test(text))) {
+            ok('the motif panel is available on a design without a decorative slot');
+        } else {
+            fail('the motif panel still refuses designs without a motif slot');
+        }
+        if (await page.locator('.motif-tile[data-motif="logo"]').count() === 1) ok('the logo appears as a motif option');
+        else fail('the logo option is missing from the motif grid');
+        if (await page.locator('.motif-controls input[type="range"]').count() === 3) ok('motif size and position sliders are present');
+        else fail('motif placement sliders are missing');
+
+        const motifBeforeLogo = await page.locator('#previewCanvas').evaluate((canvas) => canvas.toDataURL());
+        await page.locator('.motif-tile[data-motif="logo"]').click();
+        await page.waitForTimeout(600);
+        const motifWithLogo = await page.locator('#previewCanvas').evaluate((canvas) => canvas.toDataURL());
+        if (motifBeforeLogo !== motifWithLogo) ok('choosing the logo redraws the design');
+        else fail('choosing the logo did not change the design');
+
+        const sizeSlider = page.locator('.motif-slider input[type="range"]').first();
+        await sizeSlider.evaluate((input) => { input.value = '180'; input.dispatchEvent(new Event('input', { bubbles: true })); });
+        await page.waitForTimeout(600);
+        const motifResized = await page.locator('#previewCanvas').evaluate((canvas) => canvas.toDataURL());
+        if (motifResized !== motifWithLogo) ok('resizing the motif redraws the design');
+        else fail('resizing the motif did not change the design');
+
+        page.once('dialog', (dialog) => dialog.accept('Motif placement test'));
+        await page.getByRole('button', { name: 'Save asset' }).click();
+        await page.waitForTimeout(700);
+        await page.getByRole('tab', { name: 'Saved' }).click();
+        await page.waitForTimeout(300);
+        const motifCard = page.locator('.saved-card').filter({ hasText: 'Motif placement test' }).first();
+        if (await motifCard.count() === 1) ok('the motif version saves as a new asset');
+        else fail('the motif version did not save');
+        await motifCard.getByRole('button', { name: 'Open' }).click();
+        await page.waitForTimeout(1100);
+        await page.getByRole('tab', { name: 'Motif' }).click();
+        await page.waitForTimeout(300);
+        const restoredMotifSize = await page.locator('.motif-value').first().innerText();
+        if (restoredMotifSize === '180%') ok('reopening the saved asset restores the motif size');
+        else fail(`reopening restored the motif size as ${restoredMotifSize}`);
+
+        console.log('\nZoom and logo');
+        const zoomStageBox = await page.locator('.stage').boundingBox();
+        const zoomBefore = await page.locator('.zoom-value').innerText();
+        await page.mouse.move(zoomStageBox.x + zoomStageBox.width / 2, zoomStageBox.y + zoomStageBox.height / 2);
+        await page.mouse.wheel(0, -420);
+        await page.waitForTimeout(500);
+        const zoomAfter = await page.locator('.zoom-value').innerText();
+        if (Number.parseInt(zoomAfter, 10) > 100) ok(`scrolling the preview zooms in (${zoomBefore} → ${zoomAfter})`);
+        else fail(`scrolling the preview did not zoom (${zoomAfter})`);
+        if (await page.locator('.zoom-reset').isVisible()) ok('the zoom bar offers a reset');
+        else fail('the zoom bar has no reset while zoomed');
+        await page.locator('.zoom-reset').click();
+        await page.waitForTimeout(400);
+        if (await page.locator('.zoom-value').innerText() === '100%') ok('zoom reset returns the preview to 100%');
+        else fail('zoom reset did not return to 100%');
+
+        await page.getByRole('tab', { name: 'Logo' }).click();
+        await page.waitForTimeout(300);
+        if (await page.locator('.motif-toggle .btn').count() === 1
+            && await page.locator('.motif-controls input[type="range"]').count() === 3) {
+            ok('the logo panel offers a toggle and size/position sliders');
+        } else {
+            fail('the logo panel is missing its toggle or sliders');
+        }
+        const logoShown = await page.locator('#previewCanvas').evaluate((canvas) => canvas.toDataURL());
+        await page.locator('.motif-toggle .btn').click();
+        await page.waitForTimeout(500);
+        const logoHidden = await page.locator('#previewCanvas').evaluate((canvas) => canvas.toDataURL());
+        if (logoShown !== logoHidden) ok('hiding the logo redraws the design');
+        else fail('hiding the logo did not change the design');
+        await page.locator('.motif-toggle .btn').click();
+        await page.waitForTimeout(500);
+        const logoSized = page.locator('.motif-slider input[type="range"]').first();
+        await logoSized.evaluate((input) => { input.value = '150'; input.dispatchEvent(new Event('input', { bubbles: true })); });
+        await page.waitForTimeout(500);
+        const logoAfterSize = await page.locator('#previewCanvas').evaluate((canvas) => canvas.toDataURL());
+        if (logoAfterSize !== logoShown) ok('resizing the logo redraws the design');
+        else fail('resizing the logo did not change the design');
+        page.once('dialog', (dialog) => dialog.accept('Logo placement test'));
+        await page.getByRole('button', { name: 'Save asset' }).click();
+        await page.waitForTimeout(700);
+        await page.getByRole('tab', { name: 'Saved' }).click();
+        await page.waitForTimeout(300);
+        const logoCard = page.locator('.saved-card').filter({ hasText: 'Logo placement test' }).first();
+        if (await logoCard.count() === 1) ok('the logo version saves as a new asset');
+        else fail('the logo version did not save');
+        await logoCard.getByRole('button', { name: 'Open' }).click();
+        await page.waitForTimeout(1100);
+        await page.getByRole('tab', { name: 'Logo' }).click();
+        await page.waitForTimeout(300);
+        const logoRestored = await page.locator('.motif-value').first().innerText();
+        if (logoRestored === '150%') ok('reopening the saved asset restores the logo size');
+        else fail(`reopening restored the logo size as ${logoRestored}`);
+
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
         if (!overflow) ok('the workspace has no horizontal overflow at 1600px');
         else fail('the workspace overflows horizontally at 1600px');
@@ -541,6 +677,36 @@ async function main() {
         await fsp.mkdir(path.join(ROOT, '_dev', 'screenshots'), { recursive: true });
         await page.screenshot({ path: path.join(ROOT, '_dev', 'screenshots', 'asset-studio-smoke.png') });
         console.log('\nscreenshot: _dev/screenshots/asset-studio-smoke.png');
+
+        // The gate is the entry point: a reload must not resume the workspace,
+        // even though a brand session exists from the walk above.
+        await page.reload({ waitUntil: 'domcontentloaded' });
+        await page.waitForSelector('.gate-card', { timeout: 20000 });
+        const afterReload = await page.evaluate(() => ({
+            gate: !document.getElementById('brandGate').hidden,
+            studio: !document.getElementById('studio').hidden,
+            cards: document.querySelectorAll('.gate-card').length,
+            groups: document.querySelectorAll('.group-tab').length,
+        }));
+        if (afterReload.gate && !afterReload.studio && afterReload.cards > 0) {
+            ok('a reload returns to the brand gate instead of resuming the workspace');
+        } else {
+            fail(`reload skipped the gate: ${JSON.stringify(afterReload)}`);
+        }
+
+        // Deep links are the deliberate way past the gate.
+        const okjaPack = await page.evaluate(() => document.getElementById('groupSelect').value);
+        await page.goto(`${BASE}/asset-studio.html?brand=okja&pack=${encodeURIComponent(okjaPack)}`, { waitUntil: 'domcontentloaded' });
+        await page.waitForFunction(() => !document.getElementById('studio').hidden, null, { timeout: 15000 });
+        const deepLinked = await page.evaluate(() => ({
+            gate: !document.getElementById('brandGate').hidden,
+            brand: document.getElementById('previewBrand').textContent,
+        }));
+        if (!deepLinked.gate && /okja/i.test(deepLinked.brand)) {
+            ok('a ?brand= deep link opens that brand without the gate');
+        } else {
+            fail(`deep link did not open the brand: ${JSON.stringify(deepLinked)}`);
+        }
 
         const relevantErrors = consoleErrors.filter((message) => !/favicon|net::ERR_|\/api\/fonts\b/i.test(message));
         if (relevantErrors.length) fail(`browser errors: ${relevantErrors.join(' | ')}`);

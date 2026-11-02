@@ -22,10 +22,10 @@ them. Only genuine uploads own bytes under `data/assets/<id>/original.*`.
 
 | Layer | Module |
 |---|---|
-| Shared contract | [asset-intel.js](../asset-intel.js) — schema, classes, operations, usage rules, fit, pHash |
-| Store | [asset-store.js](../asset-store.js) — records, ingest, pack indexing, dedupe, operations, usage, health |
-| Optional sidecar | [asset-service.js](../asset-service.js) + [scripts/asset-intel.py](../scripts/asset-intel.py) — Pillow inspection, thumbnails, resize/crop/recolour, text/OCR extraction |
-| Review surface | [library.html](../library.html), [library.js](../library.js), [library.css](../library.css) |
+| Shared contract | [src/shared/asset-intel.js](../asset-intel.js) — schema, classes, operations, usage rules, fit, pHash |
+| Store | [src/server/asset-store.js](../asset-store.js) — records, ingest, pack indexing, dedupe, operations, usage, health |
+| Optional sidecar | [src/server/asset-service.js](../asset-service.js) + [scripts/asset-intel.py](../scripts/asset-intel.py) — Pillow inspection, thumbnails, resize/crop/recolour, text/OCR extraction |
+| Review surface | [library.html](../library.html), [src/client/library/library.js](../library.js), [src/client/library/library.css](../library.css) |
 | API | `server.js` `/api/assets/...` |
 | Asset Studio | Image-tab Business library, text-row insertion, export gate, saved usage, upload ingest |
 | Brand identity | per-brand **Library** tab with health counts |
@@ -341,14 +341,14 @@ Manual acceptance:
 
 | File | Role |
 |---|---|
-| `asset-intel.js` | shared schema/taxonomy/rules/fit/pHash |
-| `asset-store.js` | reference-first store, indexing, ingest, operations, usage |
-| `asset-service.js` | optional Python runner |
+| `src/shared/asset-intel.js` | shared schema/taxonomy/rules/fit/pHash |
+| `src/server/asset-store.js` | reference-first store, indexing, ingest, operations, usage |
+| `src/server/asset-service.js` | optional Python runner |
 | `scripts/asset-intel.py` | Pillow/PDF/OCR sidecar |
 | `library.html/.js/.css` | review surface |
 | `server.js` | `/api/assets/*`, static `/library`, pack-delete cascade |
-| `asset-studio/app.js` | library section, menu rows, export gate, usage, upload |
-| `asset-studio/app.css` | library section styling |
-| `brand-identity.js` | per-brand Library tab |
+| `src/client/asset-studio/app.js` | library section, menu rows, export gate, usage, upload |
+| `src/client/asset-studio/app.css` | library section styling |
+| `src/client/brand/brand-identity.js` | per-brand Library tab |
 | `tests/asset-intel.test.js` | shared-contract tests |
 | `docs/asset-library.md` | this document |

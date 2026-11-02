@@ -4,7 +4,7 @@
 into the Studio server and the business asset library.
 
 Source review: `/Users/leandrodisconzi/repos/oia/adapter/src/tts-server.mjs` and
-`voice-design-agent.mjs`.
+`src/server/voice/voice-design-agent.mjs`.
 
 ---
 
@@ -12,8 +12,8 @@ Source review: `/Users/leandrodisconzi/repos/oia/adapter/src/tts-server.mjs` and
 
 | Module | What it actually does | What it is not |
 |---|---|---|
-| `tts-server.mjs` | Owns the **MLX-Audio lifecycle**: probe `:8771`, reuse an external server or spawn the local venv, link the Hugging Face model cache read-only into a project `HF_HOME`, register a cached Qwen3-TTS VoiceDesign model, and proxy `/v1/models`, `/v1/audio/voices` and speech. | Not a TTS model, not a cloud API, not a UI. |
-| `voice-design-agent.mjs` | Turns one sentence into **exactly two complete, distinct voice recipes** (every form value + the composed `instruct`), retries, enforces enum/range validity, persists per-user sessions and records “applied”. | Not a speech synthesiser; it calls an LLM and returns recipes. |
+| `src/server/voice/tts-server.mjs` | Owns the **MLX-Audio lifecycle**: probe `:8771`, reuse an external server or spawn the local venv, link the Hugging Face model cache read-only into a project `HF_HOME`, register a cached Qwen3-TTS VoiceDesign model, and proxy `/v1/models`, `/v1/audio/voices` and speech. | Not a TTS model, not a cloud API, not a UI. |
+| `src/server/voice/voice-design-agent.mjs` | Turns one sentence into **exactly two complete, distinct voice recipes** (every form value + the composed `instruct`), retries, enforces enum/range validity, persists per-user sessions and records “applied”. | Not a speech synthesiser; it calls an LLM and returns recipes. |
 
 Two design decisions in the OIA code were kept because they are right:
 
@@ -28,7 +28,7 @@ What changed for Studio Layers:
 
 | OIA | Studio Layers |
 |---|---|
-| `config.mjs` with Olivia paths | `tts-config.mjs` with `STUDIO_TTS_*` env and the same read-only cache model |
+| `config.mjs` with Olivia paths | `src/server/voice/tts-config.mjs` with `STUDIO_TTS_*` env and the same read-only cache model |
 | `OIA` session dirs | `data/voice-design-agent/<user>/sessions` |
 | DSH/OpenAI engine call | local Ollama (`getLlmCatalog` → `callOllama`), with a clearly labelled **curated fallback** when no model is available |
 | Full 2,347-line TTS page with models/voices/book/design tabs | focused `voice.html`: Speak + Design + save to the asset library |
@@ -201,10 +201,10 @@ Manual acceptance:
 
 | File | Role |
 |---|---|
-| `tts-server.mjs` | MLX-Audio discovery/lifecycle/proxy (ported from OIA) |
-| `voice-design-agent.mjs` | two-direction contract + per-user sessions (ported) |
-| `tts-config.mjs` | `STUDIO_TTS_*` configuration and cache paths |
+| `src/server/voice/tts-server.mjs` | MLX-Audio discovery/lifecycle/proxy (ported from OIA) |
+| `src/server/voice/voice-design-agent.mjs` | two-direction contract + per-user sessions (ported) |
+| `src/server/voice/tts-config.mjs` | `STUDIO_TTS_*` configuration and cache paths |
 | `voice.html/.js/.css` | Voice Studio |
 | `server.js` | `/api/tts/*`, local LLM bridge, curated fallback, audio proxy |
-| `asset-store.js` / `library.js` | audio MIME and library preview |
+| `src/server/asset-store.js` / `src/client/library/library.js` | audio MIME and library preview |
 | `tests/voice-design.test.js` | agent contract tests |

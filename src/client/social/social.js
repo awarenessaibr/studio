@@ -6,7 +6,10 @@
  * into channels, reputation, themes, voice and deterministic actions.
  */
 (function () {
-    const state = { sources: [], dataset: null, loading: false, error: '' };
+    const state = {
+        sources: [], dataset: null, loading: false, error: '',
+        crawl: null, crawlBusy: false, runId: '', runState: '', runTimer: 0,
+    };
     const $ = (id) => document.getElementById(id);
 
     const TONES = {
@@ -58,8 +61,17 @@
         return text.length > max ? `${text.slice(0, max - 1)}…` : text;
     };
 
-    async function api(path) {
-        const response = await fetch(path, { cache: 'no-store', headers: { Accept: 'application/json' } });
+    async function api(path, options = {}) {
+        const init = {
+            cache: 'no-store',
+            ...options,
+            headers: { Accept: 'application/json', ...(options.headers || {}) },
+        };
+        if (options.body !== undefined && typeof options.body !== 'string') {
+            init.body = JSON.stringify(options.body);
+            init.headers['Content-Type'] = 'application/json';
+        }
+        const response = await fetch(path, init);
         const data = await response.json().catch(() => null);
         if (!response.ok) throw new Error(data?.error || `The studio returned ${response.status}.`);
         return data;
@@ -81,16 +93,13 @@
             const payload = await api(`/api/social/sources${force ? '?refresh=1' : ''}`);
             state.sources = payload.sources || [];
             const select = $('socialSource');
-            select.textContent = '';
             if (!state.sources.length) {
+                select.textContent = '';
                 select.appendChild(h('option', { value: '', text: 'No social profiles found' }));
                 showEmpty('No social profile has been scraped yet.');
                 return;
             }
-            state.sources.forEach((source) => select.appendChild(h('option', {
-                value: source.id,
-                text: `${source.label}${source.group ? ` — ${source.group}` : ''}`,
-            })));
+            fillSourceSelect();
             const params = new URLSearchParams(location.search);
             let dataset = null;
             if (params.get('id') && state.sources.some((source) => source.id === params.get('id'))) {
@@ -110,15 +119,26 @@
         }
     }
 
+    function fillSourceSelect() {
+        const select = $('socialSource');
+        select.textContent = '';
+        state.sources.forEach((source) => select.appendChild(h('option', {
+            value: source.id,
+            text: `${source.label}${source.group ? ` — ${source.group}` : ''}`,
+        })));
+    }
+
     async function loadDataset(id) {
         if (!id) return null;
         const payload = await api(`/api/social/${encodeURIComponent(id)}`);
         state.dataset = payload.dataset;
+        state.crawl = payload.crawl || null;
         const url = new URL(location.href);
         url.searchParams.set('id', id);
         url.searchParams.delete('brandId');
         url.searchParams.delete('name');
         history.replaceState({}, '', url);
+        updateCrawlButton();
         return state.dataset;
     }
 
@@ -146,6 +166,16 @@
         renderVoice(dataset);
         renderActions(dataset);
         renderEvidence(dataset);
+        updateCrawlButton();
+    }
+
+    function updateCrawlButton() {
+        const button = $('socialCrawlBtn');
+        if (!button) return;
+        const enabled = Boolean(state.crawl?.enabled && state.dataset?.business?.website);
+        button.hidden = !enabled;
+        button.disabled = !enabled || state.crawlBusy;
+        if (enabled) button.title = `Run the social crawler for ${state.dataset.business.name}`;
     }
 
     function renderMeta(dataset) {
@@ -482,9 +512,303 @@
         body.appendChild(h('p', { class: 'section-note', text: 'What this does not prove: a public profile is not a customer base, and a readable review sample is not a statistically robust sentiment study. The page reports the evidence and its gaps.', style: { marginTop: '10px', textAlign: 'left', maxWidth: '780px' } }));
     }
 
+    // ─── Client social crawler ──────────────────────────────────────
+    const CRAWL_SOURCES = [
+        ['instagram', 'Instagram'],
+        ['facebook', 'Facebook'],
+        ['tiktok', 'TikTok'],
+        ['youtube', 'YouTube'],
+        ['google', 'Google reviews'],
+        ['tripadvisor', 'Tripadvisor'],
+    ];
+    const CRAWL_PRESETS = {
+        light: { reviews: 1, posts: 1, deep: false },
+        standard: { reviews: 20, posts: 6, deep: false },
+        deep: { reviews: 80, posts: 12, deep: true },
+    };
+
+    function hostLabel(value) {
+        try {
+            return new URL(String(value)).hostname.replace(/^www\./, '');
+        } catch {
+            return String(value || '');
+        }
+    }
+
+    function setCrawlStatus(message, { error = false, busy = false } = {}) {
+        const status = $('crawlStatus');
+        status.textContent = message || '';
+        status.dataset.error = String(Boolean(error));
+        status.dataset.busy = String(Boolean(busy));
+    }
+
+    function renderCrawlSources(dataset) {
+        const wrap = $('crawlSources');
+        wrap.textContent = '';
+        const present = new Set((dataset.channels || [])
+            .filter((channel) => channel.present && channel.url)
+            .map((channel) => channel.source));
+        CRAWL_SOURCES.forEach(([id, label]) => {
+            wrap.appendChild(h('label', { class: 'crawl-source' }, [
+                h('input', { type: 'checkbox', value: id, checked: present.has(id) }),
+                label,
+            ]));
+        });
+    }
+
+    function selectedCrawlSources() {
+        return [...document.querySelectorAll('#crawlSources input:checked')].map((input) => input.value);
+    }
+
+    function clearPreset() {
+        document.querySelectorAll('input[name="crawlPreset"]').forEach((input) => { input.checked = false; });
+    }
+
+    function updateCrawlEstimate() {
+        const reviews = Math.max(1, Math.min(500, Number($('crawlReviews').value) || 20));
+        const posts = Math.max(1, Math.min(60, Number($('crawlPosts').value) || 6));
+        const sources = selectedCrawlSources();
+        $('crawlEstimate').textContent = [
+            `${reviews} review${reviews === 1 ? '' : 's'}`,
+            `${posts} post${posts === 1 ? '' : 's'} per profile`,
+            sources.length ? sources.length === CRAWL_SOURCES.length ? 'all sources' : `${sources.length} source${sources.length === 1 ? '' : 's'}` : 'source auto-detect',
+            $('crawlDeep').checked ? 'deep pagination' : '',
+        ].filter(Boolean).join(' · ');
+    }
+
+    function applyCrawlPreset(name) {
+        const preset = CRAWL_PRESETS[name];
+        if (!preset) return;
+        $('crawlReviews').value = String(preset.reviews);
+        $('crawlPosts').value = String(preset.posts);
+        $('crawlDeep').checked = preset.deep;
+        document.querySelectorAll('input[name="crawlPreset"]').forEach((input) => {
+            input.checked = input.value === name;
+        });
+        updateCrawlEstimate();
+    }
+
+    async function renderCrawlKeys() {
+        const box = $('crawlKeys');
+        box.textContent = 'Checking the crawler…';
+        try {
+            const status = await api('/api/crawler/status');
+            box.textContent = '';
+            const add = (label, on) => box.appendChild(h('span', { class: `crawl-key${on ? ' is-on' : ''}` }, [
+                h('i'), `${label}: ${on ? 'ready' : 'not configured'}`,
+            ]));
+            add('Crawler', Boolean(status.available));
+            add('Browser', Boolean(status.playwright));
+            add('Places key', Boolean(status.keys?.google_places));
+            add('SerpAPI key', Boolean(status.keys?.serpapi));
+            if (!status.available) {
+                setCrawlStatus('The crawler is not available on this machine.', { error: true });
+                $('crawlRunBtn').disabled = true;
+            }
+        } catch (error) {
+            box.textContent = 'Could not check the crawler.';
+            setCrawlStatus(error.message, { error: true });
+        }
+    }
+
+    function openCrawlerDialog() {
+        const dataset = state.dataset;
+        if (!dataset || !state.crawl?.enabled || state.crawlBusy) return;
+        $('crawlForm').hidden = false;
+        $('crawlProgress').hidden = true;
+        $('crawlForm').reset();
+        $('crawlRunBtn').disabled = false;
+        $('crawlClose').disabled = false;
+        $('crawlDoneBtn').hidden = true;
+        $('crawlDoneBtn').disabled = false;
+        $('crawlStopBtn').hidden = false;
+        $('crawlStopBtn').disabled = false;
+        $('crawlTitle').textContent = 'Run a social crawl';
+        $('crawlSubtitle').textContent = `${dataset.business.name} · ${hostLabel(dataset.business.website)}`;
+        setCrawlStatus('');
+        renderCrawlSources(dataset);
+        applyCrawlPreset('standard');
+        renderCrawlKeys();
+        $('crawlDialog').showModal();
+    }
+
+    function collectCrawlOptions() {
+        return {
+            sources: selectedCrawlSources(),
+            deep: $('crawlDeep').checked,
+            maxReviews: Math.max(1, Math.min(500, Number($('crawlReviews').value) || 20)),
+            maxPosts: Math.max(1, Math.min(60, Number($('crawlPosts').value) || 6)),
+            browser: $('crawlBrowser').checked,
+            cache: $('crawlCache').checked,
+            assets: $('crawlAssets').checked,
+            raw: $('crawlRaw').checked,
+            sequential: $('crawlSequential').checked,
+            merge: $('crawlMerge').checked,
+        };
+    }
+
+    function updateRunView(run) {
+        const labels = {
+            starting: 'Starting the crawler…',
+            social: 'Reading reviews and profiles…',
+            packing: 'Packaging the profile…',
+            done: 'Crawl complete',
+            failed: 'Crawl failed',
+            cancelled: 'Crawler cancelled',
+            interrupted: 'Crawler interrupted',
+        };
+        state.runState = run.state;
+        state.crawlBusy = run.state === 'running';
+        $('crawlProgress').dataset.state = run.state;
+        $('crawlPhase').textContent = run.state === 'running'
+            ? (labels[run.phase] || 'Running the social crawl…')
+            : (labels[run.state] || 'Social crawl');
+        $('crawlRunMeta').textContent = [
+            run.id ? `Run ${run.id}` : '',
+            run.startedAt ? `Started ${new Date(run.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : '',
+            run.error || '',
+        ].filter(Boolean).join(' · ');
+        const ratio = run.state === 'done' || run.state === 'failed' || run.state === 'cancelled' ? 100 : 38;
+        $('crawlProgressBar').style.width = `${ratio}%`;
+        $('crawlLog').textContent = (run.log || []).slice(-80).join('\n');
+        $('crawlLog').scrollTop = $('crawlLog').scrollHeight;
+        const finished = ['done', 'failed', 'cancelled', 'interrupted'].includes(run.state);
+        $('crawlStopBtn').hidden = finished;
+        $('crawlDoneBtn').hidden = !finished;
+        $('crawlClose').disabled = !finished;
+        if (run.state === 'failed') setCrawlStatus(run.error || 'The crawler failed. See the log above.', { error: true });
+        if (run.state === 'cancelled') setCrawlStatus('The run was cancelled.');
+        if (run.state === 'interrupted') setCrawlStatus(run.error || 'The server restarted during the run.', { error: true });
+        updateCrawlButton();
+    }
+
+    async function refreshAfterCrawl() {
+        setCrawlStatus('Crawl finished. Loading the refreshed profile…', { busy: true });
+        const business = state.dataset?.business || {};
+        const slug = String(business.slug || '');
+        const name = String(business.name || '').toLowerCase();
+        try {
+            const payload = await api('/api/social/sources?refresh=1');
+            state.sources = payload.sources || [];
+            fillSourceSelect();
+            const match = state.sources.find((source) => (
+                (slug && source.business?.slug === slug)
+                || (name && String(source.business?.name || '').toLowerCase() === name)
+            ));
+            if (!match) {
+                setCrawlStatus('Crawl finished, but no new profile appeared. Check the log for source warnings.', { error: true });
+                return;
+            }
+            $('socialSource').value = match.id;
+            await selectSource(match.id);
+            setCrawlStatus('Crawl complete. Showing the refreshed profile.');
+        } catch (error) {
+            setCrawlStatus(`Crawl finished, but the profile could not be reloaded: ${error.message}`, { error: true });
+        }
+    }
+
+    function pollRun() {
+        clearTimeout(state.runTimer);
+        state.runTimer = 0;
+        const tick = async () => {
+            if (!state.runId) return;
+            try {
+                const run = await api(`/api/crawler/runs/${encodeURIComponent(state.runId)}`);
+                updateRunView(run);
+                if (['done', 'failed', 'cancelled', 'interrupted'].includes(run.state)) {
+                    if (run.state === 'done') {
+                        $('crawlDoneBtn').disabled = true;
+                        await refreshAfterCrawl();
+                        $('crawlDoneBtn').disabled = false;
+                    }
+                    return;
+                }
+            } catch (error) {
+                setCrawlStatus(error.message, { error: true });
+            }
+            state.runTimer = setTimeout(tick, 1600);
+        };
+        tick();
+    }
+
+    async function submitCrawl(event) {
+        event.preventDefault();
+        if (state.crawlBusy || !state.dataset || !state.crawl?.enabled) return;
+        const dataset = state.dataset;
+        const options = collectCrawlOptions();
+        state.crawlBusy = true;
+        $('crawlRunBtn').disabled = true;
+        setCrawlStatus('Starting the crawler…', { busy: true });
+        try {
+            const payload = await api(`/api/social/${encodeURIComponent(dataset.id)}/crawl`, {
+                method: 'POST',
+                body: { options },
+            });
+            state.runId = payload.run.id;
+            state.runState = 'running';
+            $('crawlForm').hidden = true;
+            $('crawlProgress').hidden = false;
+            $('crawlClose').disabled = true;
+            $('crawlDoneBtn').hidden = true;
+            $('crawlStopBtn').hidden = false;
+            $('crawlStopBtn').disabled = false;
+            updateRunView({ ...payload.run, state: 'running', phase: 'starting', log: [] });
+            pollRun();
+        } catch (error) {
+            state.crawlBusy = false;
+            $('crawlRunBtn').disabled = false;
+            setCrawlStatus(error.message, { error: true });
+        }
+    }
+
+    async function cancelCrawlRun() {
+        if (!state.runId) return;
+        $('crawlStopBtn').disabled = true;
+        setCrawlStatus('Cancelling the run…', { busy: true });
+        try {
+            await api(`/api/crawler/runs/${encodeURIComponent(state.runId)}/cancel`, { method: 'POST' });
+        } catch (error) {
+            $('crawlStopBtn').disabled = false;
+            setCrawlStatus(error.message, { error: true });
+        }
+    }
+
+    function closeCrawlerDialog() {
+        if (state.crawlBusy) return;
+        clearTimeout(state.runTimer);
+        state.runTimer = 0;
+        state.runId = '';
+        state.runState = '';
+        $('crawlDialog').close();
+        $('crawlForm').hidden = false;
+        $('crawlProgress').hidden = true;
+        updateCrawlButton();
+    }
+
+    function bindCrawler() {
+        $('socialCrawlBtn').addEventListener('click', openCrawlerDialog);
+        $('crawlForm').addEventListener('submit', submitCrawl);
+        $('crawlCancelBtn').addEventListener('click', closeCrawlerDialog);
+        $('crawlClose').addEventListener('click', closeCrawlerDialog);
+        $('crawlDoneBtn').addEventListener('click', closeCrawlerDialog);
+        $('crawlStopBtn').addEventListener('click', cancelCrawlRun);
+        $('crawlDialog').addEventListener('cancel', (event) => {
+            if (state.crawlBusy) event.preventDefault();
+        });
+        $('crawlPresets').addEventListener('change', (event) => {
+            if (event.target.name === 'crawlPreset') applyCrawlPreset(event.target.value);
+        });
+        ['crawlReviews', 'crawlPosts', 'crawlDeep', 'crawlBrowser', 'crawlCache', 'crawlAssets',
+            'crawlRaw', 'crawlSequential', 'crawlMerge'].forEach((id) => {
+            $(id).addEventListener('change', () => { clearPreset(); updateCrawlEstimate(); });
+        });
+        $('crawlSources').addEventListener('change', () => { updateCrawlEstimate(); });
+    }
+
     function bind() {
         $('socialSource').addEventListener('change', (event) => selectSource(event.target.value));
         $('socialRefresh').addEventListener('click', () => loadSources({ force: true }));
+        bindCrawler();
     }
 
     async function init() {

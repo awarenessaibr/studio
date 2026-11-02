@@ -15,7 +15,7 @@ the finished ZIP.
 | Surface | Where |
 |---|---|
 | Intake UI | `/crawler.html` (linked as **Brand intake** in Layer Studio and Asset Studio) |
-| Node job/API layer | [crawler-service.js](../crawler-service.js) |
+| Node job/API layer | [src/server/crawler-service.js](../crawler-service.js) |
 | Python crawler | [scripts/crawler-combined.py](../scripts/crawler-combined.py) |
 | Output | `data/_crawler/runs/<run-id>/output/` + the ZIP |
 | Imported pack | `data/brand-packs/<pack-id>/` |
@@ -36,7 +36,7 @@ node server.js
 # open http://127.0.0.1:8008/crawler.html
 ```
 
-`crawler-service.js` automatically uses `.venv/bin/python` when it exists and
+`src/server/crawler-service.js` automatically uses `.venv/bin/python` when it exists and
 falls back to `python3`. Override with `STUDIO_PYTHON=/path/to/python`.
 
 The readiness pill at the top of the page reports:
@@ -46,7 +46,11 @@ The readiness pill at the top of the page reports:
 - `pdftotext` (PDF menus),
 - Pillow (image dimensions, palette/specimen PNGs).
 
-Optional keys unlock better sources (all read from the environment):
+The Node server loads the project **`.env`** at startup (it is git-ignored)
+and passes it to the Python child. Keys can also come from the normal
+environment; `.env` never overrides a variable that is already set.
+
+Optional keys unlock better sources:
 
 | Variable | What it improves |
 |---|---|
@@ -156,6 +160,24 @@ Runs can be cancelled; cancelling terminates the Python process group.
 
 ---
 
+### Social-only re-crawls from Social intelligence
+
+The Social page can start a focused social run for one business when the
+administrator enables it in Management. That path calls the same script with:
+
+```bash
+.venv/bin/python scripts/crawler-combined.py \
+  --social-only --standalone \
+  --output-root data/_crawler/runs/<run>/output \
+  --max-reviews 20 --max-posts 6 [--only instagram,google] [--deep] …
+```
+
+The run writes `output/targets.json` with the single target (this is what keeps
+it to one business instead of every configured site) and lands its profile at
+`output/_social/<slug>/business.profile.json`, where the Social index reads it.
+No brand-pack ZIP is produced. See [social-intelligence.md](social-intelligence.md#running-a-crawl-for-this-business)
+for the UI options.
+
 ## 3. What the crawler produces
 
 The ZIP is the normal studio brand-pack contract:
@@ -181,7 +203,7 @@ The ZIP is the normal studio brand-pack contract:
         ├── insights.md
         ├── report.html
         ├── reviews.csv / reviews.all.json
-        ├── social.json
+        ├── src/client/social/social.json
         ├── social-profile.json
         └── assets/
 ```
@@ -240,6 +262,12 @@ These were real defects found while reviewing the July Dalton group output:
 10. **A confirmed target address was overwritten by a footer address.** A
     Maps/UI target (or `--targets` hints) now wins before the guide is
     written — so The Physician gets 129 South Street, not the Adamson's 127.
+11. **Every Google Places lookup failed with HTTP 400.** The Places API (New)
+    field mask requested `places.servesCuisine`, which the API rejects as an
+    unknown field ("Cannot find matching fields") — failing the whole request
+    even though rating and reviews were available. The field is no longer
+    requested, so Google rating/reviews load when `GOOGLE_PLACES_API_KEY` is
+    set (verified: The Physician, 3.7 · 65 reviews).
 
 ---
 
@@ -292,6 +320,14 @@ log output is captured. Search/discovery are read-only.
 ---
 
 ## 6. API
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/api/crawler/runs` | Full website + social group/standalone run |
+| `POST` | `/api/social/:id/crawl` | One-business social-only run, gated per business in Management |
+| `GET` | `/api/crawler/runs/:id` | Status, phase and log |
+| `POST` | `/api/crawler/runs/:id/cancel` | Cancel |
+| `GET` | `/api/crawler/status` | Python/Playwright/key readiness (booleans only) |
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -373,9 +409,9 @@ Manual acceptance for a new business:
 | File | Role |
 |---|---|
 | `crawler.html` | intake page |
-| `crawler.css` | page styles |
-| `crawler.js` | search → confirm → run → import behaviour |
-| `crawler-service.js` | Python discovery/JSON calls + background run manager (runs live under `data/_crawler/runs/`) |
+| `src/client/crawler/crawler.css` | page styles |
+| `src/client/crawler/crawler.js` | search → confirm → run → import behaviour |
+| `src/server/crawler-service.js` | Python discovery/JSON calls + background run manager (runs live under `data/_crawler/runs/`) |
 | `scripts/crawler-combined.py` | website + social crawler, pack writer |
 | `tests/crawler.test.js` | API safety and readiness contract |
 

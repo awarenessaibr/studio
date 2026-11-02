@@ -51,7 +51,7 @@ link.
 
 ## 2. Data sources
 
-`social-store.js` scans, in priority order:
+`src/server/social-store.js` scans, in priority order:
 
 ```
 data/_scraped/<group>/_social/<slug>/business.profile.json
@@ -69,7 +69,43 @@ Current local index: **4 businesses** (Results, The Physician, The Adamson,
 HATCH) across 2 groups. A run that is still crawling simply will not appear until
 its `business.profile.json` is written.
 
-There is no upload path and no write API. To refresh, press **Refresh** or:
+### Running a crawl for this business
+
+When the studio administrator enables **Client social crawler** for a business
+(Management → group → Client social crawler), this page gains a **Run social
+crawler** button. It starts a focused social-only run from the profile's
+website and channel URLs — no website re-crawl, no brand-pack import.
+
+The dialog exposes the crawler's own variables:
+
+| Control | What it does |
+|---|---|
+| **Depth** — Light / Standard / Deep | Presets for reviews, posts and pagination (1/1, 20/6, 80/12); every field stays editable |
+| **Sources** | Instagram, Facebook, TikTok, YouTube, Google reviews, Tripadvisor; unticked channels are skipped. None ticked = let the crawler choose |
+| **Reviews to read** | 1–500 per business (`--max-reviews`) |
+| **Posts per profile** | 1–60 (`--max-posts`) |
+| **Deep pagination** | `--deep` |
+| **Browser** | `--no-browser` when off; needed for gated channels |
+| **HTTP cache** | `--no-cache` when off |
+| **Download post images** | `--no-assets` when off |
+| **Keep raw HTML** | `--keep-raw` |
+| **Sequential channels** | `--sequential` (default parallel) |
+| **Merge earlier run data** | `--no-merge` when off |
+
+The run is a managed crawler job (`data/_crawler/runs/<id>/`): the dialog
+shows its phase and live log, **Cancel run** stops it, and on completion the
+page reloads the new `business.profile.json` and selects it. A profile cannot
+start a second crawl while its first is running, and the server enforces a
+30-second cooldown plus the global two-job limit.
+
+API keys come from the project `.env` (`GOOGLE_PLACES_API_KEY`,
+`SERPAPI_KEY`, …), loaded by the Node server at startup and inherited by the
+Python child. The dialog only shows whether each key is present.
+
+The run is refused with `403` when the business is not enabled and `422` when
+it has no website on file.
+
+To refresh the page without a crawl, press **Refresh** or:
 
 ```bash
 curl -s 'http://127.0.0.1:8008/api/social/sources?refresh=1'
@@ -79,7 +115,7 @@ curl -s 'http://127.0.0.1:8008/api/social/sources?refresh=1'
 
 ## 3. The reading
 
-`social-intel.js` is a shared, dependency-free normaliser. It produces:
+`src/server/social-intel.js` is a shared, dependency-free normaliser. It produces:
 
 - `channels[]` from `social.matrix`, sorted by presence and followers;
 - `reputation` with distribution, sentiment, velocity, owner response rate,
@@ -125,7 +161,20 @@ A missing match is shown as missing, not as an empty profile.
 
 ---
 
-## 5. API
+## 5. Crawl API
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/social/sources?refresh=1` | Indexed profiles |
+| `GET` | `/api/social/:id` | One profile plus `crawl: { enabled, packId, brandId, … }` |
+| `POST` | `/api/social/:id/crawl` | Start a social-only crawl for an enabled business (`{ options }`) |
+| `GET` | `/api/crawler/runs/:id` | Run phase, log and state |
+| `POST` | `/api/crawler/runs/:id/cancel` | Cancel a running crawl |
+
+The crawl endpoint only accepts businesses enabled in Management; it does not
+take a URL or a target from the client.
+
+## 6. Read API
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -133,11 +182,12 @@ A missing match is shown as missing, not as an empty profile.
 | GET | `/api/social/by-brand?brandId=&name=` | best match for a pack brand |
 | GET | `/api/social/:id` | full normalised dataset |
 
-There is no `POST`, `PATCH` or `DELETE`: the crawler remains the writer.
+Profiles are still written only by the Python crawler — the page never edits
+them. The only write endpoint is starting a run.
 
 ---
 
-## 6. Honest limits
+## 7. Honest limits
 
 - **Public evidence only.** The crawler reads public profiles and whatever review
   detail the source exposes anonymously. Private insights, DMs and ad accounts
@@ -156,7 +206,7 @@ There is no `POST`, `PATCH` or `DELETE`: the crawler remains the writer.
 
 ---
 
-## 7. Verification
+## 8. Verification
 
 ```bash
 npm test                         # includes tests/social-intel.test.js
@@ -175,14 +225,14 @@ Manual acceptance:
 
 ---
 
-## 8. Files
+## 9. Files
 
 | File | Role |
 |---|---|
-| `social-intel.js` | normalisation, posture, actions, brand matching |
-| `social-store.js` | read-only dataset index, dedupe, source scan |
+| `src/server/social-intel.js` | normalisation, posture, actions, brand matching |
+| `src/server/social-store.js` | read-only dataset index, dedupe, source scan |
 | `social.html/.css/.js` | the full social reading |
-| `brand-identity.js` | per-brand Social tab |
+| `src/client/brand/brand-identity.js` | per-brand Social tab |
 | `server.js` | `/api/social/*`, static `/social` |
 | `tests/social-intel.test.js` | contract and edge-case tests |
 | `docs/social-intelligence.md` | this document |

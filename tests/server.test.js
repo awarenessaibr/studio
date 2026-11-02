@@ -315,7 +315,7 @@ test('parseBriefFile rejects empty files, legacy .xls and mislabelled workbooks'
 
 test('a parsed brief drives composeBriefRow end to end', async () => {
     const fs = require('node:fs');
-    const core = require('../studio-core.js');
+    const core = require('../src/shared/studio-core.js');
     const buffer = await fsp.readFile(path.join(FIXTURES, 'brief.xlsx'));
     const brief = server.parseBriefFile('brief.xlsx', buffer);
     const composition = {
@@ -412,7 +412,7 @@ test('a shared kit validates a composition that has no embedded kit', () => {
         logos: [],
     };
     const composition = { ...baseComposition(), brandKit: null, variables: [], formats: [], layers: [] };
-    const core = require('../studio-core.js');
+    const core = require('../src/shared/studio-core.js');
     const report = core.validateAgainstBrandKit(composition, { kit });
     assert.ok(!report.groups.some((group) => group.id === 'kit'));
     assert.strictEqual(report.groups.find((group) => group.id === 'fonts').ok, true);

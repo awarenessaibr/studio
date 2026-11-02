@@ -11,9 +11,9 @@ const fs = require('node:fs');
 const fsp = fs.promises;
 const path = require('node:path');
 
-const Core = require('../studio-core.js');
-const Brand = require('../brand-pack.js');
-const { parseBrandDocx } = require('../brand-docx.js');
+const Core = require('../src/shared/studio-core.js');
+const Brand = require('../src/shared/brand-pack.js');
+const { parseBrandDocx } = require('../src/server/brand-docx.js');
 const server = require('../server.js');
 
 const ROOT = path.join(__dirname, '..');

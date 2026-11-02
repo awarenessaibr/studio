@@ -33,22 +33,28 @@ Asset Studio themes its own layouts from the same identity.
 
 On load, a full-screen gate asks which brand you are working for.
 
-- **Group tabs** across the top of the gate: Dalton family venues,
-  Monteleone Group, Cawley Hotels, KitchenOS, Okja (every imported brand pack
-  becomes a group automatically).
+**Every direct visit to `/asset-studio.html` opens this gate — reloads
+included.** The workspace is never resumed without a brand choice, so the first
+screen is always "Choose a brand".
+
+- **Group tabs** across the top of the gate, one per imported brand pack
+  (whatever lives in `data/brand-packs/` — including the Pulpo Hospitality and
+  Pulpo Hospitality — Refined groups).
 - A grid of brand cards, each with its cover image, wordmark and venue count.
-- Choosing a card opens the workspace and remembers the choice.
+- Choosing a card opens the workspace. Choosing the brand you were last editing
+  resumes that session (category, template, palette, type, copy); choosing
+  another brand starts clean.
 - The top bar's **group selector** switches groups while working, and each
   group remembers the **last brand used**, so switching back restores context.
 - Saved assets are global: they survive a group switch and restore with their
   own brand and design.
 
-Shipped groups (from `data/brand-packs/`): **5 packs / 17 brands** —
-Dalton (The Adamson, HATCH, The Physician), Monteleone (The Butterfly and the
-Pig, The Marlborough, The Singl-end), Cawley (Boardwalk, The Boat Yard, Coast
-Bar & Restaurant, Duck Bay Hotel & Cottages, River House), KitchenOS
-(Kitchen OS, Food Safe System, Food Label System, AllerQ, F*** Waste), Okja
-(okja).
+**Deep links** bypass the gate deliberately:
+
+| URL | Result |
+|---|---|
+| `?pack=<pack-id>` | The gate opens on that group. A one-brand pack opens its workspace directly. |
+| `?brand=<brand-id>` (or `?brandId=`) | That brand opens directly, in its own pack. |
 
 If no pack is imported, the gate explains that brand packs need the local
 server (`npm start`) and nothing renders.
@@ -70,7 +76,8 @@ server (`npm start`) and nothing renders.
 │ CONTROLS      │  Download PNG  Print  Print pack  Save asset        │
 │ Colours Type  │                                                      │
 │ Image Motif   │                                                      │
-│ Text Size Saved│                                                     │
+│ Logo Text     │                                                      │
+│ Size Saved    │                                                      │
 └───────────────┴──────────────────────────────────────────────────────┘
 ```
 
@@ -78,10 +85,12 @@ server (`npm start`) and nothing renders.
 - **Designs** — thumbnail grid of that category's layouts; `n of m` shows
   position. Thumbnails render with the current text so they preview the
   brand, not a placeholder.
-- **Controls** — one tab at a time: *Colours, Type, Image, Motif, Text, Size,
-  Saved*.
+- **Controls** — one tab at a time: *Colours, Type, Image, Motif, Logo, Text,
+  Size, Saved*.
 - **Preview** — a canvas at the design's true aspect, repainted on every
-  change.
+  change. **Scroll over it to zoom** (up to 500%) and inspect the artwork;
+  drag empty canvas to pan, double-click or press **Reset** to return to
+  100%. Zoom is a viewing aid and never changes the export.
 - **Export bar** — PNG, print, print pack, save.
 
 **Brand identity** opens a drawer with the active brand's palette,
@@ -259,9 +268,39 @@ Sizes: allergen matrix A4 landscape 1754×1240, prep label 50×30 mm and
   photo falls back to brand ink.
 
 ### Motif
-14 options: **Original, Botanical, Cocktail, Rod, Sparkle, Sun, Arch, Wave,
-Leaf, Diamond, Cross, Laurel, Ring, None**. *Original* keeps the motif the
-layout was designed with; some brands default the medical rod off.
+
+**Optional on every design**, whether or not the layout was drawn with one.
+
+- **On / off** — the toggle removes the motif entirely (`motifOn`), and
+  remembers the last element so switching back on restores it.
+- **Elements** — Original, Botanical, Cocktail, Rod, Sparkle, Sun, Arch, Wave,
+  Leaf, Diamond, Cross, Laurel, Ring, **Logo**, None. *Original* keeps the
+  motif the layout was designed with; **Logo** uses the brand's own lockup,
+  tinted to the ink/paper that contrasts with what is behind it.
+- **Placement** — a size slider (30–250%) and horizontal/vertical sliders
+  (±45% of the design). The motif can also be **dragged directly on the
+  preview**; the cursor turns into a grab hand when it is over the element.
+- A design with no decorative slot gets the motif as a free element in the
+  top-right margin, then it can be moved and scaled like any other. Stamps in
+  the loyalty card are structural and keep their own mark.
+- Placement is normalised (fractions of the design), so it survives size
+  changes and is stored with the asset: **Save asset** writes
+  `motif`, `motifOn`, `motifScale`, `motifX` and `motifY`, and **Open**
+  restores them. Session resume does the same.
+
+### Logo
+
+The logo is placed by the design, and is **optional per asset**:
+
+- **On / off** — hide the lockup without changing the layout.
+- **Placement** — size (30–250%) and horizontal/vertical sliders (±45%), or
+  drag the logo directly on the preview (the cursor becomes a grab hand).
+  **Reset placement** returns to the brand's optical default, which is tuned
+  per brand (e.g. KitchenOS uses 115%).
+- Designs that do not place a logo show a short note instead of controls.
+- `logoOn`, `logoScale`, `logoX` and `logoY` are stored with saved assets and
+  restored by **Open** and session resume; they also survive size changes
+  because the offsets are normalised.
 
 ### Text
 The copy fields for the selected design (headline, sub-head, body, date,
@@ -323,7 +362,8 @@ portrait).
 
 ### Saved
 - **Save asset** stores the design, size, palette, type, copy, motif and
-  images in browser storage (`assetStudio.saved.v1`).
+  logo (including their on/off state, size and position) and images in
+  browser storage (`assetStudio.saved.v1`).
 - The tab lists saved assets with **Open** and delete; the count appears in
   the tab.
 - Saved assets restore across groups and survive a reload, but they live in
@@ -382,10 +422,10 @@ the trim.
 
 - Brand packs and kits: `/api/brand-packs` (see [brand-packs.md](brand-packs.md)).
 - Uploaded fonts: `/api/fonts`.
-- Layouts: `asset-studio/categories.js` (the 50 designs).
-- Renderer and motif library: `asset-studio/engine.js`.
-- Print writer and preflight: `asset-studio/print.js`.
-- Brand adapter, controls, saved assets, exports: `asset-studio/app.js`.
+- Layouts: `src/client/asset-studio/categories.js` (the 50 designs).
+- Renderer and motif library: `src/client/asset-studio/engine.js`.
+- Print writer and preflight: `src/client/asset-studio/print.js`.
+- Brand adapter, controls, saved assets, exports: `src/client/asset-studio/app.js`.
 
 Only **copy defaults** for the Monteleone, Cawley, KitchenOS and Okja groups
 are hard-coded (`BRAND_COPY` in `app.js`) — deliberate, hand-written brand

@@ -78,6 +78,7 @@
         cross: 'Cross',
         laurel: 'Laurel',
         ring: 'Ring',
+        logo: 'Logo',
         none: 'None',
     };
 
@@ -494,6 +495,7 @@ Chocolate hazelnut spread | Deez Nuts`,
         ['type', 'Type'],
         ['image', 'Image'],
         ['motif', 'Motif'],
+        ['logo', 'Logo'],
         ['text', 'Text'],
         ['size', 'Size'],
         ['saved', 'Saved'],
@@ -515,6 +517,21 @@ Chocolate hazelnut spread | Deez Nuts`,
             sans: '"Helvetica Neue", Helvetica, Arial, sans-serif',
         },
         motif: 'auto',
+        motifOn: true,
+        motifLast: 'sprig',
+        motifScale: 1,
+        motifX: 0,
+        motifY: 0,
+        motifAnchor: null,
+        logoOn: true,
+        logoBaseScale: 1,
+        logoX: 0,
+        logoY: 0,
+        logoAnchor: null,
+        zoom: 1,
+        zoomX: 0,
+        zoomY: 0,
+        zoomBase: null,
         qr: '',
         text: {},
         photoIndex: 0,
@@ -666,6 +683,11 @@ Chocolate hazelnut spread | Deez Nuts`,
         if (/glass\s*\(/.test(source)) return 'glass';
         if (/sprig\s*\(/.test(source) || /\bsp\s*:/.test(source)) return 'sprig';
         if (/rod\s*\(/.test(source)) return 'rod';
+        // Designs that only call drawMotif() still have an original element;
+        // pick the first quoted vector so the "Original" tile has a preview.
+        for (const id of ['sprig', 'glass', 'rod', 'laurel', 'arch', 'wave', 'leaf', 'star', 'sun', 'diamond', 'cross', 'ring']) {
+            if (source.includes(`'${id}'`) || source.includes(`"${id}"`)) return id;
+        }
         return 'none';
     };
 
@@ -691,6 +713,28 @@ Chocolate hazelnut spread | Deez Nuts`,
             return 'sprig';
         }
         return 'auto';
+    };
+
+    // Motif placement: scale and offsets are normalised (fraction of the
+    // design, -0.45…0.45) so a saved asset restores on any output size.
+    const clampMotifScale = (value) => Math.max(0.3, Math.min(2.5, Number(value) || 1));
+    const clampMotifOffset = (value) => Math.max(-0.45, Math.min(0.45, Number(value) || 0));
+    const clampLogoScale = (value, fallback = 1) => {
+        const number = Number(value);
+        return Math.max(0.3, Math.min(2.5, Number.isFinite(number) && number > 0 ? number : (fallback || 1)));
+    };
+    const resetMotifPlacement = () => {
+        state.motifOn = true;
+        state.motifScale = 1;
+        state.motifX = 0;
+        state.motifY = 0;
+    };
+
+    const resetLogoPlacement = () => {
+        state.logoOn = true;
+        state.logoScale = state.logoBaseScale || 1;
+        state.logoX = 0;
+        state.logoY = 0;
     };
 
     const categoryDefaultText = (template, index) => {
@@ -1117,6 +1161,14 @@ Chocolate hazelnut spread | Deez Nuts`,
             pal: state.pal,
             fonts: state.fonts,
             motif: state.motif,
+            motifOn: state.motifOn !== false,
+            motifScale: state.motifScale,
+            motifX: state.motifX,
+            motifY: state.motifY,
+            logoOn: state.logoOn !== false,
+            logoScale: state.logoScale,
+            logoX: state.logoX,
+            logoY: state.logoY,
             qr: state.qr,
             text: state.text,
             photoIndex: state.photoIndex,
@@ -1208,6 +1260,8 @@ Chocolate hazelnut spread | Deez Nuts`,
     const boot = async () => {
         cacheDom();
         bindEvents();
+        bindCanvasDrag();
+        bindZoom();
         loadSaved();
         el.boot.hidden = false;
         try {
@@ -1217,8 +1271,20 @@ Chocolate hazelnut spread | Deez Nuts`,
             const session = readSession();
             const sessionPack = session?.brandId ? packSummaryForBrand(session.brandId) : null;
             const savedPackId = localStorage.getItem('assetStudio.packId');
-            const requestedPackId = new URLSearchParams(location.search).get('pack');
-            const packId = (requestedPackId && packs.some((pack) => pack.id === requestedPackId) ? requestedPackId : null)
+            const params = new URLSearchParams(location.search);
+            const requestedPackId = params.get('pack');
+            const requestedBrandId = params.get('brand') || params.get('brandId');
+            const requestedPack = requestedPackId && packs.some((pack) => pack.id === requestedPackId)
+                ? requestedPackId
+                : null;
+            const requestedBrandPack = requestedBrandId ? packSummaryForBrand(requestedBrandId) : null;
+            const brandIsInRequestedPack = Boolean(requestedBrandId && requestedBrandPack
+                && (requestedBrandPack.brands || []).some((brand) => brand.id === requestedBrandId));
+            // The gate is the entry point: a plain visit never resumes a brand
+            // by itself. Only an explicit deep link (?brand=/?brandId=, or a
+            // one-brand ?pack=) opens the workspace straight away.
+            const packId = (brandIsInRequestedPack ? requestedBrandPack.id : null)
+                || requestedPack
                 || sessionPack?.id
                 || (session?.packId && packs.some((pack) => pack.id === session.packId) ? session.packId : null)
                 || (packs.some((pack) => pack.id === savedPackId) ? savedPackId : packs[0].id);
@@ -1228,10 +1294,13 @@ Chocolate hazelnut spread | Deez Nuts`,
             renderGroupSelect();
             buildBrandSwitch();
             buildGate();
-            if (requestedPackId === pack.id && state.brands.length === 1) {
-                await selectBrand(state.brands[0].id);
-            } else if (session && state.brands.some((brand) => brand.id === session.brandId)) {
-                await selectBrand(session.brandId, { restoreSession: true, session });
+            const deepBrand = requestedBrandId && state.brands.some((brand) => brand.id === requestedBrandId)
+                ? requestedBrandId
+                : null;
+            if (deepBrand) {
+                await selectBrand(deepBrand, { restoreSession: true, session });
+            } else if (requestedPack === pack.id && state.brands.length === 1) {
+                await selectBrand(state.brands[0].id, { restoreSession: true, session });
             } else {
                 showGate();
             }
@@ -1529,7 +1598,10 @@ Chocolate hazelnut spread | Deez Nuts`,
             hideGate();
             return;
         }
-        await selectBrand(brandId);
+        // Picking the brand you were last working on resumes that edit; picking
+        // another one starts clean. The gate still comes first on every load.
+        const session = readSession();
+        await selectBrand(brandId, { restoreSession: true, session });
     };
 
     const selectBrand = async (brandId, options = {}) => {
@@ -1544,7 +1616,13 @@ Chocolate hazelnut spread | Deez Nuts`,
         const media = await loadBrandMedia(brand);
         state.logoWordmark = media.designLogo || media.logoImage;
         state.logoMark = media.logoImage ? media.markImage : null;
-        state.logoScale = { 'food-safe-system': 1.8, 'food-label-system': 1.35, allerq: 1.2, 'kitchen-os': 1.15, okja: 1.4 }[brand.id] || 1;
+        // Brand-specific optical correction for the logo slot; the logo panel
+        // starts from it and the reset button returns to it.
+        state.logoBaseScale = { 'food-safe-system': 1.8, 'food-label-system': 1.35, allerq: 1.2, 'kitchen-os': 1.15, okja: 1.4 }[brand.id] || 1;
+        state.logoScale = state.logoBaseScale;
+        state.logoOn = true;
+        state.logoX = 0;
+        state.logoY = 0;
         state.photos = [...media.photos];
         state.photoSources = media.sources.map((source) => ({ ...source }));
         state.photoIndex = 0;
@@ -1574,9 +1652,11 @@ Chocolate hazelnut spread | Deez Nuts`,
         state.sizeIndex = sizeIndex;
         state.slideIndex = 0;
         state.motif = defaultMotifForBrand(brand, category.tpls[templateIndex]);
+        resetMotifPlacement();
         state.text = categoryDefaultText(category.tpls[templateIndex], templateIndex);
         if (restore) applySessionOverrides(session);
         writeLastBrand(state.pack?.id, brand.id);
+        clearZoom();
         hideGate();
         showStudio();
         renderWorkspace();
@@ -1598,6 +1678,14 @@ Chocolate hazelnut spread | Deez Nuts`,
                 ? defaultMotifForBrand(state.brand, currentTemplate())
                 : session.motif;
         }
+        if (typeof session.motifOn === 'boolean') state.motifOn = session.motifOn;
+        if (Number.isFinite(Number(session.motifScale))) state.motifScale = clampMotifScale(session.motifScale);
+        if (Number.isFinite(Number(session.motifX))) state.motifX = clampMotifOffset(session.motifX);
+        if (Number.isFinite(Number(session.motifY))) state.motifY = clampMotifOffset(session.motifY);
+        if (typeof session.logoOn === 'boolean') state.logoOn = session.logoOn;
+        if (Number.isFinite(Number(session.logoScale))) state.logoScale = clampLogoScale(session.logoScale);
+        if (Number.isFinite(Number(session.logoX))) state.logoX = clampMotifOffset(session.logoX);
+        if (Number.isFinite(Number(session.logoY))) state.logoY = clampMotifOffset(session.logoY);
         if (Number.isInteger(session.photoIndex) && session.photoIndex >= 0 && session.photoIndex < state.photos.length) {
             state.photoIndex = session.photoIndex;
         }
@@ -1617,7 +1705,10 @@ Chocolate hazelnut spread | Deez Nuts`,
         applyBrandPalette();
         const category = currentCategory();
         state.motif = defaultMotifForBrand(state.brand, category.tpls[0]);
+        resetMotifPlacement();
+        resetLogoPlacement();
         state.text = categoryDefaultText(category.tpls[0], 0);
+        clearZoom();
         renderWorkspace();
     };
 
@@ -1628,13 +1719,17 @@ Chocolate hazelnut spread | Deez Nuts`,
         state.sizeIndex = 0;
         state.slideIndex = 0;
         state.motif = defaultMotifForBrand(state.brand, category.tpls[index]);
+        resetMotifPlacement();
+        resetLogoPlacement();
         state.text = categoryDefaultText(category.tpls[index], index);
+        clearZoom();
         renderWorkspace();
     };
 
     const selectSize = (index) => {
         if (!sizesForTemplate()[index]) return;
         state.sizeIndex = index;
+        clearZoom();
         document.querySelectorAll('[data-size-index]').forEach((node) => {
             node.setAttribute('aria-pressed', String(Number(node.dataset.sizeIndex) === index));
         });
@@ -1733,6 +1828,7 @@ Chocolate hazelnut spread | Deez Nuts`,
         else if (state.activeTab === 'type') renderTypePanel();
         else if (state.activeTab === 'image') renderImagePanel();
         else if (state.activeTab === 'motif') renderMotifPanel();
+        else if (state.activeTab === 'logo') renderLogoPanel();
         else if (state.activeTab === 'text') renderTextPanel();
         else if (state.activeTab === 'size') renderSizePanel();
         else if (state.activeTab === 'saved') renderSavedPanel();
@@ -2153,39 +2249,356 @@ Chocolate hazelnut spread | Deez Nuts`,
         el.controlBody.append(actions);
     };
 
-    const renderMotifPanel = () => {
-        const template = currentTemplate();
-        if (!templateHasMotif(template)) {
-            el.controlBody.append(make('p', 'control-note',
-                'This design has no decorative motif. Choose a design that uses the botanical, cocktail or rod element to swap it.'));
+    const templateHasAnyMotif = (template) => templateHasMotif(template)
+        || /drawMotif\s*\(/.test(String(template?.draw || ''));
+
+    const motifSelection = (hasSlot) => {
+        if (state.motifOn === false) return 'none';
+        if (state.motif === 'auto' && !hasSlot) return 'none';
+        return state.motif || 'auto';
+    };
+
+    let motifInputRefs = null;
+    let logoInputRefs = null;
+
+    const drawMotifTile = (canvas, id, template) => {
+        const size = 156;
+        canvas.width = size;
+        canvas.height = size;
+        const context = canvas.getContext('2d');
+        context.clearRect(0, 0, size, size);
+        if (id === 'logo') {
+            const image = state.logoWordmark || state.logoMark;
+            if (image && (image.naturalWidth || image.width)) {
+                const imageWidth = image.naturalWidth || image.width;
+                const imageHeight = image.naturalHeight || image.height;
+                const box = size - 30;
+                const scale = Math.min(box / imageWidth, box / imageHeight);
+                context.drawImage(image, (size - imageWidth * scale) / 2,
+                    (size - imageHeight * scale) / 2, imageWidth * scale, imageHeight * scale);
+                return;
+            }
+            context.fillStyle = state.pal.ink;
+            context.font = `700 34px ${state.fonts.display || 'Georgia, serif'}`;
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText(state.brand?.wordmark || state.brand?.name || 'Logo', size / 2, size / 2);
             return;
         }
+        if (id === 'none') {
+            context.strokeStyle = state.pal.ink;
+            context.globalAlpha = 0.35;
+            context.lineWidth = 3;
+            context.beginPath();
+            context.arc(size / 2, size / 2, size * 0.28, 0, Math.PI * 2);
+            context.moveTo(size * 0.3, size * 0.7);
+            context.lineTo(size * 0.7, size * 0.3);
+            context.stroke();
+            return;
+        }
+        window.AssetEngine.drawVectorPreview(canvas, id === 'auto' ? defaultMotifFor(template) : id, state.pal, 78, 78);
+    };
+
+    const buildSlider = (label, value, min, max, step, onChange, format, ariaLabel) => {
+        const row = make('label', 'motif-slider');
+        const head = make('span', 'motif-slider-head');
+        const valueLabel = make('span', 'motif-value', format(value));
+        head.append(make('span', null, label), valueLabel);
+        const input = document.createElement('input');
+        input.type = 'range';
+        input.min = String(min);
+        input.max = String(max);
+        input.step = String(step);
+        input.value = String(value);
+        input.setAttribute('aria-label', ariaLabel || label);
+        input.addEventListener('input', () => {
+            const next = Number(input.value);
+            onChange(next);
+            valueLabel.textContent = format(next);
+            schedulePreviewAndThumbs();
+            queueSession();
+        });
+        row.append(head, input);
+        return { row, input, valueLabel, format };
+    };
+
+    const addSlider = (controls, refs, key, label, value, min, max, step, onChange, format, ariaLabel) => {
+        const slider = buildSlider(label, value, min, max, step, onChange, format, ariaLabel);
+        refs[key] = slider;
+        controls.append(slider.row);
+    };
+
+    const syncSliders = (refs, values) => {
+        Object.entries(refs || {}).forEach(([key, ref]) => {
+            if (!ref) return;
+            ref.input.value = String(values[key]);
+            ref.valueLabel.textContent = ref.format(values[key]);
+        });
+    };
+
+    const syncMotifControls = () => syncSliders(motifInputRefs, {
+        size: Math.round((state.motifScale || 1) * 100),
+        x: Math.round((state.motifX || 0) * 100),
+        y: Math.round((state.motifY || 0) * 100),
+    });
+
+    const syncLogoControls = () => syncSliders(logoInputRefs, {
+        size: Math.round((state.logoScale || 1) * 100),
+        x: Math.round((state.logoX || 0) * 100),
+        y: Math.round((state.logoY || 0) * 100),
+    });
+
+    const renderMotifPanel = () => {
+        const template = currentTemplate();
+        const hasSlot = templateHasAnyMotif(template);
+        const current = motifSelection(hasSlot);
+        const active = current !== 'none';
+
         el.controlBody.append(make('p', 'control-note',
-            'The decorative element is drawn from the brand ink and accent. Pick another motif to replace it across this design.'));
+            'The motif is optional on every design: choose an element or the brand logo, or switch it off. Move and scale it on the preview — saved assets keep its position.'));
+
+        const toggleRow = make('div', 'motif-toggle');
+        const toggle = button(active ? 'Motif on' : 'Motif off', 'btn', () => {
+            if (active) {
+                state.motifOn = false;
+            } else {
+                state.motifOn = true;
+                if (state.motif === 'none' || (state.motif === 'auto' && !hasSlot)) {
+                    const last = state.motifLast && MOTIF_LABELS[state.motifLast] && state.motifLast !== 'none'
+                        ? state.motifLast
+                        : (hasSlot ? 'auto' : 'sprig');
+                    state.motif = last;
+                }
+            }
+            renderControlBody();
+            schedulePreviewAndThumbs();
+            queueSession();
+        });
+        toggle.setAttribute('aria-pressed', String(active));
+        toggle.setAttribute('aria-label', active ? 'Hide the motif' : 'Show the motif');
+        toggleRow.append(toggle, make('span', 'motif-toggle-hint',
+            active ? 'Shown on this design' : 'Hidden on this design'));
+        el.controlBody.append(toggleRow);
+
+        const refs = {};
+        motifInputRefs = refs;
+        if (active) {
+            const controls = make('div', 'motif-controls');
+            addSlider(controls, refs, 'size', 'Size', Math.round((state.motifScale || 1) * 100), 30, 250, 5,
+                (value) => { state.motifScale = value / 100; }, (value) => `${value}%`, 'Motif size');
+            addSlider(controls, refs, 'x', 'Horizontal', Math.round((state.motifX || 0) * 100), -45, 45, 1,
+                (value) => { state.motifX = value / 100; }, (value) => `${value > 0 ? '+' : ''}${value}%`, 'Motif horizontal position');
+            addSlider(controls, refs, 'y', 'Vertical', Math.round((state.motifY || 0) * 100), -45, 45, 1,
+                (value) => { state.motifY = value / 100; }, (value) => `${value > 0 ? '+' : ''}${value}%`, 'Motif vertical position');
+            const actions = make('div', 'button-row');
+            actions.append(button('Reset placement', 'btn', () => {
+                state.motifScale = 1;
+                state.motifX = 0;
+                state.motifY = 0;
+                syncMotifControls();
+                schedulePreviewAndThumbs();
+                queueSession();
+            }));
+            controls.append(actions);
+            el.controlBody.append(controls);
+            el.controlBody.append(make('p', 'hint',
+                'Tip: drag the motif on the preview to move it. Size and position are saved with the asset.'));
+        }
 
         const grid = make('div', 'motif-grid');
-        const options = ['auto', ...window.AssetEngine.VECTORS.filter((id) => id !== 'none'), 'none'];
+        const options = [
+            ...(hasSlot ? ['auto'] : []),
+            'logo',
+            ...window.AssetEngine.VECTORS.filter((id) => id !== 'none'),
+            'none',
+        ];
         options.forEach((id) => {
             const tile = button(null, 'motif-tile', () => {
                 state.motif = id;
-                renderMotifPanelBodyUpdate(grid);
+                state.motifOn = id !== 'none';
+                if (id !== 'none') state.motifLast = id;
+                renderControlBody();
                 schedulePreviewAndThumbs();
                 queueSession();
             });
-            tile.setAttribute('aria-pressed', String(state.motif === id));
+            tile.setAttribute('aria-pressed', String(current === id));
             tile.dataset.motif = id;
             const canvas = document.createElement('canvas');
-            const previewId = id === 'auto' ? defaultMotifFor(template) : id;
-            window.AssetEngine.drawVectorPreview(canvas, previewId, state.pal, 78, 78);
+            drawMotifTile(canvas, id, template);
             tile.append(canvas, make('span', null, MOTIF_LABELS[id] || id));
             grid.append(tile);
         });
         el.controlBody.append(grid);
     };
 
-    const renderMotifPanelBodyUpdate = (grid) => {
-        [...grid.children].forEach((tile) => {
-            tile.setAttribute('aria-pressed', String(tile.dataset.motif === state.motif));
+    const templateHasLogo = (template) => /logoAt\s*\(/.test(String(template?.draw || ''));
+
+    const renderLogoPanel = () => {
+        const template = currentTemplate();
+        if (!templateHasLogo(template)) {
+            el.controlBody.append(make('p', 'control-note',
+                'This design does not place a brand logo. Choose a design with a logo to hide, move or resize it.'));
+            return;
+        }
+        const active = state.logoOn !== false;
+        el.controlBody.append(make('p', 'control-note',
+            'The logo is optional here. Hide it, or move and scale it on the preview — the saved asset keeps the placement.'));
+
+        const toggleRow = make('div', 'motif-toggle');
+        const toggle = button(active ? 'Logo on' : 'Logo off', 'btn', () => {
+            state.logoOn = state.logoOn === false;
+            renderControlBody();
+            schedulePreviewAndThumbs();
+            queueSession();
+        });
+        toggle.setAttribute('aria-pressed', String(active));
+        toggle.setAttribute('aria-label', active ? 'Hide the logo' : 'Show the logo');
+        toggleRow.append(toggle, make('span', 'motif-toggle-hint',
+            active ? 'Shown on this design' : 'Hidden on this design'));
+        el.controlBody.append(toggleRow);
+
+        const refs = {};
+        logoInputRefs = refs;
+        if (active) {
+            const controls = make('div', 'motif-controls');
+            addSlider(controls, refs, 'size', 'Size', Math.round((state.logoScale || 1) * 100), 30, 250, 5,
+                (value) => { state.logoScale = value / 100; }, (value) => `${value}%`, 'Logo size');
+            addSlider(controls, refs, 'x', 'Horizontal', Math.round((state.logoX || 0) * 100), -45, 45, 1,
+                (value) => { state.logoX = value / 100; }, (value) => `${value > 0 ? '+' : ''}${value}%`, 'Logo horizontal position');
+            addSlider(controls, refs, 'y', 'Vertical', Math.round((state.logoY || 0) * 100), -45, 45, 1,
+                (value) => { state.logoY = value / 100; }, (value) => `${value > 0 ? '+' : ''}${value}%`, 'Logo vertical position');
+            const actions = make('div', 'button-row');
+            actions.append(button('Reset placement', 'btn', () => {
+                state.logoScale = state.logoBaseScale || 1;
+                state.logoX = 0;
+                state.logoY = 0;
+                syncLogoControls();
+                schedulePreviewAndThumbs();
+                queueSession();
+            }));
+            controls.append(actions);
+            el.controlBody.append(controls);
+            el.controlBody.append(make('p', 'hint',
+                'Tip: drag the logo on the preview to move it. Size and position are saved with the asset.'));
+        }
+
+        const preview = make('div', 'logo-preview');
+        const canvas = document.createElement('canvas');
+        drawMotifTile(canvas, 'logo', template);
+        preview.append(canvas, make('span', null, state.brand?.wordmark || state.brand?.name || 'Brand'));
+        el.controlBody.append(preview);
+    };
+
+    let canvasDrag = null;
+
+    const motifHitRadius = (anchor) => Math.max(anchor.size * 0.7, 26);
+
+    const canvasPoint = (event) => {
+        const canvas = el.previewCanvas;
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: (event.clientX - rect.left) * (canvas.width / Math.max(1, rect.width)),
+            y: (event.clientY - rect.top) * (canvas.height / Math.max(1, rect.height)),
+        };
+    };
+
+    const motifHit = (point, anchor) => Boolean(anchor) && state.motifOn !== false
+        && Math.hypot(point.x - anchor.x, point.y - anchor.y) <= motifHitRadius(anchor);
+
+    const logoHit = (point, anchor) => Boolean(anchor) && state.logoOn !== false
+        && point.x >= anchor.x - 8 && point.x <= anchor.x + anchor.w + 8
+        && point.y >= anchor.y - 8 && point.y <= anchor.y + anchor.h + 8;
+
+    const dragTargetAt = (point) => {
+        const motif = motifHit(point, state.motifAnchor);
+        const logo = logoHit(point, state.logoAnchor);
+        // The open panel decides when the two elements overlap.
+        if (state.activeTab === 'logo' && logo) return 'logo';
+        if (state.activeTab === 'motif' && motif) return 'motif';
+        if (motif) return 'motif';
+        if (logo) return 'logo';
+        return null;
+    };
+
+    const bindCanvasDrag = () => {
+        const canvas = el.previewCanvas;
+        if (!canvas) return;
+        canvas.addEventListener('pointerdown', (event) => {
+            if (event.button !== 0) return;
+            const point = canvasPoint(event);
+            const target = dragTargetAt(point);
+            if (target) {
+                event.preventDefault();
+                canvas.setPointerCapture(event.pointerId);
+                const anchor = target === 'motif' ? state.motifAnchor : state.logoAnchor;
+                canvasDrag = {
+                    pointerId: event.pointerId,
+                    kind: target,
+                    startX: point.x,
+                    startY: point.y,
+                    baseX: target === 'motif' ? (state.motifX || 0) : (state.logoX || 0),
+                    baseY: target === 'motif' ? (state.motifY || 0) : (state.logoY || 0),
+                    panelW: anchor?.canvasWidth || canvas.width,
+                    panelH: anchor?.canvasHeight || canvas.height,
+                };
+                canvas.style.cursor = 'grabbing';
+                return;
+            }
+            // Empty canvas while zoomed: pan the inspection view.
+            if (state.zoom > 1) {
+                event.preventDefault();
+                canvas.setPointerCapture(event.pointerId);
+                canvasDrag = {
+                    pointerId: event.pointerId,
+                    kind: 'pan',
+                    startClientX: event.clientX,
+                    startClientY: event.clientY,
+                    baseX: state.zoomX,
+                    baseY: state.zoomY,
+                };
+                canvas.style.cursor = 'grabbing';
+            }
+        });
+        canvas.addEventListener('pointermove', (event) => {
+            if (canvasDrag && event.pointerId === canvasDrag.pointerId) {
+                if (canvasDrag.kind === 'pan') {
+                    state.zoomX = canvasDrag.baseX + (event.clientX - canvasDrag.startClientX);
+                    state.zoomY = canvasDrag.baseY + (event.clientY - canvasDrag.startClientY);
+                    clampZoomPan();
+                    applyZoom();
+                } else {
+                    const point = canvasPoint(event);
+                    const offsetX = (point.x - canvasDrag.startX) / Math.max(1, canvasDrag.panelW);
+                    const offsetY = (point.y - canvasDrag.startY) / Math.max(1, canvasDrag.panelH);
+                    if (canvasDrag.kind === 'motif') {
+                        state.motifX = clampMotifOffset(canvasDrag.baseX + offsetX);
+                        state.motifY = clampMotifOffset(canvasDrag.baseY + offsetY);
+                        syncMotifControls();
+                    } else {
+                        state.logoX = clampMotifOffset(canvasDrag.baseX + offsetX);
+                        state.logoY = clampMotifOffset(canvasDrag.baseY + offsetY);
+                        syncLogoControls();
+                    }
+                    schedulePreviewAndThumbs();
+                    queueSession();
+                }
+                return;
+            }
+            const point = canvasPoint(event);
+            const target = dragTargetAt(point);
+            canvas.style.cursor = target ? 'grab' : (state.zoom > 1 ? 'grab' : '');
+        });
+        const finish = (event) => {
+            if (!canvasDrag || event.pointerId !== canvasDrag.pointerId) return;
+            const wasPan = canvasDrag.kind === 'pan';
+            canvasDrag = null;
+            canvas.style.cursor = '';
+            if (!wasPan) queueSession();
+        };
+        canvas.addEventListener('pointerup', finish);
+        canvas.addEventListener('pointercancel', finish);
+        canvas.addEventListener('pointerleave', () => {
+            if (!canvasDrag) canvas.style.cursor = '';
         });
     };
 
@@ -2414,9 +2827,16 @@ Chocolate hazelnut spread | Deez Nuts`,
         sel: state.photoIndex,
         qr: state.qr,
         motif: state.motif,
+        motifOn: state.motifOn !== false,
+        motifScale: state.motifScale,
+        motifX: state.motifX,
+        motifY: state.motifY,
         logoWordmark: state.logoWordmark,
         logoMark: state.logoMark,
         logoScale: state.logoScale || 1,
+        logoOn: state.logoOn !== false,
+        logoX: state.logoX,
+        logoY: state.logoY,
         brandWordmark: state.brand?.wordmark || state.brand?.name || 'Brand',
         typeProfile: CAWLEY_IDS.has(state.brand?.id)
             ? 'cawley'
@@ -2427,16 +2847,179 @@ Chocolate hazelnut spread | Deez Nuts`,
         defaultQr: websiteUrl(),
     });
 
+    // ─── zoomable preview (inspection only, never exported) ───────────
+    const ZOOM_MAX = 5;
+    const ZOOM_RENDER_MAX = 3500;
+    let zoomBar = null;
+    let zoomRenderTimer = 0;
+
+    const zoomStage = () => el.previewCanvas?.closest('.stage') || null;
+
+    const updateZoomBar = () => {
+        if (!zoomBar) return;
+        const value = zoomBar.querySelector('.zoom-value');
+        const reset = zoomBar.querySelector('.zoom-reset');
+        if (value) value.textContent = `${Math.round(state.zoom * 100)}%`;
+        if (reset) reset.hidden = state.zoom <= 1.001;
+        zoomBar.classList.toggle('is-zoomed', state.zoom > 1.001);
+    };
+
+    const clampZoomPan = () => {
+        const stage = zoomStage();
+        if (!stage || !state.zoomBase) {
+            state.zoomX = 0;
+            state.zoomY = 0;
+            return;
+        }
+        const rect = stage.getBoundingClientRect();
+        const style = window.getComputedStyle(stage);
+        const padX = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
+        const padY = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
+        const viewW = Math.max(1, rect.width - padX);
+        const viewH = Math.max(1, rect.height - padY);
+        const maxX = Math.max(0, (state.zoomBase.w * state.zoom - viewW) / 2);
+        const maxY = Math.max(0, (state.zoomBase.h * state.zoom - viewH) / 2);
+        state.zoomX = Math.max(-maxX, Math.min(maxX, state.zoomX));
+        state.zoomY = Math.max(-maxY, Math.min(maxY, state.zoomY));
+    };
+
+    const applyZoom = () => {
+        const canvas = el.previewCanvas;
+        if (!canvas) return;
+        if (state.zoom <= 1.001) {
+            state.zoom = 1;
+            state.zoomX = 0;
+            state.zoomY = 0;
+            state.zoomBase = null;
+            canvas.style.width = '';
+            canvas.style.height = '';
+            canvas.style.transform = '';
+            canvas.style.transformOrigin = '';
+            updateZoomBar();
+            return;
+        }
+        if (!state.zoomBase) {
+            const rect = canvas.getBoundingClientRect();
+            state.zoomBase = { w: rect.width, h: rect.height };
+            canvas.style.width = `${rect.width}px`;
+            canvas.style.height = `${rect.height}px`;
+        }
+        canvas.style.transformOrigin = 'center center';
+        canvas.style.transform = `translate(${state.zoomX}px, ${state.zoomY}px) scale(${state.zoom})`;
+        updateZoomBar();
+    };
+
+    const scheduleZoomRender = () => {
+        window.clearTimeout(zoomRenderTimer);
+        zoomRenderTimer = window.setTimeout(() => { renderPreview(); }, 140);
+    };
+
+    const zoomTo = (next, clientX, clientY) => {
+        const canvas = el.previewCanvas;
+        if (!canvas) return;
+        const target = Math.max(1, Math.min(ZOOM_MAX, next));
+        if (Math.abs(target - state.zoom) < 0.0005) return;
+        const rect = canvas.getBoundingClientRect();
+        if (!state.zoomBase) {
+            state.zoomBase = { w: rect.width, h: rect.height };
+            canvas.style.width = `${rect.width}px`;
+            canvas.style.height = `${rect.height}px`;
+        }
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const ratio = target / state.zoom;
+        state.zoomX += (clientX - cx) * (1 - ratio);
+        state.zoomY += (clientY - cy) * (1 - ratio);
+        state.zoom = target;
+        if (target === 1) {
+            state.zoomX = 0;
+            state.zoomY = 0;
+            state.zoomBase = null;
+            window.clearTimeout(zoomRenderTimer);
+            applyZoom();
+            renderPreview();
+            return;
+        }
+        clampZoomPan();
+        applyZoom();
+        scheduleZoomRender();
+    };
+
+    const clearZoom = () => {
+        state.zoom = 1;
+        state.zoomX = 0;
+        state.zoomY = 0;
+        state.zoomBase = null;
+        window.clearTimeout(zoomRenderTimer);
+        applyZoom();
+    };
+
+    const resetZoom = () => {
+        if (state.zoom === 1 && !state.zoomBase) return;
+        clearZoom();
+        renderPreview();
+    };
+
+    const zoomStep = (factor) => {
+        const canvas = el.previewCanvas;
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+        zoomTo(state.zoom * factor, rect.left + rect.width / 2, rect.top + rect.height / 2);
+    };
+
+    const bindZoom = () => {
+        const canvas = el.previewCanvas;
+        const stage = zoomStage();
+        if (!canvas || !stage) return;
+        zoomBar = make('div', 'zoom-bar');
+        const out = button('−', 'zoom-btn', () => zoomStep(1 / 1.35));
+        const value = make('span', 'zoom-value', '100%');
+        const inBtn = button('+', 'zoom-btn', () => zoomStep(1.35));
+        const reset = button('Reset', 'zoom-btn zoom-reset', resetZoom);
+        reset.hidden = true;
+        zoomBar.append(out, value, inBtn, reset);
+        stage.append(zoomBar);
+        // Scrolling over the preview inspects it instead of scrolling the page.
+        stage.addEventListener('wheel', (event) => {
+            if (Math.abs(event.deltaY) < 0.4 && Math.abs(event.deltaX) < 0.4) return;
+            event.preventDefault();
+            const factor = Math.exp(-event.deltaY * 0.0016);
+            zoomTo(state.zoom * factor, event.clientX, event.clientY);
+        }, { passive: false });
+        canvas.addEventListener('dblclick', (event) => {
+            if (state.zoom > 1) {
+                event.preventDefault();
+                resetZoom();
+            }
+        });
+        window.addEventListener('resize', () => {
+            if (state.zoom > 1) resetZoom();
+        });
+        updateZoomBar();
+    };
+
     const renderPreview = () => {
         const template = currentTemplate();
         const size = currentSize();
         if (!template || !size) return;
         clampSlide();
+        const baseTarget = Math.min(size.w, PREVIEW_MAX);
+        // Upscale the render while inspecting so the zoom shows real detail.
+        const targetWidth = Math.min(ZOOM_RENDER_MAX, Math.round(baseTarget * Math.max(1, state.zoom)));
         try {
-            window.AssetEngine.render(el.previewCanvas, size, template, buildRenderState(state.text),
-                Math.min(size.w, PREVIEW_MAX));
+            const rendered = window.AssetEngine.render(el.previewCanvas, size, template,
+                buildRenderState(state.text), targetWidth);
+            // Rendered anchors power click-and-drag placement.
+            state.motifAnchor = rendered?.motif || null;
+            state.logoAnchor = rendered?.logo || null;
         } catch (error) {
+            state.motifAnchor = null;
+            state.logoAnchor = null;
             toast(`Could not render this design: ${error.message}`, true);
+        }
+        if (state.zoom > 1 && state.zoomBase) {
+            el.previewCanvas.style.width = `${state.zoomBase.w}px`;
+            el.previewCanvas.style.height = `${state.zoomBase.h}px`;
         }
         renderHeader();
         updateSlideNav();
@@ -2972,6 +3555,14 @@ Chocolate hazelnut spread | Deez Nuts`,
             pal: { ...state.pal },
             fonts: { ...state.fonts },
             motif: state.motif,
+            motifOn: state.motifOn !== false,
+            motifScale: state.motifScale,
+            motifX: state.motifX,
+            motifY: state.motifY,
+            logoOn: state.logoOn !== false,
+            logoScale: state.logoScale,
+            logoX: state.logoX,
+            logoY: state.logoY,
             qr: state.qr,
             text: { ...state.text },
             photoIndex: state.photoIndex,
@@ -3032,6 +3623,14 @@ Chocolate hazelnut spread | Deez Nuts`,
         if (entry.pal) state.pal = { ...state.pal, ...entry.pal };
         if (entry.fonts) state.fonts = { ...state.fonts, ...entry.fonts };
         state.motif = entry.motif || 'auto';
+        state.motifOn = entry.motifOn !== false && state.motif !== 'none';
+        state.motifScale = clampMotifScale(entry.motifScale);
+        state.motifX = clampMotifOffset(entry.motifX);
+        state.motifY = clampMotifOffset(entry.motifY);
+        state.logoOn = entry.logoOn !== false;
+        state.logoScale = clampLogoScale(entry.logoScale, state.logoBaseScale || 1);
+        state.logoX = clampMotifOffset(entry.logoX);
+        state.logoY = clampMotifOffset(entry.logoY);
         state.qr = entry.qr || '';
         state.photoIndex = Number(entry.photoIndex) || 0;
         if (Array.isArray(entry.photoSources) && entry.photoSources.length) {
@@ -3050,6 +3649,7 @@ Chocolate hazelnut spread | Deez Nuts`,
             }
         }
         applyTheme();
+        clearZoom();
         hideGate();
         showStudio();
         renderWorkspace();

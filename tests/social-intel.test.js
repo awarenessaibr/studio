@@ -2,7 +2,7 @@
 /** Social-intelligence contract: normalise scraped evidence; never invent it. */
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const Intel = require('../social-intel.js');
+const Intel = require('../src/server/social-intel.js');
 
 const profile = {
     business: { name: 'The Physician', slug: 'thephysician-bar', category: 'Bar', city: 'St Andrews', website: 'https://example.com' },

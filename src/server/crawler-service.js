@@ -17,7 +17,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { spawn, spawnSync } = require('child_process');
 
-const ROOT = __dirname;
+const ROOT = path.join(__dirname, '..', '..');
 const DATA_DIR = path.join(ROOT, 'data', '_crawler');
 const RUNS_DIR = path.join(DATA_DIR, 'runs');
 const SCRIPT = path.join(ROOT, 'scripts', 'crawler-combined.py');
@@ -283,6 +283,153 @@ function activeRuns() {
     return [...jobs.values()].filter((job) => job.status.state === 'running').length;
 }
 
+const SOCIAL_SOURCE_KEYS = new Set([
+    'instagram', 'facebook', 'tiktok', 'youtube', 'x', 'threads', 'pinterest', 'linkedin', 'snapchat',
+    'google', 'tripadvisor', 'restaurantguru', 'yelp', 'trustpilot', 'opentable', 'thefork',
+    'quandoo', 'booking', 'expedia', 'michelin', 'foursquare', 'zomato',
+]);
+
+function cleanSocialOptions(input = {}) {
+    const options = input && typeof input === 'object' ? input : {};
+    const sources = [...new Set((Array.isArray(options.sources) ? options.sources : [])
+        .map((source) => String(source || '').trim().toLowerCase())
+        .filter((source) => SOCIAL_SOURCE_KEYS.has(source)))];
+    const clamp = (value, fallback, max) => {
+        const parsed = Number(value);
+        return Math.min(max, Math.max(1, Number.isFinite(parsed) ? parsed : fallback));
+    };
+    return {
+        sources,
+        deep: Boolean(options.deep),
+        maxReviews: clamp(options.maxReviews, 20, 500),
+        maxPosts: clamp(options.maxPosts, 6, 60),
+        browser: options.browser !== false,
+        cache: options.cache !== false,
+        assets: options.assets !== false,
+        raw: Boolean(options.raw),
+        sequential: Boolean(options.sequential),
+        merge: options.merge !== false,
+    };
+}
+
+/** Spawn a managed crawler run and wire its log, phase and status file. */
+function launchJob({ runDir, outputDir, args, status }) {
+    const id = status.id;
+    const logPath = status.logPath || path.join(runDir, 'run.log');
+    const child = spawn(pythonPath(), args, {
+        cwd: ROOT,
+        env: { ...process.env, PYTHONUNBUFFERED: '1' },
+        stdio: ['ignore', 'pipe', 'pipe'],
+        detached: true,
+    });
+    const job = { child, log: status.log, logPath, status, runDir, outputDir };
+    jobs.set(id, job);
+
+    const append = (chunk, stream) => {
+        const text = chunk.toString();
+        for (const line of text.split(/\r?\n/)) {
+            if (!line) continue;
+            job.log.push(line);
+            if (job.log.length > MAX_LOG_LINES) job.log.shift();
+            try {
+                fs.appendFileSync(logPath, `${stream === 'err' ? '! ' : ''}${line}\n`);
+            } catch { /* ignore log write errors */ }
+        }
+        updatePhase(job);
+    };
+    child.stdout.on('data', (chunk) => append(chunk, 'out'));
+    child.stderr.on('data', (chunk) => append(chunk, 'err'));
+    child.on('error', async (error) => {
+        job.status.state = 'failed';
+        job.status.error = `Could not start Python: ${error.message}`;
+        job.status.finishedAt = new Date().toISOString();
+        await writeStatus(runDir, job.status);
+    });
+    child.on('close', async (code) => {
+        job.status.exitCode = code;
+        job.status.finishedAt = new Date().toISOString();
+        job.status.zip = status.kind === 'social' ? '' : (findZip(outputDir) || '');
+        if (job.status.state === 'cancelled') {
+            job.status.phase = 'cancelled';
+        } else if (code === 0 && (status.kind === 'social' || job.status.zip)) {
+            job.status.state = 'done';
+            job.status.phase = 'done';
+        } else {
+            job.status.state = 'failed';
+            job.status.phase = 'failed';
+            job.status.error = job.status.error || lastError(job.log) || `The crawler exited with code ${code}.`;
+        }
+        await writeStatus(runDir, job.status);
+    });
+
+    return publicStatus(job);
+}
+
+async function startSocialRun(payload = {}) {
+    if (activeRuns() >= MAX_ACTIVE_RUNS) {
+        throw safeError('Two crawls are already running. Wait for one to finish or cancel it.', 429);
+    }
+    const target = cleanTarget(payload.target || {});
+    const group = boundedString(payload.group || target.name, 'Group name', { max: 120 });
+    const options = cleanSocialOptions(payload.options || payload);
+    const website = String(target.website || '').replace(/\/+$/, '').toLowerCase();
+    for (const job of jobs.values()) {
+        if (job.status.state !== 'running' || job.status.kind !== 'social') continue;
+        if (String(job.status.target?.website || '').replace(/\/+$/, '').toLowerCase() === website) {
+            throw safeError('A social crawl for this business is already running.', 429);
+        }
+    }
+    const id = runIdFor(`${target.name}-social`);
+    const runDir = path.join(RUNS_DIR, id);
+    const outputDir = path.join(runDir, 'output');
+    await fsp.mkdir(outputDir, { recursive: true });
+    // load_saved_targets() reads targets.json from the output root. Writing it
+    // there is what keeps this run to the one business instead of every
+    // pre-configured target in the script.
+    await fsp.writeFile(path.join(runDir, 'target.json'), JSON.stringify([target], null, 2));
+    await fsp.writeFile(path.join(outputDir, 'targets.json'), JSON.stringify([target], null, 2));
+
+    const args = [SCRIPT, '--social-only', '--standalone',
+        '--output-root', outputDir,
+        '--group', group,
+        '--max-reviews', String(options.maxReviews),
+        '--max-posts', String(options.maxPosts)];
+    if (options.sources.length) args.push('--only', options.sources.join(','));
+    if (options.deep) args.push('--deep');
+    if (!options.browser) args.push('--no-browser');
+    if (!options.cache) args.push('--no-cache');
+    if (!options.assets) args.push('--no-assets');
+    if (options.raw) args.push('--keep-raw');
+    if (options.sequential) args.push('--sequential');
+    if (!options.merge) args.push('--no-merge');
+
+    const status = {
+        kind: 'social',
+        id,
+        state: 'running',
+        startedAt: new Date().toISOString(),
+        finishedAt: null,
+        exitCode: null,
+        error: '',
+        target,
+        targets: [target],
+        targetCount: 1,
+        group,
+        groupDescription: `Social and reputation re-crawl for ${target.name}.`,
+        options,
+        runDir,
+        outputDir,
+        zip: '',
+        importedPackId: '',
+        phase: 'social',
+        log: [],
+    };
+    status.logPath = path.join(runDir, 'run.log');
+    await fsp.writeFile(status.logPath, '');
+    await writeStatus(runDir, status);
+    return launchJob({ runDir, outputDir, args, status });
+}
+
 async function startRun(payload = {}) {
     if (activeRuns() >= MAX_ACTIVE_RUNS) {
         throw safeError('Two crawls are already running. Wait for one to finish or cancel it.', 429);
@@ -347,63 +494,17 @@ async function startRun(payload = {}) {
     await fsp.writeFile(logPath, '');
     await writeStatus(runDir, status);
 
-    const child = spawn(pythonPath(), args, {
-        cwd: ROOT,
-        env: { ...process.env, PYTHONUNBUFFERED: '1' },
-        stdio: ['ignore', 'pipe', 'pipe'],
-        detached: true,
-    });
-    const job = { child, log: status.log, logPath, status, runDir, outputDir };
-    jobs.set(id, job);
-
-    const append = (chunk, stream) => {
-        const text = chunk.toString();
-        for (const line of text.split(/\r?\n/)) {
-            if (!line) continue;
-            job.log.push(line);
-            if (job.log.length > MAX_LOG_LINES) job.log.shift();
-            try {
-                fs.appendFileSync(logPath, `${stream === 'err' ? '! ' : ''}${line}\n`);
-            } catch { /* ignore log write errors */ }
-        }
-        updatePhase(job);
-    };
-    child.stdout.on('data', (chunk) => append(chunk, 'out'));
-    child.stderr.on('data', (chunk) => append(chunk, 'err'));
-    child.on('error', async (error) => {
-        job.status.state = 'failed';
-        job.status.error = `Could not start Python: ${error.message}`;
-        job.status.finishedAt = new Date().toISOString();
-        await writeStatus(runDir, job.status);
-    });
-    child.on('close', async (code) => {
-        job.status.exitCode = code;
-        job.status.finishedAt = new Date().toISOString();
-        job.status.zip = findZip(outputDir) || '';
-        if (job.status.state === 'cancelled') {
-            job.status.phase = 'cancelled';
-        } else if (code === 0 && job.status.zip) {
-            job.status.state = 'done';
-            job.status.phase = 'done';
-        } else {
-            job.status.state = 'failed';
-            job.status.phase = 'failed';
-            job.status.error = job.status.error || lastError(job.log) || `The crawler exited with code ${code}.`;
-        }
-        await writeStatus(runDir, job.status);
-    });
-
-    return publicStatus(job);
+    return launchJob({ runDir, outputDir, args, status });
 }
 
 function updatePhase(job) {
     const text = job.log.join('\n');
-    let phase = 'website';
+    let phase = job.status.kind === 'social' ? 'social' : 'website';
     const current = [...text.matchAll(/^\[(\d+)\/(\d+)\]\s+(\S+)/gm)].pop();
     if (current) {
         job.status.currentIndex = Number(current[1]);
         job.status.currentUrl = current[3];
-        job.status.phase = 'website';
+        job.status.phase = job.status.kind === 'social' ? 'social' : 'website';
     }
     if (/Social target:/.test(text)) phase = 'website';
     if (/Social & reputation phase|\[1\/\d+\] The |profiles resolved/.test(text)) phase = 'social';
@@ -440,6 +541,7 @@ async function writeStatus(runDir, status) {
 function publicStatus(job) {
     const status = job.status;
     return {
+        kind: status.kind || 'full',
         id: status.id,
         state: status.state,
         startedAt: status.startedAt,
@@ -508,6 +610,8 @@ async function listRuns() {
         const runDir = path.join(RUNS_DIR, dir.name);
         try {
             const status = JSON.parse(await fsp.readFile(path.join(runDir, 'status.json'), 'utf8'));
+            // Social re-crawls belong to the Social page, not the intake list.
+            if (status.kind === 'social') continue;
             const job = jobs.get(dir.name);
             const state = job ? job.status.state
                 : (status.state === 'running' ? 'interrupted' : status.state);
@@ -575,6 +679,8 @@ module.exports = {
     search,
     discover,
     startRun,
+    startSocialRun,
+    cleanSocialOptions,
     getRun,
     listRuns,
     cancelRun,

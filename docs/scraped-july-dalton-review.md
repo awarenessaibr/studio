@@ -119,7 +119,7 @@ returned the site's 404 page.
 per-brand reputation and social audit.
 
 - `group.report.md`, `group.summary.json` — ranked group scores.
-- Per brand: `business.profile.json`, `social.json`, `social.tokens.json`,
+- Per brand: `business.profile.json`, `src/client/social/social.json`, `social.tokens.json`,
   `insights.md`, `report.html`, `reviews.csv`, `reviews.all.json`,
   `discovery.json`, `state.json`, `crawl.log`, `platforms/*.json`,
   `assets/…`.
@@ -666,9 +666,9 @@ Review quotes need attribution and permission before publishing.
 - Assets: Pillow dimensions/formats; SHA-256 duplicate checks; `file` to
   detect HTML masquerading as images.
 - PDFs: `pdfinfo`, `pdftotext`.
-- Guides: `brand-docx.js` with the server ZIP reader.
+- Guides: `src/server/brand-docx.js` with the server ZIP reader.
 - Import behaviour: `createBrandPackImport`, `createBrandTemplateProject`,
   `deleteBrandPack` through `server.js`; all artefacts deleted.
-- Social: `business.profile.json`, `social.json`, `insights.md`,
+- Social: `business.profile.json`, `src/client/social/social.json`, `insights.md`,
   `platforms/*.json` inspected directly.
 - Source drop untouched.

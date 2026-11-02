@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="description" content="Developer-only management of the brand groups the studio shows.">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231a1a2e'/%3E%3Ctext x='16' y='23' font-family='Georgia,serif' font-size='18' fill='%23f2eee7' text-anchor='middle'%3EM%3C/text%3E%3C/svg%3E">
+    <title>Management — Studio Layers</title>
+    <link rel="stylesheet" href="/src/client/asset-studio/app.css">
+    <link rel="stylesheet" href="/src/client/admin/admin.css">
+</head>
+
+<body class="admin-page">
+    <header class="admin-topbar">
+        <a class="admin-brand" href="studio-v2.html" aria-label="Studio Layers home">
+            <span class="admin-mark">M</span>
+            <span class="admin-brand-copy"><strong>Studio Layers</strong><small>Management</small></span>
+        </a>
+        <nav class="admin-nav" aria-label="Studio">
+            <a href="studio-v2.html">Studio</a>
+            <a href="asset-studio.html">Asset Studio</a>
+            <a href="crawler.html">Brand intake</a>
+            <a href="library.html">Library</a>
+            <a href="voice.html">Voice</a>
+            <a href="social.html">Social</a>
+        </nav>
+        <span class="admin-badge">Dev only</span>
+    </header>
+
+    <main class="admin">
+        <section class="admin-hero">
+            <p class="eyebrow">Studio management</p>
+            <h1>Which groups and businesses the studio shows.</h1>
+            <p class="admin-lede">Choose the business groups that appear in the studio, Asset Studio, the asset
+                library and Voice — and the order they appear in. Click a business chip inside a group to hide that
+                business alone. Nothing is deleted: hidden groups stay reachable by link, and a hidden business can
+                be shown again to open its saved assets. Each business also has a client social-crawler switch —
+                only enabled businesses can launch a crawl from Social intelligence.</p>
+        </section>
+
+        <section id="keyPanel" class="admin-key" hidden>
+            <div>
+                <h2>Access key required</h2>
+                <p>The server is protecting management with <code>STUDIO_ADMIN_KEY</code>. Enter it to continue.</p>
+            </div>
+            <div class="admin-key-form">
+                <input id="keyInput" type="password" autocomplete="off" spellcheck="false" placeholder="Admin key" aria-label="Admin key">
+                <button id="keyBtn" class="btn primary" type="button">Unlock</button>
+            </div>
+            <p id="keyError" class="admin-error" hidden></p>
+        </section>
+
+        <section class="admin-toolbar" aria-label="Group actions">
+            <div class="admin-status">
+                <strong id="groupCount">Loading…</strong>
+                <span id="status" class="admin-status-detail"></span>
+            </div>
+            <div class="admin-actions">
+                <button id="showAllBtn" class="btn" type="button">Show all</button>
+                <button id="resetOrderBtn" class="btn" type="button">Reset order</button>
+            </div>
+        </section>
+
+        <section id="groupList" class="group-list" aria-live="polite"></section>
+
+        <p class="admin-note" id="modeNote"></p>
+        <p class="admin-note">Changes save immediately; refresh an already-open studio tab to see them.
+            Hidden groups are removed from group tabs and selectors; hidden businesses are removed from brand
+            cards and switches. Direct links to a hidden group still work, and nothing is deleted from disk.</p>
+    </main>
+
+    <script src="/src/client/admin/admin.js"></script>
+</body>
+
+</html>

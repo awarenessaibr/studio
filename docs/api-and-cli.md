@@ -210,7 +210,7 @@ See [voice-studio.md](voice-studio.md) for the port, setup and limits.
 
 ---
 
-## 4. CLI — `composition-generator.js`
+## 4. CLI — `src/server/composition-generator.js`
 
 Zero dependencies; parses PNG/JPEG/GIF headers itself. Exits non-zero and
 prints usage on bad input.
@@ -218,7 +218,7 @@ prints usage on bad input.
 ### Scaffold from a folder
 
 ```bash
-node composition-generator.js <folder> "<Scene Name>" [options]
+node src/server/composition-generator.js <folder> "<Scene Name>" [options]
 ```
 
 | Flag | Meaning |
@@ -243,7 +243,7 @@ What it does:
 Example:
 
 ```bash
-node composition-generator.js ./scene-cutouts "Scene 4 — The lake" \
+node src/server/composition-generator.js ./scene-cutouts "Scene 4 — The lake" \
     --reference ./scene-cutouts/final.png \
     --text "Master the night" \
     --out data/projects/My-Film/compositions/scene-4.composition.json
@@ -256,10 +256,10 @@ To appear in the studio's project picker, save under
 
 ```bash
 # Fill an existing template from a table
-node composition-generator.js --brief rows.csv --template scene.composition.json [--out-dir out]
+node src/server/composition-generator.js --brief rows.csv --template scene.composition.json [--out-dir out]
 
 # Scaffold from a folder and fill it in one go
-node composition-generator.js ./scene-cutouts "Winter campaign" --brief rows.xlsx --out-dir out
+node src/server/composition-generator.js ./scene-cutouts "Winter campaign" --brief rows.xlsx --out-dir out
 ```
 
 - One row → one `<row-label>.composition.json`.

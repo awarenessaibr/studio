@@ -1,3 +1,9 @@
+# ─── Local secrets ──────────────────────────────────────────────────
+# API keys for the crawler live here; never commit them.
+.env
+.env.*
+!.env.example
+
 # ─── Local studio data ───────────────────────────────────────────────
 # Everything the running studio writes lives under data/: imported ZIP
 # projects, repository compositions, brand packs, shared kits and uploaded

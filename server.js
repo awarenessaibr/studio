@@ -22,13 +22,22 @@ const fsp = fs.promises;
 const path = require('path');
 const zlib = require('zlib');
 const crypto = require('crypto');
-const Core = require('./studio-core.js');
-const StudioBrand = require('./brand-pack.js');
-const { parseBrandDocx } = require('./brand-docx.js');
-const Crawler = require('./crawler-service.js');
-const AssetStore = require('./asset-store.js');
-const AssetService = require('./asset-service.js');
-const SocialStore = require('./social-store.js');
+const Core = require('./src/shared/studio-core.js');
+const StudioBrand = require('./src/shared/brand-pack.js');
+const { parseBrandDocx } = require('./src/server/brand-docx.js');
+const Crawler = require('./src/server/crawler-service.js');
+const AssetStore = require('./src/server/asset-store.js');
+const AssetService = require('./src/server/asset-service.js');
+const SocialStore = require('./src/server/social-store.js');
+
+// Load local API keys (SERPAPI_KEY, GOOGLE_PLACES_API_KEY, …) from .env.
+// The crawler children inherit process.env, so this is the only place keys
+// enter the system; they are never sent to the browser.
+try {
+    process.loadEnvFile(path.join(__dirname, '.env'));
+} catch (error) {
+    if (error.code !== 'ENOENT') console.warn('[studio] could not read .env:', error.message);
+}
 
 const ROOT = __dirname;
 const DATA_DIR = path.join(ROOT, 'data');
@@ -37,6 +46,11 @@ const PROJECTS_DIR = path.join(DATA_DIR, 'projects');
 const FONTS_DIR = path.join(DATA_DIR, 'fonts');
 const BRAND_KITS_DIR = path.join(DATA_DIR, 'brand-kits');
 const BRAND_PACKS_DIR = path.join(DATA_DIR, 'brand-packs');
+const SETTINGS_DIR = path.join(DATA_DIR, 'settings');
+const GROUP_SETTINGS_FILE = path.join(SETTINGS_DIR, 'groups.json');
+// The management UI is a developer surface. With a key configured, every
+// admin call must present it; without one, only loopback callers are allowed.
+const ADMIN_KEY = String(process.env.STUDIO_ADMIN_KEY || '').trim();
 const PORT = Number(process.env.PORT) || 8008;
 const HOST = process.env.HOST || '127.0.0.1';
 
@@ -2451,6 +2465,7 @@ async function saveBrandKit(id, payload) {
         throw httpError(409, `There are already ${MAX_BRAND_KITS} brand kits. Delete one first.`);
     }
     await fsp.mkdir(BRAND_KITS_DIR, { recursive: true });
+    await fsp.mkdir(SETTINGS_DIR, { recursive: true });
     await writeFileAtomic(brandKitFile(kitId), encoded);
     const saved = await readBrandKit(kitId);
     return { kit: saved.kit, updatedAt: saved.updatedAt };
@@ -2541,6 +2556,179 @@ async function listBrandPacks() {
         }
     }
     return summaries.sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+}
+
+function isLoopbackRequest(req) {
+    const address = String(req.socket?.remoteAddress || '');
+    return address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1';
+}
+
+function isAdminRequest(req) {
+    if (ADMIN_KEY) return String(req.headers['x-admin-key'] || '') === ADMIN_KEY;
+    return isLoopbackRequest(req);
+}
+
+function requireAdmin(req) {
+    if (!isAdminRequest(req)) {
+        throw httpError(401, ADMIN_KEY
+            ? 'Admin access required. Send the x-admin-key header.'
+            : 'Admin access is limited to localhost. Set STUDIO_ADMIN_KEY to allow remote access.');
+    }
+}
+
+const GROUP_ID_PATTERN = /^[A-Za-z0-9_-]{1,80}$/;
+
+function normalizeGroupSettings(value) {
+    const source = value && typeof value === 'object' ? value : {};
+    const list = (entries) => [...new Set((Array.isArray(entries) ? entries : [])
+        .map((entry) => String(entry || ''))
+        .filter((entry) => GROUP_ID_PATTERN.test(entry)))].slice(0, MAX_BRAND_PACKS);
+    const refs = (entries) => [...new Set((Array.isArray(entries) ? entries : [])
+        .map((entry) => String(entry || ''))
+        .filter((entry) => /^[A-Za-z0-9_-]{1,80}::[A-Za-z0-9_-]{1,80}$/.test(entry)))].slice(0, 2000);
+    return {
+        version: 3,
+        updatedAt: typeof source.updatedAt === 'string' ? source.updatedAt : '',
+        order: list(source.order),
+        hidden: list(source.hidden),
+        hiddenBrands: refs(source.hiddenBrands),
+        // Businesses whose client-facing social crawler is enabled.
+        socialCrawler: refs(source.socialCrawler),
+    };
+}
+
+async function readGroupSettings() {
+    try {
+        const raw = await fsp.readFile(GROUP_SETTINGS_FILE, 'utf8');
+        return normalizeGroupSettings(JSON.parse(raw));
+    } catch (error) {
+        if (error.code !== 'ENOENT' && !(error instanceof SyntaxError)) {
+            console.error('[studio] could not read group settings:', error.message);
+        }
+        return normalizeGroupSettings(null);
+    }
+}
+
+async function writeGroupSettings(value) {
+    const settings = normalizeGroupSettings(value);
+    settings.updatedAt = new Date().toISOString();
+    await fsp.mkdir(SETTINGS_DIR, { recursive: true });
+    const temporary = `${GROUP_SETTINGS_FILE}.${process.pid}.tmp`;
+    await fsp.writeFile(temporary, JSON.stringify(settings, null, 2));
+    await fsp.rename(temporary, GROUP_SETTINGS_FILE);
+    return settings;
+}
+
+/** Filters hidden groups and businesses, and applies the dev-defined order. */
+function applyPackSettings(pack, settings, includeHidden = false) {
+    const hidden = new Set(settings.hidden);
+    const hiddenBrands = new Set(settings.hiddenBrands || []);
+    const socialCrawler = new Set(settings.socialCrawler || []);
+    const brands = (pack.brands || [])
+        .map((brand) => {
+            const ref = `${pack.id}::${brand.id}`;
+            return {
+                ...brand,
+                visible: !hiddenBrands.has(ref),
+                socialCrawler: socialCrawler.has(ref),
+            };
+        })
+        .filter((brand) => includeHidden || brand.visible);
+    return {
+        ...pack,
+        brands,
+        brandCount: brands.length,
+        visible: !hidden.has(pack.id),
+    };
+}
+
+function applyGroupSettings(packs, settings, includeHidden = false) {
+    const order = new Map(settings.order.map((id, index) => [id, index]));
+    return packs
+        .filter((pack) => includeHidden || !settings.hidden.includes(pack.id))
+        .map((pack) => applyPackSettings(pack, settings, includeHidden))
+        // A visible group with every business hidden has nothing to show.
+        .filter((pack) => includeHidden || pack.brands.length)
+        .sort((a, b) => {
+            const oa = order.has(a.id) ? order.get(a.id) : Number.POSITIVE_INFINITY;
+            const ob = order.has(b.id) ? order.get(b.id) : Number.POSITIVE_INFINITY;
+            if (oa !== ob) return oa - ob;
+            return String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''));
+        });
+}
+
+const SOCIAL_CRAWL_COOLDOWN_MS = 30000;
+const socialCrawlStarts = new Map();
+
+const SOCIAL_PROFILE_SOURCES = new Set([
+    'instagram', 'facebook', 'tiktok', 'youtube', 'x', 'threads', 'pinterest', 'linkedin', 'snapchat',
+    'google', 'tripadvisor', 'restaurantguru', 'yelp', 'trustpilot', 'opentable', 'thefork',
+    'quandoo', 'booking', 'expedia', 'michelin', 'foursquare', 'zomato',
+]);
+
+function siteHostKey(value) {
+    try {
+        return new URL(String(value || '')).hostname.toLowerCase().replace(/^www\./, '');
+    } catch {
+        return '';
+    }
+}
+
+function siteNameKey(value) {
+    return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+/**
+ * Resolve a scraped social dataset to a brand the admin can enable.
+ * Website host wins; the social folder path is authoritative; name is a
+ * fallback. Returns every match so duplicate brands across packs still work.
+ */
+async function socialCrawlAccess(dataset) {
+    const [packs, settings] = await Promise.all([listBrandPacks(), readGroupSettings()]);
+    const allowed = new Set(settings.socialCrawler || []);
+    const business = dataset?.business || {};
+    const host = siteHostKey(business.website);
+    const name = siteNameKey(business.name);
+    const file = String(dataset?.source?.file || '').replaceAll('\\', '/');
+    const matches = [];
+    for (const pack of packs) {
+        for (const brand of pack.brands || []) {
+            let score = 0;
+            if (file.includes(`brand-packs/${pack.id}/files/${brand.id}/social/`)) score = 3;
+            else if (host && siteHostKey(brand.url) === host) score = 2;
+            else if (name && siteNameKey(brand.name) === name) score = 1;
+            if (!score) continue;
+            matches.push({
+                score,
+                ref: `${pack.id}::${brand.id}`,
+                packId: pack.id,
+                packName: pack.name,
+                brandId: brand.id,
+                brandName: brand.name,
+            });
+        }
+    }
+    matches.sort((a, b) => b.score - a.score);
+    const allowedMatch = matches.find((match) => allowed.has(match.ref));
+    const best = allowedMatch || matches[0] || null;
+    return {
+        enabled: Boolean(allowedMatch),
+        ref: best?.ref || '',
+        hasWebsite: Boolean(business.website),
+        packId: best?.packId || '',
+        packName: best?.packName || '',
+        brandId: best?.brandId || '',
+        brandName: best?.brandName || '',
+    };
+}
+
+async function groupSettingsPayload() {
+    const [packs, settings] = await Promise.all([listBrandPacks(), readGroupSettings()]);
+    return {
+        packs: applyGroupSettings(packs, settings, true),
+        settings,
+        adminKeyConfigured: Boolean(ADMIN_KEY),
+    };
 }
 
 async function deleteBrandPack(id) {
@@ -3498,8 +3686,8 @@ let voiceModulesPromise = null;
 function voiceModules() {
     if (!voiceModulesPromise) {
         voiceModulesPromise = Promise.all([
-            import('./tts-server.mjs'),
-            import('./voice-design-agent.mjs'),
+            import('./src/server/voice/tts-server.mjs'),
+            import('./src/server/voice/voice-design-agent.mjs'),
         ]).then(([server, agent]) => ({ server, agent }));
     }
     return voiceModulesPromise;
@@ -3674,11 +3862,48 @@ async function handleApi(req, res, pathname) {
         return;
     }
 
-    const socialMatch = pathname.match(/^\/api\/social\/(soc_[a-f0-9]{12})$/);
-    if (socialMatch && req.method === 'GET') {
+    const socialMatch = pathname.match(/^\/api\/social\/(soc_[a-f0-9]{12})(\/crawl)?$/);
+    if (socialMatch && (req.method === 'GET' || req.method === 'POST')) {
         const dataset = SocialStore.get(socialMatch[1]);
         if (!dataset) throw httpError(404, 'Social dataset not found.');
-        sendJson(res, 200, { dataset });
+        if (!socialMatch[2]) {
+            if (req.method !== 'GET') throw httpError(405, 'Use /api/social/:id/crawl to start a run.');
+            sendJson(res, 200, { dataset, crawl: await socialCrawlAccess(dataset) });
+            return;
+        }
+        if (req.method !== 'POST') throw httpError(405, 'Use POST to start a social crawl.');
+        const access = await socialCrawlAccess(dataset);
+        if (!access.enabled) {
+            throw httpError(403, 'The social crawler is not enabled for this business. Ask the studio administrator.');
+        }
+        const business = dataset.business || {};
+        if (!business.website) throw httpError(422, 'This business has no website on file, so the crawler has no seed.');
+        const body = await readJsonRequest(req);
+        const profiles = {};
+        for (const channel of dataset.channels || []) {
+            const source = String(channel.source || '').toLowerCase();
+            if (!channel.present || !channel.url || !SOCIAL_PROFILE_SOURCES.has(source)) continue;
+            profiles[source] = channel.url;
+        }
+        const target = {
+            name: business.name,
+            slug: business.slug || '',
+            city: business.city || '',
+            region: business.region || '',
+            country: business.country || '',
+            category: business.category || '',
+            website: business.website,
+            profiles,
+        };
+        const options = body && typeof body.options === 'object' && body.options ? body.options : body;
+        const cooldownKey = access.ref || access.brandId || dataset.id;
+        const lastStart = socialCrawlStarts.get(cooldownKey) || 0;
+        if (Date.now() - lastStart < SOCIAL_CRAWL_COOLDOWN_MS) {
+            throw httpError(429, 'A social crawl for this business was started recently. Try again in a moment.');
+        }
+        const run = await Crawler.startSocialRun({ target, group: access.packName || business.name, options });
+        socialCrawlStarts.set(cooldownKey, Date.now());
+        sendJson(res, 202, { run, access });
         return;
     }
 
@@ -3884,7 +4109,7 @@ async function handleApi(req, res, pathname) {
     }
 
     if (pathname === '/api/assets/taxonomy' && req.method === 'GET') {
-        sendJson(res, 200, require('./asset-intel.js').taxonomy());
+        sendJson(res, 200, require('./src/shared/asset-intel.js').taxonomy());
         return;
     }
 
@@ -3996,7 +4221,7 @@ async function handleApi(req, res, pathname) {
                     const stat = await fsp.stat(file.path);
                     if (stat.size > MAX_VISION_IMAGE_BYTES) throw new Error('The image is too large for the vision model.');
                     const image = (await fsp.readFile(file.path)).toString('base64');
-                    const classes = require('./asset-intel.js').CLASSES.filter((value) => value !== 'unclassified');
+                    const classes = require('./src/shared/asset-intel.js').CLASSES.filter((value) => value !== 'unclassified');
                     const prompt = [
                         'Classify this business asset for a brand asset library.',
                         `Allowed classes: ${classes.join(', ')}.`,
@@ -4048,8 +4273,58 @@ async function handleApi(req, res, pathname) {
         throw httpError(405, 'Method not allowed for this asset action.');
     }
 
+    if (pathname === '/api/admin/groups' && (req.method === 'GET' || req.method === 'PUT')) {
+        requireAdmin(req);
+        if (req.method === 'GET') {
+            sendJson(res, 200, await groupSettingsPayload());
+            return;
+        }
+        const body = await readJsonRequest(req);
+        const packs = await listBrandPacks();
+        const known = new Set(packs.map((pack) => pack.id));
+        const brandRefs = new Set();
+        packs.forEach((pack) => (pack.brands || []).forEach((brand) => brandRefs.add(`${pack.id}::${brand.id}`)));
+        const order = [...new Set((Array.isArray(body?.order) ? body.order : [])
+            .map((entry) => String(entry || ''))
+            .filter((id) => known.has(id)))];
+        const hidden = [...new Set((Array.isArray(body?.hidden) ? body.hidden : [])
+            .map((entry) => String(entry || ''))
+            .filter((id) => known.has(id)))];
+        const hiddenBrands = [...new Set((Array.isArray(body?.hiddenBrands) ? body.hiddenBrands : [])
+            .map((entry) => String(entry || ''))
+            .filter((ref) => brandRefs.has(ref)))];
+        const socialCrawler = [...new Set((Array.isArray(body?.socialCrawler) ? body.socialCrawler : [])
+            .map((entry) => String(entry || ''))
+            .filter((ref) => brandRefs.has(ref)))];
+        if (hidden.length >= known.size && known.size) {
+            throw httpError(400, 'Keep at least one group visible.');
+        }
+        const hiddenRefSet = new Set(hiddenBrands);
+        for (const pack of packs) {
+            if (hidden.includes(pack.id) || !(pack.brands || []).length) continue;
+            const visibleBrands = pack.brands.filter((brand) => !hiddenRefSet.has(`${pack.id}::${brand.id}`));
+            if (!visibleBrands.length) {
+                throw httpError(400, `Every business in “${pack.name}” is hidden. Hide the whole group instead.`);
+            }
+        }
+        const settings = await writeGroupSettings({ order, hidden, hiddenBrands, socialCrawler });
+        sendJson(res, 200, {
+            packs: applyGroupSettings(packs, settings, true),
+            settings,
+            adminKeyConfigured: Boolean(ADMIN_KEY),
+        });
+        return;
+    }
+
     if (pathname === '/api/brand-packs' && req.method === 'GET') {
-        sendJson(res, 200, { packs: await listBrandPacks() });
+        const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+        const includeHidden = url.searchParams.get('all') === '1';
+        if (includeHidden) requireAdmin(req);
+        const [packs, settings] = await Promise.all([listBrandPacks(), readGroupSettings()]);
+        sendJson(res, 200, {
+            packs: applyGroupSettings(packs, settings, includeHidden),
+            hiddenCount: settings.hidden.length,
+        });
         return;
     }
 
@@ -4107,7 +4382,17 @@ async function handleApi(req, res, pathname) {
     if (brandPackMatch) {
         const packId = brandPackMatch[1];
         if (req.method === 'GET') {
-            sendJson(res, 200, await readBrandPack(packId));
+            const result = await readBrandPack(packId);
+            const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+            const includeHidden = url.searchParams.get('all') === '1' && isAdminRequest(req);
+            if (includeHidden) {
+                sendJson(res, 200, result);
+            } else {
+                const settings = await readGroupSettings();
+                const filtered = applyPackSettings(result.pack, settings, false);
+                if (!filtered.brands.length) throw httpError(404, 'Brand pack not found.');
+                sendJson(res, 200, { ...result, pack: filtered });
+            }
             return;
         }
         if (req.method === 'DELETE') {
@@ -4374,31 +4659,99 @@ async function handleApi(req, res, pathname) {
     throw httpError(404, 'API route not found.');
 }
 
+const PAGES_DIR = path.join(ROOT, 'pages');
+const PAGE_ROUTES = {
+    '/': 'studio-v2.html',
+    '/studio': 'studio-v2.html',
+    '/studio-v2': 'studio-v2.html',
+    '/studio-v2.html': 'studio-v2.html',
+    '/studio.html': 'studio.html',
+    '/asset-studio': 'asset-studio.html',
+    '/asset-studio.html': 'asset-studio.html',
+    '/crawler': 'crawler.html',
+    '/crawler.html': 'crawler.html',
+    '/library': 'library.html',
+    '/library.html': 'library.html',
+    '/voice': 'voice.html',
+    '/voice.html': 'voice.html',
+    '/social': 'social.html',
+    '/social.html': 'social.html',
+    '/admin': 'admin.html',
+    '/manage': 'admin.html',
+    '/admin.html': 'admin.html',
+};
+
+const LEGACY_ASSETS = {
+    '/_.js': 'src/client/shared/_.js',
+    '/_.css': 'src/client/shared/_.css',
+    '/studio-core.js': 'src/shared/studio-core.js',
+    '/brand-pack.js': 'src/shared/brand-pack.js',
+    '/asset-intel.js': 'src/shared/asset-intel.js',
+    '/studio-v2.js': 'src/client/studio/studio-v2.js',
+    '/brand-identity.js': 'src/client/brand/brand-identity.js',
+    '/brand-identity.css': 'src/client/brand/brand-identity.css',
+    '/crawler.js': 'src/client/crawler/crawler.js',
+    '/crawler.css': 'src/client/crawler/crawler.css',
+    '/library.js': 'src/client/library/library.js',
+    '/library.css': 'src/client/library/library.css',
+    '/social.js': 'src/client/social/social.js',
+    '/social.css': 'src/client/social/social.css',
+    '/voice.js': 'src/client/voice/voice.js',
+    '/voice.css': 'src/client/voice/voice.css',
+    '/admin.js': 'src/client/admin/admin.js',
+    '/admin.css': 'src/client/admin/admin.css',
+    '/tts-config.mjs': 'src/server/voice/tts-config.mjs',
+    '/tts-server.mjs': 'src/server/voice/tts-server.mjs',
+    '/voice-design-agent.mjs': 'src/server/voice/voice-design-agent.mjs',
+};
+
+const LEGACY_PREFIXES = [
+    ['/asset-studio/', 'src/client/asset-studio/'],
+    ['/studio-minimal/', 'src/client/studio/studio-minimal/'],
+];
+
 function serveStatic(req, res, pathname) {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
         sendText(res, 405, 'Method not allowed.');
         return;
     }
-    // The current studio is the v2 page; the classic one stays reachable at
-    // /studio.html and final assets at /asset-studio.html.
-    let relative = pathname === '/' ? 'studio-v2.html'
-        : pathname === '/crawler' ? 'crawler.html'
-        : pathname === '/library' ? 'library.html'
-        : pathname === '/voice' ? 'voice.html'
-        : pathname === '/social' ? 'social.html'
-        : pathname.replace(/^\/+/, '');
-    if (!relative) relative = 'studio-v2.html';
-    let target;
+    // HTML entry points live in pages/; their URLs stay at the root.
+    const page = PAGE_ROUTES[pathname];
+    if (page) {
+        sendFile(req, res, path.join(PAGES_DIR, page));
+        return;
+    }
+    if (pathname.startsWith('/pages/')) {
+        const name = pathname.slice('/pages/'.length);
+        if (PAGE_ROUTES[`/${name}`]) {
+            res.writeHead(302, { Location: `/${name}`, 'Cache-Control': 'no-store' });
+            res.end();
+            return;
+        }
+        sendText(res, 404, 'File not found.');
+        return;
+    }
+    // Old root asset URLs keep working after the move under src/.
+    const legacy = LEGACY_ASSETS[pathname];
+    const prefix = LEGACY_PREFIXES.find(([from]) => pathname.startsWith(from));
+    const relative = legacy
+        || (prefix ? prefix[1] + pathname.slice(prefix[0].length) : pathname.replace(/^\/+/, ''));
+    sendFile(req, res, path.join(ROOT, relative));
+}
+
+function sendFile(req, res, target) {
+    let resolved;
     try {
-        target = path.resolve(ROOT, relative);
+        resolved = path.resolve(target);
     } catch {
         sendText(res, 400, 'Bad request.');
         return;
     }
-    if (target !== ROOT && !target.startsWith(ROOT + path.sep)) {
+    if (resolved !== ROOT && !resolved.startsWith(ROOT + path.sep)) {
         sendText(res, 403, 'Forbidden.');
         return;
     }
+    target = resolved;
     fs.stat(target, (error, stat) => {
         if (error || !stat.isFile()) {
             sendText(res, 404, 'File not found.');
@@ -4454,6 +4807,7 @@ async function main() {
     await fsp.mkdir(IMPORTS_DIR, { recursive: true });
     await fsp.mkdir(BRAND_PACKS_DIR, { recursive: true });
     await fsp.mkdir(BRAND_KITS_DIR, { recursive: true });
+    await fsp.mkdir(SETTINGS_DIR, { recursive: true });
     const server = http.createServer((req, res) => { handle(req, res); });
     server.on('error', (error) => {
         if (error.code === 'EADDRINUSE') {
@@ -4470,6 +4824,7 @@ async function main() {
         console.log(`[studio] Asset library running at http://${HOST}:${PORT}/library.html`);
         console.log(`[studio] Voice Studio running at http://${HOST}:${PORT}/voice.html`);
         console.log(`[studio] Social intelligence running at http://${HOST}:${PORT}/social.html`);
+        console.log(`[studio] Management (dev only) running at http://${HOST}:${PORT}/admin.html`);
         console.log(`[studio] imports stored in ${IMPORTS_DIR}`);
         console.log(`[studio] brand packs stored in ${BRAND_PACKS_DIR}`);
     });

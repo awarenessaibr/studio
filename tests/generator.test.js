@@ -13,7 +13,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
-const CLI = path.join(ROOT, 'composition-generator.js');
+const CLI = path.join(ROOT, 'src', 'server', 'composition-generator.js');
 const FIXTURE = path.join(__dirname, 'fixtures', 'brief.xlsx');
 
 /**
