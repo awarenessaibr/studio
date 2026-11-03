@@ -1,151 +1,1278 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8">
+<html lang="en" data-theme="system">
+<head>
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Agent Studio</title>
 <style>
-:root{--bg:#131217;--pan:#19181e;--rai:#23222b;--line:#2c2b35;--hi:#3a3946;--tx:#ecebf1;--mu:#8d8b9a;--ac:#e8803a;--ok:#41baae;
-box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#e9e7ee;--pan:#fff;--rai:#f1eff5;--line:#d9d6e0;--hi:#c9c6d3;--tx:#1b1a24;--mu:#6c6a79}}
-html{scroll-padding-top:env(safe-area-inset-top,0px)}
-*{box-sizing:border-box}html,body{height:100%;margin:0}
-body{background:var(--bg);color:var(--tx);font:13px/1.45 "Helvetica Neue",Arial,sans-serif;overflow:hidden}
-button,select{font:inherit;color:inherit;background:var(--rai);border:1px solid var(--line);border-radius:7px;padding:5px 9px;cursor:pointer}
-button:hover,select:hover{border-color:var(--ac)}button:disabled,select:disabled{opacity:.5;cursor:default;border-color:var(--line)}
-button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--ac);outline-offset:1px}
-#app{height:100%;display:grid;grid-template-columns:270px 1fr 390px;grid-template-rows:48px 1fr}
-header{grid-column:1/-1;display:flex;align-items:center;gap:10px;padding:0 12px;background:var(--pan);border-bottom:1px solid var(--line);min-width:0}
-header b{font-size:14px;white-space:nowrap}header .sp{flex:1}
-header select{max-width:190px;text-overflow:ellipsis}
-header a{color:var(--mu);text-decoration:none;font-size:12px;white-space:nowrap}header a:hover{color:var(--tx)}
-.logo{width:22px;height:22px;border-radius:6px;background:var(--ac);display:grid;place-items:center;color:#131317;font-weight:800;flex:none}
-.bsw{display:flex;gap:5px;overflow-x:auto;min-width:0;flex:0 1 auto;padding:2px 0;scrollbar-width:thin}
-.bsw button{display:flex;align-items:center;gap:6px;white-space:nowrap;border-radius:99px;padding:3px 10px}
-.bsw button[aria-pressed="true"]{border-color:var(--ac);background:var(--hi)}
-.bsw i{width:10px;height:10px;border-radius:50%;border:1px solid var(--hi);flex:none}
-#net{color:#f5b942;font-size:12px;white-space:nowrap}
-aside{background:var(--pan);border-right:1px solid var(--line);overflow:auto;min-height:0}
-h3{margin:0;padding:10px 12px 6px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mu)}
-h3 small{text-transform:none;letter-spacing:0;font-weight:400}
-.atabs{display:flex;gap:4px;padding:10px 10px 6px}.atabs button{flex:1;padding:4px 6px;font-size:12px}
-.atabs button[aria-selected="true"]{border-color:var(--ac);background:var(--hi)}
-.sub{padding:2px 12px 4px;color:var(--mu);font-size:11px}
-.assets{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:0 10px 8px}
-.asset{border:1px solid var(--line);border-radius:8px;background:var(--rai);padding:6px;cursor:grab;font-size:11px;text-align:center;min-width:0}
-.asset:hover{border-color:var(--ac)}.asset .th{height:46px;border-radius:5px;margin-bottom:4px;display:grid;place-items:center;overflow:hidden;background-size:cover;background-position:center;font:700 11px Georgia,serif}
-.asset .th img{max-width:92%;max-height:84%;object-fit:contain}
-.asset span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.asset .st{display:inline-block;width:7px;height:7px;border-radius:50%;background:#f5b942;margin-right:4px}
-.asset .st[data-s="verified"],.asset .st[data-s="approved"]{background:var(--ok)}.asset .st[data-s="rejected"]{background:#e5584c}
-.flt{display:flex;gap:8px;align-items:center;padding:0 10px 8px;font-size:12px;color:var(--mu)}.flt select{flex:1;min-width:0;padding:3px 6px}
-.note{padding:0 12px 10px;color:var(--mu);font-size:12px}.note a{color:var(--ac)}
-.sw{display:flex;gap:4px;padding:0 12px 8px;flex-wrap:wrap}.sw button{width:22px;height:22px;border-radius:50%;border:1px solid var(--hi);padding:0}
-.lrow{display:flex;align-items:center;gap:6px;padding:6px 12px;cursor:pointer;border-left:2px solid transparent}
-.lrow:hover{background:var(--rai)}.lrow[data-s="1"]{background:var(--hi);border-left-color:var(--ac)}
-.lrow span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lrow small{color:var(--mu)}
-.lrow button{padding:1px 6px;border:0;background:transparent;color:var(--mu)}
-main{display:flex;flex-direction:column;min-width:0;min-height:0}
-.tb{display:flex;gap:8px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);background:var(--pan);flex-wrap:wrap}
-.tb .sp{flex:1}.tb label{color:var(--mu);display:flex;gap:5px;align-items:center}
-.wrap{flex:1;min-height:0;display:flex;justify-content:center;align-items:center;padding:16px;background:radial-gradient(circle at 50% 30%,#00000014,transparent)}
-.stage{container-type:size;position:relative;overflow:hidden;box-shadow:0 10px 40px #0007;flex:none;width:300px;height:424px}
-.L{position:absolute;overflow:hidden;touch-action:none;cursor:move}.T{display:flex;align-items:center}
-.sel{outline:2px solid #fff;outline-offset:-2px}
-.chip{position:absolute;left:0;top:0;background:#1e1d24ee;color:#fff;font:11px Arial;padding:2px 8px;border-radius:99px;z-index:9999;pointer-events:none;white-space:nowrap}
-.safe .stage::after{content:"";position:absolute;inset:8%;border:1px dashed #00c2ff;pointer-events:none;z-index:99}
-@keyframes fadeIn{from{opacity:0;transform:translateY(2cqh)}to{opacity:1}}@keyframes zoom{to{transform:scale(1.08)}}
-@keyframes parallax{from{transform:scale(1.08)}to{transform:translateY(-2.5cqh) scale(1.08)}}@keyframes pulse{50%{opacity:.35}}
-@media (prefers-reduced-motion:reduce){.L[data-an]{animation:none!important}}
-.agent{display:flex;flex-direction:column;background:var(--pan);border-left:1px solid var(--line);min-height:0}
-.agent h4{margin:0;padding:11px 14px;border-bottom:1px solid var(--line);font-size:13px;display:flex;gap:8px;align-items:center}
-.dot{width:8px;height:8px;border-radius:50%;background:var(--ok)}
-#chat{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:10px;min-height:0}
-.m{max-width:94%;padding:8px 11px;border-radius:12px;background:var(--rai);align-self:flex-start}
-.m.u{align-self:flex-end;background:var(--ac);color:#131317}
-.cards{display:grid;gap:7px;align-self:stretch}
-.card{border:1px solid var(--line);border-radius:10px;padding:9px 10px;background:var(--bg)}
-.card:hover{border-color:var(--ac)}.card b{display:block}.card p{margin:2px 0 7px;color:var(--mu);font-size:12px}
-.card .r{display:flex;gap:6px;align-items:center}.card .r small{color:var(--mu);flex:1}
-.card pre{margin:7px 0 0;max-height:150px;overflow:auto;font-size:10.5px;background:var(--rai);padding:6px;border-radius:6px}
-.card.done{border-color:var(--ok)}
-.ctx{margin:0 12px;padding:6px 9px;border:1px dashed var(--hi);border-radius:8px;color:var(--mu);font-size:12px;display:flex;gap:6px;align-items:center}
-.ctx b{color:var(--tx)}.ctx button{margin-left:auto;padding:0 6px}
-.qp{display:flex;gap:5px;flex-wrap:wrap;padding:8px 12px 0}.qp button{font-size:11px;border-radius:99px}
-form{display:flex;gap:6px;padding:10px 12px}input[type=text]{flex:1;min-width:0;background:var(--bg);color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit}
-form button{background:var(--ac);color:#131317;border:0;font-weight:700}
-.tl{height:178px;flex:none;border-top:1px solid var(--line);background:var(--pan);display:flex;flex-direction:column;min-height:0}
-.tlh{display:flex;gap:8px;align-items:center;padding:6px 12px;border-bottom:1px solid var(--line)}
-.tlh input[type=range]{flex:1}.tlh output{font-variant-numeric:tabular-nums;color:var(--mu);min-width:96px;text-align:right}
-.tlb{flex:1;overflow:auto;position:relative}
-.tr{display:grid;grid-template-columns:116px 1fr;height:20px;align-items:center}
-.tr .n{padding:0 10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:var(--mu);cursor:pointer}
-.tr[data-s="1"] .n{color:var(--tx)}
-.tk{position:relative;height:100%;background:repeating-linear-gradient(90deg,var(--line) 0 1px,transparent 1px 10%)}
-.bar{position:absolute;top:3px;height:14px;border-radius:4px;background:var(--ac);cursor:grab;min-width:6px}
-.bar::after{content:"";position:absolute;right:0;top:0;bottom:0;width:7px;cursor:ew-resize;background:#0005;border-radius:0 4px 4px 0}
-.bar span{display:block;font:700 9px/14px Arial;color:#131317;padding-left:5px;white-space:nowrap;overflow:hidden}
-.ph{position:absolute;top:0;bottom:0;width:2px;background:#fff;pointer-events:none;z-index:3;left:calc(116px + (100% - 116px)*var(--p,1))}
-.warn{color:#f5b942}#gc{border-color:var(--hi)}
-#boot{position:fixed;inset:0;z-index:200;display:grid;place-items:center;background:var(--bg);text-align:center;padding:24px}
-#boot[hidden]{display:none}#boot .box{max-width:420px;display:grid;gap:12px;justify-items:center}
-#boot .row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
-#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:150;background:var(--hi);color:var(--tx);padding:8px 14px;border-radius:99px;font-size:12px;box-shadow:0 6px 24px #0006}
-#toast[hidden]{display:none}#toast.err{background:#7a2b25;color:#fff}
-@media (max-width:980px){body{overflow:auto}#app{height:auto;grid-template-columns:1fr;grid-template-rows:auto}aside{max-height:300px}.wrap{height:80vh;flex:none}.agent{height:70vh}header{flex-wrap:wrap;padding:8px 12px}}
-</style></head><body>
-<div id="boot" role="status" aria-live="polite"><div class="box"><span class="logo">A</span><p id="bootMsg"><b>Agent Studio</b><br>Loading brand groups…</p><div class="row" id="bootActs"></div></div></div>
+/* ==========================================================================
+   Dual theme system (system | light | dark)
+   ========================================================================== */
+:root {
+  /* Dark (default) */
+  --bg: #131217;
+  --pan: #19181e;
+  --rai: #23222b;
+  --line: #2c2b35;
+  --hi: #3a3946;
+  --tx: #ecebf1;
+  --mu: #8d8b9a;
+  --ac: #e8803a;
+  --ok: #41baae;
+  --warn: #f5b942;
+  --err: #e5584c;
+  --err-bg: #7a2b25;
+  --chip-bg: #1e1d24ee;
+  --shadow: 0 10px 40px #0007;
+  --safe: #00c2ff;
+  color-scheme: dark;
+}
+
+html[data-theme="light"],
+html[data-theme="system"]:not(.dark) {
+  --bg: #e9e7ee;
+  --pan: #ffffff;
+  --rai: #f1eff5;
+  --line: #d9d6e0;
+  --hi: #c9c6d3;
+  --tx: #1b1a24;
+  --mu: #6c6a79;
+  --ac: #d46a1f;
+  --ok: #2a9d8f;
+  --warn: #c9921a;
+  --err: #c13c32;
+  --err-bg: #9b2c24;
+  --chip-bg: #2a2933ee;
+  --shadow: 0 10px 36px rgba(0,0,0,.12);
+  --safe: #0088cc;
+  color-scheme: light;
+}
+
+html[data-theme="dark"],
+html[data-theme="system"].dark {
+  --bg: #131217;
+  --pan: #19181e;
+  --rai: #23222b;
+  --line: #2c2b35;
+  --hi: #3a3946;
+  --tx: #ecebf1;
+  --mu: #8d8b9a;
+  --ac: #e8803a;
+  --ok: #41baae;
+  --warn: #f5b942;
+  --err: #e5584c;
+  --err-bg: #7a2b25;
+  --chip-bg: #1e1d24ee;
+  --shadow: 0 10px 40px #0007;
+  --safe: #00c2ff;
+  color-scheme: dark;
+}
+
+/* Fallback for older browsers that only understand prefers-color-scheme */
+@media (prefers-color-scheme: light) {
+  html[data-theme="system"]:not(.dark) {
+    --bg: #e9e7ee;
+    --pan: #ffffff;
+    --rai: #f1eff5;
+    --line: #d9d6e0;
+    --hi: #c9c6d3;
+    --tx: #1b1a24;
+    --mu: #6c6a79;
+    --ac: #d46a1f;
+    --ok: #2a9d8f;
+    --warn: #c9921a;
+    --err: #c13c32;
+    --err-bg: #9b2c24;
+    --chip-bg: #2a2933ee;
+    --shadow: 0 10px 36px rgba(0,0,0,.12);
+    --safe: #0088cc;
+    color-scheme: light;
+  }
+}
+
+/* ==========================================================================
+   Base
+   ========================================================================== */
+*, *::before, *::after { box-sizing: border-box; }
+html {
+  scroll-padding-top: env(safe-area-inset-top, 0px);
+  height: 100%;
+}
+body {
+  height: 100%;
+  margin: 0;
+  background: var(--bg);
+  color: var(--tx);
+  font: 13px/1.45 "Helvetica Neue", Arial, sans-serif;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+* { scrollbar-width: none; }
+*::-webkit-scrollbar { display: none; width: 0; height: 0; }
+
+button, select {
+  font: inherit;
+  color: inherit;
+  background: var(--rai);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 5px 9px;
+  cursor: pointer;
+  transition: border-color .15s, background .15s, opacity .15s;
+}
+button:hover, select:hover { border-color: var(--ac); }
+button:disabled, select:disabled {
+  opacity: .5;
+  cursor: default;
+  border-color: var(--line);
+}
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--ac);
+  outline-offset: 1px;
+}
+
+/* ==========================================================================
+   Layout
+   ========================================================================== */
+#app {
+  --left-panel: 270px;
+  --right-panel: 390px;
+  height: 100%;
+  display: grid;
+  grid-template-columns: var(--left-panel) 10px 1fr 10px var(--right-panel);
+  grid-template-rows: 48px 1fr;
+}
+
+.resize-handle {
+  position: relative;
+  background: var(--pan);
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  cursor: col-resize;
+  user-select: none;
+  touch-action: none;
+}
+.resize-handle::before {
+  content: "";
+  position: absolute;
+  inset: 0 2px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent 0, transparent 35%, var(--line) 35%, var(--line) 65%, transparent 65%, transparent 100%);
+  opacity: .5;
+}
+.resize-handle:hover::before,
+.resize-handle:active::before { opacity: 1; }
+.resize-handle:focus-visible {
+  outline: 2px solid var(--ac);
+  outline-offset: -2px;
+}
+.resize-handle[data-collapsed] { background: var(--rai); }
+.resize-handle[data-collapsed]::before { display: none; }
+.resize-handle[data-collapsed]::after {
+  content: '›';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 18px;
+  line-height: 1;
+  color: var(--mu);
+}
+.resize-handle[data-resize="right"][data-collapsed]::after { content: '‹'; }
+.resize-handle[data-collapsed]:hover::after { color: var(--ac); }
+
+#app.l-collapsed aside,
+#app.r-collapsed .agent { visibility: hidden; border: 0; }
+
+/* ==========================================================================
+   Header
+   ========================================================================== */
+header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  background: var(--pan);
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+header b { font-size: 14px; white-space: nowrap; }
+header .sp { flex: 1; }
+header select { max-width: 190px; text-overflow: ellipsis; }
+header a {
+  color: var(--mu);
+  text-decoration: none;
+  font-size: 12px;
+  white-space: nowrap;
+}
+header a:hover { color: var(--tx); }
+.logo {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--ac);
+  display: grid;
+  place-items: center;
+  color: #131317;
+  font-weight: 800;
+  flex: none;
+}
+.bsw {
+  display: flex;
+  gap: 5px;
+  overflow-x: auto;
+  min-width: 0;
+  flex: 0 1 auto;
+  padding: 2px 0;
+  scrollbar-width: thin;
+}
+.bsw button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  border-radius: 99px;
+  padding: 3px 10px;
+}
+.bsw button[aria-pressed="true"] {
+  border-color: var(--ac);
+  background: var(--hi);
+}
+.bsw i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid var(--hi);
+  flex: none;
+}
+#net {
+  color: var(--warn);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* Theme toggle */
+.theme-toggle {
+  display: flex;
+  gap: 2px;
+  background: var(--rai);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 2px;
+}
+.theme-toggle button {
+  padding: 3px 8px;
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--mu);
+}
+.theme-toggle button[aria-pressed="true"] {
+  background: var(--hi);
+  color: var(--tx);
+  border: 1px solid var(--line);
+}
+
+/* ==========================================================================
+   Sidebars & panels
+   ========================================================================== */
+aside {
+  background: var(--pan);
+  border-right: 1px solid var(--line);
+  overflow: auto;
+  min-height: 0;
+  min-width: 0;
+}
+h3 {
+  margin: 0;
+  padding: 10px 12px 6px;
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--mu);
+}
+h3 small {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+h3[data-sec] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 6px;
+  cursor: pointer;
+  user-select: none;
+}
+h3[data-sec]::before {
+  content: '▾';
+  font-size: 10px;
+  color: var(--mu);
+  width: 10px;
+  display: inline-block;
+  transition: transform .15s;
+}
+h3[data-sec][aria-expanded="false"]::before { transform: rotate(-90deg); }
+h3[data-sec]:hover { color: var(--tx); }
+h3[data-sec]:focus-visible {
+  outline: 2px solid var(--ac);
+  outline-offset: -2px;
+}
+.sec-body[hidden] { display: none; }
+
+.atabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 10px 10px 6px;
+}
+.atabs button { flex: 1; padding: 4px 6px; font-size: 12px; }
+.atabs button[aria-selected="true"] {
+  border-color: var(--ac);
+  background: var(--hi);
+}
+.sub {
+  padding: 2px 12px 4px;
+  color: var(--mu);
+  font-size: 11px;
+}
+.assets {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 0 10px 8px;
+}
+.asset {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--rai);
+  padding: 6px;
+  cursor: grab;
+  font-size: 11px;
+  text-align: center;
+  min-width: 0;
+}
+.asset[data-choice] { cursor: pointer; }
+.asset:hover { border-color: var(--ac); }
+.asset.is-selected {
+  border-color: var(--ac);
+  box-shadow: inset 0 0 0 1px var(--ac);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ac) 12%, transparent), color-mix(in srgb, var(--ac) 4%, transparent));
+}
+.asset .th {
+  height: 46px;
+  border-radius: 5px;
+  margin-bottom: 4px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+  font: 700 11px Georgia, serif;
+}
+.asset .th img {
+  max-width: 92%;
+  max-height: 84%;
+  object-fit: contain;
+}
+.asset span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.asset .st {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warn);
+  margin-right: 4px;
+}
+.asset .st[data-s="verified"],
+.asset .st[data-s="approved"] { background: var(--ok); }
+.asset .st[data-s="rejected"] { background: var(--err); }
+
+.eng-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 0 10px 8px;
+  max-height: 300px;
+  overflow: auto;
+}
+.eng-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--rai);
+  padding: 5px;
+  cursor: pointer;
+  font-size: 11px;
+  text-align: center;
+  min-width: 0;
+  color: inherit;
+}
+.eng-card:hover { border-color: var(--ac); }
+.eng-card.is-selected {
+  border-color: var(--ac);
+  box-shadow: inset 0 0 0 1px var(--ac);
+}
+.eng-card canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 150px;
+  object-fit: contain;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--tx) 8%, transparent);
+  margin-bottom: 4px;
+}
+.eng-card span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eng-motif {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+  padding: 0 10px 8px;
+}
+.eng-mt {
+  padding: 3px;
+  font-size: 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--rai);
+  min-width: 0;
+  color: inherit;
+}
+.eng-mt:hover { border-color: var(--ac); }
+.eng-mt[aria-pressed="true"] {
+  border-color: var(--ac);
+  background: var(--hi);
+}
+.eng-mt canvas {
+  display: block;
+  width: 100%;
+  height: 34px;
+  object-fit: contain;
+  border-radius: 4px;
+  margin-bottom: 2px;
+}
+.eng-mt span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eng-sl {
+  padding: 0 12px 7px;
+  font-size: 11px;
+  color: var(--mu);
+}
+.eng-sl label {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+.eng-sl input { width: 100%; }
+.eng-row {
+  display: flex;
+  gap: 6px;
+  padding: 0 12px 8px;
+  align-items: center;
+}
+.eng-row button { padding: 3px 9px; }
+.eng-sel {
+  display: block;
+  width: calc(100% - 20px);
+  margin: 0 10px 8px;
+}
+.template-list,
+.mini-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 0 10px 8px;
+}
+.mini-grid { grid-template-columns: 1fr; }
+.mini-grid .asset { min-height: 92px; }
+.template-list .asset .th,
+.mini-grid .asset .th {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.flt {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 0 10px 8px;
+  font-size: 12px;
+  color: var(--mu);
+}
+.flt select {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 6px;
+}
+.note {
+  padding: 0 12px 10px;
+  color: var(--mu);
+  font-size: 12px;
+}
+.note a { color: var(--ac); }
+.sw {
+  display: flex;
+  gap: 4px;
+  padding: 0 12px 8px;
+  flex-wrap: wrap;
+}
+.sw button {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--hi);
+  padding: 0;
+}
+.lrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+}
+.lrow:hover { background: var(--rai); }
+.lrow[data-s="1"] {
+  background: var(--hi);
+  border-left-color: var(--ac);
+}
+.lrow span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lrow small { color: var(--mu); }
+.lrow button {
+  padding: 1px 6px;
+  border: 0;
+  background: transparent;
+  color: var(--mu);
+}
+
+/* ==========================================================================
+   Main stage
+   ========================================================================== */
+main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.tb {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--pan);
+  flex-wrap: wrap;
+}
+.tb .sp { flex: 1; }
+.tb label {
+  color: var(--mu);
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+.wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+  background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--tx) 6%, transparent), transparent);
+}
+.stage {
+  container-type: size;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  flex: none;
+  width: 300px;
+  height: 424px;
+}
+.L {
+  position: absolute;
+  overflow: hidden;
+  touch-action: none;
+  cursor: move;
+}
+.T { display: flex; align-items: center; }
+.sel {
+  outline: 2px solid #fff;
+  outline-offset: -2px;
+}
+.chip {
+  position: absolute;
+  left: 0;
+  top: 0;
+  background: var(--chip-bg);
+  color: #fff;
+  font: 11px Arial;
+  padding: 2px 8px;
+  border-radius: 99px;
+  z-index: 9999;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.safe .stage::after {
+  content: "";
+  position: absolute;
+  inset: 8%;
+  border: 1px dashed var(--safe);
+  pointer-events: none;
+  z-index: 99;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(2cqh); }
+  to { opacity: 1; }
+}
+@keyframes zoom { to { transform: scale(1.08); } }
+@keyframes parallax {
+  from { transform: scale(1.08); }
+  to { transform: translateY(-2.5cqh) scale(1.08); }
+}
+@keyframes pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) {
+  .L[data-an] { animation: none !important; }
+}
+
+/* ==========================================================================
+   Agent panel
+   ========================================================================== */
+.agent {
+  display: flex;
+  flex-direction: column;
+  background: var(--pan);
+  border-left: 1px solid var(--line);
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+.agent h4 {
+  margin: 0;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+.agent h4 .meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.agent h4 button {
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+#chat {
+  flex: 1;
+  overflow: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  max-height: calc(100vh - 120px);
+}
+#ctxMenu {
+  position: fixed;
+  z-index: 1000;
+  display: none;
+  min-width: 160px;
+  padding: 6px;
+  background: var(--rai);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  box-shadow: var(--shadow);
+}
+#ctxMenu.visible { display: block; }
+#ctxMenu button {
+  display: block;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  text-align: left;
+  color: var(--tx);
+  cursor: pointer;
+}
+#ctxMenu button:hover { background: var(--hi); }
+.m {
+  max-width: 94%;
+  padding: 8px 11px;
+  border-radius: 12px;
+  background: var(--rai);
+  align-self: flex-start;
+}
+.m.u {
+  align-self: flex-end;
+  background: var(--ac);
+  color: #131317;
+}
+.cards {
+  display: grid;
+  gap: 7px;
+  align-self: stretch;
+}
+.card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 10px;
+  background: var(--bg);
+}
+.card:hover { border-color: var(--ac); }
+.card b { display: block; }
+.card p {
+  margin: 2px 0 7px;
+  color: var(--mu);
+  font-size: 12px;
+}
+.card .r {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.card .r small {
+  color: var(--mu);
+  flex: 1;
+}
+.card pre {
+  margin: 7px 0 0;
+  max-height: 150px;
+  overflow: auto;
+  font-size: 10.5px;
+  background: var(--rai);
+  padding: 6px;
+  border-radius: 6px;
+}
+.card.done { border-color: var(--ok); }
+.ctx {
+  margin: 0 12px;
+  padding: 6px 9px;
+  border: 1px dashed var(--hi);
+  border-radius: 8px;
+  color: var(--mu);
+  font-size: 12px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.ctx b { color: var(--tx); }
+.ctx button {
+  margin-left: auto;
+  padding: 0 6px;
+}
+.qp {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  padding: 8px 12px 0;
+}
+.qp button {
+  font-size: 11px;
+  border-radius: 99px;
+}
+form {
+  display: flex;
+  gap: 6px;
+  padding: 10px 12px;
+}
+input[type=text] {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg);
+  color: var(--tx);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+}
+form button {
+  background: var(--ac);
+  color: #131317;
+  border: 0;
+  font-weight: 700;
+}
+
+/* ==========================================================================
+   Timeline
+   ========================================================================== */
+main {
+  --timeline-height: 178px;
+}
+.tl {
+  height: var(--timeline-height);
+  flex: none;
+  border-top: 1px solid var(--line);
+  background: var(--pan);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  transition: height .15s ease;
+}
+.tl[data-collapsed="true"] {
+  height: 12px;
+  border-top: 1px solid var(--line);
+}
+.tl[data-collapsed="true"] .tlh,
+.tl[data-collapsed="true"] .tlb {
+  display: none;
+}
+.timeline-resize-handle {
+  position: relative;
+  height: 10px;
+  background: var(--pan);
+  border-top: 1px solid var(--line);
+  cursor: row-resize;
+  user-select: none;
+  touch-action: none;
+}
+.timeline-resize-handle::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 38px;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent 0%, var(--line) 20%, var(--line) 80%, transparent 100%);
+}
+.timeline-resize-handle[data-collapsed="true"]::before {
+  width: 18px;
+  background: linear-gradient(90deg, transparent 0%, var(--ac) 20%, var(--ac) 80%, transparent 100%);
+}
+.timeline-resize-handle[data-collapsed="true"]::after {
+  content: '⌃';
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--ac);
+  font-size: 14px;
+  line-height: 1;
+}
+.tlh {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.tlh input[type=range] { flex: 1; }
+.tlh output {
+  font-variant-numeric: tabular-nums;
+  color: var(--mu);
+  min-width: 96px;
+  text-align: right;
+}
+.tlb {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+}
+.tr {
+  display: grid;
+  grid-template-columns: 116px 1fr;
+  height: 20px;
+  align-items: center;
+}
+.tr .n {
+  padding: 0 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--mu);
+  cursor: pointer;
+}
+.tr[data-s="1"] .n { color: var(--tx); }
+.tk {
+  position: relative;
+  height: 100%;
+  background: repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px 10%);
+}
+.bar {
+  position: absolute;
+  top: 3px;
+  height: 14px;
+  border-radius: 4px;
+  background: var(--ac);
+  cursor: grab;
+  min-width: 6px;
+}
+.bar::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  cursor: ew-resize;
+  background: color-mix(in srgb, #000 30%, transparent);
+  border-radius: 0 4px 4px 0;
+}
+.bar span {
+  display: block;
+  font: 700 9px/14px Arial;
+  color: #131317;
+  padding-left: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.ph {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #fff;
+  pointer-events: none;
+  z-index: 3;
+  left: calc(116px + (100% - 116px) * var(--p, 1));
+}
+.warn { color: var(--warn); }
+#gc { border-color: var(--hi); }
+
+/* ==========================================================================
+   Boot / Toast
+   ========================================================================== */
+#boot {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+  text-align: center;
+  padding: 24px;
+}
+#boot[hidden] { display: none; }
+#boot .box {
+  max-width: 420px;
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+}
+#boot .row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  z-index: 150;
+  background: var(--hi);
+  color: var(--tx);
+  padding: 8px 14px;
+  border-radius: 99px;
+  font-size: 12px;
+  box-shadow: var(--shadow);
+}
+#toast[hidden] { display: none; }
+#toast.err {
+  background: var(--err-bg);
+  color: #fff;
+}
+
+/* ==========================================================================
+   Responsive
+   ========================================================================== */
+@media (max-width: 980px) {
+  .resize-handle { display: none; }
+  #app.l-collapsed aside,
+  #app.r-collapsed .agent { visibility: visible; }
+  body { overflow: auto; }
+  #app {
+    height: auto;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+  }
+  aside { max-height: 300px; }
+  .wrap { height: 80vh; flex: none; }
+  .agent { height: 70vh; }
+  header {
+    flex-wrap: wrap;
+    padding: 8px 12px;
+  }
+}
+</style>
+<script src="/src/client/asset-studio/vendor/qrcode.min.js"></script>
+<script src="/src/shared/brand-pack.js"></script>
+<script src="/src/client/asset-studio/engine.js"></script>
+<script src="/src/client/asset-studio/categories.js"></script>
+</head>
+<body>
+<div id="boot" role="status" aria-live="polite">
+  <div class="box">
+    <span class="logo">A</span>
+    <p id="bootMsg"><b>Agent Studio</b><br>Loading brand groups…</p>
+    <div class="row" id="bootActs"></div>
+  </div>
+</div>
 <div id="toast" role="status" aria-live="polite" hidden></div>
 <div id="app">
-<header>
-<span class="logo">A</span><b>Agent Studio</b>
-<select id="grp" aria-label="Brand group" title="Brand group"></select>
-<div class="bsw" id="brands" aria-label="Brand"></div>
-<select id="fmt" aria-label="Format" title="Format"></select>
-<span id="net" hidden>Offline demo</span>
-<span class="sp"></span>
-<a id="lnkAsset" href="asset-studio.html" title="Open this brand in Asset Studio">Asset Studio</a>
-<a id="lnkLib" href="library.html" title="Open this brand's asset library">Library</a>
-<a href="crawler.html" title="Search and crawl a new business">Brand intake</a>
-<a href="studio-v2.html" title="Layer studio">Studio V2</a>
-<button id="undo">↶ Undo</button><button id="reset">Reset scene</button></header>
-<aside>
-<div class="atabs" id="atabs" role="tablist" aria-label="Asset sources"></div>
-<div id="apanel" role="tabpanel"></div>
-<h3>Brand palette <small id="swh">· click to apply to the selected layer</small></h3><div class="sw" id="sw"></div>
-<div class="sub" id="ty"></div>
-<h3>Layers</h3><div id="layers"></div>
-</aside>
-<main>
-<div class="tb"><button id="play">▶ Replay</button><label><input type="checkbox" id="sz"> Safe zone</label><button id="gc" title="Run guardrail report">Checking…</button><span class="sp"></span><span style="color:var(--mu)" id="status">Click a layer, or drag an asset in.</span></div>
-<div class="wrap" id="wrap"><div class="stage" id="stage"></div></div>
-<div class="tl"><div class="tlh"><button id="tpl">▶ Play</button><input type="range" id="scrub" min="0" max="10000" step="50" value="10000" aria-label="Playhead"><output id="tt">10.00 / 10.00 s</output></div><div class="tlb" id="tlb"></div></div>
-</main>
-<section class="agent">
-<h4><span class="dot"></span>Studio agent <span style="color:var(--mu);font-weight:400">sees the selected layer</span></h4>
-<div id="chat" aria-live="polite"></div>
-<div class="qp" id="qp"></div>
-<div class="ctx" id="ctx"></div>
-<form id="f"><input type="text" id="in" placeholder="Ask for a change… e.g. “bigger”, “animate it”, “accent colour”" autocomplete="off"><button>Send</button></form>
-</section></div>
+  <header>
+    <span class="logo">A</span>
+    <b>Agent Studio</b>
+    <select id="grp" aria-label="Brand group" title="Brand group"></select>
+    <div class="bsw" id="brands" aria-label="Brand"></div>
+    <span id="net" hidden>Offline demo</span>
+    <span class="sp"></span>
+    <div class="theme-toggle" role="group" aria-label="Theme">
+      <button type="button" data-theme="system" title="System theme">Sys</button>
+      <button type="button" data-theme="light" title="Light theme">Light</button>
+      <button type="button" data-theme="dark" title="Dark theme">Dark</button>
+    </div>
+    <a id="lnkAsset" href="asset-studio.html" title="Open this brand in Asset Studio">Asset Studio</a>
+    <a id="lnkLib" href="library.html" title="Open this brand's asset library">Library</a>
+    <a href="crawler.html" title="Search and crawl a new business">Brand intake</a>
+    <a href="studio-v2.html" title="Layer studio">Studio V2</a>
+    <button id="undo">↶ Undo</button>
+    <button id="reset">Reset scene</button>
+  </header>
+  <aside>
+    <div class="atabs" id="atabs" role="tablist" aria-label="Asset sources"></div>
+    <div id="apanel" role="tabpanel"></div>
+    <h3>Brand palette <small id="swh">· click to apply to the selected layer</small></h3>
+    <div class="sw" id="sw"></div>
+    <div class="sub" id="ty"></div>
+    <h3>Layers</h3>
+    <div id="layers"></div>
+  </aside>
+  <div class="resize-handle" data-resize="left" aria-label="Resize left sidebar"></div>
+  <main>
+    <div class="tb">
+      <button id="play">▶ Replay</button>
+      <label><input type="checkbox" id="sz"> Safe zone</label>
+      <button id="gc" title="Run guardrail report">Checking…</button>
+      <span class="sp"></span>
+      <span style="color:var(--mu)" id="status">Click a layer, or drag an asset in.</span>
+    </div>
+    <div class="wrap" id="wrap"><div class="stage" id="stage"></div></div>
+    <div class="timeline-resize-handle" data-resize="timeline" aria-label="Resize timeline" aria-expanded="true" title="Drag to resize · drag upward to collapse"></div>
+    <div class="tl">
+      <div class="tlh">
+        <button id="tpl">▶ Play</button>
+        <input type="range" id="scrub" min="0" max="10000" step="50" value="10000" aria-label="Playhead">
+        <output id="tt">10.00 / 10.00 s</output>
+      </div>
+      <div class="tlb" id="tlb"></div>
+    </div>
+  </main>
+  <div class="resize-handle" data-resize="right" aria-label="Resize right sidebar"></div>
+  <section class="agent">
+    <h4>
+      <span class="meta">
+        <span class="dot"></span>
+        Studio agent
+        <span style="color:var(--mu);font-weight:400">sees the selected layer</span>
+      </span>
+      <button type="button" id="clearChat">Clear chat</button>
+    </h4>
+    <div id="chat" aria-live="polite"></div>
+    <div id="ctxMenu" role="menu" aria-label="Layer actions"></div>
+    <div class="qp" id="qp"></div>
+    <div class="ctx" id="ctx"></div>
+    <form id="f">
+      <input type="text" id="in" placeholder="Ask for a change… e.g. “bigger”, “animate it”, “accent colour”" autocomplete="off">
+      <button>Send</button>
+    </form>
+  </section>
+</div>
 <script>const DEMO_PHOTO="__PHOTO__";</script>
 <script>
+(function(){
 'use strict';
 /* =====================================================================
-   Agent Studio — brand-wired.
-   Group (brand pack) → brand → format → scene. Palette, type, logos,
-   photography and the business asset library all come from the API:
-     api/brand-packs, api/brand-packs/:id, api/fonts,
-     api/assets?brandId=…, api/assets/:id/file/:variant, api/assets/usage
-   If the API cannot be reached the page falls back to an offline demo brand.
+   Agent Studio — brand-wired + dual theme
    ===================================================================== */
 const API='api',$=s=>document.querySelector(s),stage=$('#stage'),wrapEl=$('#wrap'),chat=$('#chat');
+const appEl=$('#app');
 const clone=o=>JSON.parse(JSON.stringify(o));
-const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const esc=s=>String(s??'').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const LS={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true}catch{return false}},del(k){try{localStorage.removeItem(k)}catch{}}};
 const jget=async p=>{const r=await fetch(p,{cache:'no-store'});const j=await r.json().catch(()=>null);if(!r.ok)throw new Error((j&&j.error)||r.status+' '+r.statusText);return j};
-let toastT=0;const toast=(m,err)=>{const t=$('#toast');t.textContent=m;t.className=err?'err':'';t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,3200)};
 
-/* ---------- colour ---------- */
+/* ---------- dual theme ---------- */
+const THEME_KEY='agentStudio.theme.v1';
+function applyTheme(mode){
+  const html=document.documentElement;
+  html.dataset.theme=mode;
+  if(mode==='system'){
+    const dark=window.matchMedia('(prefers-color-scheme: dark)').matches;
+    html.classList.toggle('dark',dark);
+  }else{
+    html.classList.toggle('dark',mode==='dark');
+  }
+  document.querySelectorAll('.theme-toggle button').forEach(b=>{
+    b.setAttribute('aria-pressed',String(b.dataset.theme===mode));
+  });
+  LS.set(THEME_KEY,mode);
+}
+function initTheme(){
+  const saved=LS.get(THEME_KEY,'system');
+  applyTheme(saved);
+  const mq=window.matchMedia('(prefers-color-scheme: dark)');
+  mq.addEventListener('change',()=>{ if(document.documentElement.dataset.theme==='system') applyTheme('system'); });
+  document.querySelectorAll('.theme-toggle button').forEach(b=>{
+    b.addEventListener('click',()=>applyTheme(b.dataset.theme));
+  });
+}
+initTheme();
+
+const PANEL={left:{min:200,max:420,def:270,prop:'--left-panel',cls:'l-collapsed'},right:{min:280,max:560,def:390,prop:'--right-panel',cls:'r-collapsed'}};
+const TIMELINE={min:84,max:260,def:178};
+const resizeState={active:null,startX:0,start:0,moved:false,pid:null};
+const timelineResizeState={active:false,startY:0,startH:0,moved:false};
+const lastW={left:270,right:390};
+const handleEl=side=>document.querySelector(`.resize-handle[data-resize="${side}"]`);
+const timelineEl=document.querySelector('.tl');
+const timelineHandle=document.querySelector('.timeline-resize-handle');
+const panelW=side=>{const v=parseFloat(getComputedStyle(appEl).getPropertyValue(PANEL[side].prop));return Number.isFinite(v)?v:PANEL[side].def};
+const timelineW=()=>{const v=parseFloat(getComputedStyle(timelineEl).height);return Number.isFinite(v)?v:TIMELINE.def};
+function setPanel(side,w,save=true){
+ const P=PANEL[side],h=handleEl(side);
+ if(w<=0){appEl.style.setProperty(P.prop,'0px');appEl.classList.add(P.cls);if(h){h.dataset.collapsed='1';h.setAttribute('aria-expanded','false');h.title='Click to open the sidebar'}}
+ else{const v=clamp(w,P.min,P.max);appEl.style.setProperty(P.prop,v+'px');appEl.classList.remove(P.cls);lastW[side]=v;if(h){delete h.dataset.collapsed;h.setAttribute('aria-expanded','true');h.title='Drag to resize · drag past the edge or double-click to collapse'}}
+ if(save)LS.set('agentStudio.panels.v1',{left:panelW('left'),right:panelW('right')})}
+function setTimelineHeight(h,save=true){
+ const v=clamp(h,0,TIMELINE.max);
+ if(v<=24){
+   timelineEl.style.height='12px';
+   timelineEl.dataset.collapsed='true';
+   timelineHandle.dataset.collapsed='true';
+   timelineHandle.setAttribute('aria-expanded','false');
+   timelineHandle.title='Click to reopen the timeline';
+   if(save)LS.set('agentStudio.timeline.v1',0);
+   return;
+ }
+ timelineEl.style.height=v+'px';
+ timelineEl.style.setProperty('--timeline-height',v+'px');
+ delete timelineEl.dataset.collapsed;
+ delete timelineHandle.dataset.collapsed;
+ timelineHandle.setAttribute('aria-expanded','true');
+ timelineHandle.title='Drag to resize · drag upward to collapse';
+ if(save)LS.set('agentStudio.timeline.v1',v);
+}
+function onResizeHandleMove(e){
+ if(!resizeState.active)return;const side=resizeState.active,P=PANEL[side],dx=e.clientX-resizeState.startX;
+ if(Math.abs(dx)>3)resizeState.moved=true;if(!resizeState.moved)return;
+ const raw=side==='left'?resizeState.start+dx:resizeState.start-dx;
+ setPanel(side,raw<P.min-40?0:raw,false)}
+function stopResizeHandle(){
+ const side=resizeState.active;window.removeEventListener('pointermove',onResizeHandleMove);window.removeEventListener('pointerup',stopResizeHandle);
+ if(!side)return;
+ if(!resizeState.moved&&handleEl(side).dataset.collapsed)setPanel(side,lastW[side]);else setPanel(side,panelW(side),true);
+ resizeState.active=null}
+function bindResizeHandles(){
+ try{const saved=LS.get('agentStudio.panels.v1',null);if(saved)['left','right'].forEach(k=>{if(typeof saved[k]==='number')setPanel(k,saved[k]<=0?0:saved[k],false)})}catch{}
+ document.querySelectorAll('.resize-handle').forEach(handle=>{
+  const side=handle.dataset.resize;handle.setAttribute('role','separator');handle.setAttribute('aria-orientation','vertical');handle.tabIndex=0;
+  if(!handle.title)handle.title='Drag to resize · drag past the edge or double-click to collapse';
+  handle.setAttribute('aria-expanded',String(!handle.dataset.collapsed));
+  handle.addEventListener('pointerdown',e=>{resizeState.active=side;resizeState.startX=e.clientX;resizeState.start=panelW(side);resizeState.moved=false;
+   window.addEventListener('pointermove',onResizeHandleMove);window.addEventListener('pointerup',stopResizeHandle);e.preventDefault()});
+  handle.addEventListener('dblclick',()=>{if(handle.dataset.collapsed)setPanel(side,lastW[side]);else setPanel(side,0)});
+  handle.addEventListener('keydown',e=>{
+   if(e.key==='Enter'||e.key===' '){e.preventDefault();setPanel(side,handle.dataset.collapsed?lastW[side]:0);return}
+   if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;e.preventDefault();
+   const grow=(e.key==='ArrowRight')===(side==='left'),cur=handle.dataset.collapsed?0:panelW(side),P=PANEL[side];
+   setPanel(side,grow?Math.max(P.min,cur+16):(cur-16<P.min?0:cur-16))})})}
+function bindTimelineResize(){
+ try{const saved=LS.get('agentStudio.timeline.v1',TIMELINE.def);if(typeof saved==='number'){setTimelineHeight(saved<=0?0:saved,false)}}catch{}
+ const drag=(e)=>{
+  if(!timelineResizeState.active)return;const dy=e.clientY-timelineResizeState.startY;
+  if(Math.abs(dy)>3)timelineResizeState.moved=true;if(!timelineResizeState.moved)return;
+  const next=timelineResizeState.startH-dy;
+  setTimelineHeight(next<=24?0:next,false);
+ };
+ const stop=()=>{
+  if(!timelineResizeState.active)return;
+  const current=timelineW();
+  if(!timelineResizeState.moved&&timelineHandle.dataset.collapsed)setTimelineHeight(TIMELINE.def,true);
+  else setTimelineHeight(current,true);
+  timelineResizeState.active=false;
+  window.removeEventListener('pointermove',drag);
+  window.removeEventListener('pointerup',stop);
+ };
+ timelineHandle.setAttribute('role','separator');
+ timelineHandle.setAttribute('aria-orientation','vertical');
+ timelineHandle.tabIndex=0;
+ timelineHandle.addEventListener('pointerdown',e=>{
+  timelineResizeState.active=true;timelineResizeState.startY=e.clientY;timelineResizeState.startH=timelineW();timelineResizeState.moved=false;
+  window.addEventListener('pointermove',drag);window.addEventListener('pointerup',stop);e.preventDefault();
+ });
+ timelineHandle.addEventListener('dblclick',()=>setTimelineHeight(timelineHandle.dataset.collapsed?TIMELINE.def:0));
+ timelineHandle.addEventListener('click',()=>{if(timelineHandle.dataset.collapsed)setTimelineHeight(TIMELINE.def,true)});
+ timelineHandle.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setTimelineHeight(timelineHandle.dataset.collapsed?TIMELINE.def:0);return}if(e.key!=='ArrowUp'&&e.key!=='ArrowDown')return; e.preventDefault(); const cur=timelineHandle.dataset.collapsed?0:timelineW(); const delta=e.key==='ArrowUp'?16:-16; setTimelineHeight(clamp(cur+delta,0,TIMELINE.max));});
+}
+
+/* ---------- collapsible sidebar sections ---------- */
+const COLL=new Set(LS.get('agentStudio.collapsed.v1',[]));
+const secKey=h=>String((h.childNodes[0]&&h.childNodes[0].textContent)||h.textContent).trim().toLowerCase();
+function setSection(h,body,open,save=true){
+ h.setAttribute('aria-expanded',String(open));body.hidden=!open;
+ if(save){const k=secKey(h);if(open)COLL.delete(k);else COLL.add(k);LS.set('agentStudio.collapsed.v1',[...COLL])}}
+function wrapSections(root){
+ if(!root)return;
+ [...root.children].filter(n=>n.tagName==='H3'&&!n.dataset.sec).forEach(h=>{
+  const body=document.createElement('div');body.className='sec-body';
+  let n=h.nextSibling;while(n&&!(n.nodeType===1&&n.tagName==='H3')){const nx=n.nextSibling;body.appendChild(n);n=nx}
+  h.after(body);h.dataset.sec='1';h.setAttribute('role','button');h.tabIndex=0;
+  setSection(h,body,!COLL.has(secKey(h)),false);
+  const flip=()=>setSection(h,body,body.hidden);
+  h.addEventListener('click',flip);
+  h.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();flip()}})})}
+let toastT=0;const toast=(m,err)=>{const t=$('#toast');t.textContent=m;t.className=err?'err':'';t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,3200)};
+bindResizeHandles();
+bindTimelineResize();
+wrapSections(document.querySelector('aside'));
+
+/* ---------- colour helpers ---------- */
 const hx=s=>{s=String(s||'').trim();const m=/^#([0-9a-f]{3})$/i.exec(s);if(m)return'#'+[...m[1]].map(c=>c+c).join('').toLowerCase();return/^#[0-9a-f]{6}$/i.test(s)?s.toLowerCase():null};
 const rgb=s=>{if(s[0]==='#')return[1,3,5].map(i=>parseInt(s.substr(i,2),16)).concat(1);const m=s.match(/[\d.]+/g).map(Number);return[m[0],m[1],m[2],m[3]??1]};
 const lum=c=>{const f=v=>{v/=255;return v<=.03928?v/12.92:((v+.055)/1.055)**2.4};return .2126*f(c[0])+.7152*f(c[1])+.0722*f(c[2])};
@@ -159,14 +1286,53 @@ let PACKS=[],P=null,B=null,FMT=null,TH={ink:'#17162e',bone:'#ebe6e0',accent:'#eb
 let scene=[],sel=null,hist=[],uid=1,demo=false,selTok=0,UF=[];
 const packCache=new Map(),IMG=new Map(),PXC=new Map(),TINT=new Map();
 const AS={tab:'brand',lib:{status:'idle',items:[],cls:'',verified:false,err:''}};
+const templateFallback=[
+ {id:'hero-flyer',label:'Hero flyer',summary:'Print-led hero composition',category:'Flyers',format:'A4 portrait'},
+ {id:'social-post',label:'Social post',summary:'Square social layout',category:'Social',format:'Square'},
+ {id:'story-card',label:'Story card',summary:'Vertical story layout',category:'Stories',format:'9:16'},
+ {id:'menu-sheet',label:'Menu sheet',summary:'Menu or feature sheet',category:'Menus',format:'A4 portrait'},
+ {id:'voucher',label:'Gift voucher',summary:'Offer or voucher layout',category:'Promos',format:'Portrait 4:5'},
+ {id:'signage',label:'Signage',summary:'Sign or announcement',category:'Signage',format:'Landscape'}
+];
+const motifFallback=[
+ {id:'sprig',label:'Sprig',icon:'✦',tone:'accent'},
+ {id:'line',label:'Divider',icon:'—',tone:'ink'},
+ {id:'burst',label:'Burst',icon:'✹',tone:'accent'},
+ {id:'leaf',label:'Leaf',icon:'❋',tone:'ok'},
+ {id:'frame',label:'Frame',icon:'▣',tone:'ink'}
+];
+function getTemplateCatalog(){
+ const shared = typeof window !== 'undefined' && window.StudioBrand && typeof window.StudioBrand.templateCatalog === 'function'
+   ? window.StudioBrand.templateCatalog(B || (P && P.brands && P.brands[0]) || null)
+   : [];
+ const sources=[shared && shared.length ? shared : null,B&&Array.isArray(B.templates)?B.templates:null,P&&Array.isArray(P.templates)?P.templates:null,templateFallback];
+ const candidate = sources.find((entry) => Array.isArray(entry) && entry.length) || templateFallback;
+ return candidate.map((item,index)=>({
+  id:String(item.id||item.slug||item.name||item.label||`template-${index}`),
+  label:String(item.label||item.name||item.title||`Template ${index+1}`),
+  summary:String(item.summary||item.description||item.category||item.spec||item.format||item.paper||'Brand template'),
+  category:String(item.category||item.kind||'Template'),
+  format:String(item.format||item.paper||item.spec||item.size||'Brand format')
+ }));
+}
+function getSizeCatalog(){
+ const base=[{id:'a4',label:'A4 portrait',meta:'Print · 1240×1754',w:1240,h:1754},{id:'portrait-45',label:'Portrait 4:5',meta:'Feed · 1080×1350',w:1080,h:1350},{id:'story-916',label:'Story 9:16',meta:'Stories · 1080×1920',w:1080,h:1920},{id:'square',label:'Square',meta:'Post · 1080×1080',w:1080,h:1080},{id:'landscape',label:'Landscape',meta:'Banner · 1920×1080',w:1920,h:1080}];
+ return base.map(x=>({...x,format:x.label}));
+}
+function getFormatCatalog(){
+ return FMTS.map(f=>({id:f.id,label:`${f.n}`,meta:`${f.w}×${f.h}px`,w:f.w,h:f.h}));
+}
+function getMotifCatalog(){
+ return motifFallback;
+}
 
-/* ---------- formats + geometry (all rects are % of the page) ---------- */
+/* ---------- formats + geometry ---------- */
 const FMTS=[
- {id:'a4',n:'Flyer · A4 portrait',w:1748,h:2480},
- {id:'sq',n:'Social · Square',w:1080,h:1080},
- {id:'story',n:'Story · 9:16',w:1080,h:1920},
- {id:'land',n:'Banner · Landscape',w:1920,h:1080}];
-/* [x,y,w,h,fontSize%] */
+ {id:'a4',group:'Flyer',n:'A4 portrait',w:1748,h:2480},
+ {id:'portrait-45',group:'Flyer',n:'Portrait 4:5',w:1080,h:1350},
+ {id:'sq',group:'Social',n:'Square',w:1080,h:1080},
+ {id:'story',group:'Story',n:'9:16',w:1080,h:1920},
+ {id:'land',group:'Banner',n:'Landscape',w:1920,h:1080}];
 const GEO={
  a4:{photo:[0,0,100,48],logo:[37,9,26,8],head:[8,53,84,16,6.2],sub:[8,69.5,84,5.5,2.4],body:[8,76,84,8.5,1.6],cta:[8,85.4,84,3.1,1.7],foot:[8,89.2,84,2.2,1.05],over:true},
  story:{photo:[0,0,100,50],logo:[30,10,40,6],head:[8,55,84,14,4.6],sub:[8,70,84,4,2.2],body:[8,75,84,8,1.5],cta:[8,85,84,3,1.6],foot:[8,89,84,2.4,.95],over:true},
@@ -191,7 +1357,7 @@ const readable=(c,bg)=>{const B2=rgb(bg);if(cr(rgb(c),B2)>=4.5)return c;return[T
 const toneHex=t=>t==='white'?'#ffffff':t==='ink'?TH.ink:TH.accent;
 
 /* ---------- fonts ---------- */
-const norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+const norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'');
 const WORDS=/\b(thin|hairline|extra\s*light|extralight|light|regular|book|medium|semi\s*bold|semibold|demibold|extra\s*bold|bold|black|heavy|italic|oblique)\b/gi;
 const baseName=f=>String(f).replace(WORDS,'').replace(/\s+/g,' ').trim()||String(f);
 const weightOf=f=>{const t=String(f).toLowerCase();return /thin|hairline|extra\s*light/.test(t)?200:/semi\s*bold|demibold/.test(t)?600:/black|heavy/.test(t)?800:/bold/.test(t)?700:/medium/.test(t)?500:/light/.test(t)?300:400};
@@ -235,7 +1401,7 @@ function ensurePx(src){
  loadImg(src).then(im=>{const c=document.createElement('canvas');c.width=140;c.height=Math.max(1,Math.round(140*(im.naturalHeight||1)/(im.naturalWidth||1)));const x=c.getContext('2d');x.drawImage(im,0,0,c.width,c.height);
   PXC.set(src,{w:c.width,h:c.height,d:x.getImageData(0,0,c.width,c.height).data});layers()}).catch(()=>{PXC.set(src,null)})}
 
-/* ---------- copy from brand fields (never invented) ---------- */
+/* ---------- copy from brand fields ---------- */
 const contact=f=>{const e=((B.guidelines&&B.guidelines.contact)||[]).find(c=>String(c.field||'').toLowerCase()===f.toLowerCase());return e&&e.value||''};
 const siteOf=()=>String(contact('Website')||B.url||'').replace(/^https?:\/\//i,'').replace(/\/+$/,'');
 const firstSentence=t=>{t=String(t||'').replace(/\s+/g,' ').trim();return((t.split(/(?<=[.!?])\s/)[0])||'').slice(0,90)};
@@ -284,7 +1450,7 @@ function run(sc,cmds){for(const c of cmds){const g=id=>sc.find(l=>l.id===id);
  else if(c.type==='add-layer')sc.push(c.layer);
  else if(c.type==='remove-layer'){const i=sc.findIndex(l=>l.id===c.layerId);if(i>-1)sc.splice(i,1)}
  else if(c.type==='swap-asset'){const l=g(c.layerId);if(l)l.tone=c.asset}
- else if(c.type==='variant'){const next=fitScene(buildScene(c.variant,sc));sc.splice(0,sc.length,...next)}
+ else if(c.type==='variant'){const next=(FMT&&FMT.eng&&hasEngine())?engVariant(c.variant,sc):fitScene(buildScene(c.variant,sc));sc.splice(0,sc.length,...next)}
  else if(c.type==='set-animation'){const l=g(c.layerId);if(l)l.anim={preset:c.preset,start:c.startMs||0,duration:c.durationMs||900}}
  else if(c.type==='clear-animation'){const l=g(c.layerId);if(l)delete l.anim}}return sc}
 function commit(cmds){hist.push(clone(scene));run(scene,cmds);if(sel&&!scene.find(l=>l.id===sel))sel=null;render();layers();if(cmds.some(c=>c.type==='set-animation'))setTimeout(()=>play(0),60)}
@@ -303,10 +1469,10 @@ function render(sc=scene,tgt=stage){tgt.innerHTML='';
    e.style.justifyContent=left?'flex-start':right?'flex-end':'center';
    if(src)e.innerHTML=`<img alt="" draggable="false" src="${src}" style="width:100%;height:100%;object-fit:contain;object-position:${left?'left':right?'right':'center'};pointer-events:none">`;
    else e.innerHTML=`<span style="font:700 ${l.h*.5}cqh/1 ${BF.display};white-space:nowrap;color:${toneHex(l.tone)};overflow:hidden;text-overflow:ellipsis;max-width:100%">${esc(String(B.wordmark||B.name).toUpperCase())}</span>`}
-  if(l.type==='text'){e.classList.add('T');const f=l.font;e.style.justifyContent=l.align==='center'?'center':'flex-start';
+  if(l.type==='text'){e.classList.add('T');const f=l.font;e.style.justifyContent=l.align==='center'?'center':l.align==='right'?'flex-end':'flex-start';if(l.align)e.style.textAlign=l.align;
    Object.assign(e.style,{color:l.color,fontFamily:f.family,fontWeight:f.weight,fontSize:f.sizePct+'cqh',lineHeight:f.lineHeight,letterSpacing:f.letterSpacingEm+'em',textTransform:f.transform});
    if(l.bg){e.style.background=l.bg;e.style.borderRadius=(l.radius||0)+'cqh';e.style.justifyContent='center'}
-   e.textContent=l.text}
+   if(l.nowrap)e.style.whiteSpace='pre';e.textContent=l.text}
   if(l.anim){e.dataset.an=1;e.style.animation=`${l.anim.preset} ${l.anim.duration}ms ${l.anim.preset==='pulse'?'ease-in-out infinite':'ease-out'} ${l.anim.start-(tgt===stage?T:DUR)}ms both paused`}
   if(sc===scene&&tgt===stage&&l.id===sel){e.classList.add('sel');const c=document.createElement('span');c.className='chip';c.textContent=l.name;e.appendChild(c)}
   e.onpointerdown=ev=>down(ev,l.id);tgt.appendChild(e)}}
@@ -324,7 +1490,7 @@ function sizeProbe(){probe.style.width=stage.clientWidth+'px';probe.style.height
 
 /* ---------- panels ---------- */
 let wt,st;
-function layers(){list();ctx();tl();clearTimeout(wt);wt=setTimeout(()=>watch(),30);clearTimeout(st);st=setTimeout(saveScene,400)}
+function layers(){list();ctx();engSyncSel();tl();clearTimeout(wt);wt=setTimeout(()=>watch(),30);clearTimeout(st);st=setTimeout(saveScene,400)}
 function list(){const w=$('#layers');w.innerHTML='';
  scene.slice().sort((a,b)=>b.z-a.z).forEach(l=>{const r=document.createElement('div');r.className='lrow';r.dataset.s=l.id===sel?1:0;
   r.innerHTML=`<span>${esc(l.name)}${cur.some(i=>i.id===l.id)?' <b class="warn">⚠</b>':''}</span><small>${l.type}</small><button title="Show/hide" aria-label="Show or hide ${esc(l.name)}">${l.hidden?'○':'●'}</button>`;
@@ -335,7 +1501,7 @@ function ctx(){const l=scene.find(q=>q.id===sel);$('#ctx').innerHTML=l?`Context:
  $('#qp').innerHTML='';q.forEach(t=>{const b=document.createElement('button');b.textContent=t;b.onclick=()=>ask(t);$('#qp').appendChild(b)})}
 function select(id){sel=id;render();layers();if(id){const l=scene.find(q=>q.id===id);say('agent',`Looking at <b>${esc(l.name)}</b>. Here’s what I’d try:`,suggest(l,''))}}
 
-/* brand chrome: palette, type, links, header */
+/* brand chrome */
 function chrome(){
  $('#sw').innerHTML='';Object.entries(PAL).forEach(([n,h])=>{const b=document.createElement('button');b.title=`${n} ${h}`;b.setAttribute('aria-label',`Apply ${n}`);b.style.background=h;
   b.onclick=()=>{const l=scene.find(q=>q.id===sel);if(!l||!['text','fill','shape'].includes(l.type)){toast('Select a text, background or shape layer first.',true);return}commit([S(l.id,{color:h})]);$('#status').textContent=`${l.name} → ${n}`};$('#sw').appendChild(b)});
@@ -350,14 +1516,182 @@ function buildBrandPills(){const w=$('#brands');w.innerHTML='';
  (P.brands||[]).forEach(b=>{const btn=document.createElement('button');btn.dataset.id=b.id;btn.type='button';
   const dot=document.createElement('i');const sw=(b.palette&&((b.palette[1]&&b.palette[1].hex)||(b.palette[0]&&b.palette[0].hex)))||'#e8803a';dot.style.background=sw;
   btn.append(dot,document.createTextNode(b.name));btn.title=b.tagline||b.name;btn.onclick=()=>{if(!B||b.id!==B.id)selectBrand(b.id)};w.appendChild(btn)})}
-function buildFormats(){const f=$('#fmt');f.innerHTML='';FMTS.forEach(x=>f.append(new Option(`${x.n} · ${x.w}×${x.h}`,x.id)));f.value=FMT.id}
+function fmtGroupFor(id){const f=FMTS.find(x=>x.id===id)||FMTS[0];return f.group||'Flyer';}
+function buildFormats(){
+ if(FMT&&FMT.eng)return;
+ const kind=$('#fmtKind'),f=$('#fmt');const groups=[...new Set(FMTS.map(x=>x.group||'Flyer'))];
+ if(kind){kind.innerHTML='';groups.forEach(g=>kind.append(new Option(g,g)));kind.value=fmtGroupFor(FMT.id);}
+ const currentGroup=(kind&&kind.value)||fmtGroupFor(FMT.id);const choices=FMTS.filter(x=>(x.group||'Flyer')===currentGroup);const list=choices.length?choices:FMTS;
+ if(!list.some(x=>x.id===FMT.id))FMT=list[0];
+ if(f){f.innerHTML='';list.forEach(x=>f.append(new Option(`${x.n} · ${x.w}×${x.h}`,x.id)));f.value=FMT.id;}
+ if(kind)kind.value=currentGroup;
+}
+function bindFormatSelectors(){
+ const kind=$('#fmtKind'),fmt=$('#fmt');
+ if(kind){kind.onchange=()=>{const group=kind.value;const next=FMTS.find(x=>x.group===group)||FMTS[0];if(next)setFormat(next.id);}};
+ if(fmt){fmt.onchange=()=>{if(fmt.value)setFormat(fmt.value);}};
+}
 
-/* ---------- asset panel: brand / library / elements ---------- */
+/* ---------- asset-studio engine bridge ---------- */
+const ENG={cat:'flyer',tpl:0,size:0,wired:false,motif:'auto',motifOn:true,motifScale:1,motifX:0,motifY:0,textScale:1,flat:false};
+const ENG_TPL_IDS={flyer:'flyer',menu:'menu',voucher:'voucher',bizcard:'business-card-front',tablecard:'table-card',social:'social-post',signage:'flyer',guest:'table-card',stationery:'flyer',packaging:'voucher',compliance:'menu'};
+const hasEngine=()=>!!(window.AssetEngine&&window.AssetCategories&&Object.keys(window.AssetCategories).length);
+const engCat=()=>window.AssetCategories[ENG.cat]||window.AssetCategories[Object.keys(window.AssetCategories)[0]];
+const engCatLabel=id=>{const c=window.AssetCategories[id];return String((c&&c.title)||id).replace(/ Maker$/,'')};
+const engTpl=()=>{const c=engCat();return c.tpls[ENG.tpl]||c.tpls[0]};
+function engSizes(tpl=engTpl(),cat=engCat()){const all=cat.sizes||[];if(!tpl||!Array.isArray(tpl.sizes)||!tpl.sizes.length)return all;const ok=new Set(tpl.sizes),f=all.filter(x=>ok.has(x.n));return f.length?f:all}
+const engSize=()=>{const z=engSizes();return z[ENG.size]||z[0]||{n:'Square',w:1080,h:1080}};
+async function engMedia(b){
+ if(b._engPhotos)return b._engPhotos;
+ const urls=(b.photography||[]).map(p=>p&&p.url).filter(Boolean).slice(0,9);
+ b._engPhotos=(await Promise.all(urls.map(u=>loadImg(u).catch(()=>null)))).filter(Boolean);return b._engPhotos}
+function engPal(){
+ if(ENG.palTmp)return ENG.palTmp;
+ try{const r=window.StudioBrand.paletteRoles(B,ENG_TPL_IDS[ENG.cat]||'flyer');if(r&&r.ground&&r.ink&&r.accent&&r.ground.hex)return{paper:r.ground.hex,ink:r.ink.hex,accent:r.accent.hex}}catch{}
+ return{paper:TH.bone,ink:TH.ink,accent:TH.accent}}
+function engBrandify(v){
+ if(typeof v!=='string'||!B)return v;
+ const site=siteOf(),addr=contact('Address'),ig=contact('Instagram'),mail=contact('Email');
+ let r=v.replace(/the adamson\s*\|\s*THE PHYSICIAN/gi,B.name).replace(/THE PHYSICIAN/g,B.name.toUpperCase()).replace(/The Physician/g,B.name).replace(/the physician/gi,B.name)
+  .replace(/www\.thephysician\.bar/gi,site).replace(/www\.theadamson\.com/gi,site).replace(/www\.hatchstandrews\.com/gi,site)
+  .replace(/@thephysician_standrews/gi,ig).replace(/@theadamsonstandrews/gi,ig).replace(/@hatch_standrews/gi,ig);
+ if(!addr||!r.includes(addr))r=r.replace(/12[79] South Street, St Andrews(?:,?\s*KY16\s*9UH)?/gi,addr);
+ return r.replace(/reservations@theadamson\.com/gi,mail).replace(/\s*·\s*·\s*/g,' · ').replace(/^\s*·\s*/,'').replace(/\s*·\s*$/,'')}
+function engText(tpl){const o={};Object.entries(tpl.t||{}).forEach(([k,v])=>{o[k]=engBrandify(v)});return o}
+function engState(text){
+ const L=(B&&B._logos)||{},fonts={display:BF.display,serif:BF.body,sans:BF.body},boxes=[];
+ const st={t:text||{},slideIndex:0,slideCount:1,pal:engPal(),fonts,photos:(B&&B._engPhotos)||[],sel:0,qr:'',motif:ENG.motif||'auto',motifOn:ENG.motifOn!==false,motifScale:ENG.motifScale||1,motifX:ENG.motifX||0,motifY:ENG.motifY||0,
+  logoWordmark:L.wordmark?L.wordmark.canvas:null,logoMark:L.mark?L.mark.canvas:null,logoScale:1,logoOn:true,logoX:0,logoY:0,
+  brandWordmark:(B&&(B.wordmark||B.name))||'Brand',typeProfile:null,titleWeight:700,defaultQr:(B&&(B.url||(siteOf()?'https://'+siteOf():'')))||''};
+ return st}
+function engThumb(canvas,tpl,size){
+ try{window.AssetEngine.renderThumb(canvas,size,tpl,engState(engText(tpl)),160)}catch(e){canvas.width=160;canvas.height=160}}
+function engPanel(){
+ const cats=Object.keys(window.AssetCategories),c=engCat(),sizes=engSizes();
+ let h=`<h3>Design type</h3><select class="eng-sel" id="engCat" aria-label="Design type">${cats.map(id=>`<option value="${esc(id)}"${id===ENG.cat?' selected':''}>${esc(engCatLabel(id))}</option>`).join('')}</select>`;
+ h+=`<h3>Size</h3><select class="eng-sel" id="engSize" aria-label="Size">${sizes.map((z,i)=>`<option value="${i}"${i===ENG.size?' selected':''}>${esc(z.n)}${z.d?' · '+esc(z.d):''}</option>`).join('')}</select>`;
+ h+=`<h3>Designs <small>· ${c.tpls.length} for ${esc(engCatLabel(ENG.cat))}</small></h3><div class="eng-grid">${c.tpls.map((t,i)=>`<button type="button" class="eng-card${i===ENG.tpl&&ENG.wired?' is-selected':''}" data-i="${i}" title="${esc(t.n)}"><canvas data-th="${i}"></canvas><span>${esc(t.n)}</span></button>`).join('')}</div>`;
+ const pal=engPal(),cur=ENG.motifOn===false?'none':(ENG.motif||'auto'),slot=window.AssetEngine.templateUsesMotif(engTpl());
+ const mids=[...(slot?['auto']:[]),'logo',...window.AssetEngine.VECTORS.filter(i=>i!=='none'),'none'];
+ h+=`<h3>Motif</h3><div class="eng-motif">${mids.map(id=>`<button type="button" class="eng-mt" data-m="${esc(id)}" aria-pressed="${id===cur}"><canvas data-mv="${esc(id)}" style="background:${esc(pal.paper)}"></canvas><span>${esc(id==='auto'?'Auto':id==='none'?'None':id==='logo'?'Logo':id[0].toUpperCase()+id.slice(1))}</span></button>`).join('')}</div>`;
+ const sl=(k,label,v,min,max,step,fmt)=>`<div class="eng-sl"><label for="engM-${k}">${label}<output id="engMo-${k}">${fmt(v)}</output></label><input type="range" id="engM-${k}" data-k="${k}" min="${min}" max="${max}" step="${step}" value="${v}"></div>`;
+ const pc=v=>v+'%',sg=v=>(v>0?'+':'')+v+'%';
+ h+=sl('scale','Motif size',Math.round((ENG.motifScale||1)*100),30,250,5,pc)+sl('x','Motif horizontal',Math.round((ENG.motifX||0)*100),-45,45,1,sg)+sl('y','Motif vertical',Math.round((ENG.motifY||0)*100),-45,45,1,sg);
+ h+=`<h3>Text size</h3><div class="eng-sl"><label for="engAll">All text<output id="engAllOut">${Math.round((ENG.textScale||1)*100)}%</output></label><input type="range" id="engAll" min="50" max="200" step="5" value="${Math.round((ENG.textScale||1)*100)}"></div><div id="engSel"></div>`;
+ h+=`<div class="note">Same designs, sizes and drawing engine as Asset Studio. Picking one turns it into editable layers.</div>`;
+ return h}
+function engBind(p){
+ const c=engCat();
+ p.querySelectorAll('canvas[data-th]').forEach(cv=>{const t=c.tpls[+cv.dataset.th];if(t)engThumb(cv,t,engSizes(t,c)[0]||engSize())});
+ const cat=p.querySelector('#engCat'),sz=p.querySelector('#engSize');
+ if(cat)cat.onchange=()=>{ENG.cat=cat.value;ENG.tpl=0;ENG.size=0;engApply()};
+ if(sz)sz.onchange=()=>{ENG.size=+sz.value||0;engApply()};
+ p.querySelectorAll('.eng-card').forEach(b=>b.onclick=()=>{ENG.tpl=+b.dataset.i;ENG.size=Math.min(ENG.size,engSizes().length-1);engApply()});
+ const pal=engPal();
+ p.querySelectorAll('canvas[data-mv]').forEach(cv=>{const id=cv.dataset.mv;if(id==='auto'||id==='logo'||id==='none'){cv.width=80;cv.height=68;const x=cv.getContext('2d');x.fillStyle=pal.ink;x.font='600 20px Helvetica,Arial,sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(id==='auto'?'A':id==='none'?'∅':'◆',40,34);return}
+  try{window.AssetEngine.drawVectorPreview(cv,id,pal,40,34)}catch{}});
+ p.querySelectorAll('.eng-mt').forEach(b=>b.onclick=()=>{const id=b.dataset.m;hist.push(clone(scene));ENG.motif=id;ENG.motifOn=id!=='none';engRefreshArt();p.querySelectorAll('.eng-mt').forEach(x=>x.setAttribute('aria-pressed',String(x===b)))});
+ let mt=0;p.querySelectorAll('.eng-sl input[data-k]').forEach(inp=>inp.oninput=()=>{const k=inp.dataset.k,v=+inp.value,o=p.querySelector('#engMo-'+k);
+  if(k==='scale'){ENG.motifScale=v/100;o.textContent=v+'%'}else{if(k==='x')ENG.motifX=v/100;else ENG.motifY=v/100;o.textContent=(v>0?'+':'')+v+'%'}
+  clearTimeout(mt);mt=setTimeout(engRefreshArt,70)});
+ const all=p.querySelector('#engAll');
+ if(all){all.onpointerdown=()=>hist.push(clone(scene));all.oninput=()=>{const v=+all.value/100,f=v/(ENG.textScale||1);ENG.textScale=v;p.querySelector('#engAllOut').textContent=all.value+'%';
+   scene.forEach(l=>{if(l.type==='text')engSizeLayer(l,l.font.sizePct*f)});render()};all.onchange=()=>layers()}
+ engSyncSel()}
+function engSizeLayer(l,size){
+ size=clamp(+size,.8,30);const f=size/l.font.sizePct;if(!isFinite(f)||Math.abs(f-1)<1e-4)return;
+ const ow=l.w,oh=l.h,cx=l.x+l.w/2,right=l.x+l.w;
+ const mode=Math.abs(cx-50)<3&&l.w<90?'center':(l.x>45&&right>85?'right':'left');
+ l.font.sizePct=+size.toFixed(2);l.w=+(ow*f).toFixed(2);l.h=+(oh*f).toFixed(2);l.y=+(l.y-(l.h-oh)/2).toFixed(2);
+ if(mode==='center'){l.x=+(cx-l.w/2).toFixed(2);l.align='center'}else if(mode==='right'){l.x=+(right-l.w).toFixed(2);l.align='right'}
+ l.w=Math.min(l.w,100);l.x=clamp(l.x,0,Math.max(0,100-l.w));l.h=Math.min(l.h,100);l.y=clamp(l.y,0,Math.max(0,100-l.h))}
+function engSyncSel(){
+ const w=document.getElementById('engSel');if(!w)return;
+ const l=scene.find(q=>q.id===sel);
+ if(!l||l.type!=='text'){w.innerHTML='<div class="note">Select a text layer on the canvas or in Layers to change just its size.</div>';return}
+ w.innerHTML=`<div class="eng-sl"><label for="engOne">${esc(l.name)}<output id="engOneOut">${l.font.sizePct}</output></label><input type="range" id="engOne" min="0.8" max="20" step="0.1" value="${Math.min(20,l.font.sizePct)}"></div><div class="eng-row"><button type="button" id="engDn" aria-label="Smaller">A−</button><button type="button" id="engUp" aria-label="Larger">A+</button></div>`;
+ const one=w.querySelector('#engOne'),out=w.querySelector('#engOneOut');
+ one.onpointerdown=()=>hist.push(clone(scene));
+ one.oninput=()=>{engSizeLayer(l,+one.value);out.textContent=l.font.sizePct;render()};
+ one.onchange=()=>layers();
+ const step=d=>{hist.push(clone(scene));engSizeLayer(l,l.font.sizePct*d);render();layers()};
+ w.querySelector('#engDn').onclick=()=>step(.9);w.querySelector('#engUp').onclick=()=>step(1.1)}
+function engRefreshArt(){
+ const l=scene.find(q=>q.id==='art');if(!l||!B||!hasEngine())return;
+ const prevT=ENG.palTmp;ENG.palTmp=l.pal||null;
+ try{const tpl=engTpl(),size=engSize(),target=Math.min(size.w,1400),cv=document.createElement('canvas');
+  if(!ENG.flat)cv.getContext('2d').fillText=()=>{};
+  window.AssetEngine.render(cv,size,tpl,engState(engText(tpl)),target);
+  let src='';try{src=cv.toDataURL('image/jpeg',.92)}catch{}
+  if(src){l.src=src;render();layers()}}
+ catch(e){toast('Could not update the motif: '+e.message,true)}finally{ENG.palTmp=prevT}}
+function engGroupText(boxes,ctxFont){
+ const out=[];
+ boxes.forEach(b=>{const prev=out[out.length-1];
+  if(prev&&prev.font===b.font&&prev.color===b.color&&Math.abs(prev.x-b.x)<2&&b.y>=prev.y&&b.y-prev.lastY<b.size*1.9&&b.y-prev.lastY>b.size*.7){prev.lines.push(b.text);prev.lastY=b.y;prev.h=b.y+b.h-prev.y;prev.w=Math.max(prev.w,b.w);prev.step=prev.step||(b.y-prev.firstLast);prev.firstLast=b.y}
+  else out.push({...b,lines:[b.text],lastY:b.y,firstLast:b.y,step:0})});
+ return out}
+function engBuild(ov){const prev=ENG.palTmp;if(ov!==undefined)ENG.palTmp=ov;try{return engBuildInner()}finally{ENG.palTmp=prev}}
+function engVariant(v,sc){
+ const prev=ENG.palTmp;ENG.palTmp=null;const base=engPal();let ov=null;
+ if(v==='night')ov={paper:TH.ink,ink:TH.bone,accent:TH.accent};
+ else if(v==='accent'){const on=cr(rgb(TH.chalk),rgb(TH.accent))>=cr(rgb(TH.ink),rgb(TH.accent))?TH.chalk:TH.ink;ov={paper:TH.accent,ink:on,accent:on}}
+ else if(v==='framed')ov={paper:TH.chalk,ink:TH.ink,accent:base.accent};
+ let next;try{ENG.palTmp=ov;next=engBuildInner()}finally{ENG.palTmp=prev}
+ const old=new Map(sc.map(l=>[l.id,l]));
+ next.forEach(l=>{const o=old.get(l.id);if(l.type==='text'&&o&&o.type==='text'){l.text=o.text;l.x=o.x;l.y=o.y;l.w=o.w;l.h=o.h;l.hidden=o.hidden;if(o.align)l.align=o.align;else delete l.align;l.font.sizePct=o.font.sizePct;l.font.lineHeight=o.font.lineHeight}});
+ const own=id=>id==='ground'||id==='art'||/^t\d+$/.test(id);
+ sc.filter(l=>!own(l.id)).forEach(l=>next.push(clone(l)));
+ return next}
+function engBuildInner(){
+ const tpl=engTpl(),size=engSize(),text=engText(tpl),multi=(size.sides||1)>1||!!size.shape;ENG.flat=multi;ENG.textScale=1;
+ const target=Math.min(size.w,1400),W=Math.round(target),H=Math.round(size.h*(target/size.w));
+ const scratch=document.createElement('canvas'),sctx=scratch.getContext('2d'),runs=[];
+ const st=engState(text);let arr=[];
+ Object.defineProperty(st,'boxes',{configurable:true,get(){return arr},set(v){arr=v;const push=v.push.bind(v);v.push=function(bx){if(bx&&bx.kind==='text'&&(bx.side||'f')==='f'){
+   const m=/([0-9.]+)px/.exec(sctx.font),sz=m?+m[1]:bx.h/1.18,wt=/^(?:\w+\s+)*?(bold|[1-9]00)\b/.exec(sctx.font);
+   let ls=0;try{const nat=sctx.measureText(bx.text).width;ls=Math.max(-.2,Math.min(1,(bx.w-nat)/Math.max(1,[...bx.text].length)/sz))}catch{}
+   const fam=sctx.font.slice(sctx.font.indexOf('px')+2).trim();
+   runs.push({text:bx.text,x:bx.x,y:bx.y,w:bx.w,h:bx.h,size:sz,font:sctx.font,fam,weight:wt?(wt[1]==='bold'?700:+wt[1]):400,color:String(sctx.fillStyle),ls:+ls.toFixed(3)})}
+   return push(bx)}}});
+ window.AssetEngine.render(scratch,size,tpl,st,target);
+ const SW=scratch.width,SH=scratch.height;
+ const art=document.createElement('canvas'),actx=art.getContext('2d');actx.fillText=()=>{};
+ const st2=engState(text);window.AssetEngine.render(art,size,tpl,st2,target);
+ let src='';try{src=art.toDataURL('image/jpeg',.92)}catch{try{src=art.toDataURL('image/png')}catch{}}
+ const pal=st.pal;
+ const L=[{id:'ground',name:'Background',type:'fill',x:0,y:0,w:100,h:100,z:0,opacity:1,color:pal.paper},
+  {id:'art',name:`Design · ${tpl.n}`,type:'image',x:0,y:0,w:100,h:100,z:2,opacity:1,src,fx:50,fy:50,fit:'cover'}];if(ENG.palTmp)L[1].pal=ENG.palTmp;
+ if(multi){
+  const flat=document.createElement('canvas');window.AssetEngine.render(flat,size,tpl,engState(text),target);try{L[1].src=flat.toDataURL('image/jpeg',.92)}catch{}
+  return L}
+ const groups=engGroupText(runs);
+ groups.forEach((g,i)=>{const lh=g.lines.length>1&&g.step>0?+(g.step/g.size).toFixed(2):1.18,pad=SW*.015,hh=g.lines.length>1?(g.lines.length-1)*(g.step||g.size*1.2)+g.h:g.h;
+  const x=clamp((g.x-pad/2)/SW*100,0,100),y=clamp(g.y/SH*100,0,100),w=Math.min(100-x,(g.w+pad)/SW*100),h=Math.min(100-y,hh/SH*100);
+  const name=g.lines[0].replace(/\s+/g,' ').slice(0,22);
+  L.push({id:'t'+(i+1),name:`Text · ${name}`,type:'text',x:+x.toFixed(2),y:+y.toFixed(2),w:+w.toFixed(2),h:+h.toFixed(2),z:12+i,opacity:1,text:g.lines.join('\n'),nowrap:true,
+   font:{family:g.fam,weight:g.weight,sizePct:+(g.size/SH*100).toFixed(2),lineHeight:g.lines.length>1?lh:1.18,letterSpacingEm:g.ls,transform:'none'},color:g.color})});
+ return L}
+function engApply(){
+ if(!B||!hasEngine())return;
+ const size=engSize(),tpl=engTpl();
+ try{
+  if(B)saveScene();
+  ENG.wired=true;Object.assign(ENG,{motif:'auto',motifOn:true,motifScale:1,motifX:0,motifY:0,textScale:1});
+  FMT={id:`eng:${ENG.cat}:${ENG.tpl}:${ENG.size}`,group:engCatLabel(ENG.cat),n:`${engCatLabel(ENG.cat)} · ${size.n}`,w:size.w,h:size.h,eng:true};
+  hist=[];sel=null;seen=new Set();stopP();T=DUR;
+  fitStage();sizeProbe();
+  scene=engBuild();
+  render();layers();assets();greet();remember();
+  $('#status').textContent=`${B.name} · ${tpl.n} · ${size.n}`;
+ }catch(e){toast('Could not build that design: '+e.message,true);console.error(e)}}
+
+/* ---------- asset panel ---------- */
 const ELS=[{k:'scrim',n:'Scrim gradient',st:()=>`background:linear-gradient(${rgba(TH.ink,0)},${TH.ink})`},{k:'rule',n:'Rule line',st:()=>`background:linear-gradient(#0000 45%,${TH.accent} 45% 55%,#0000 55%)`},
  {k:'badge',n:'Badge',st:()=>`background:${TH.accent};color:${readable('#ffffff',TH.accent)}`,t:'NEW'},{k:'text',n:'Text block',st:()=>`background:${TH.bone};color:${TH.ink}`,t:'Aa'}];
 function assets(){
  const tabs=$('#atabs'),n=AS.lib.items.length;
- tabs.innerHTML='';[['brand','Brand'],['lib',n?`Library (${n})`:'Library'],['el','Elements']].forEach(([k,t])=>{const b=document.createElement('button');b.textContent=t;b.setAttribute('role','tab');b.setAttribute('aria-selected',String(AS.tab===k));b.onclick=()=>{AS.tab=k;assets()};tabs.appendChild(b)});
+ tabs.innerHTML='';[['brand','Brand'],['lib',n?`Library (${n})`:'Library'],['tmpl','Templates'],['el','Elements']].forEach(([k,t])=>{const b=document.createElement('button');b.textContent=t;b.setAttribute('role','tab');b.setAttribute('aria-selected',String(AS.tab===k));b.onclick=()=>{AS.tab=k;assets()};tabs.appendChild(b)});
  const p=$('#apanel');let h='';
  if(AS.tab==='brand'){
   const L=B._logos||{},kinds=['wordmark',...(L.mark?['mark']:[])];
@@ -379,9 +1713,39 @@ function assets(){
    h+=`<div class="flt"><select id="libCls" aria-label="Asset class"><option value="">All classes</option>${cls.map(c=>`<option value="${esc(c)}"${c===lib.cls?' selected':''}>${esc(c.replace(/-/g,' '))}</option>`).join('')}</select><label><input type="checkbox" id="libVer"${lib.verified?' checked':''}> Verified</label></div>`;
    h+=vis.length?`<div class="assets">${vis.slice(0,60).map(a=>`<div class="asset" draggable="true" data-k="lib:${esc(a.id)}" title="${esc(a.name)} · ${esc(a.state||'')}"><div class="th" style="background-image:url('${esc(a.thumb||a.sourceUrl)}');background-size:contain;background-repeat:no-repeat"></div><span><i class="st" data-s="${esc(a.state)}"></i>${esc(a.name)}</span></div>`).join('')}</div>`:`<div class="note">${lib.items.length?'No library assets match this filter.':'No images in this brand’s library yet.'}</div>`;
    h+=`<div class="note"><a href="library.html?brandId=${encodeURIComponent(B.id)}">Open the library →</a> to upload, verify or classify assets.</div>`}}
+ else if(AS.tab==='tmpl'&&hasEngine()){h+=engPanel()}
+ else if(AS.tab==='tmpl'){
+  const templates=getTemplateCatalog();
+  const sizes=getSizeCatalog();
+  const formats=getFormatCatalog();
+  const motifs=getMotifCatalog();
+  h+=`<h3>Choose a template</h3><div class="flt"><label for="fmtKind">Type</label><select id="fmtKind" aria-label="Template type" title="Template type"></select></div><div class="flt"><label for="fmt">Template</label><select id="fmt" aria-label="Template choice" title="Template choice"></select></div><p class="note">Select a template category, then the specific template. These are not dragged onto the canvas.</p>`;
+  h+=`<div class="template-list">${templates.map(t=>`<button type="button" class="asset" data-choice="true" data-k="template:${esc(t.id)}" title="${esc(t.summary)}"><div class="th" style="background:linear-gradient(135deg,${TH.accent},${TH.ink});color:${TH.chalk};">${esc((t.label||'T').slice(0,2).toUpperCase())}</div><span>${esc(t.label)}</span></button>`).join('')}</div>`;
+  h+=`<h3>Choose a size</h3><div class="mini-grid">${sizes.map(s=>`<button type="button" class="asset" data-choice="true" data-k="size:${esc(s.id)}"><div class="th" style="background:${rgba(TH.accent,.2)};color:${TH.tx||TH.ink};">${esc(s.label.slice(0,2).toUpperCase())}</div><span title="${esc(s.meta)}">${esc(s.label)}</span></button>`).join('')}</div>`;
+  h+=`<h3>Choose a format</h3><div class="mini-grid">${formats.map(f=>`<button type="button" class="asset" data-choice="true" data-k="format:${esc(f.id)}"><div class="th" style="background:${rgba(TH.ink,.12)};color:${TH.ink};">${esc(f.label.slice(0,2).toUpperCase())}</div><span title="${esc(f.meta)}">${esc(f.label)}</span></button>`).join('')}</div>`;
+  h+=`<h3>Choose a motif</h3><div class="mini-grid">${motifs.map(m=>`<button type="button" class="asset" data-choice="true" data-k="motif:${esc(m.id)}"><div class="th" style="background:${m.tone==='accent'?rgba(TH.accent,.22):rgba(TH.ink,.12)};color:${m.tone==='accent'?TH.accent:TH.ink};">${esc(m.icon||'✦')}</div><span>${esc(m.label)}</span></button>`).join('')}</div>`;
+ }
  else h+=`<h3>Elements · drag onto canvas</h3><div class="assets">${ELS.map(a=>`<div class="asset" draggable="true" data-k="el:${a.k}"><div class="th" style="${a.st()}">${a.t||''}</div>${a.n}</div>`).join('')}</div>`;
- p.innerHTML=h;
- p.querySelectorAll('.asset').forEach(a=>{a.ondragstart=e=>e.dataTransfer.setData('k',a.dataset.k);a.onclick=()=>addAsset(a.dataset.k,50,50)});
+ p.innerHTML=h;wrapSections(p);
+ if(AS.tab==='tmpl'&&hasEngine())engBind(p);
+ buildFormats();
+ bindFormatSelectors();
+ p.querySelectorAll('.asset').forEach(a=>{
+  if(a.dataset.choice){
+   a.addEventListener('click',()=>{
+    const k=a.dataset.k||'';
+    const [kind, value]=k.split(':');
+    if(kind==='template'){toast(`Template selected: ${a.textContent.trim() || value}`);}
+    else if(kind==='size'){const size=getSizeCatalog().find(s=>s.id===value);if(size){toast(`Size selected: ${size.label}`);}}
+    else if(kind==='format'){const fmt=getFormatCatalog().find(f=>f.id===value);if(fmt){toast(`Format selected: ${fmt.label}`);}}
+    else if(kind==='motif'){const motif=getMotifCatalog().find(m=>m.id===value);if(motif){toast(`Motif selected: ${motif.label}`);}}
+    p.querySelectorAll('.asset[data-choice]').forEach(item=>item.classList.toggle('is-selected', item===a));
+    return;
+   });
+   return;
+  }
+  a.ondragstart=e=>e.dataTransfer.setData('k',a.dataset.k);a.addEventListener('click',e=>e.preventDefault());
+ });
  const c=$('#libCls'),v=$('#libVer');if(c)c.onchange=()=>{AS.lib.cls=c.value;assets()};if(v)v.onchange=()=>{AS.lib.verified=v.checked;assets()}}
 wrapEl.ondragover=e=>e.preventDefault();
 wrapEl.ondrop=e=>{e.preventDefault();const k=e.dataTransfer.getData('k');if(!k)return;const r=stage.getBoundingClientRect();addAsset(k,(e.clientX-r.left)/r.width*100,(e.clientY-r.top)/r.height*100)};
@@ -402,13 +1766,17 @@ async function addAsset(k,px,py){
  else if(kind==='logo'){const asp=(B._logos&&B._logos[a]&&B._logos[a].aspect)||4,[w,h]=box(asp,24);Ly={...at(w,h),name:a==='mark'?'Mark':'Logo',type:'logo',which:a,tone:b2}}
  else if(kind==='lib'){const it=AS.lib.items.find(x=>x.id===a);if(!it)return;const asp=it.width&&it.height?it.width/it.height:await aspOf(it.sourceUrl),[w,h]=box(asp,50),logoish=/logo|icon|mark|badge/i.test(`${it.class} ${it.role}`);
   Ly={...at(w,h),name:it.name,type:'image',src:it.sourceUrl,assetId:it.id,fit:logoish?'contain':'cover'};recordUsage(it)}
+ else if(kind==='template'){const tpl=getTemplateCatalog().find(t=>t.id===a),label=tpl?tpl.label:'Template';const name=String(label).slice(0,18);Ly={...at(52,18),name, type:'text',text:name.toUpperCase(),font:F(BF.display,BF.dW,4.2,1.2),color:TH.ink,bg:rgba(TH.accent,.14),radius:1};}
+ else if(kind==='size'){const size=getSizeCatalog().find(s=>s.id===a);if(size){const map={a4:'a4',square:'sq','story-916':'story',landscape:'land','portrait-45':'a4'};const id=map[a]||'a4';const next=FMTS.find(f=>f.id===id)||FMTS[0];setFormat(next.id);toast(`Format changed to ${next.n}.`);return;}Ly={...at(40,6),name:'Size',type:'text',text:'Size',font:F(BF.display,BF.dW,2.4,1.2),color:TH.ink};}
+ else if(kind==='format'){const next=FMTS.find(f=>f.id===a) || FMTS[0];setFormat(next.id);toast(`Format changed to ${next.n}.`);return;}
+ else if(kind==='motif'){const motif=getMotifCatalog().find(m=>m.id===a)||getMotifCatalog()[0];Ly={...at(18,12),name:motif.label,type:'text',text:motif.icon||'✦',font:F(BF.display,BF.dW,4.6,1.1),color:motif.tone==='accent'?TH.accent:TH.ink};}
  else if(a==='scrim')Ly={...at(100,30),x:0,name:'Scrim',type:'gradient',from:rgba(TH.ink,0),to:TH.ink};
  else if(a==='rule')Ly={...at(30,.5),name:'Rule',type:'shape',color:TH.accent};
  else if(a==='badge')Ly={...at(10,4),name:'Badge',type:'text',text:'NEW',bg:TH.accent,radius:2,font:F(BF.body,700,1.4,1.2,.12),color:readable('#ffffff',TH.accent)};
  else Ly={...at(40,6),name:'New text',type:'text',text:'Your text here',font:F(BF.display,BF.dW,2.4,1.2),color:TH.ink};
- hist.push(clone(scene));scene.push(Ly);say('agent',`Added <b>${esc(Ly.name)}</b> to the canvas.`);select(Ly.id)}
+ hist.push(clone(scene));scene.push(Ly);say('agent',`Added <b>${esc(Ly.name)}</b> to the canvas.`);select(Ly.id) }
 
-/* ---------- agent (swap suggest() for an LLM call) ---------- */
+/* ---------- agent ---------- */
 const S=(layerId,patch)=>({type:'set-layer',layerId,patch}),A=(layerId,preset,startMs,durationMs)=>({type:'set-animation',layerId,preset,startMs,durationMs});
 function suggest(l,msg){const m=msg.toLowerCase(),o=[],id=l.id,add=(title,why,cmds)=>o.push({title,why,cmds}),CO=copyOptions();
  const col=Object.keys(PAL).find(n=>m.includes(n.toLowerCase())),has=w=>w.some(x=>m.includes(x));
@@ -460,7 +1828,7 @@ function check(sc){const iss=[],Pl=Object.values(PAL).map(h=>h.toLowerCase()),ad
   if(b.height>e.clientHeight+1.5)add('OVERFLOW',l,`The text needs about ${(b.height/pr.height*100).toFixed(1)}% height but its box is ${l.h}%, so it clips.`,[S(l.id,{h:+(l.h*b.height/e.clientHeight+.3).toFixed(1)})]);
   else if(b.width>e.clientWidth+1.5)add('OVERFLOW',l,`The text is wider than its ${l.w}% box and will clip.`,[S(l.id,{font:{sizePct:+(l.font.sizePct*e.clientWidth/b.width*.97).toFixed(2)}})]);
   if(l.font.sizePct<.9)add('MIN_SIZE',l,`${l.font.sizePct}% is below the 0.9% legibility floor.`,[S(l.id,{font:{sizePct:.9}})]);
-  if(!Pl.includes(String(l.color).toLowerCase()))add('BRAND_COLOR',l,`${l.color} is not in the brand palette.`,[S(l.id,{color:TH.ink})]);
+  if(!(FMT&&FMT.eng)&&!Pl.includes(String(l.color).toLowerCase()))add('BRAND_COLOR',l,`${l.color} is not in the brand palette.`,[S(l.id,{color:TH.ink})]);
   const xr=(b.left-pr.left)/pr.width*100,yr=(b.top-pr.top)/pr.height*100,wr=b.width/pr.width*100,hr=b.height/pr.height*100;
   const bgs=[.1,.5,.9].flatMap(a=>[.2,.8].map(c=>l.bg?rgb(l.bg):bgAt(sc,xr+wr*a,yr+hr*c,l.z)));
   const worst=(c,op)=>Math.min(...bgs.map(g=>cr(mix(g,rgb(c),op),g))),th=l.font.sizePct>=2.2?3:4.5,w0=worst(l.color,l.opacity);
@@ -510,7 +1878,15 @@ function ask(t){say('user',esc(t));const l=scene.find(q=>q.id===sel);setTimeout(
  if(!l){const lm=t.toLowerCase(),an=lm.includes('anim'),C=concepts();const c=lm.includes('hier')?[C[3]]:an?[C[4]]:C.slice(0,3);
   say('agent',lm.includes('hier')?'One structural issue I can see:':an?'A staggered entrance for the whole design. Drag the bars in the timeline to retime it:':'Three directions for the whole design, built from this brand’s palette and type. Hover to preview each on the canvas:',c)}
  else{const c=suggest(l,t);say('agent',c.length?`For <b>${esc(l.name)}</b>:`:`I can’t do that to <b>${esc(l.name)}</b> yet. Try “bigger”, “accent colour”, “animate it” or “move up”.`,c)}},300)}
+function deleteSelection(){if(!sel)return;const l=scene.find(q=>q.id===sel);if(!l)return;hist.push(clone(scene));scene=scene.filter(q=>q.id!==sel);sel=null;render();layers();$('#status').textContent=l.name?`Deleted ${l.name}.`:'Deleted layer.';closeContextMenu()}
+function closeContextMenu(){const menu=$('#ctxMenu');if(menu){menu.innerHTML='';menu.classList.remove('visible');menu.setAttribute('hidden','hidden')}}
+function showContextMenu(event, layerId){const menu=$('#ctxMenu');if(!menu)return;event.preventDefault();const item=scene.find(q=>q.id===layerId);if(!item)return;menu.innerHTML='';const btn=document.createElement('button');btn.type='button';btn.setAttribute('role','menuitem');btn.textContent='Delete layer';btn.onclick=()=>{deleteSelection()};menu.appendChild(btn);menu.classList.add('visible');menu.removeAttribute('hidden');const left=Math.min(event.clientX+10,window.innerWidth-180);const top=Math.min(event.clientY+10,window.innerHeight-80);menu.style.left=left+'px';menu.style.top=top+'px'}
 $('#f').onsubmit=e=>{e.preventDefault();const v=$('#in').value.trim();if(v){$('#in').value='';ask(v)}};
+$('#clearChat').onclick=()=>{chat.innerHTML='';$('#status').textContent='Chat cleared.'};
+document.addEventListener('keydown',(event)=>{const target=event.target;const editable=target&&((target.isContentEditable)||(target.tagName==='INPUT')||(target.tagName==='TEXTAREA')||(target.tagName==='SELECT'));if(editable)return;if((event.key==='Delete'||event.key==='Backspace')&&sel){event.preventDefault();deleteSelection()}});
+document.addEventListener('click',e=>{if(!e.target.closest('#ctxMenu'))closeContextMenu()});
+document.addEventListener('contextmenu',e=>{if(!e.target.closest('#ctxMenu'))closeContextMenu()});
+stage.addEventListener('contextmenu',e=>{const layer=e.target.closest('.L');if(!layer)return;const id=layer.dataset.id;select(id);showContextMenu(e,id)});
 function greet(){chat.innerHTML='';say('agent',`Hi, I’m the Studio agent. I can see the <b>${esc(B.name)}</b> ${esc(FMT.n.toLowerCase())}, built from its palette (${Object.keys(PAL).length} colours), type and imagery. <b>Select a layer</b> or <b>drag an asset onto the canvas</b> and I’ll propose options for that exact element. With nothing selected, here are directions for the whole design:`,concepts().slice(0,3))}
 
 /* ---------- toolbar ---------- */
@@ -520,18 +1896,18 @@ $('#play').onclick=()=>play(0);
 $('#sz').onchange=e=>$('#app').classList.toggle('safe',e.target.checked);
 wrapEl.onclick=e=>{if(e.target.id==='wrap')select(null)};
 $('#grp').onchange=e=>selectPack(e.target.value);
-$('#fmt').onchange=e=>setFormat(e.target.value);
+bindFormatSelectors();
 
-/* ---------- persistence (per brand + format) ---------- */
+/* ---------- persistence ---------- */
 const sceneKey=()=>`agentStudio.scene.v2:${B&&B.id}:${FMT&&FMT.id}`;
 function saveScene(){if(!B||demo)return;if(!LS.set(sceneKey(),{v:2,scene}))LS.del(sceneKey())}
 function loadScene(){if(demo)return null;const d=LS.get(sceneKey(),null);return d&&d.v===2&&Array.isArray(d.scene)&&MASTER_IDS.size&&['ground','photo','headline'].every(id=>d.scene.some(l=>l.id===id))?d.scene:null}
 const remember=()=>{LS.set('agentStudio.last.v1',{packId:P&&P.id,brandId:B&&B.id,fmt:FMT&&FMT.id});LS.set('agentStudio.lastBrands.v1',{...LS.get('agentStudio.lastBrands.v1',{}),[P.id]:B.id});
  if(!demo)try{const u=new URL(location.href);u.searchParams.set('pack',P.id);u.searchParams.set('brand',B.id);history.replaceState(null,'',u)}catch{}};
 
-/* ---------- selection flow: group → brand → format ---------- */
+/* ---------- selection flow ---------- */
 async function setFormat(id){
- const f=FMTS.find(x=>x.id===id)||FMTS[0];if(B)saveScene();FMT=f;$('#fmt').value=f.id;fitStage();sizeProbe();
+ const f=FMTS.find(x=>x.id===id)||FMTS[0];if(B)saveScene();FMT=f;const kind=$('#fmtKind');if(kind)kind.value=fmtGroupFor(f.id);buildFormats();fitStage();sizeProbe();
  hist=[];sel=null;seen=new Set();
  if(B){const saved=loadScene();scene=saved||fitScene(buildScene('classic'));render();layers();assets();greet();remember()}}
 async function selectBrand(id){
@@ -539,11 +1915,11 @@ async function selectBrand(id){
  if(B)saveScene();
  $('#brands').querySelectorAll('button').forEach(x=>x.disabled=true);
  B=b;deriveTheme(b);BF=brandFonts(b);hist=[];sel=null;seen=new Set();stopP();T=DUR;
- await Promise.all([brandLogos(b),document.fonts&&document.fonts.ready].filter(Boolean)).catch(()=>{});
+ await Promise.all([brandLogos(b),engMedia(b),document.fonts&&document.fonts.ready].filter(Boolean)).catch(()=>{});
  if(tok!==selTok)return;
  (b.photography||[]).slice(0,1).forEach(p=>ensurePx(p.url));
  fitStage();sizeProbe();
- const saved=loadScene();scene=saved||fitScene(buildScene('classic'));
+ const saved=loadScene();scene=saved||(FMT.eng&&hasEngine()?engBuild():fitScene(buildScene('classic')));
  $('#brands').querySelectorAll('button').forEach(x=>x.disabled=false);
  chrome();render();layers();assets();greet();remember();loadLibrary(b);
  $('#status').textContent=`${b.name} · ${FMT.n}`}
@@ -583,4 +1959,7 @@ async function boot(){
 if(typeof ResizeObserver!=='undefined')new ResizeObserver(()=>{if(!FMT)return;fitStage();clearTimeout(wt);wt=setTimeout(()=>B&&watch(),60)}).observe(wrapEl);
 else addEventListener('resize',fitStage);
 boot();
-</script></body></html>
+})();
+</script>
+</body>
+</html>

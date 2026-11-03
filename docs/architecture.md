@@ -75,7 +75,7 @@ breaks it.
 | Page | Scripts |
 |---|---|
 | `pages/studio-v2.html` | `src/shared/studio-core.js` → `src/shared/brand-pack.js` → `src/client/shared/_.js` → `src/client/brand/brand-identity.js` → `src/client/studio/studio-minimal/studio-minimal.js` → `src/client/studio/studio-v2.js` |
-| `pages/studio.html` | `src/shared/studio-core.js` → `src/client/shared/_.js` |
+| `pages/studio.html` | `src/client/asset-studio/vendor/qrcode.min.js` → `src/shared/brand-pack.js` → `src/client/asset-studio/engine.js` → `src/client/asset-studio/categories.js` |
 | `pages/asset-studio.html` | `src/client/asset-studio/vendor/qrcode.min.js` → `src/shared/asset-intel.js` → `src/shared/brand-pack.js` → `src/client/asset-studio/engine.js` → `categories.js` → `print.js` → `app.js` |
 
 `src/shared/studio-core.js` and `src/shared/brand-pack.js` use a UMD-style wrapper, so the same
@@ -351,8 +351,9 @@ After a change, run `npm test`; for anything visual, run `npm run test:visual`.
 - **`src/client/shared/_.css` uses underscore names.** `src/client/shared/_.js` / `src/client/shared/_.css` are the historical
   Layer Studio names. Renaming them is churn without behaviour gain; the
   docs refer to them by role.
-- **`studio.html` is frozen** with a banner. It shares the engine, so it
-  still renders v3 documents, but it is not developed.
+- **`studio.html` is the Agent Studio**, a separate brand-wired page built on
+  the Asset Studio engine (`brand-pack.js` + `engine.js` + `categories.js`);
+  it does not open v3 compositions. See `docs/agent-studio.md`.
 - **Canvas ceilings.** PNG export is capped at 4096 px / 24 MP; GIF at 480 px
   on the long edge; video is real-time `MediaRecorder`.
 - **Print is not PDF/X.** No ICC output intent is embedded.

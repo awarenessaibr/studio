@@ -449,17 +449,15 @@ and an editor export cannot drift.
 
 ---
 
-## 12. Classic studio (`studio.html`)
+## 12. `studio.html` is now the Agent Studio
 
-Frozen. It shares `src/client/shared/_.js`/`src/shared/studio-core.js`, so it can **open and export** a v3
-composition — including text layers, formats and variables made in v2 — but
-it has **no UI to create them**: no text tool, no format tabs, no variables
-panel, no brand kit, no briefs, no contact sheet, no batch ZIP.
+The old “classic studio” described here no longer ships. `/studio.html` is a
+different, brand-wired page: brand packs → palette/type/logos → layers, a
+rule-based agent with apply/undo, guardrails, a 10-second CSS-animation
+timeline and an Asset Studio design importer.
 
-It does have: image/folder/ZIP import, saved projects, alignment, the segment
-list, presets, keyframes, playback, character import and rig inspector, the
-animation director, and the JSON / agent / SVG / PNG / video / GIF exports. A
-banner in the page points to v2 and Asset Studio.
+See [agent-studio.md](agent-studio.md) for the full page reference, source
+map and dependency index.
 
 ---
 

@@ -26,8 +26,9 @@ runs unchanged under Node for tests.
 | **Management** (dev only) | `/admin.html` | Choose which brand groups and businesses every studio surface shows, and their order. Local-only unless `STUDIO_ADMIN_KEY` is set. | [management.md](docs/management.md) |
 
 Two more entry points exist and are documented but secondary:
-`/studio.html` is the **classic, frozen** Layer Studio (layers + animation
-only), and the CLI (`src/server/composition-generator.js`) builds compositions and
+`/studio.html` is the **Agent Studio** — a brand-wired scene composer with a
+rule-based agent, guardrails and a 10-second timeline ([agent-studio.md](docs/agent-studio.md)) —
+and the CLI (`src/server/composition-generator.js`) builds compositions and
 brief-driven batches without a browser.
 
 ---
@@ -96,7 +97,7 @@ studio-layers/
 │
 ├── pages/                  ← HTML entry points; their public URLs stay at the root
 │   ├── studio-v2.html      ← Layer Studio: the current studio
-│   ├── studio.html         ← classic studio (frozen)
+│   ├── studio.html         ← Agent Studio (secondary)
 │   ├── asset-studio.html   ← final-asset surface
 │   ├── crawler.html        ← brand intake (search → crawl → import)
 │   ├── library.html        ← Business Asset Intelligence
@@ -151,8 +152,9 @@ git; back it up like any other document folder.
 | Document | Read it for |
 |---|---|
 | [capabilities.md](docs/capabilities.md) | The full capability catalogue: what exists, when to use it, inputs and outputs, and four end-to-end recipes |
-| [layer-studio.md](docs/layer-studio.md) | Every panel, control and workflow in Layer Studio v2 (plus the classic page) |
+| [layer-studio.md](docs/layer-studio.md) | Every panel, control and workflow in Layer Studio v2 |
 | [asset-studio.md](docs/asset-studio.md) | Asset Studio: gate, categories, controls, saved assets, PNG/print/print-pack |
+| [agent-studio.md](docs/agent-studio.md) | Agent Studio (`/studio.html`): brand-wired scene builder, rule-based agent, guardrails, timeline, Asset Studio engine bridge and the full dependency map |
 | [brand-packs.md](docs/brand-packs.md) | Brand-kit ZIP structure, what the importer reads, identity UI, templates, brand kits |
 | [crawler.md](docs/crawler.md) | Brand intake UI, combined website + social crawler, search/discovery, run jobs and output contract |
 | [asset-library.md](docs/asset-library.md) | Business Asset Intelligence: record schema, store, review library, usage rules and Asset Studio integration |
