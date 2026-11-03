@@ -254,6 +254,25 @@ shows two extra sections:
   the brand and whose `meta.source` is `brand-template`. These are the scenes
   already generated for that business; open one, keep editing, then publish.
 
+### Publishing every template at once
+`npm run publish:templates` snapshots every built-in template for every brand
+in every pack, using the same `saveBrandTemplate` path as the Studio's
+**Publish…** button (no HTTP server required).
+
+```bash
+npm run publish:templates -- --dry-run            # list what would be written
+npm run publish:templates -- --pack okja          # one pack (substring match)
+npm run publish:templates -- --brand <brandId>    # one brand
+npm run publish:templates -- --template flyer     # one template id
+npm run publish:templates -- --force              # replace existing snapshots
+```
+
+The run is idempotent: templates already published for a `sourceTemplateId`
+are skipped, so a second run reports `Published 0 · skipped N · failed 0`.
+`--force` deletes the stale snapshot before writing the new one, so
+re-publishing after a composition change replaces the artwork instead of
+stacking a duplicate.
+
 Both sections render the composition through the same preview path as the
 initial cards and offer **GIF**/**MP4** without replacing the scene open in
 the editor. GIFs are capped at 480 px / 10 fps by the existing export pipeline.

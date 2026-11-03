@@ -104,6 +104,57 @@
         return round2((Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05));
     }
 
+    /**
+     * Opacity that keeps secondary ink text at AA on its ground. Templates build
+     * hierarchy by fading ink toward the ground, but a fixed 0.6 drops small copy
+     * under 4.5:1 on light brands, so the value follows the brand's ink/ground pair.
+     */
+    function mutedOpacity(bgHex, colorHex, target = 4.8) {
+        const bg = hexToRgb(bgHex);
+        const fg = hexToRgb(colorHex);
+        const blended = (amount) => `#${['r', 'g', 'b']
+            .map((key) => Math.round(clamp(bg[key] + (fg[key] - bg[key]) * amount, 0, 255))
+                .toString(16).padStart(2, '0')).join('')}`;
+        if (contrastRatio(blended(1), bgHex) < target) return 1;
+        // More alpha means more foreground, so a passing midpoint lets the
+        // search move down. `high` converges on the faintest value that passes.
+        let low = 0;
+        let high = 1;
+        for (let step = 0; step < 20; step += 1) {
+            const middle = (low + high) / 2;
+            if (contrastRatio(blended(middle), bgHex) >= target) high = middle;
+            else low = middle;
+        }
+        return Math.min(1, Math.max(0.35, Math.ceil(high * 100) / 100));
+    }
+
+    /**
+     * A tagline is the one line a pack writes to be read, so it carries the
+     * display headline and the name stands in when there is none. Detail lines
+     * come from the voice's preferred terms. Nothing here is another brand's
+     * copy, which is what the templates used to ship.
+     */
+    function displayLines(brand) {
+        const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+        const tagline = clean(brand?.tagline);
+        const name = clean(brand?.name);
+        const prefer = (brand?.voice?.prefer || []).map(clean).filter(Boolean);
+        const headline = tagline || name || 'Now open';
+        // Each of the four slots says something different: the tagline carries
+        // the headline, the name labels it, and the voice's own terms fill the
+        // detail line. A pack with neither falls back to neutral wording rather
+        // than repeating itself.
+        const subhead = name && name !== headline ? name : (prefer[0] || 'Available now');
+        const kicker = headline === name ? (prefer[0] || 'Now open') : (name || 'Open now');
+        const detail = prefer.slice(0, 3).join('  ·  ') || (subhead !== headline ? subhead : tagline || 'Welcome');
+        const phrases = prefer.slice(0, 4);
+        const sentence = phrases.length
+            ? `${phrases.slice(0, -1).join(', ')}${phrases.length > 1 ? ' and ' : ''}${phrases[phrases.length - 1]}.`
+            : (tagline && name ? `${name} — ${tagline}` : headline);
+        const body = sentence.charAt(0).toUpperCase() + sentence.slice(1);
+        return { headline, subhead, kicker, detail, body };
+    }
+
     function normalizeColorEntry(entry, key, index) {
         const source = entry && typeof entry === 'object' ? entry : {};
         const hex = normalizeHex(source.hex || source.value || source.color) || '#000000';
@@ -939,9 +990,32 @@
         return normalizeColorEntry({ name: 'Accent', hex: isDark(ground.hex) ? '#FFFFFF' : '#000000' }, 'accent', 0);
     }
 
+    /**
+     * A saturated brand ground (magenta, gold) often has no palette colour that
+     * carries small copy at AA, which forces the text off-palette. Rather than
+     * repaint the type, the ground is shaded — minimally, in whichever
+     * direction reaches the bar first — so the palette ink reads on it.
+     */
+    function legibleGround(groundHex, inkHex, target = 4.65) {
+        if (contrastRatio(groundHex, inkHex) >= target) return groundHex;
+        const shade = (toward) => {
+            for (let step = 1; step <= 50; step += 1) {
+                const mixed = blendHex(groundHex, toward, step * 0.02);
+                if (contrastRatio(mixed, inkHex) >= target) return { hex: mixed, step };
+            }
+            return null;
+        };
+        const light = shade('#ffffff');
+        const dark = shade('#000000');
+        if (light && dark) return (light.step <= dark.step ? light : dark).hex;
+        return (light || dark)?.hex || groundHex;
+    }
+
     function paletteRoles(brand, templateId) {
-        const ground = pickGround(brand, templateId);
+        let ground = pickGround(brand, templateId);
         const ink = pickInk(brand, ground);
+        const pair = legibleGround(ground.hex, ink.hex);
+        if (pair !== ground.hex) ground = { ...ground, hex: pair };
         const accent = pickAccent(brand, ground, ink, templateId);
         return {
             ground,
@@ -1318,14 +1392,43 @@
     function makeContext(brand, template) {
         const roles = paletteRoles(brand, template.id);
         const contact = contactMap(brand);
-        const accentText = contrastRatio(roles.accent.hex, roles.ground.hex) >= 4
-            ? roles.accent.hex
-            : roles.ink.hex;
+        // An accent has to survive on the ground it is set against: on the ink
+        // grounds the display templates use, the ink itself is invisible, so
+        // white takes over.
+        const accentFor = (bgHex, target = 4.5) => {
+            const bg = normalizeHex(bgHex) || '#ffffff';
+            const candidates = [roles.accent.hex, roles.ink.hex, '#ffffff', '#0b0b0b'];
+            return candidates.find((hex) => contrastRatio(hex, bg) >= target)
+                || candidates.slice().sort((a, b) => contrastRatio(b, bg) - contrastRatio(a, bg))[0];
+        };
+        const accentText = accentFor(roles.ground.hex, 4);
+        // Dark templates paint the same "ink" ground, but plenty of packs set
+        // ink to white, so the scrim follows the darkest brand role instead of
+        // assuming ink is dark.
+        const scrim = [roles.ink.hex, roles.ground.hex, roles.accent.hex, '#0b0b0b']
+            .map((hex) => normalizeHex(hex) || '#0b0b0b')
+            .sort((a, b) => luminance(a) - luminance(b))[0];
         return {
             brand,
             template,
             roles,
             accentText,
+            accentFor,
+            muted: (colorHex, bgHex = roles.ground.hex) => mutedOpacity(bgHex, colorHex),
+            scrim,
+            onDark: [roles.accent.hex, '#ffffff', '#0b0b0b']
+                .find((hex) => contrastRatio(hex, scrim) >= 4.5
+                    && contrastRatio(hex, blendHex('#8a8a8a', scrim, 0.62)) >= 4.5)
+                || '#ffffff',
+            // Palette colours are tried first: a swap to pure black passes the
+            // contrast guardrail but fails the off-palette one.
+            contrastCandidates: {
+                palette: [...new Set((brand.palette || [])
+                    .map((entry) => normalizeHex(entry.hex))
+                    .filter(Boolean))],
+                fallback: [roles.ink.hex, roles.ground.hex, roles.accent.hex, '#ffffff', '#0b0b0b', '#000000'],
+            },
+            lines: displayLines(brand),
             fonts: {
                 display: fontFor(brand, 'display'),
                 title: fontFor(brand, 'title'),
@@ -1346,6 +1449,246 @@
         const fill = normalizeHex(hex) || '#000000';
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1" preserveAspectRatio="none"><rect width="1" height="1" fill="${fill}"/></svg>`;
         return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+    }
+
+    /**
+     * Type is never the thing that bleeds. Photos, grounds and rules may run to
+     * the trim, but a text box that crosses the safe margin is a trim risk on
+     * print and a cut-off on screen, so its box is pulled back inside.
+     */
+    // Mirrors studio-core's per-channel safe zones: a story loses the bottom
+    // 16% to the platform's UI, so type laid out to the print margin clips there.
+    const CHANNEL_SAFE_ZONES = {
+        social: { top: 12, right: 6, bottom: 16, left: 6 },
+        display: { top: 5, right: 5, bottom: 5, left: 5 },
+        video: { top: 10, right: 6, bottom: 10, left: 6 },
+        instore: { top: 8, right: 8, bottom: 8, left: 8 },
+        print: { top: 8, right: 8, bottom: 8, left: 8 },
+    };
+    // The studio's own guardrail holds every channel to an 8% trim margin, so a
+    // channel that nominally allows less padding still has to clear 8% or the
+    // published card opens with a guardrail warning.
+    const TRIM_MARGIN = 8;
+    function safeZoneForChannel(channel) {
+        const zone = CHANNEL_SAFE_ZONES[channel] || CHANNEL_SAFE_ZONES.print;
+        const atLeast = (value) => Math.max(TRIM_MARGIN, value);
+        return {
+            top: atLeast(zone.top),
+            right: atLeast(zone.right),
+            bottom: atLeast(zone.bottom),
+            left: atLeast(zone.left),
+        };
+    }
+    function fitTextToSafeArea(layer, zone) {
+        if (!layer || layer.type !== 'text') return layer;
+        const z = zone || safeZoneForChannel();
+        const spanW = 100 - z.left - z.right;
+        const spanH = 100 - z.top - z.bottom;
+        const w = round2(clamp(finite(layer.w, spanW), 1, spanW));
+        const h = round2(clamp(finite(layer.h, spanH), 1, spanH));
+        layer.w = w;
+        layer.h = h;
+        layer.x = round2(clamp(finite(layer.x, z.left), z.left, Math.max(z.left, 100 - z.right - w)));
+        layer.y = round2(clamp(finite(layer.y, z.top), z.top, Math.max(z.top, 100 - z.bottom - h)));
+        if (Array.isArray(layer.keyframes)) {
+            layer.keyframes.forEach((frame) => {
+                const fw = round2(clamp(finite(frame.w, w), 1, spanW));
+                const fh = round2(clamp(finite(frame.h, h), 1, spanH));
+                frame.w = fw;
+                frame.h = fh;
+                frame.x = round2(clamp(finite(frame.x, layer.x), z.left, Math.max(z.left, 100 - z.right - fw)));
+                frame.y = round2(clamp(finite(frame.y, layer.y), z.top, Math.max(z.top, 100 - z.bottom - fh)));
+            });
+        }
+        return layer;
+    }
+
+    const TEXT_SAMPLES = [0.15, 0.5, 0.85];
+
+    // Average advance of the stand-in families, in em. Deliberately a little
+    // wide: the studio measures the real wrapped range, and a box that is too
+    // tall costs nothing while a box that is too short clips the copy.
+    const AVERAGE_ADVANCE = 0.56;
+    function advanceEm(layer) {
+        const font = layer.font || {};
+        const family = String(font.family || '');
+        let em = AVERAGE_ADVANCE;
+        if (/condensed|narrow/i.test(family)) em -= 0.08;
+        if (/serif|georgia|times|playfair|garamond|baskerville|didot|caslon/i.test(family)) em += 0.03;
+        if (Number(font.weight) >= 700) em += 0.035;
+        if (font.transform === 'uppercase') em += 0.08;
+        return em + (Number(font.letterSpacingEm) || 0);
+    }
+    /**
+     * Wrapped height of a text layer as a percentage of the canvas height, the
+     * same unit the studio lays type out in (`sizePct` of height at `lineHeight`).
+     */
+    function estimateTextHeight(layer, format) {
+        const sizePct = Number(layer.font?.sizePct) || 2;
+        const lineHeight = Number(layer.font?.lineHeight) || 1.2;
+        const fontSize = (sizePct / 100) * (format.height || 1000);
+        const charWidth = Math.max(0.5, fontSize * advanceEm(layer));
+        const boxWidth = ((Number(layer.w) || 100) / 100) * (format.width || 1000);
+        const words = String(layer.text ?? '').split(/\s+/).filter(Boolean);
+        let lines = 1;
+        let line = 0;
+        words.forEach((word, index) => {
+            const wordWidth = word.length * charWidth;
+            const next = index === 0 ? wordWidth : line + charWidth + wordWidth;
+            if (next <= boxWidth) line = next;
+            else if (index === 0) line = wordWidth;
+            else { lines += 1; line = wordWidth; }
+            while (line > boxWidth) { lines += 1; line -= boxWidth; }
+        });
+        return (lines * fontSize * lineHeight * 1.06) / (format.height || 1000) * 100;
+    }
+    const MIN_SIZE_PCT = 0.9;
+    /**
+     * A box only overflows because the copy is longer than the shape could hold.
+     * Grow the box into the free space below it first, then reduce the type — so
+     * a short headline keeps its size and a long one stops clipping.
+     */
+    function fitTextHeightBox(layer, format, layers, zone) {
+        if (!layer || layer.type !== 'text') return layer;
+        const floor = 100 - (zone || safeZoneForChannel()).bottom;
+        const needed = estimateTextHeight(layer, format);
+        if (needed <= layer.h) return layer;
+        const blockers = layers.filter((other) => other !== layer
+            && other.type !== 'image'
+            && !other.hidden
+            && other.y > layer.y + 0.5
+            && other.x < layer.x + layer.w
+            && other.x + other.w > layer.x);
+        const limit = (blockers.length ? Math.min(...blockers.map((other) => other.y)) : floor) - 1.2;
+        const roomBelow = Math.max(layer.h, limit - layer.y);
+        const maxHeight = round2(Math.min(roomBelow, floor - layer.y));
+        if (maxHeight > layer.h) {
+            const grown = round2(Math.min(maxHeight, needed + 0.8));
+            if (grown > layer.h) layer.h = grown;
+        }
+        for (let step = 0; step < 14; step += 1) {
+            if (estimateTextHeight(layer, format) <= layer.h) return layer;
+            const next = round2(Math.max(MIN_SIZE_PCT, (Number(layer.font.sizePct) || 2) * 0.94));
+            if (next === layer.font.sizePct) break;
+            layer.font.sizePct = next;
+        }
+        if (estimateTextHeight(layer, format) <= layer.h) return layer;
+        // Nothing left to give: let the box take the height it needs, still
+        // inside the safe margin.
+        layer.h = round2(Math.min(floor - layer.y, Math.max(layer.h, estimateTextHeight(layer, format) + 0.4)));
+        return layer;
+    }
+    /**
+     * A layer's keyframes set the box height at run time, so a keyframe shorter
+     * than the fitted box silently re-introduces the clip the fit just removed.
+     */
+    function fitTextHeight(layer, format, layers, zone) {
+        const fitted = fitTextHeightBox(layer, format, layers, zone);
+        if (!fitted || fitted.type !== 'text' || !Array.isArray(fitted.keyframes)) return fitted;
+        const z = zone || safeZoneForChannel();
+        fitted.keyframes.forEach((frame) => {
+            if (frame.h === undefined || Number(frame.h) >= fitted.h) return;
+            frame.h = fitted.h;
+            frame.y = round2(clamp(finite(frame.y, fitted.y), z.top, Math.max(z.top, 100 - z.bottom - fitted.h)));
+        });
+        return fitted;
+    }
+    function blendHex(bgHex, colorHex, alpha) {
+        const bg = hexToRgb(bgHex);
+        const fg = hexToRgb(colorHex);
+        return `#${['r', 'g', 'b']
+            .map((key) => Math.round(clamp(bg[key] + (fg[key] - bg[key]) * clamp(alpha, 0, 1), 0, 255))
+                .toString(16).padStart(2, '0')).join('')}`;
+    }
+    function solidFillOf(layer) {
+        const url = typeof layer?.url === 'string' ? layer.url : '';
+        if (!url.startsWith('data:image/svg+xml')) return null;
+        const match = /fill="([^"]+)"/.exec(decodeURIComponent(url));
+        return match ? normalizeHex(match[1]) : null;
+    }
+    /** The painted background under a point, or null when a photograph is in the way. */
+    function backgroundAt(layers, layer, px, py, photoStandIn = '#8a8a8a') {
+        let bg = '#ffffff';
+        for (const other of layers) {
+            if (other.type !== 'image' || other.z >= layer.z) continue;
+            if (px < other.x - 0.01 || px > other.x + other.w + 0.01) continue;
+            if (py < other.y - 0.01 || py > other.y + other.h + 0.01) continue;
+            // A photograph is sampled at render time, so both a light and a dark
+            // stand-in are scored: whatever the picture turns out to be, the text
+            // has to read on it.
+            const fill = solidFillOf(other) || photoStandIn;
+            bg = blendHex(bg, fill, other.opacity ?? 1);
+        }
+        return bg;
+    }
+    // The studio scores the real pixels behind the text; the estimate here has to
+    // land above the bar, not on it, or rounding puts it a tenth under.
+    const CONTRAST_HEADROOM = 0.15;
+    // Share of a text box a paint has to cover before it counts as the ground.
+    const PAINT_COVERAGE = 0.25;
+    const PHOTO_STAND_INS = ['#e4e4e4', '#8a8a8a', '#3a3a3a'];
+    /**
+     * The studio blocks on a contrast guardrail, so every text layer has to pass
+     * it before it is published. Where a build function's chosen colour or fade
+     * sits under AA on the painted ground, the fade is lifted first and the
+     * colour swapped only as a last resort — to a palette colour before a
+     * neutral, so the off-palette guardrail stays clear too.
+     */
+    function enforceTextContrast(layers, candidates, format) {
+        const palette = Array.isArray(candidates) ? candidates : (candidates?.palette || []);
+        const fallback = Array.isArray(candidates) ? candidates : (candidates?.fallback || []);
+        const paints = layers.filter((layer) => layer.type === 'image');
+        layers.forEach((layer) => {
+            if (layer.type !== 'text') return;
+            const against = paints.filter((paint) => paint.z < layer.z);
+            if (!against.length) return;
+            // Type sits centred in its box, so the studio measures contrast over
+            // the wrapped glyphs, not over the empty padding. Sample the same
+            // band here: sampling the whole box lets a hairline rule or a photo
+            // edge below the last line force an unnecessary colour swap.
+            const text = format ? Math.min(layer.h, estimateTextHeight(layer, format)) : layer.h;
+            const top = layer.y + Math.max(0, (layer.h - text) / 2);
+            const area = layer.w * layer.h;
+            // A hairline rule or a thin band crossing the type is decoration, not
+            // the ground the eye reads against. Ignore paints that cover only a
+            // fraction of the box, or every rule below a headline forces a swap.
+            const groundPaints = against.filter((paint) => {
+                const overlap = Math.max(0, Math.min(paint.x + paint.w, layer.x + layer.w) - Math.max(paint.x, layer.x))
+                    * Math.max(0, Math.min(paint.y + paint.h, layer.y + layer.h) - Math.max(paint.y, layer.y));
+                return area > 0 && overlap / area >= PAINT_COVERAGE;
+            });
+            const backgrounds = [];
+            for (const fx of TEXT_SAMPLES) {
+                for (const fy of TEXT_SAMPLES) {
+                    for (const standIn of PHOTO_STAND_INS) {
+                        backgrounds.push(backgroundAt(groundPaints, layer, layer.x + layer.w * fx, top + text * fy, standIn));
+                    }
+                }
+            }
+            const threshold = ((layer.font?.sizePct ?? 2) >= 2.2 ? 3 : 4.5) + CONTRAST_HEADROOM;
+            const score = (color, alpha) => backgrounds
+                .reduce((worst, bg) => Math.min(worst, contrastRatio(blendHex(bg, color, alpha), bg)), Infinity);
+            const color = normalizeHex(layer.color) || '#000000';
+            let alpha = layer.opacity ?? 1;
+            if (score(color, alpha) >= threshold) return;
+            const lifted = Math.min(1, Math.ceil((alpha + 0.05) * 100) / 100);
+            for (let step = lifted; step <= 1.0001; step += 0.02) {
+                let value = Math.round(Math.min(1, step) * 100) / 100;
+                if (score(color, value) >= threshold) { layer.opacity = value; return; }
+            }
+            const best = (list) => list
+                .filter((hex) => hex)
+                .sort((a, b) => score(b, 1) - score(a, 1))
+                .find((hex) => score(hex, 1) >= threshold);
+            const swapped = best(palette) || best(fallback);
+            if (swapped) {
+                layer.color = swapped;
+                layer.opacity = 1;
+                return;
+            }
+            layer.opacity = 1;
+        });
+        return layers;
     }
 
     let layerCounter = 0;
@@ -1479,7 +1822,7 @@
     }
 
     function buildMenu(ctx) {
-        const { roles, accentText, fonts, brand, logo, contact, website } = ctx;
+        const { roles, accentText, fonts, brand, logo, contact, website, muted } = ctx;
         const layers = [];
         const variables = [];
         layers.push(imageLayer({ id: 'menu-ground', name: 'Menu ground', color: roles.ground.hex, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
@@ -1533,19 +1876,19 @@
         const footer = [contact.address, website].filter(Boolean).join('  ·  ');
         variables.push(variable({
             id: 'menu_footer', name: 'Menu footer',
-            value: footer || `${brand.name} · ${brand.tagline || 'Locally sourced, carefully served.'}`,
+            value: footer || [brand.name, brand.tagline].filter(Boolean).join(' · '),
         }));
         layers.push(textLayer({
             id: 'menu-footer', name: 'Menu footer', binding: 'menu_footer',
             text: footer || brand.name, family: fonts.label, weight: 400, sizePct: 1.05,
-            letterSpacingEm: 0.06, color: roles.ink.hex, opacity: 0.62, align: 'center',
-            x: 9, y: 88.4, w: 82, h: 2.6, z: 12,
+            letterSpacingEm: 0.06, color: roles.ink.hex, opacity: muted(roles.ink.hex),
+            align: 'center', x: 9, y: 88.4, w: 82, h: 2.6, z: 12,
         }));
         return { layers, variables };
     }
 
     function buildBusinessCardFront(ctx) {
-        const { roles, fonts, brand, logo, logoMark } = ctx;
+        const { roles, fonts, brand, logo, logoMark, lines, muted } = ctx;
         const mark = logoMark || logo;
         const layers = [];
         const variables = [];
@@ -1562,10 +1905,10 @@
                 x: 16, y: 20, w: 68, h: 22, z: 6,
             }));
         }
-        variables.push(variable({ id: 'card_tagline', name: 'Tagline', value: brand.tagline || 'Locally sourced, carefully served.' }));
+        variables.push(variable({ id: 'card_tagline', name: 'Tagline', value: lines.subhead }));
         layers.push(textLayer({
             id: 'card-front-tagline', name: 'Tagline', binding: 'card_tagline',
-            text: brand.tagline || 'Locally sourced, carefully served.', family: fonts.label,
+            text: lines.subhead, family: fonts.label,
             weight: 400, sizePct: 2.5, letterSpacingEm: 0.12, transform: 'uppercase',
             color: roles.ink.hex, opacity: 0.86, align: 'center',
             x: 10, y: 55, w: 80, h: 6, z: 10,
@@ -1582,7 +1925,7 @@
     }
 
     function buildBusinessCardBack(ctx) {
-        const { roles, accentText, fonts, brand, logoMark, contact, website } = ctx;
+        const { roles, accentText, fonts, brand, logoMark, contact, website, lines, muted } = ctx;
         const layers = [];
         const variables = [];
         layers.push(imageLayer({ id: 'card-back-ground', name: 'Card ground', color: roles.ground.hex, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
@@ -1625,7 +1968,7 @@
     }
 
     function buildFlyer(ctx) {
-        const { roles, accentText, fonts, brand, logo, logoLight, photo, contact, website } = ctx;
+        const { roles, accentText, fonts, brand, logo, logoLight, photo, contact, website, lines, muted } = ctx;
         const layers = [];
         const variables = [];
         layers.push(imageLayer({ id: 'flyer-ground', name: 'Flyer ground', color: roles.ground.hex, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
@@ -1642,34 +1985,34 @@
                 x: 37, y: 6, w: 26, h: 9, z: 8, bleed: true,
             }));
         }
-        variables.push(variable({ id: 'flyer_headline', name: 'Headline', value: 'A table worth crossing town for' }));
+        variables.push(variable({ id: 'flyer_headline', name: 'Headline', value: lines.headline }));
         layers.push(textLayer({
             id: 'flyer-headline', name: 'Headline', binding: 'flyer_headline',
-            text: 'A table worth crossing town for', family: fonts.title, weight: 300,
+            text: lines.headline, family: fonts.title, weight: 300,
             sizePct: 6.2, lineHeight: 1.02, color: roles.ink.hex, align: 'left',
             x: 8, y: 53, w: 84, h: 16, z: 12,
         }));
-        variables.push(variable({ id: 'flyer_subhead', name: 'Sub-headline', value: brand.tagline || 'Locally sourced, carefully served.' }));
+        variables.push(variable({ id: 'flyer_subhead', name: 'Sub-headline', value: lines.subhead }));
         layers.push(textLayer({
             id: 'flyer-subhead', name: 'Sub-headline', binding: 'flyer_subhead',
-            text: brand.tagline || 'Locally sourced, carefully served.', family: fonts.heading,
+            text: lines.subhead, family: fonts.heading,
             weight: 400, sizePct: 2.4, letterSpacingEm: 0.06, color: accentText,
             align: 'left', x: 8, y: 69.5, w: 84, h: 5.5, z: 12,
         }));
         variables.push(variable({
             id: 'flyer_body', name: 'Body copy',
-            value: 'Seasonal plates, a considered drinks list and a room built for long lunches. Join us for dinner, private dining or a quiet drink at the bar.',
+            value: lines.body,
         }));
         layers.push(textLayer({
             id: 'flyer-body', name: 'Body copy', binding: 'flyer_body',
-            text: 'Seasonal plates, a considered drinks list and a room built for long lunches. Join us for dinner, private dining or a quiet drink at the bar.',
+            text: lines.body,
             family: fonts.body, weight: 300, sizePct: 1.6, lineHeight: 1.45,
-            color: roles.ink.hex, opacity: 0.78, align: 'left',
+            color: roles.ink.hex, opacity: muted(roles.ink.hex), align: 'left',
             x: 8, y: 76, w: 84, h: 8.5, z: 12,
         }));
-        variables.push(variable({ id: 'flyer_cta', name: 'Call to action', value: 'Book a table' }));
+        variables.push(variable({ id: 'flyer_cta', name: 'Call to action', value: 'Find out more' }));
         layers.push(textLayer({
-            id: 'flyer-cta', name: 'Call to action', binding: 'flyer_cta', text: 'Book a table',
+            id: 'flyer-cta', name: 'Call to action', binding: 'flyer_cta', text: 'Find out more',
             family: fonts.label, weight: 400, sizePct: 1.7, letterSpacingEm: 0.18,
             transform: 'uppercase', color: accentText, align: 'left',
             x: 8, y: 88.5, w: 84, h: 3.1, z: 12,
@@ -1682,14 +2025,14 @@
             id: 'flyer-footer', name: 'Footer', binding: 'flyer_footer',
             text: [contact.address, website].filter(Boolean).join('  ·  ') || brand.name,
             family: fonts.label, weight: 400, sizePct: 1.05, letterSpacingEm: 0.05,
-            color: roles.ink.hex, opacity: 0.6, align: 'left',
+            color: roles.ink.hex, opacity: muted(roles.ink.hex), align: 'left',
             x: 8, y: 85.2, w: 84, h: 2.2, z: 12,
         }));
         return { layers, variables };
     }
 
     function buildTableCard(ctx) {
-        const { roles, accentText, fonts, logo, logoMark } = ctx;
+        const { roles, accentText, fonts, logo, logoMark, muted } = ctx;
         const layers = [];
         const variables = [];
         const mark = logoMark || logo;
@@ -1739,14 +2082,14 @@
             id: 'table-allergens', name: 'Allergens / note', binding: 'table_allergens',
             text: 'Ask the team about allergens. Available while the kitchen is open.',
             family: fonts.body, weight: 300, sizePct: 1.25, lineHeight: 1.4,
-            color: roles.ink.hex, opacity: 0.58, align: 'center',
+            color: roles.ink.hex, opacity: muted(roles.ink.hex), align: 'center',
             x: 12, y: 85, w: 76, h: 5, z: 10,
         }));
         return { layers, variables };
     }
 
     function buildVoucher(ctx) {
-        const { roles, fonts, brand, logo, contact, website } = ctx;
+        const { roles, fonts, brand, logo, contact, website, muted } = ctx;
         const layers = [];
         const variables = [];
         const site = website || brand.url;
@@ -1783,10 +2126,15 @@
         }));
         variables.push(variable({ id: 'voucher_code', name: 'Redemption code', value: 'GIFT-0001' }));
         layers.push(imageLayer({ id: 'voucher-panel', name: 'Code panel', color: roles.ink.hex, x: 70, y: 28, w: 22, h: 44, z: 8, bleed: true }));
+        // The code reads off the ink panel, so it takes the palette colour with
+        // the most contrast there rather than the page ground.
+        const panelInk = (ctx.contrastCandidates?.palette || [])
+            .slice()
+            .sort((a, b) => contrastRatio(b, roles.ink.hex) - contrastRatio(a, roles.ink.hex))[0] || '#ffffff';
         layers.push(textLayer({
             id: 'voucher-code', name: 'Redemption code', binding: 'voucher_code', text: 'GIFT-0001',
             family: fonts.label, weight: 400, sizePct: 2.2, letterSpacingEm: 0.14,
-            transform: 'uppercase', color: roles.ground.hex, align: 'center',
+            transform: 'uppercase', color: panelInk, align: 'center',
             x: 71.5, y: 44, w: 19, h: 10, z: 12,
         }));
         variables.push(variable({
@@ -1797,14 +2145,14 @@
             id: 'voucher-footer', name: 'Footer', binding: 'voucher_footer',
             text: [contact.address, site].filter(Boolean).join('  ·  ') || brand.name,
             family: fonts.label, weight: 400, sizePct: 1.1, letterSpacingEm: 0.05,
-            color: roles.ink.hex, opacity: 0.62, align: 'left',
+            color: roles.ink.hex, opacity: muted(roles.ink.hex), align: 'left',
             x: 8, y: 84, w: 84, h: 3, z: 10,
         }));
         return { layers, variables };
     }
 
     function buildSocialPost(ctx) {
-        const { roles, accentText, fonts, brand, logo, logoLight, contact } = ctx;
+        const { roles, accentText, fonts, brand, logo, logoLight, contact, lines, muted } = ctx;
         const layers = [];
         const variables = [];
         layers.push(imageLayer({ id: 'social-ground', name: 'Post ground', color: roles.ground.hex, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
@@ -1816,16 +2164,16 @@
                 x: 38, y: 14, w: 24, h: 8, z: 6, bleed: true,
             }));
         }
-        variables.push(variable({ id: 'social_headline', name: 'Headline', value: 'Dinner, served properly.' }));
+        variables.push(variable({ id: 'social_headline', name: 'Headline', value: lines.headline }));
         layers.push(textLayer({
-            id: 'social-headline', name: 'Headline', binding: 'social_headline', text: 'Dinner, served properly.',
+            id: 'social-headline', name: 'Headline', binding: 'social_headline', text: lines.headline,
             family: fonts.title, weight: 300, sizePct: 8.4, lineHeight: 1.02,
             color: roles.ink.hex, align: 'center', x: 8, y: 30, w: 84, h: 24, z: 10,
         }));
-        variables.push(variable({ id: 'social_subhead', name: 'Sub-headline', value: brand.tagline || 'Locally sourced, carefully served.' }));
+        variables.push(variable({ id: 'social_subhead', name: 'Sub-headline', value: lines.subhead }));
         layers.push(textLayer({
             id: 'social-subhead', name: 'Sub-headline', binding: 'social_subhead',
-            text: brand.tagline || 'Locally sourced, carefully served.', family: fonts.label,
+            text: lines.subhead, family: fonts.label,
             weight: 400, sizePct: 2.4, letterSpacingEm: 0.12, transform: 'uppercase',
             color: accentText, align: 'center', x: 8, y: 56, w: 84, h: 7, z: 10,
         }));
@@ -1836,8 +2184,8 @@
         layers.push(textLayer({
             id: 'social-footer', name: 'Footer', binding: 'social_footer',
             text: [contact.instagram, ctx.website].filter(Boolean).join('  ·  ') || brand.name,
-            family: fonts.body, weight: 300, sizePct: 1.5, color: roles.ink.hex, opacity: 0.62,
-            align: 'center', x: 8, y: 79, w: 84, h: 4.6, z: 10,
+            family: fonts.body, weight: 300, sizePct: 1.5, color: roles.ink.hex,
+            opacity: muted(roles.ink.hex), align: 'center', x: 8, y: 79, w: 84, h: 4.6, z: 10,
         }));
         return { layers, variables };
     }
@@ -1847,7 +2195,7 @@
     // same objects the editor and the export pipeline already understand.
 
     function buildSocialStory(ctx) {
-        const { roles, accentText, fonts, brand, logoLight, contact, website } = ctx;
+        const { roles, accentText, fonts, brand, logoLight, contact, website, lines, muted, scrim, onDark } = ctx;
         const photo = photoFor(brand, 'evening|food|interior|hero|signature') || ctx.photo;
         const on = logoLight || ctx.logo;
         const layers = [];
@@ -1864,7 +2212,7 @@
             ]));
         }
         layers.push(imageLayer({
-            id: 'story-scrim', name: 'Story scrim', color: roles.ink.hex,
+            id: 'story-scrim', name: 'Story scrim', color: scrim,
             x: 0, y: 0, w: 100, h: 100, opacity: 0.56, z: 2, bleed: true,
         }));
         layers.push(animate(imageLayer({
@@ -1885,35 +2233,35 @@
                 { time: 6000, y: 13 },
             ]));
         }
-        variables.push(variable({ id: 'story_kicker', name: 'Kicker', value: brand.tagline || 'Find your cure.' }));
+        variables.push(variable({ id: 'story_kicker', name: 'Kicker', value: lines.kicker }));
         layers.push(animate(textLayer({
             id: 'story-kicker', name: 'Kicker', binding: 'story_kicker',
-            text: brand.tagline || 'Find your cure.', family: fonts.label, weight: 400,
+            text: lines.kicker, family: fonts.label, weight: 400,
             sizePct: 1.9, letterSpacingEm: 0.22, transform: 'uppercase',
-            color: roles.ground.hex, opacity: 0.9, align: 'left',
+            color: onDark, opacity: 0.9, align: 'left',
             x: 8, y: 55, w: 84, h: 2.6, z: 10,
         }), [
             { time: 0, y: 55 },
             { time: 3000, y: 54.4 },
             { time: 6000, y: 55 },
         ]));
-        variables.push(variable({ id: 'story_headline', name: 'Headline', value: 'Dinner, served properly.' }));
+        variables.push(variable({ id: 'story_headline', name: 'Headline', value: lines.headline }));
         layers.push(animate(textLayer({
             id: 'story-headline', name: 'Headline', binding: 'story_headline',
-            text: 'Dinner, served properly.', family: fonts.title, weight: 300,
-            sizePct: 5.8, lineHeight: 1.02, color: '#ffffff', align: 'left',
+            text: lines.headline, family: fonts.title, weight: 300,
+            sizePct: 5.8, lineHeight: 1.02, color: onDark, align: 'left',
             x: 8, y: 58, w: 84, h: 18.5, z: 10,
         }), [
             { time: 0, y: 58 },
             { time: 3000, y: 57.2 },
             { time: 6000, y: 58 },
         ]));
-        variables.push(variable({ id: 'story_subhead', name: 'Sub-headline', value: 'Seasonal plates, a considered drinks list and a room built for long lunches.' }));
+        variables.push(variable({ id: 'story_subhead', name: 'Sub-headline', value: lines.detail }));
         layers.push(animate(textLayer({
             id: 'story-subhead', name: 'Sub-headline', binding: 'story_subhead',
-            text: 'Seasonal plates, a considered drinks list and a room built for long lunches.',
+            text: lines.detail,
             family: fonts.body, weight: 300, sizePct: 1.6, lineHeight: 1.35,
-            color: '#ffffff', opacity: 0.82, align: 'left',
+            color: onDark, opacity: 0.86, align: 'left',
             x: 8, y: 77.2, w: 84, h: 5.2, z: 10,
         }), [
             { time: 0, y: 77.2 },
@@ -1935,12 +2283,12 @@
     }
 
     function buildSocialReel(ctx) {
-        const { roles, accentText, fonts, brand, logoLight, contact, website } = ctx;
+        const { roles, accentText, fonts, brand, logoLight, contact, website, lines, muted, scrim, onDark } = ctx;
         const photo = photoFor(brand, 'signage|interior|room|founder|bar') || ctx.photo;
         const on = logoLight || ctx.logo;
         const layers = [];
         const variables = [];
-        layers.push(imageLayer({ id: 'reel-ground', name: 'Reel ground', color: roles.ink.hex, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
+        layers.push(imageLayer({ id: 'reel-ground', name: 'Reel ground', color: scrim, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
         if (photo) {
             layers.push(animate(imageLayer({
                 id: 'reel-photo', name: 'Reel photograph', url: photo.url, fit: 'cover',
@@ -1952,7 +2300,7 @@
             ]));
         }
         layers.push(imageLayer({
-            id: 'reel-scrim', name: 'Reel scrim', color: roles.ink.hex,
+            id: 'reel-scrim', name: 'Reel scrim', color: scrim,
             x: 0, y: 0, w: 100, h: 100, opacity: 0.62, z: 2, bleed: true,
         }));
         if (on) {
@@ -1969,30 +2317,30 @@
             { time: 4000, w: 24 },
             { time: 8000, w: 14 },
         ]));
-        variables.push(variable({ id: 'reel_kicker', name: 'Kicker', value: 'Tonight at the bar' }));
+        variables.push(variable({ id: 'reel_kicker', name: 'Kicker', value: lines.kicker }));
         layers.push(textLayer({
             id: 'reel-kicker', name: 'Kicker', binding: 'reel_kicker',
-            text: 'Tonight at the bar', family: fonts.label, weight: 400,
+            text: lines.kicker, family: fonts.label, weight: 400,
             sizePct: 1.7, letterSpacingEm: 0.24, transform: 'uppercase',
-            color: roles.ground.hex, align: 'left', x: 8, y: 47, w: 84, h: 2.8, z: 10,
+            color: onDark, align: 'left', x: 8, y: 47, w: 84, h: 2.8, z: 10,
         }));
-        variables.push(variable({ id: 'reel_headline', name: 'Headline', value: 'A table worth crossing town for' }));
+        variables.push(variable({ id: 'reel_headline', name: 'Headline', value: lines.headline }));
         layers.push(animate(textLayer({
             id: 'reel-headline', name: 'Headline', binding: 'reel_headline',
-            text: 'A table worth crossing town for', family: fonts.title, weight: 300,
-            sizePct: 6.0, lineHeight: 1.02, color: '#ffffff', align: 'left',
+            text: lines.headline, family: fonts.title, weight: 300,
+            sizePct: 6.0, lineHeight: 1.02, color: onDark, align: 'left',
             x: 8, y: 51, w: 84, h: 30, z: 10,
         }), [
             { time: 0, y: 51 },
             { time: 4000, y: 49.8 },
             { time: 8000, y: 51 },
         ]));
-        variables.push(variable({ id: 'reel_detail', name: 'Detail', value: 'Seasonal plates · a considered drinks list · private dining' }));
+        variables.push(variable({ id: 'reel_detail', name: 'Detail', value: lines.detail }));
         layers.push(textLayer({
             id: 'reel-detail', name: 'Detail', binding: 'reel_detail',
-            text: 'Seasonal plates · a considered drinks list · private dining',
+            text: lines.detail,
             family: fonts.body, weight: 300, sizePct: 1.7, lineHeight: 1.35,
-            color: '#ffffff', opacity: 0.82, align: 'left',
+            color: onDark, opacity: 0.86, align: 'left',
             x: 8, y: 82.2, w: 84, h: 5, z: 10,
         }));
         variables.push(variable({
@@ -2003,19 +2351,18 @@
             id: 'reel-footer', name: 'Footer', binding: 'reel_footer',
             text: [contact.address, website].filter(Boolean).join('  ·  ') || brand.name,
             family: fonts.label, weight: 400, sizePct: 1.05, letterSpacingEm: 0.05,
-            color: '#ffffff', opacity: 0.62, align: 'left',
+            color: onDark, opacity: 0.86, align: 'left',
             x: 8, y: 87.6, w: 84, h: 2.2, z: 10,
         }));
         return { layers, variables };
     }
 
     function buildSquareLoop(ctx) {
-        const { roles, accentText, fonts, brand, logoLight, contact, website } = ctx;
-        const onInk = contrastRatio(roles.ground.hex, roles.ink.hex) >= 4 ? roles.ground.hex : '#ffffff';
+        const { roles, accentText, fonts, brand, logoLight, contact, website, lines, muted, onDark, scrim } = ctx;
         const on = logoLight || ctx.logo;
         const layers = [];
         const variables = [];
-        layers.push(imageLayer({ id: 'loop-ground', name: 'Loop ground', color: roles.ink.hex, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
+        layers.push(imageLayer({ id: 'loop-ground', name: 'Loop ground', color: scrim, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
         layers.push(animate(imageLayer({
             id: 'loop-bar', name: 'Accent bar', color: roles.accent.hex,
             x: 0, y: 0, w: 2.4, h: 100, z: 1, bleed: true,
@@ -2034,23 +2381,23 @@
                 { time: 5000, x: 8 },
             ]));
         }
-        variables.push(variable({ id: 'loop_headline', name: 'Headline', value: 'Dinner, served properly.' }));
+        variables.push(variable({ id: 'loop_headline', name: 'Headline', value: lines.headline }));
         layers.push(animate(textLayer({
             id: 'loop-headline', name: 'Headline', binding: 'loop_headline',
-            text: 'Dinner, served properly.', family: fonts.title, weight: 300,
-            sizePct: 9.2, lineHeight: 1.02, color: onInk, align: 'left',
+            text: lines.headline, family: fonts.title, weight: 300,
+            sizePct: 9.2, lineHeight: 1.02, color: onDark, align: 'left',
             x: 8, y: 32, w: 84, h: 22, z: 10,
         }), [
             { time: 0, y: 32 },
             { time: 2500, y: 30.6 },
             { time: 5000, y: 32 },
         ]));
-        variables.push(variable({ id: 'loop_subhead', name: 'Sub-headline', value: brand.tagline || 'Find your cure.' }));
+        variables.push(variable({ id: 'loop_subhead', name: 'Sub-headline', value: lines.subhead }));
         layers.push(animate(textLayer({
             id: 'loop-subhead', name: 'Sub-headline', binding: 'loop_subhead',
-            text: brand.tagline || 'Find your cure.', family: fonts.label, weight: 400,
+            text: lines.subhead, family: fonts.label, weight: 400,
             sizePct: 2.1, letterSpacingEm: 0.18, transform: 'uppercase',
-            color: accentText, align: 'left', x: 8, y: 57, w: 84, h: 4, z: 10,
+            color: onDark, align: 'left', x: 8, y: 57, w: 84, h: 4, z: 10,
         }), [
             { time: 0, x: 8 },
             { time: 2500, x: 9.4 },
@@ -2064,19 +2411,19 @@
             id: 'loop-footer', name: 'Footer', binding: 'loop_footer',
             text: [contact.instagram, website].filter(Boolean).join('  ·  ') || brand.name,
             family: fonts.body, weight: 300, sizePct: 1.5,
-            color: onInk, opacity: 0.62, align: 'left',
+            color: onDark, opacity: 0.86, align: 'left',
             x: 8, y: 78, w: 84, h: 3, z: 10,
         }));
         return { layers, variables };
     }
 
     function buildDisplayScreen(ctx) {
-        const { roles, accentText, fonts, brand, logoLight, contact, website } = ctx;
+        const { roles, accentText, fonts, brand, logoLight, contact, website, lines, muted, onDark, scrim } = ctx;
         const photo = photoFor(brand, 'interior|room|bar|hero|signature') || ctx.photo;
         const on = logoLight || ctx.logo;
         const layers = [];
         const variables = [];
-        layers.push(imageLayer({ id: 'screen-ground', name: 'Screen ground', color: roles.ink.hex, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
+        layers.push(imageLayer({ id: 'screen-ground', name: 'Screen ground', color: scrim, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
         if (photo) {
             layers.push(animate(imageLayer({
                 id: 'screen-photo', name: 'Screen photograph', url: photo.url, fit: 'cover',
@@ -2088,7 +2435,7 @@
             ]));
         }
         layers.push(imageLayer({
-            id: 'screen-scrim', name: 'Screen scrim', color: roles.ink.hex,
+            id: 'screen-scrim', name: 'Screen scrim', color: scrim,
             x: 0, y: 0, w: 100, h: 100, opacity: 0.55, z: 2, bleed: true,
         }));
         if (on) {
@@ -2105,31 +2452,31 @@
             { time: 3000, w: 20 },
             { time: 6000, w: 12 },
         ]));
-        variables.push(variable({ id: 'screen_headline', name: 'Headline', value: 'A table worth crossing town for' }));
+        variables.push(variable({ id: 'screen_headline', name: 'Headline', value: lines.headline }));
         layers.push(animate(textLayer({
             id: 'screen-headline', name: 'Headline', binding: 'screen_headline',
-            text: 'A table worth crossing town for', family: fonts.title, weight: 300,
-            sizePct: 5.6, lineHeight: 1.02, color: '#ffffff', align: 'left',
+            text: lines.headline, family: fonts.title, weight: 300,
+            sizePct: 5.6, lineHeight: 1.02, color: onDark, align: 'left',
             x: 7, y: 65, w: 56, h: 17, z: 10,
         }), [
             { time: 0, y: 65 },
             { time: 3000, y: 63.8 },
             { time: 6000, y: 65 },
         ]));
-        variables.push(variable({ id: 'screen_subhead', name: 'Sub-headline', value: brand.tagline || 'Find your cure.' }));
+        variables.push(variable({ id: 'screen_subhead', name: 'Sub-headline', value: lines.subhead }));
         layers.push(textLayer({
             id: 'screen-subhead', name: 'Sub-headline', binding: 'screen_subhead',
-            text: brand.tagline || 'Find your cure.', family: fonts.label, weight: 400,
+            text: lines.subhead, family: fonts.label, weight: 400,
             sizePct: 1.7, letterSpacingEm: 0.16, transform: 'uppercase',
-            color: accentText, align: 'left', x: 7, y: 83.5, w: 56, h: 4, z: 10,
+            color: onDark, align: 'left', x: 8, y: 83.5, w: 55, h: 4, z: 10,
         }));
-        variables.push(variable({ id: 'screen_detail', name: 'Detail', value: 'Seasonal plates · a considered drinks list · private dining' }));
+        variables.push(variable({ id: 'screen_detail', name: 'Detail', value: lines.detail }));
         layers.push(textLayer({
             id: 'screen-detail', name: 'Detail', binding: 'screen_detail',
-            text: 'Seasonal plates · a considered drinks list · private dining',
+            text: lines.detail,
             family: fonts.body, weight: 300, sizePct: 1.7, lineHeight: 1.35,
-            color: '#ffffff', opacity: 0.78, align: 'left',
-            x: 66, y: 68, w: 27, h: 12, z: 10,
+            color: onDark, opacity: 0.86, align: 'left',
+            x: 66, y: 68, w: 26, h: 12, z: 10,
         }));
         variables.push(variable({
             id: 'screen_footer', name: 'Footer',
@@ -2139,14 +2486,14 @@
             id: 'screen-footer', name: 'Footer', binding: 'screen_footer',
             text: [contact.address, website].filter(Boolean).join('  ·  ') || brand.name,
             family: fonts.label, weight: 400, sizePct: 1.1, letterSpacingEm: 0.05,
-            color: '#ffffff', opacity: 0.6, align: 'left',
-            x: 7, y: 90.5, w: 86, h: 2.5, z: 10,
+            color: onDark, opacity: 0.86, align: 'left',
+            x: 8, y: 90.5, w: 84, h: 2.5, z: 10,
         }));
         return { layers, variables };
     }
 
     function buildDigitalMenuBoard(ctx) {
-        const { roles, accentText, fonts, brand, logo, contact, website } = ctx;
+        const { roles, accentText, fonts, brand, logo, contact, website, lines, muted } = ctx;
         const layers = [];
         const variables = [];
         layers.push(imageLayer({ id: 'board-ground', name: 'Board ground', color: roles.ground.hex, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
@@ -2185,18 +2532,18 @@
             layers.push(textLayer({
                 id: `board-item-${number}-name`, name: `Item ${number} name`, binding: `board_item_${number}_name`,
                 text: item[0], family: fonts.heading, weight: 400, sizePct: 2.4,
-                color: roles.ink.hex, align: 'left', x: 7, y, w: 68, h: 4.2, z: 10,
+                color: roles.ink.hex, align: 'left', x: 8, y, w: 66, h: 4.2, z: 10,
             }));
             layers.push(textLayer({
                 id: `board-item-${number}-price`, name: `Item ${number} price`, binding: `board_item_${number}_price`,
                 text: item[2], family: fonts.body, weight: 400, sizePct: 2.4,
-                color: accentText, align: 'right', x: 80, y, w: 13, h: 4.2, z: 10,
+                color: accentText, align: 'right', x: 79, y, w: 13, h: 4.2, z: 10,
             }));
             layers.push(textLayer({
                 id: `board-item-${number}-desc`, name: `Item ${number} description`, binding: `board_item_${number}_desc`,
                 text: item[1], family: fonts.body, weight: 300, sizePct: 1.5,
-                lineHeight: 1.3, color: roles.ink.hex, opacity: 0.72,
-                align: 'left', x: 7, y: y + 3.9, w: 72, h: 3.6, z: 10,
+                lineHeight: 1.3, color: roles.ink.hex, opacity: muted(roles.ink.hex),
+                align: 'left', x: 8, y: y + 3.9, w: 70, h: 3.6, z: 10,
             }));
         });
         variables.push(variable({
@@ -2207,14 +2554,14 @@
             id: 'board-footer', name: 'Footer', binding: 'board_footer',
             text: [contact.address, website].filter(Boolean).join('  ·  ') || brand.name,
             family: fonts.label, weight: 400, sizePct: 1.2, letterSpacingEm: 0.05,
-            color: roles.ink.hex, opacity: 0.62, align: 'left',
-            x: 7, y: 90, w: 86, h: 3, z: 10,
+            color: roles.ink.hex, opacity: muted(roles.ink.hex), align: 'left',
+            x: 8, y: 90, w: 84, h: 3, z: 10,
         }));
         return { layers, variables };
     }
 
     function buildLinkPreview(ctx) {
-        const { roles, accentText, fonts, brand, logo, contact, website } = ctx;
+        const { roles, accentText, fonts, brand, logo, contact, website, lines, muted } = ctx;
         const layers = [];
         const variables = [];
         layers.push(imageLayer({ id: 'link-ground', name: 'Link ground', color: roles.ground.hex, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
@@ -2232,31 +2579,31 @@
                 x: 7, y: 14, w: 22, h: 8, z: 6, bleed: true,
             }));
         }
-        variables.push(variable({ id: 'link_kicker', name: 'Kicker', value: brand.tagline || 'Find your cure.' }));
+        variables.push(variable({ id: 'link_kicker', name: 'Kicker', value: lines.kicker }));
         layers.push(textLayer({
             id: 'link-kicker', name: 'Kicker', binding: 'link_kicker',
-            text: brand.tagline || 'Find your cure.', family: fonts.label, weight: 400,
+            text: lines.kicker, family: fonts.label, weight: 400,
             sizePct: 2.2, letterSpacingEm: 0.2, transform: 'uppercase',
-            color: accentText, align: 'left', x: 7, y: 27, w: 86, h: 4, z: 10,
+            color: accentText, align: 'left', x: 8, y: 27, w: 84, h: 4, z: 10,
         }));
-        variables.push(variable({ id: 'link_headline', name: 'Headline', value: 'A table worth crossing town for' }));
+        variables.push(variable({ id: 'link_headline', name: 'Headline', value: lines.headline }));
         layers.push(animate(textLayer({
             id: 'link-headline', name: 'Headline', binding: 'link_headline',
-            text: 'A table worth crossing town for', family: fonts.title, weight: 300,
+            text: lines.headline, family: fonts.title, weight: 300,
             sizePct: 6.4, lineHeight: 1.04, color: roles.ink.hex, align: 'left',
-            x: 7, y: 33, w: 66, h: 24, z: 10,
+            x: 8, y: 33, w: 64, h: 24, z: 10,
         }), [
             { time: 0, y: 33 },
             { time: 2000, y: 31.8 },
             { time: 4000, y: 33 },
         ]));
-        variables.push(variable({ id: 'link_subhead', name: 'Sub-headline', value: 'Seasonal plates · a considered drinks list · private dining' }));
+        variables.push(variable({ id: 'link_subhead', name: 'Sub-headline', value: lines.detail }));
         layers.push(textLayer({
             id: 'link-subhead', name: 'Sub-headline', binding: 'link_subhead',
-            text: 'Seasonal plates · a considered drinks list · private dining',
+            text: lines.detail,
             family: fonts.body, weight: 300, sizePct: 2.1, lineHeight: 1.35,
-            color: roles.ink.hex, opacity: 0.72, align: 'left',
-            x: 7, y: 62, w: 66, h: 8, z: 10,
+            color: roles.ink.hex, opacity: muted(roles.ink.hex), align: 'left',
+            x: 8, y: 62, w: 64, h: 8, z: 10,
         }));
         variables.push(variable({
             id: 'link_footer', name: 'Footer',
@@ -2266,8 +2613,8 @@
             id: 'link-footer', name: 'Footer', binding: 'link_footer',
             text: [contact.address, website].filter(Boolean).join('  ·  ') || brand.name,
             family: fonts.label, weight: 400, sizePct: 1.4, letterSpacingEm: 0.06,
-            color: roles.ink.hex, opacity: 0.6, align: 'left',
-            x: 7, y: 77, w: 86, h: 4, z: 10,
+            color: roles.ink.hex, opacity: muted(roles.ink.hex), align: 'left',
+            x: 8, y: 77, w: 84, h: 4, z: 10,
         }));
         return { layers, variables };
     }
@@ -2336,7 +2683,13 @@
             layer.id = id;
             if (layer.type === 'image') layer.bleed = layer.bleed === true;
         });
+        const zone = safeZoneForChannel(template.channel);
+        const layout = { width: template.width, height: template.height };
+        built.layers.forEach((layer) => fitTextToSafeArea(layer, zone));
+        built.layers.forEach((layer) => fitTextHeight(layer, layout, built.layers, zone));
+        built.layers.forEach((layer) => fitTextToSafeArea(layer, zone));
         built.layers.sort((a, b) => a.z - b.z);
+        enforceTextContrast(built.layers, ctx.contrastCandidates, layout);
         const now = text(source.now, 40) || new Date().toISOString();
         const id = ID_PATTERN.test(String(source.projectId || ''))
             ? String(source.projectId)

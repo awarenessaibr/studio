@@ -4987,6 +4987,11 @@ async function handleApi(req, res, pathname) {
     }
 
     const savedTemplateMatch = pathname.match(/^\/api\/brand-packs\/([A-Za-z0-9_-]{1,80})\/templates\/([A-Za-z0-9_-]{1,80})\/([A-Za-z0-9_-]{1,100})$/);
+    if (savedTemplateMatch && req.method === 'GET') {
+        const record = await readSavedBrandTemplateRecord(savedTemplateMatch[1], savedTemplateMatch[2], savedTemplateMatch[3]);
+        sendJson(res, 200, { ...savedTemplateSummary(record), composition: record.composition });
+        return;
+    }
     if (savedTemplateMatch && req.method === 'DELETE') {
         sendJson(res, 200, await deleteSavedBrandTemplate(savedTemplateMatch[1], savedTemplateMatch[2], savedTemplateMatch[3]));
         return;
@@ -5327,6 +5332,12 @@ const PAGE_ROUTES = {
     '/studio-v2': 'studio-v2.html',
     '/studio-v2.html': 'studio-v2.html',
     '/studio.html': 'studio.html',
+    '/studio-agent': 'studio-agent.html',
+    '/studio-agent.html': 'studio-agent.html',
+    '/agent-first-studio': 'agent-first-studio.html',
+    '/agent-first-studio.html': 'agent-first-studio.html',
+    '/studio-import': 'studio-import.html',
+    '/studio-import.html': 'studio-import.html',
     '/asset-studio': 'asset-studio.html',
     '/asset-studio.html': 'asset-studio.html',
     '/crawler': 'crawler.html',
@@ -5479,6 +5490,11 @@ async function handle(req, res) {
     try {
         if (pathname.startsWith('/api/')) {
             await handleApi(req, res, pathname);
+            return;
+        }
+        if (pathname === '/favicon.ico') {
+            res.writeHead(204, { 'Cache-Control': 'public, max-age=86400' });
+            res.end();
             return;
         }
         serveStatic(req, res, pathname);

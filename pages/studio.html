@@ -658,6 +658,21 @@ main {
   to { transform: translateY(-2.5cqh) scale(1.08); }
 }
 @keyframes pulse { 50% { opacity: .35; } }
+
+/* Clip-path motion presets */
+@keyframes clipWipeRight { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes clipWipeLeft { from { clip-path: inset(0 0 0 100%); } to { clip-path: inset(0 0 0 0); } }
+@keyframes clipWipeDown { from { clip-path: inset(0 0 100% 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes clipWipeUp { from { clip-path: inset(100% 0 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes clipWipeDiag { from { clip-path: polygon(0 0, 0 0, 0 100%, 0 100%); } to { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); } }
+@keyframes clipCornerIn { from { clip-path: polygon(0 0, 0 0, 0 0, 0 0); } to { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); } }
+@keyframes clipIris { from { clip-path: circle(0% at 50% 50%); } to { clip-path: circle(75% at 50% 50%); } }
+@keyframes clipIrisTop { from { clip-path: circle(0% at 50% 0%); } to { clip-path: circle(120% at 50% 0%); } }
+@keyframes clipIrisBottom { from { clip-path: circle(0% at 50% 100%); } to { clip-path: circle(120% at 50% 100%); } }
+@keyframes clipDiamond { from { clip-path: polygon(50% 50%, 50% 50%, 50% 50%, 50% 50%); } to { clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); } }
+@keyframes clipChevron { from { clip-path: polygon(0 50%, 0 50%, 0 50%, 0 50%, 0 50%, 0 50%); } to { clip-path: polygon(0 0, 70% 0, 100% 50%, 70% 100%, 0 100%, 30% 50%); } }
+@keyframes clipArrow { from { clip-path: polygon(0 50%, 0 50%, 0 50%, 0 50%, 0 50%, 0 50%, 0 50%); } to { clip-path: polygon(0 30%, 60% 30%, 60% 0, 100% 50%, 60% 100%, 60% 70%, 0 70%); } }
+@keyframes clipSplitCenter { from { clip-path: polygon(50% 0, 50% 0, 50% 100%, 50% 100%); } to { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); } }
 @media (prefers-reduced-motion: reduce) {
   .L[data-an] { animation: none !important; }
 }
@@ -703,13 +718,14 @@ main {
   background: var(--ok);
 }
 #chat {
-  flex: 1;
+  flex: 1 1 auto;
   overflow: auto;
+  resize: vertical;
+  min-height: 120px;
   padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  min-height: 0;
   max-height: calc(100vh - 120px);
 }
 #ctxMenu {
@@ -950,6 +966,14 @@ main {
   cursor: ew-resize;
   background: color-mix(in srgb, #000 30%, transparent);
   border-radius: 0 4px 4px 0;
+}
+.bar i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: color-mix(in srgb, #131317 55%, transparent);
+  pointer-events: none;
 }
 .bar span {
   display: block;
@@ -1285,7 +1309,7 @@ const rgba=(h,a)=>{const c=rgb(h);return`rgba(${c[0]},${c[1]},${c[2]},${a})`};
 let PACKS=[],P=null,B=null,FMT=null,TH={ink:'#17162e',bone:'#ebe6e0',accent:'#eb5b3c',chalk:'#ffffff'},PAL={},BF={display:'Georgia',body:'Helvetica Neue',dW:400,bW:400};
 let scene=[],sel=null,hist=[],uid=1,demo=false,selTok=0,UF=[];
 const packCache=new Map(),IMG=new Map(),PXC=new Map(),TINT=new Map();
-const AS={tab:'brand',lib:{status:'idle',items:[],cls:'',verified:false,err:''}};
+const AS={tab:'brand',lib:{status:'idle',items:[],cls:'',verified:false,err:''},saved:{status:'idle',items:[],err:''},savedActive:null};
 const templateFallback=[
  {id:'hero-flyer',label:'Hero flyer',summary:'Print-led hero composition',category:'Flyers',format:'A4 portrait'},
  {id:'social-post',label:'Social post',summary:'Square social layout',category:'Social',format:'Square'},
@@ -1473,12 +1497,19 @@ function render(sc=scene,tgt=stage){tgt.innerHTML='';
    Object.assign(e.style,{color:l.color,fontFamily:f.family,fontWeight:f.weight,fontSize:f.sizePct+'cqh',lineHeight:f.lineHeight,letterSpacing:f.letterSpacingEm+'em',textTransform:f.transform});
    if(l.bg){e.style.background=l.bg;e.style.borderRadius=(l.radius||0)+'cqh';e.style.justifyContent='center'}
    if(l.nowrap)e.style.whiteSpace='pre';e.textContent=l.text}
-  if(l.anim){e.dataset.an=1;e.style.animation=`${l.anim.preset} ${l.anim.duration}ms ${l.anim.preset==='pulse'?'ease-in-out infinite':'ease-out'} ${l.anim.start-(tgt===stage?T:DUR)}ms both paused`}
+  if(l.kf){e.dataset.kf=1;applyKf(e,l,tgt===stage?T:DUR)}
+  else if(l.anim){
+   const infinite=['pulse','float','glowPulse'].includes(l.anim.preset);
+   const isClip=String(l.anim.preset).startsWith('clip');
+   e.dataset.an=1;
+   e.style.animation=`${l.anim.preset} ${l.anim.duration}ms ${infinite?'ease-in-out infinite':isClip?'cubic-bezier(.22,1,.36,1)':'ease-out'} ${l.anim.start-(tgt===stage?T:DUR)}ms both paused`;
+  }
   if(sc===scene&&tgt===stage&&l.id===sel){e.classList.add('sel');const c=document.createElement('span');c.className='chip';c.textContent=l.name;e.appendChild(c)}
   e.onpointerdown=ev=>down(ev,l.id);tgt.appendChild(e)}}
 function down(ev,id){ev.preventDefault();if(sel!==id)select(id);const l=scene.find(q=>q.id===id);if(!l||l.type==='fill')return;
  const r=stage.getBoundingClientRect(),sx=ev.clientX,sy=ev.clientY,ox=l.x,oy=l.y;let moved=false;const el=ev.currentTarget;
- const mv=m=>{if(!moved){hist.push(clone(scene));moved=true}l.x=+(ox+(m.clientX-sx)/r.width*100).toFixed(1);l.y=+(oy+(m.clientY-sy)/r.height*100).toFixed(1);el.style.left=l.x+'%';el.style.top=l.y+'%'};
+ const mv=m=>{if(!moved){hist.push(clone(scene));moved=true}const px=l.x,py=l.y;l.x=+(ox+(m.clientX-sx)/r.width*100).toFixed(1);l.y=+(oy+(m.clientY-sy)/r.height*100).toFixed(1);el.style.left=l.x+'%';el.style.top=l.y+'%';
+  if(l.kf)l.kf=l.kf.map(k=>({...k,x:+(k.x+l.x-px).toFixed(2),y:+(k.y+l.y-py).toFixed(2)}))};
  const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);if(moved){layers();say('agent',`Moved ${esc(l.name)} to x ${l.x}, y ${l.y}.`)}};
  addEventListener('pointermove',mv);addEventListener('pointerup',up)}
 
@@ -1494,6 +1525,7 @@ function layers(){list();ctx();engSyncSel();tl();clearTimeout(wt);wt=setTimeout(
 function list(){const w=$('#layers');w.innerHTML='';
  scene.slice().sort((a,b)=>b.z-a.z).forEach(l=>{const r=document.createElement('div');r.className='lrow';r.dataset.s=l.id===sel?1:0;
   r.innerHTML=`<span>${esc(l.name)}${cur.some(i=>i.id===l.id)?' <b class="warn">⚠</b>':''}</span><small>${l.type}</small><button title="Show/hide" aria-label="Show or hide ${esc(l.name)}">${l.hidden?'○':'●'}</button>`;
+  r.dataset.id=l.id;
   r.onclick=()=>select(l.id);r.querySelector('button').onclick=e=>{e.stopPropagation();hist.push(clone(scene));l.hidden=!l.hidden;render();layers()};w.appendChild(r)})}
 function ctx(){const l=scene.find(q=>q.id===sel);$('#ctx').innerHTML=l?`Context: <b>${esc(l.name)}</b> · ${l.type} · x${l.x} y${l.y} <button id="cx" aria-label="Clear selection">✕</button>`:'Context: <b>whole design</b> · select a layer to focus me';
  if(l)$('#cx').onclick=()=>select(null);
@@ -1518,8 +1550,14 @@ function buildBrandPills(){const w=$('#brands');w.innerHTML='';
   btn.append(dot,document.createTextNode(b.name));btn.title=b.tagline||b.name;btn.onclick=()=>{if(!B||b.id!==B.id)selectBrand(b.id)};w.appendChild(btn)})}
 function fmtGroupFor(id){const f=FMTS.find(x=>x.id===id)||FMTS[0];return f.group||'Flyer';}
 function buildFormats(){
- if(FMT&&FMT.eng)return;
  const kind=$('#fmtKind'),f=$('#fmt');const groups=[...new Set(FMTS.map(x=>x.group||'Flyer'))];
+ if(FMT&&FMT.eng)return;
+ if(FMT&&FMT.saved){
+  // A published template is not in FMTS, so list it on its own and keep every
+  // built-in group one click away instead of leaving the selects empty.
+  if(kind){kind.innerHTML='';kind.append(new Option('Published template','__saved'),...groups.map(g=>new Option(g,g)));kind.value='__saved'}
+  if(f){f.innerHTML='';f.append(new Option(`${FMT.n} · ${FMT.w}×${FMT.h}`,FMT.id));f.value=FMT.id}
+  return}
  if(kind){kind.innerHTML='';groups.forEach(g=>kind.append(new Option(g,g)));kind.value=fmtGroupFor(FMT.id);}
  const currentGroup=(kind&&kind.value)||fmtGroupFor(FMT.id);const choices=FMTS.filter(x=>(x.group||'Flyer')===currentGroup);const list=choices.length?choices:FMTS;
  if(!list.some(x=>x.id===FMT.id))FMT=list[0];
@@ -1528,8 +1566,8 @@ function buildFormats(){
 }
 function bindFormatSelectors(){
  const kind=$('#fmtKind'),fmt=$('#fmt');
- if(kind){kind.onchange=()=>{const group=kind.value;const next=FMTS.find(x=>x.group===group)||FMTS[0];if(next)setFormat(next.id);}};
- if(fmt){fmt.onchange=()=>{if(fmt.value)setFormat(fmt.value);}};
+ if(kind){kind.onchange=()=>{const group=kind.value;if(group==='__saved')return;const next=FMTS.find(x=>x.group===group)||FMTS[0];if(next)setFormat(next.id);}};
+ if(fmt){fmt.onchange=()=>{if(fmt.value&&FMTS.some(x=>x.id===fmt.value))setFormat(fmt.value);}};
 }
 
 /* ---------- asset-studio engine bridge ---------- */
@@ -1586,7 +1624,7 @@ function engBind(p){
  const cat=p.querySelector('#engCat'),sz=p.querySelector('#engSize');
  if(cat)cat.onchange=()=>{ENG.cat=cat.value;ENG.tpl=0;ENG.size=0;engApply()};
  if(sz)sz.onchange=()=>{ENG.size=+sz.value||0;engApply()};
- p.querySelectorAll('.eng-card').forEach(b=>b.onclick=()=>{ENG.tpl=+b.dataset.i;ENG.size=Math.min(ENG.size,engSizes().length-1);engApply()});
+ p.querySelectorAll('.eng-card[data-i]').forEach(b=>b.onclick=()=>{ENG.tpl=+b.dataset.i;ENG.size=Math.min(ENG.size,engSizes().length-1);engApply()});
  const pal=engPal();
  p.querySelectorAll('canvas[data-mv]').forEach(cv=>{const id=cv.dataset.mv;if(id==='auto'||id==='logo'||id==='none'){cv.width=80;cv.height=68;const x=cv.getContext('2d');x.fillStyle=pal.ink;x.font='600 20px Helvetica,Arial,sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(id==='auto'?'A':id==='none'?'∅':'◆',40,34);return}
   try{window.AssetEngine.drawVectorPreview(cv,id,pal,40,34)}catch{}});
@@ -1677,9 +1715,9 @@ function engApply(){
  const size=engSize(),tpl=engTpl();
  try{
   if(B)saveScene();
-  ENG.wired=true;Object.assign(ENG,{motif:'auto',motifOn:true,motifScale:1,motifX:0,motifY:0,textScale:1});
+  ENG.wired=true;AS.savedActive=null;Object.assign(ENG,{motif:'auto',motifOn:true,motifScale:1,motifX:0,motifY:0,textScale:1});
   FMT={id:`eng:${ENG.cat}:${ENG.tpl}:${ENG.size}`,group:engCatLabel(ENG.cat),n:`${engCatLabel(ENG.cat)} · ${size.n}`,w:size.w,h:size.h,eng:true};
-  hist=[];sel=null;seen=new Set();stopP();T=DUR;
+  hist=[];sel=null;seen=new Set();stopP();setDuration(DEFAULT_DUR);T=DUR;
   fitStage();sizeProbe();
   scene=engBuild();
   render();layers();assets();greet();remember();
@@ -1736,13 +1774,125 @@ function applyTemplateChoice(template){
  }else{
   FMT=target;
   fitStage();sizeProbe();
-  hist=[];sel=null;seen=new Set();stopP();T=DUR;
+  hist=[];sel=null;seen=new Set();stopP();setDuration(DEFAULT_DUR);T=DUR;
   scene=fitScene(buildScene('classic'));
   render();layers();greet();remember();
  }
  $('#status').textContent=`${B ? B.name + ' · ' : ''}${label} · ${FMT ? FMT.n : target.n}`;
  toast(`Template selected: ${label}`);
 }
+
+/* ---------- published templates (saved from Asset Studio) ---------- */
+const absUrl=u=>{try{return new URL(u,location.href).href}catch{return String(u)}};
+function compositionLayer(l,i){
+ if(!l||typeof l!=='object')return null;
+ const num=(v,d)=>{const n=+v;return Number.isFinite(n)?n:d};
+ const url=String(l.url||'');
+ const base={id:String(l.id||`saved-${i+1}`),name:String(l.name||`Layer ${i+1}`),
+  x:+clamp(num(l.x,0),0,100).toFixed(2),y:+clamp(num(l.y,0),0,100).toFixed(2),
+  w:+clamp(num(l.w,100),.5,100).toFixed(2),h:+clamp(num(l.h,10),.5,100).toFixed(2),
+  z:num(l.z,i+1),opacity:+clamp(num(l.opacity,1),0,1).toFixed(2),hidden:l.visible===false};
+ if(l.type==='text'||(!url&&typeof l.text==='string')){
+  const f=l.font||{};
+  return {...base,type:'text',text:String(l.text||''),color:l.color||TH.ink,align:['center','right'].includes(l.align)?l.align:'left',
+   font:{family:f.family||BF.body,weight:+f.weight||400,sizePct:+clamp(num(f.sizePct,2),.4,30).toFixed(2),lineHeight:+num(f.lineHeight,1.2).toFixed(2),letterSpacingEm:+num(f.letterSpacingEm,0).toFixed(3),transform:f.transform||'none'}};
+ }
+ if(!url)return null;
+ const logoish=/logo|mark|wordmark/i.test(base.name);
+ return {...base,type:'image',src:absUrl(url),fit:logoish?'contain':'cover'};
+}
+// Published templates animate x/y/w/h/opacity with keyframes; the studio plays
+// that as a bar on the timeline and interpolates the layer on each seek.
+function compositionKeys(l){
+ if(!Array.isArray(l.keyframes)||l.keyframes.length<2)return null;
+ const num=(v,d)=>{const n=+v;return Number.isFinite(n)?n:d};
+ const keys=l.keyframes.map(k=>({time:Math.max(0,num(k.time,0)),
+  x:num(k.x,num(l.x,0)),y:num(k.y,num(l.y,0)),w:num(k.w,num(l.w,100)),h:num(k.h,num(l.h,10)),
+  opacity:+clamp(num(k.opacity,num(l.opacity,1)),0,1).toFixed(3)}))
+  .sort((a,b)=>a.time-b.time);
+ return keys[keys.length-1].time>keys[0].time?keys:null;
+}
+function compositionToScene(record){
+ const comp=(record&&record.composition)||{};
+ const layers=(comp.layers||[]).map((l,i)=>{
+  const layer=compositionLayer(l,i);
+  if(!layer)return null;
+  const keys=compositionKeys(l);
+  if(keys){layer.kf=keys;layer.anim={preset:'keyframes',start:keys[0].time,duration:keys[keys.length-1].time-keys[0].time}}
+  return layer;
+ }).filter(Boolean);
+ if(!layers.length)throw new Error('that template has no layers to load');
+ return layers;
+}
+function savedTemplatesPanel(){
+ if(!B)return '';
+ const st=AS.saved,head=`<h3>Published templates <small>· saved from Asset Studio</small></h3>`;
+ const link=`<a href="asset-studio.html?brand=${encodeURIComponent(B.id)}&pack=${encodeURIComponent(P?P.id:'')}">Publish one in Asset Studio →</a>`;
+ if(st.status==='idle'||st.status==='loading')return head+`<div class="note">Loading published templates for ${esc(B.name)}…</div>`;
+ if(st.status==='error')return head+`<div class="note warn">Published templates unavailable: ${esc(st.err)}</div>`;
+ if(!st.items.length)return head+`<div class="note">Nothing published for <b>${esc(B.name)}</b> yet — the designs below are generated live from the brand pack. ${link}</div>`;
+ // Published names are "<Brand> — <Template>", so the brand prefix only eats
+ // the space that tells the designs apart.
+ const short=n=>{const s=String(n||'');if(s.startsWith(B.name)){const rest=s.slice(B.name.length).replace(/^\s*[—–-]\s*/,'');if(rest)return rest}return s};
+ return `<h3>Published templates <small>· ${st.items.length} saved from Asset Studio</small></h3><div class="eng-grid">${st.items.map(t=>`<button type="button" class="eng-card${t.id===AS.savedActive?' is-selected':''}" data-saved="${esc(t.id)}" title="${esc(t.name)} · ${t.width}×${t.height}px · ${t.layerCount} layer${t.layerCount===1?'':'s'}"><canvas></canvas><span>${esc(short(t.name))}</span></button>`).join('')}</div><p class="note">Published designs load their exact layers and artwork so you can keep editing them. ${link}</p>`;
+}
+async function savedThumb(cv,tpl){
+ const comp=tpl.composition||{},w0=+(tpl.width||comp.width)||1748,h0=+(tpl.height||comp.height)||2480;
+ const W=160,H=Math.max(40,Math.round(W*h0/w0)),dpr=Math.min(2,window.devicePixelRatio||1);
+ cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);
+ const x=cv.getContext('2d');if(!x)return;x.scale(dpr,dpr);
+ x.fillStyle='#ffffff';x.fillRect(0,0,W,H);
+ const layers=(comp.layers||[]).filter(l=>l&&l.visible!==false).slice().sort((a,b)=>(+a.z||0)-(+b.z||0));
+ const imgs=new Map();
+ await Promise.all(layers.filter(l=>l.url&&l.type!=='text').map(async l=>{try{imgs.set(l,await loadImg(absUrl(l.url)))}catch{}}));
+ layers.forEach(l=>{
+  const rx=(+l.x||0)/100*W,ry=(+l.y||0)/100*H,rw=Math.max(1,(+l.w||100)/100*W),rh=Math.max(1,(+l.h||10)/100*H),im=imgs.get(l);
+  if(im){try{x.save();x.beginPath();x.rect(rx,ry,rw,rh);x.clip();const s=Math.max(rw/(im.naturalWidth||1),rh/(im.naturalHeight||1)),iw=(im.naturalWidth||1)*s,ih=(im.naturalHeight||1)*s;x.drawImage(im,rx+(rw-iw)/2,ry+(rh-ih)/2,iw,ih);x.restore()}catch{}return}
+  if(l.type!=='text'&&!l.text)return;
+  const f=l.font||{},fs=Math.max(2.5,(+f.sizePct||2)/100*H),line=String(l.text||'').split('\n')[0];
+  if(!line)return;
+  x.fillStyle=l.color||'#212529';x.textBaseline='top';
+  try{x.font=`${+f.weight||400} ${fs}px "${String(f.family||'Helvetica').replace(/"/g,'')}",Helvetica,sans-serif`;x.fillText(line.slice(0,Math.max(4,Math.floor(rw/(fs*.52)))),rx,ry,Math.max(4,rw))}catch{}
+ });
+}
+async function applySavedTemplate(id){
+ if(!B||!P)return;
+ const meta=AS.saved.items.find(t=>t.id===id);
+ try{
+  const rec=meta&&meta.composition?meta:await jget(`${API}/brand-packs/${encodeURIComponent(P.id)}/templates/${encodeURIComponent(B.id)}/${encodeURIComponent(id)}`);
+  const comp=rec.composition||{},next=compositionToScene(rec);
+  const w=+(rec.width||comp.width)||FMT.w,h=+(rec.height||comp.height)||FMT.h;
+  saveScene();
+  FMT={id:`saved:${rec.id}`,group:'Saved',n:String(rec.name||'Published template'),w,h,saved:true};
+  AS.savedActive=id;hist=[];sel=null;seen=new Set();stopP();setDuration(+(rec.duration||comp.duration)||DEFAULT_DUR);
+  T=next.some(l=>l.anim)?0:DUR;
+  fitStage();sizeProbe();
+  scene=next;
+  chrome();render();layers();assets();greet();remember();
+  say('agent',`Loaded <b>${esc(rec.name)}</b> — ${next.length} editable layer${next.length===1?'':'s'} at ${w}×${h}px. Move anything on the canvas, or ask me to change the copy.`);
+  $('#status').textContent=`${B.name} · ${rec.name}`;
+  toast(`Loaded ${rec.name}`);
+ }catch(e){toast('Could not load that template: '+e.message,true);console.error(e)}
+}
+function bindSaved(p){
+ p.querySelectorAll('[data-saved]').forEach(b=>{
+  const id=b.dataset.saved,tpl=AS.saved.items.find(t=>t.id===id),cv=b.querySelector('canvas');
+  if(cv&&tpl)savedThumb(cv,tpl).catch(()=>{});
+  b.onclick=()=>applySavedTemplate(id);
+ });
+}
+async function loadSavedTemplates(b){
+ AS.saved={status:'idle',items:[],err:''};AS.savedActive=null;
+ if(!b||!P)return;
+ if(demo||P.id==='demo'){AS.saved.status='ok';if(AS.tab==='tmpl')assets();return}
+ AS.saved.status='loading';if(AS.tab==='tmpl')assets();
+ try{const d=await jget(`${API}/brand-packs/${encodeURIComponent(P.id)}/templates?brandId=${encodeURIComponent(b.id)}`);
+  if(B!==b)return;
+  AS.saved.items=((d&&d.templates)||[]).filter(t=>t&&t.id&&t.composition);AS.saved.status='ok'}
+ catch(e){if(B!==b)return;AS.saved.status='error';AS.saved.err=e.message}
+ if(AS.tab==='tmpl')assets();
+}
+
 function assets(){
  const tabs=$('#atabs'),n=AS.lib.items.length;
  tabs.innerHTML='';[['brand','Brand'],['lib',n?`Library (${n})`:'Library'],['tmpl','Templates'],['el','Elements']].forEach(([k,t])=>{const b=document.createElement('button');b.textContent=t;b.setAttribute('role','tab');b.setAttribute('aria-selected',String(AS.tab===k));b.onclick=()=>{AS.tab=k;assets()};tabs.appendChild(b)});
@@ -1767,12 +1917,13 @@ function assets(){
    h+=`<div class="flt"><select id="libCls" aria-label="Asset class"><option value="">All classes</option>${cls.map(c=>`<option value="${esc(c)}"${c===lib.cls?' selected':''}>${esc(c.replace(/-/g,' '))}</option>`).join('')}</select><label><input type="checkbox" id="libVer"${lib.verified?' checked':''}> Verified</label></div>`;
    h+=vis.length?`<div class="assets">${vis.slice(0,60).map(a=>`<div class="asset" draggable="true" data-k="lib:${esc(a.id)}" title="${esc(a.name)} · ${esc(a.state||'')}"><div class="th" style="background-image:url('${esc(a.thumb||a.sourceUrl)}');background-size:contain;background-repeat:no-repeat"></div><span><i class="st" data-s="${esc(a.state)}"></i>${esc(a.name)}</span></div>`).join('')}</div>`:`<div class="note">${lib.items.length?'No library assets match this filter.':'No images in this brand’s library yet.'}</div>`;
    h+=`<div class="note"><a href="library.html?brandId=${encodeURIComponent(B.id)}">Open the library →</a> to upload, verify or classify assets.</div>`}}
- else if(AS.tab==='tmpl'&&hasEngine()){h+=engPanel()}
+ else if(AS.tab==='tmpl'&&hasEngine()){h+=savedTemplatesPanel()+engPanel()}
  else if(AS.tab==='tmpl'){
   const templates=getTemplateCatalog();
   const sizes=getSizeCatalog();
   const formats=getFormatCatalog();
   const motifs=getMotifCatalog();
+  h+=savedTemplatesPanel();
   h+=`<h3>Choose a template</h3><div class="flt"><label for="fmtKind">Type</label><select id="fmtKind" aria-label="Template type" title="Template type"></select></div><div class="flt"><label for="fmt">Template</label><select id="fmt" aria-label="Template choice" title="Template choice"></select></div><p class="note">Select a template category, then the specific template. These are not dragged onto the canvas.</p>`;
   h+=`<div class="template-list">${templates.map(t=>`<button type="button" class="asset" data-choice="true" data-k="template:${esc(t.id)}" title="${esc(t.summary)}"><div class="th" style="background:linear-gradient(135deg,${TH.accent},${TH.ink});color:${TH.chalk};">${esc((t.label||'T').slice(0,2).toUpperCase())}</div><span>${esc(t.label)}</span></button>`).join('')}</div>`;
   h+=`<h3>Choose a size</h3><div class="mini-grid">${sizes.map(s=>`<button type="button" class="asset" data-choice="true" data-k="size:${esc(s.id)}"><div class="th" style="background:${rgba(TH.accent,.2)};color:${TH.tx||TH.ink};">${esc(s.label.slice(0,2).toUpperCase())}</div><span title="${esc(s.meta)}">${esc(s.label)}</span></button>`).join('')}</div>`;
@@ -1781,7 +1932,7 @@ function assets(){
  }
  else h+=`<h3>Elements · drag onto canvas</h3><div class="assets">${ELS.map(a=>`<div class="asset" draggable="true" data-k="el:${a.k}"><div class="th" style="${a.st()}">${a.t||''}</div>${a.n}</div>`).join('')}</div>`;
  p.innerHTML=h;wrapSections(p);
- if(AS.tab==='tmpl'&&hasEngine())engBind(p);
+ if(AS.tab==='tmpl'){bindSaved(p);if(hasEngine())engBind(p)}
  buildFormats();
  bindFormatSelectors();
  p.querySelectorAll('.asset').forEach(a=>{
@@ -1828,10 +1979,39 @@ async function addAsset(k,px,py){
  else if(a==='rule')Ly={...at(30,.5),name:'Rule',type:'shape',color:TH.accent};
  else if(a==='badge')Ly={...at(10,4),name:'Badge',type:'text',text:'NEW',bg:TH.accent,radius:2,font:F(BF.body,700,1.4,1.2,.12),color:readable('#ffffff',TH.accent)};
  else Ly={...at(40,6),name:'New text',type:'text',text:'Your text here',font:F(BF.display,BF.dW,2.4,1.2),color:TH.ink};
- hist.push(clone(scene));scene.push(Ly);say('agent',`Added <b>${esc(Ly.name)}</b> to the canvas.`);select(Ly.id) }
+ hist.push(clone(scene));scene.push(Ly);$('#status').textContent=`Added ${Ly.name} to the canvas.`;say('agent',`Added <b>${esc(Ly.name)}</b> to the canvas.`);select(Ly.id) }
 
 /* ---------- agent ---------- */
 const S=(layerId,patch)=>({type:'set-layer',layerId,patch}),A=(layerId,preset,startMs,durationMs)=>({type:'set-animation',layerId,preset,startMs,durationMs});
+const CLIP_PRESETS=[
+  {id:'clipWipeRight',label:'Wipe Right',desc:'Classic left-to-right reveal',defaultDur:900},
+  {id:'clipWipeLeft',label:'Wipe Left',desc:'Right-to-left reveal',defaultDur:900},
+  {id:'clipWipeDown',label:'Wipe Down',desc:'Top-to-bottom reveal',defaultDur:900},
+  {id:'clipWipeUp',label:'Wipe Up',desc:'Bottom-to-top reveal',defaultDur:900},
+  {id:'clipWipeDiag',label:'Diagonal Wipe',desc:'Diagonal reveal from top-left',defaultDur:1000},
+  {id:'clipCornerIn',label:'Corner Expand',desc:'Expands from top-left corner',defaultDur:900},
+  {id:'clipIris',label:'Iris',desc:'Circular iris wipe from centre',defaultDur:1100},
+  {id:'clipIrisTop',label:'Iris Top',desc:'Iris expanding from top edge',defaultDur:1100},
+  {id:'clipIrisBottom',label:'Iris Bottom',desc:'Iris expanding from bottom edge',defaultDur:1100},
+  {id:'clipDiamond',label:'Diamond',desc:'Morphs into a diamond shape',defaultDur:1000},
+  {id:'clipChevron',label:'Chevron',desc:'Chevron / arrow-head reveal',defaultDur:1000},
+  {id:'clipArrow',label:'Arrow',desc:'Arrow shape reveal',defaultDur:1100},
+  {id:'clipSplitCenter',label:'Split Centre',desc:'Opens from the vertical centre line',defaultDur:900}
+];
+const BASIC_MOTION=[
+  {id:'fadeIn',label:'Fade In',desc:'Soft opacity + slight rise',defaultDur:900},
+  {id:'slideUp',label:'Slide Up',desc:'Enters from below',defaultDur:800},
+  {id:'slideInLeft',label:'Slide In Left',desc:'Enters from the left',defaultDur:800},
+  {id:'slideInRight',label:'Slide In Right',desc:'Enters from the right',defaultDur:800},
+  {id:'scaleIn',label:'Scale In',desc:'Subtle scale-up entrance',defaultDur:700},
+  {id:'blurIn',label:'Blur In',desc:'Soft focus reveal',defaultDur:1000},
+  {id:'zoom',label:'Slow Zoom',desc:'Cinematic push-in (images)',defaultDur:10000},
+  {id:'parallax',label:'Parallax Drift',desc:'Gentle vertical drift',defaultDur:10000},
+  {id:'pulse',label:'Pulse',desc:'Attention pulse (good for CTA)',defaultDur:2400},
+  {id:'float',label:'Float',desc:'Continuous soft float',defaultDur:4000},
+  {id:'glowPulse',label:'Glow Pulse',desc:'Subtle brightness pulse',defaultDur:2200}
+];
+const ALL_MOTION_PRESETS=[...BASIC_MOTION,...CLIP_PRESETS];
 function suggest(l,msg){const m=msg.toLowerCase(),o=[],id=l.id,add=(title,why,cmds)=>o.push({title,why,cmds}),CO=copyOptions();
  const col=Object.keys(PAL).find(n=>m.includes(n.toLowerCase())),has=w=>w.some(x=>m.includes(x));
  if(col&&l.type!=='image'&&l.type!=='logo')add(`Colour → ${col}`,`Brand palette value ${PAL[col]}.`,[S(id,{color:PAL[col]})]);
@@ -1842,8 +2022,16 @@ function suggest(l,msg){const m=msg.toLowerCase(),o=[],id=l.id,add=(title,why,cm
  if(has(['center','centre']))add('Centre horizontally','Aligns to the page axis.',[S(id,{x:+((100-l.w)/2).toFixed(1)}),...(l.type==='text'?[S(id,{align:'center'})]:[])]);
  if(has(['hide','remove','delete']))add('Remove layer','Deletes it from the scene (undoable).',[{type:'remove-layer',layerId:id}]);
  if(has(['uppercase','caps'])&&l.type==='text')add('Uppercase + tracking','Reads as a label.',[S(id,{font:{transform:'uppercase',letterSpacingEm:.14}})]);
- if(has(['animat','motion','fade','pulse','zoom','parallax'])||msg==='Animate it'){const p=m.includes('pulse')?'pulse':m.includes('zoom')?'zoom':m.includes('parallax')?'parallax':null;
-  [['fadeIn','Soft entrance (0.9s)',300,900],['pulse','Draws the eye; good for CTAs',2000,2400],...(l.type==='image'?[['zoom','Slow push-in',0,10000],['parallax','Gentle drift',0,10000]]:[])].filter(a=>!p||a[0]===p).forEach(a=>add(`Animate: ${a[0]}`,a[1],[A(id,a[0],a[2],a[3])]))}
+ if(has(['animat','motion','fade','pulse','zoom','parallax','slide','float','glow','reveal','shake','clip','wipe','iris','mask','diamond','chevron','split','arrow'])||msg==='Animate it'){
+  const wantClip=has(['clip','wipe','iris','mask','diamond','chevron','split','arrow']);
+  const isText=l.type==='text';const isImage=l.type==='image';
+  let list=[];
+  if(wantClip){list=CLIP_PRESETS.slice();}
+  else{list=[...CLIP_PRESETS.slice(0,4),{id:'fadeIn',label:'Fade In',desc:'Soft opacity + slight rise',defaultDur:900},{id:'scaleIn',label:'Scale In',desc:'Subtle scale-up entrance',defaultDur:700},{id:'pulse',label:'Pulse',desc:'Attention pulse (CTA)',defaultDur:2400}];if(isImage)list.push({id:'zoom',label:'Slow Zoom',desc:'Cinematic push-in',defaultDur:10000},{id:'parallax',label:'Parallax Drift',desc:'Gentle vertical drift',defaultDur:10000});}
+  const named=CLIP_PRESETS.find(p=>m.includes(p.id)||m.includes(p.label.toLowerCase()));
+  if(named)list=[named,...list.filter(p=>p.id!==named.id)];
+  list.slice(0,7).forEach(p=>add(`Animate · ${p.label}`,p.desc,[A(id,p.id,300,p.defaultDur)]));
+ }
  if(has(['rewrite','alternative','copy','wording'])||msg==='Rewrite it')(CO[id]||[]).filter(t=>t!==l.text).slice(0,3).forEach(t=>add(`“${t.length>48?t.slice(0,47)+'…':t}”`,'Taken from this brand’s own fields; no new facts.',[S(id,{text:t,hidden:false})]));
  if(!o.length||has(['stand out','options','ideas','crop','scrim','what'])||['Make it stand out','Options','Crop ideas','Add a scrim'].includes(msg)){
   if(l.type==='text'){add('Make it stand out',`Larger, higher contrast. Currently ${l.font.sizePct}% of height.`,[S(id,{font:{sizePct:+(l.font.sizePct*1.25).toFixed(2),weight:Math.max(l.font.weight,400)}}),S(id,{opacity:1})]);
@@ -1856,12 +2044,73 @@ function suggest(l,msg){const m=msg.toLowerCase(),o=[],id=l.id,add=(title,why,cm
    add('Enlarge 25%','More brand presence.',[S(id,{w:+(l.w*1.25).toFixed(1),h:+(l.h*1.25).toFixed(1)})])}
   else{add('Fade to 50%','Softer presence.',[S(id,{opacity:.5})]);add('Send to back','Behind text.',[S(id,{z:1})])}}
  return o}
-function concepts(){const g=GEO[FMT.id]||GEO.a4;return[
- {title:'Dark night',why:'Brand ink ground, light type, accent where contrast allows, pulsing CTA.',cmds:[{type:'variant',variant:'night'},A('cta','pulse',3000,2400)]},
- {title:'Framed editorial',why:'Photo inset in the margins; text and copy kept.',cmds:[{type:'variant',variant:'framed'}]},
- {title:'Accent poster',why:'Accent-colour ground with the highest-contrast type.',cmds:[{type:'variant',variant:'accent'}]},
- {title:'Fix hierarchy',why:'The call to action should read before the address. Move the CTA up, address last.',cmds:[S('cta',{y:g.cta[1]}),S('footer',{y:g.foot[1]})]},
- {title:'Staggered entrance',why:'Headline, subhead and body fade in one after another, photo drifts, CTA pulses.',cmds:[A('photo','parallax',0,10000),A('headline','fadeIn',400,900),A('subhead','fadeIn',900,900),A('body','fadeIn',1300,900),A('cta','pulse',3000,2400)]}]}
+function getExperimentalConcepts(){
+ const g=GEO[FMT.id]||GEO.a4;
+ const tall=FMT.h / FMT.w > 1.2;
+ const wide=FMT.w / FMT.h > 1.3;
+ return [
+  {title:'Dark night',why:'Brand ink ground, light type, and a soft accent only where contrast still reads properly.',cmds:[{type:'variant',variant:'night'},A('cta','pulse',3000,2400)]},
+  {title:'Framed editorial',why:'The photo sits inside the safe margins so the page feels more print-led and considered.',cmds:[{type:'variant',variant:'framed'}]},
+  {title:'Accent poster',why:'An accent-colour ground makes the CTA and headline the main event without changing the brand story.',cmds:[{type:'variant',variant:'accent'}]},
+  {title:'Motion First',why:'Photo drifts, headline fades in, and the CTA pulses gently to create a polished motion-led presentation.',cmds:[A('photo','parallax',0,10000),A('headline','fadeIn',300,800),A('subhead','fadeIn',700,800),A('body','fadeIn',1100,800),A('cta','pulse',2800,2400)]},
+  {title:'Iris Reveal',why:'A circular iris wipe lets the hero photo feel premium and cinematic before the type settles in.',cmds:[A('photo','clipIris',0,1400),A('headline','fadeIn',900,800),A('subhead','fadeIn',1300,700),A('cta','scaleIn',1800,700)]},
+  {title:'Diagonal Brand Wipe',why:'A sharp diagonal clip-path wipe makes the composition feel more graphic and confident, especially with bold photography.',cmds:[A('photo','clipWipeDiag',0,1100),A('headline','clipWipeRight',400,900),A('cta','clipWipeUp',1200,800)]},
+  {title:'Diamond Lock-up',why:'Headline and CTA resolve into diamond-like reveals, adding angular brand energy and strong focal points.',cmds:[A('headline','clipDiamond',200,1100),A('cta','clipDiamond',900,1000),S('subhead',{opacity:0.7}),S('body',{opacity:0.55})]},
+  {title:'Split Centre Reveal',why:'The composition opens from the vertical centre line outward, creating a clean editorial rhythm for portrait formats.',cmds:[A('photo','clipSplitCenter',0,1000),A('headline','fadeIn',700,800),A('cta','slideUp',1300,700)]},
+  {title:'Typographic poster',why:'The headline becomes the hero while the photo recedes, ideal for a brand with a strong display type voice.',cmds:[S('photo',{opacity:0.55,h:tall?38:45}),S('headline',{y:tall?42:48,font:{sizePct:+(g.head[4]*1.45).toFixed(2),weight:Math.max(BF.dW,600)},opacity:1}),S('subhead',{y:tall?62:68,opacity:0.85}),S('body',{opacity:0.65}),S('cta',{y:86,font:{letterSpacingEm:0.18,weight:Math.max(BF.bW,600)}}),A('headline','fadeIn',200,900)]},
+  {title:'Floating Elements',why:'More negative space and soft, suspended layering gives the layout a light and contemporary air.',cmds:[S('photo',{x:8,y:8,w:84,h:tall?42:48}),S('headline',{y:tall?56:60,opacity:0.95}),S('subhead',{opacity:0.75}),S('body',{opacity:0.6}),S('cta',{opacity:0.9}),S('footer',{opacity:0.45}),A('headline','fadeIn',400,1000),A('cta','fadeIn',1200,900)]},
+  {title:'Dual-tone split',why:'The background shifts between ink and bone or accent to create a strong editorial split without introducing new assets.',cmds:[{type:'variant',variant:'night'},S('photo',{opacity:0.85}),S('headline',{color:TH.bone}),S('subhead',{color:TH.accent}),S('cta',{color:TH.accent,font:{weight:Math.max(BF.bW,600)}}),A('cta','pulse',3000,2200)]},
+  {title:'Soft gradient wash',why:'A subtle colour wash under the text keeps the photo atmospheric while preserving a readable brand-led hierarchy.',cmds:[S('photo',{h:58}),{type:'add-layer',layer:{id:'wash-'+uid++,name:'Gradient wash',type:'gradient',x:0,y:28,w:100,h:42,z:5,opacity:0.72,from:rgba(TH.ink,0),to:rgba(TH.ink,0.85)}},S('headline',{y:58,color:TH.bone}),S('subhead',{y:72,color:TH.bone}),S('cta',{y:86,color:TH.accent}),A('headline','fadeIn',350,900)]},
+  {title:'Minimal lock-up',why:'A stronger hierarchy, minimal body copy, and a single clear CTA keep the message confident and uncluttered.',cmds:[S('body',{hidden:true}),S('subhead',{opacity:0.7,font:{sizePct:+(g.sub[4]*0.9).toFixed(2)}}),S('headline',{y:tall?48:52,font:{sizePct:+(g.head[4]*1.55).toFixed(2),weight:Math.max(BF.dW,700)},opacity:1}),S('cta',{y:82,font:{sizePct:+(g.cta[4]*1.15).toFixed(2),letterSpacingEm:0.2,weight:Math.max(BF.bW,600)}}),S('footer',{opacity:0.4}),A('headline','fadeIn',200,1000),A('cta','pulse',2600,2400)]},
+  {title:'Seasonal shift',why:'A warmer or cooler temperature shift using the brand palette adds campaign feel without requiring new photo assets.',cmds:[S('ground',{color:mixHex(TH.bone,TH.accent,0.18)}),S('headline',{color:TH.ink}),S('subhead',{color:mixHex(TH.ink,TH.accent,0.35)}),S('cta',{color:TH.accent,font:{weight:Math.max(BF.bW,600)}}),A('cta','pulse',2800,2200)]},
+  {title:'Photo as texture',why:'The image becomes atmosphere rather than subject so the type can lead with more clarity and confidence.',cmds:[S('photo',{opacity:0.45,h:100,y:0}),S('ground',{color:TH.ink}),{type:'add-layer',layer:{id:'scrim-tex-'+uid++,name:'Texture scrim',type:'gradient',x:0,y:0,w:100,h:100,z:4,opacity:0.55,from:rgba(TH.ink,0.3),to:rgba(TH.ink,0.85)}},S('headline',{color:TH.bone,y:42}),S('subhead',{color:TH.bone,opacity:0.8}),S('cta',{color:TH.accent}),A('headline','fadeIn',300,900)]}
+ ];
+}
+function getPreferredConcepts(){
+ const all=getExperimentalConcepts();
+ const pick=titles=>titles.map(t=>all.find(c=>c.title.toLowerCase()===t.toLowerCase())).filter(Boolean);
+ return pick(['Dark night','Iris Reveal','Framed editorial','Typographic poster','Minimal lock-up']);
+}
+function concepts(){return getPreferredConcepts();}
+function mixHex(a,b,t){
+ const ca=rgb(a),cb=rgb(b),m=[0,1,2].map(i=>Math.round(ca[i]*(1-t)+cb[i]*t));
+ return '#'+m.map(v=>v.toString(16).padStart(2,'0')).join('');
+}
+function say(who,html,cards=[]){const m=document.createElement('div');m.className='m'+(who==='user'?' u':'');m.innerHTML=html;chat.appendChild(m);
+ if(cards.length){const w=document.createElement('div');w.className='cards';cards.forEach(c=>{const d=document.createElement('div');d.className='card';
+  d.innerHTML=`<b>${esc(c.title)}</b><p>${esc(c.why)}</p><div class="r"><small>${c.cmds.length} command${c.cmds.length===1?'':'s'} · hover to preview</small><button data-j>JSON</button><button data-a ${c.cmds.length||c.ask?'':'disabled'}>Apply</button></div>`;
+  const sm=d.querySelector('small');
+  d.onmouseenter=()=>{if(!c.cmds.length||d.classList.contains('done'))return;const t=run(clone(scene),c.cmds);const ks=new Set(check(scene).map(i=>i.key)),nw=check(t).filter(i=>!ks.has(i.key));render(t);sm.innerHTML=nw.length?`<span class="warn">⚠ introduces ${nw.length}: ${nw.map(i=>LABEL[i.code]).join(', ')}</span>`:'✓ guardrails clean'};
+  d.onmouseleave=()=>render();
+  d.querySelector('[data-j]').onclick=()=>{let p=d.querySelector('pre');if(p)return p.remove();p=document.createElement('pre');p.textContent=JSON.stringify(c.cmds,null,1);d.appendChild(p)};
+  d.querySelector('[data-a]').onclick=e=>{if(c.ask)return ask(c.ask);commit(c.cmds);d.classList.add('done');e.target.textContent='Applied ✓';e.target.disabled=true;$('#status').textContent=`Applied: ${c.title}`};
+  w.appendChild(d)});chat.appendChild(w)}
+ chat.scrollTop=chat.scrollHeight}
+function ask(t){say('user',esc(t));const l=scene.find(q=>q.id===sel);setTimeout(()=>{
+ if(!l){
+  const lm=t.toLowerCase();
+  const preferred=getPreferredConcepts();
+  const isExperimental=/experimental|more|novel|creative|wild|ideas|seasonal|season/.test(lm);
+  const isClip=/clip|wipe|iris|mask|reveal|diamond|chevron|split|arrow/.test(lm);
+  let cards;
+  if(isExperimental)cards=getExperimentalConcepts();
+  else if(isClip)cards=getExperimentalConcepts().filter(c=>/Iris Reveal|Diagonal Brand Wipe|Diamond Lock-up|Split Centre Reveal/.test(c.title));
+  else if(lm.includes('hier')||lm.includes('order')||lm.includes('reading'))cards=[preferred.find(c=>/Dark night|Framed editorial|Minimal lock-up|Typographic poster/i.test(c.title))||preferred[0]].filter(Boolean);
+  else if(lm.includes('anim')||lm.includes('motion')||lm.includes('move'))cards=[getExperimentalConcepts().find(c=>c.title==='Motion First')||preferred[0]].filter(Boolean);
+  else cards=preferred.slice(0,3);
+  say('agent',isExperimental?'Here are a wider set of experimental directions. Each still respects the brand palette and guardrails:':isClip?'Here are motion treatments using clip-path reveals and geometric wipes:':lm.includes('hier')?'One structural issue I can see:':lm.includes('anim')?'A motion-led treatment for the whole design. Drag the bars in the timeline to retime it:':'Three directions for the whole design, built from this brand’s palette and type. Hover to preview each on the canvas:',cards)
+ }else{const c=suggest(l,t);say('agent',c.length?`For <b>${esc(l.name)}</b>:`:`I can’t do that to <b>${esc(l.name)}</b> yet. Try “bigger”, “accent colour”, “animate it” or “move up”.`,c)}} ,300)}
+function deleteSelection(){if(!sel)return;const l=scene.find(q=>q.id===sel);if(!l)return;hist.push(clone(scene));scene=scene.filter(q=>q.id!==sel);sel=null;render();layers();$('#status').textContent=l.name?`Deleted ${l.name}.`:'Deleted layer.';closeContextMenu()}
+function closeContextMenu(){const menu=$('#ctxMenu');if(menu){menu.innerHTML='';menu.classList.remove('visible');menu.setAttribute('hidden','hidden')}}
+function showContextMenu(event, layerId){const menu=$('#ctxMenu');if(!menu)return;event.preventDefault();const item=scene.find(q=>q.id===layerId);if(!item)return;menu.innerHTML='';const btn=document.createElement('button');btn.type='button';btn.setAttribute('role','menuitem');btn.textContent='Delete layer';btn.onclick=()=>{deleteSelection()};menu.appendChild(btn);menu.classList.add('visible');menu.removeAttribute('hidden');const left=Math.min(event.clientX+10,window.innerWidth-180);const top=Math.min(event.clientY+10,window.innerHeight-80);menu.style.left=left+'px';menu.style.top=top+'px'}
+$('#f').onsubmit=e=>{e.preventDefault();const v=$('#in').value.trim();if(v){$('#in').value='';ask(v)}};
+$('#clearChat').onclick=()=>{chat.innerHTML='';$('#status').textContent='Chat cleared.'};
+document.addEventListener('keydown',(event)=>{const target=event.target;const editable=target&&((target.isContentEditable)||(target.tagName==='INPUT')||(target.tagName==='TEXTAREA')||(target.tagName==='SELECT'));if(editable)return;if((event.key==='Delete'||event.key==='Backspace')&&sel){event.preventDefault();deleteSelection()}});
+document.addEventListener('click',e=>{if(!e.target.closest('#ctxMenu'))closeContextMenu()});
+document.addEventListener('contextmenu',e=>{if(!e.defaultPrevented&&!e.target.closest('#ctxMenu'))closeContextMenu()});
+stage.addEventListener('contextmenu',e=>{const layer=e.target.closest('.L');if(!layer)return;const id=layer.dataset.id;select(id);showContextMenu(e,id)});
+$('#layers').addEventListener('contextmenu',e=>{const row=e.target.closest('.lrow');if(!row)return;const id=row.dataset.id;if(!id)return;select(id);showContextMenu(e,id)});
+function greet(){chat.innerHTML='';say('agent',`Hi, I’m the Studio agent. I can see the <b>${esc(B.name)}</b> ${esc(FMT.n.toLowerCase())}, built from its palette (${Object.keys(PAL).length} colours), type and imagery. <b>Select a layer</b> or <b>drag an asset onto the canvas</b> and I’ll propose options for that exact element. With nothing selected, here are directions for the whole design:`,concepts().slice(0,3))}
 
 /* ---------- guardrails ---------- */
 let cur=[],seen=new Set();
@@ -1892,56 +2141,48 @@ function check(sc){const iss=[],Pl=Object.values(PAL).map(h=>h.toLowerCase()),ad
  return iss}
 function watch(){cur=check(scene);list();$('#gc').innerHTML=cur.length?`<span class="warn">⚠ ${cur.length} guardrail issue${cur.length>1?'s':''}</span>`:'✓ Guardrails clear';
  const nw=cur.filter(i=>!seen.has(i.key));seen=new Set(cur.map(i=>i.key));if(nw.length)flag(nw,'I noticed')}
-function flag(a,lead){const nm=id=>(scene.find(l=>l.id===id)||{name:id}).name,cards=a.map(i=>({title:LABEL[i.code]+' · '+nm(i.id),why:i.msg,cmds:i.fix||[]})),fx=a.flatMap(i=>i.fix||[]);
- if(a.length>1)cards.push({title:'Fix all',why:'Apply every suggested fix at once.',cmds:fx});
- say('agent',`<span class="warn">⚠</span> ${lead} ${a.length} thing${a.length>1?'s':''} worth fixing:`,cards)}
-$('#gc').onclick=()=>cur.length?flag(cur,'Right now there are'):say('agent','✓ All clear: safe zone, text overflow, contrast, reading order, text size and palette.');
+function flag(a,lead){const nm=id=>(scene.find(l=>l.id===id)||{name:id}).name,items=a.map(i=>({title:LABEL[i.code]+' · '+nm(i.id),why:i.msg,cmds:i.fix||[]}));
+ const cards=items.map(i=>`<div class="card"><h5>${esc(i.title)}</h5><p>${esc(i.why)}</p><div class="actions">${i.cmds.map(c=>`<button type="button" data-cmd="${esc(JSON.stringify(c))}">Apply</button>`).join('')}</div></div>`).join('');
+ $('#gc').innerHTML=`<span class="warn">⚠ ${a.length} issue${a.length>1?'s':''}</span>`;
+ if(cards){const msg=document.createElement('div');msg.className='m';msg.innerHTML=`<b>${lead}</b> ${esc(a.length)} guardrail issue${a.length>1?'s':''}.`+cards;chat.appendChild(msg)}}
 
 /* ---------- timeline ---------- */
-const DUR=10000;let T=DUR,playing=false,raf=0;
-function seek(t){T=Math.max(0,Math.min(DUR,t));stage.querySelectorAll('[data-an]').forEach(e=>{const l=scene.find(q=>q.id===e.dataset.id);if(l&&l.anim)e.style.animationDelay=(l.anim.start-T)+'ms'});
+const DEFAULT_DUR=10000;let DUR=DEFAULT_DUR,T=DUR,playing=false,raf=0;
+function setDuration(ms){DUR=Math.max(1000,Math.min(60000,Math.round((+ms||DEFAULT_DUR)/500)*500));
+ const sc=$('#scrub');if(sc){sc.max=DUR;if(T>DUR)T=DUR;sc.value=T}
+ if($('#tt'))$('#tt').textContent=(T/1000).toFixed(2)+' / '+(DUR/1000).toFixed(2)+' s';if($('#tlb'))$('#tlb').style.setProperty('--p',T/DUR)}
+const easeSmooth=t=>t*t*(3-2*t);
+function applyKf(e,l,t){const k=l.kf;if(!k||!k.length)return;
+ let i=0;while(i<k.length-1&&k[i+1].time<=t)i++;
+ const a=k[i],b=k[i+1];
+ if(!b||b.time<=a.time){Object.assign(e.style,{left:a.x+'%',top:a.y+'%',width:a.w+'%',height:a.h+'%',opacity:a.opacity});return}
+ const p=easeSmooth(Math.max(0,Math.min(1,(t-a.time)/(b.time-a.time))));
+ Object.assign(e.style,{left:(a.x+(b.x-a.x)*p)+'%',top:(a.y+(b.y-a.y)*p)+'%',
+  width:(a.w+(b.w-a.w)*p)+'%',height:(a.h+(b.h-a.h)*p)+'%',opacity:+(a.opacity+(b.opacity-a.opacity)*p).toFixed(3)})}
+function seek(t){T=Math.max(0,Math.min(DUR,t));stage.querySelectorAll('[data-an]').forEach(e=>{const l=scene.find(q=>q.id===e.dataset.id);if(l&&l.anim&&!l.kf)e.style.animationDelay=(l.anim.start-T)+'ms'});
+ stage.querySelectorAll('[data-kf]').forEach(e=>{const l=scene.find(q=>q.id===e.dataset.id);if(l&&l.kf)applyKf(e,l,T)});
  $('#scrub').value=T;$('#tt').textContent=(T/1000).toFixed(2)+' / '+(DUR/1000).toFixed(2)+' s';$('#tlb').style.setProperty('--p',T/DUR)}
 function stopP(){playing=false;cancelAnimationFrame(raf);$('#tpl').textContent='▶ Play'}
 function play(from=T){stopP();if(from>=DUR)from=0;playing=true;$('#tpl').textContent='❚❚ Pause';const s=performance.now()-from;const f=n=>{seek(n-s);if(T<DUR&&playing)raf=requestAnimationFrame(f);else stopP()};raf=requestAnimationFrame(f)}
 $('#tpl').onclick=()=>playing?stopP():play();$('#scrub').oninput=e=>{stopP();seek(+e.target.value)};
 const pxb=(l,b)=>{b.style.left=l.anim.start/DUR*100+'%';b.style.width=Math.max(.6,l.anim.duration/DUR*100)+'%'};
+function retimeKeys(l,d){const s=l.anim.start,old=Math.max(1,l.anim.duration);l.kf=l.kf.map(k=>({...k,time:s+(k.time-s)*d/old}));l.anim.duration=d}
 function bd(e,l,b){e.stopPropagation();e.preventDefault();const tk=b.parentNode.getBoundingClientRect(),edge=e.clientX>b.getBoundingClientRect().right-8,sx=e.clientX,s0=l.anim.start,d0=l.anim.duration;let mv=false;
  const m=ev=>{if(!mv){hist.push(clone(scene));mv=true}const dt=Math.round((ev.clientX-sx)/tk.width*DUR/100)*100;
-  if(edge)l.anim.duration=Math.max(100,Math.min(DUR-s0,d0+dt));else l.anim.start=Math.max(0,Math.min(DUR-l.anim.duration,s0+dt));pxb(l,b);render();seek(T)};
+  if(edge){const d=Math.max(100,Math.min(DUR-s0,d0+dt));if(l.kf)retimeKeys(l,d);else l.anim.duration=d}
+  else{const st=Math.max(0,Math.min(DUR-l.anim.duration,s0+dt)),shift=st-l.anim.start;if(l.kf)l.kf=l.kf.map(k=>({...k,time:Math.max(0,k.time+shift)}));l.anim.start=st}
+  pxb(l,b);render();seek(T)};
  const u=()=>{removeEventListener('pointermove',m);removeEventListener('pointerup',u);if(mv){tl();say('agent',`${esc(l.name)}: ${l.anim.preset} now starts at ${(l.anim.start/1000).toFixed(1)}s and runs ${(l.anim.duration/1000).toFixed(1)}s.`);saveScene()}};
  addEventListener('pointermove',m);addEventListener('pointerup',u)}
-function tl(){const w=$('#tlb');w.innerHTML=`<div class="tr"><div class="n"></div><div class="tk" style="cursor:pointer">${[...Array(11)].map((_,i)=>`<small style="position:absolute;left:${i*10}%;font-size:9px;color:var(--mu);padding-left:2px">${i}s</small>`).join('')}</div></div>`;
+function tl(){const w=$('#tlb'),n=Math.max(2,Math.min(10,Math.round(DUR/1000))),fmt=ms=>`${+(ms/1000).toFixed(2)}s`;
+ w.innerHTML=`<div class="tr"><div class="n"></div><div class="tk" style="cursor:pointer">${[...Array(n+1)].map((_,i)=>`<small style="position:absolute;left:${i/n*100}%;font-size:9px;color:var(--mu);padding-left:2px">${fmt(i/n*DUR)}</small>`).join('')}</div></div>`;
  const rul=w.querySelector('.tk'),go=ev=>{const r=rul.getBoundingClientRect();stopP();seek((ev.clientX-r.left)/r.width*DUR)};
  rul.onpointerdown=ev=>{go(ev);const u=()=>{removeEventListener('pointermove',go);removeEventListener('pointerup',u)};addEventListener('pointermove',go);addEventListener('pointerup',u)};
  scene.filter(l=>!l.hidden).sort((a,b)=>b.z-a.z).forEach(l=>{const r=document.createElement('div');r.className='tr';r.dataset.s=l.id===sel?1:0;r.innerHTML=`<div class="n">${esc(l.name)}</div><div class="tk"></div>`;r.querySelector('.n').onclick=()=>select(l.id);
-  if(l.anim){const b=document.createElement('div');b.className='bar';b.innerHTML=`<span>${l.anim.preset}</span>`;pxb(l,b);b.onpointerdown=e=>bd(e,l,b);r.querySelector('.tk').appendChild(b)}w.appendChild(r)});
+  if(l.anim){const b=document.createElement('div');b.className='bar';
+   const keys=l.kf?l.kf.slice(1,-1).map(k=>`<i style="left:${((k.time-l.anim.start)/Math.max(1,l.anim.duration)*100).toFixed(2)}%"></i>`).join(''):'';
+   b.innerHTML=`<span>${l.anim.preset}</span>${keys}`;pxb(l,b);b.onpointerdown=e=>bd(e,l,b);r.querySelector('.tk').appendChild(b)}w.appendChild(r)});
  const ph=document.createElement('div');ph.className='ph';w.appendChild(ph);seek(T)}
-
-/* ---------- chat ---------- */
-function say(who,html,cards=[]){const m=document.createElement('div');m.className='m'+(who==='user'?' u':'');m.innerHTML=html;chat.appendChild(m);
- if(cards.length){const w=document.createElement('div');w.className='cards';cards.forEach(c=>{const d=document.createElement('div');d.className='card';
-  d.innerHTML=`<b>${esc(c.title)}</b><p>${esc(c.why)}</p><div class="r"><small>${c.cmds.length} command${c.cmds.length===1?'':'s'} · hover to preview</small><button data-j>JSON</button><button data-a ${c.cmds.length||c.ask?'':'disabled'}>Apply</button></div>`;
-  const sm=d.querySelector('small');
-  d.onmouseenter=()=>{if(!c.cmds.length||d.classList.contains('done'))return;const t=run(clone(scene),c.cmds);render(t);const ks=new Set(check(scene).map(i=>i.key)),nw=check(t).filter(i=>!ks.has(i.key));render(t);sm.innerHTML=nw.length?`<span class="warn">⚠ introduces ${nw.length}: ${nw.map(i=>LABEL[i.code]).join(', ')}</span>`:'✓ guardrails clean'};
-  d.onmouseleave=()=>render();
-  d.querySelector('[data-j]').onclick=()=>{let p=d.querySelector('pre');if(p)return p.remove();p=document.createElement('pre');p.textContent=JSON.stringify(c.cmds,null,1);d.appendChild(p)};
-  d.querySelector('[data-a]').onclick=e=>{if(c.ask)return ask(c.ask);commit(c.cmds);d.classList.add('done');e.target.textContent='Applied ✓';e.target.disabled=true;$('#status').textContent=`Applied: ${c.title}`};
-  w.appendChild(d)});chat.appendChild(w)}
- chat.scrollTop=chat.scrollHeight}
-function ask(t){say('user',esc(t));const l=scene.find(q=>q.id===sel);setTimeout(()=>{
- if(!l){const lm=t.toLowerCase(),an=lm.includes('anim'),C=concepts();const c=lm.includes('hier')?[C[3]]:an?[C[4]]:C.slice(0,3);
-  say('agent',lm.includes('hier')?'One structural issue I can see:':an?'A staggered entrance for the whole design. Drag the bars in the timeline to retime it:':'Three directions for the whole design, built from this brand’s palette and type. Hover to preview each on the canvas:',c)}
- else{const c=suggest(l,t);say('agent',c.length?`For <b>${esc(l.name)}</b>:`:`I can’t do that to <b>${esc(l.name)}</b> yet. Try “bigger”, “accent colour”, “animate it” or “move up”.`,c)}},300)}
-function deleteSelection(){if(!sel)return;const l=scene.find(q=>q.id===sel);if(!l)return;hist.push(clone(scene));scene=scene.filter(q=>q.id!==sel);sel=null;render();layers();$('#status').textContent=l.name?`Deleted ${l.name}.`:'Deleted layer.';closeContextMenu()}
-function closeContextMenu(){const menu=$('#ctxMenu');if(menu){menu.innerHTML='';menu.classList.remove('visible');menu.setAttribute('hidden','hidden')}}
-function showContextMenu(event, layerId){const menu=$('#ctxMenu');if(!menu)return;event.preventDefault();const item=scene.find(q=>q.id===layerId);if(!item)return;menu.innerHTML='';const btn=document.createElement('button');btn.type='button';btn.setAttribute('role','menuitem');btn.textContent='Delete layer';btn.onclick=()=>{deleteSelection()};menu.appendChild(btn);menu.classList.add('visible');menu.removeAttribute('hidden');const left=Math.min(event.clientX+10,window.innerWidth-180);const top=Math.min(event.clientY+10,window.innerHeight-80);menu.style.left=left+'px';menu.style.top=top+'px'}
-$('#f').onsubmit=e=>{e.preventDefault();const v=$('#in').value.trim();if(v){$('#in').value='';ask(v)}};
-$('#clearChat').onclick=()=>{chat.innerHTML='';$('#status').textContent='Chat cleared.'};
-document.addEventListener('keydown',(event)=>{const target=event.target;const editable=target&&((target.isContentEditable)||(target.tagName==='INPUT')||(target.tagName==='TEXTAREA')||(target.tagName==='SELECT'));if(editable)return;if((event.key==='Delete'||event.key==='Backspace')&&sel){event.preventDefault();deleteSelection()}});
-document.addEventListener('click',e=>{if(!e.target.closest('#ctxMenu'))closeContextMenu()});
-document.addEventListener('contextmenu',e=>{if(!e.target.closest('#ctxMenu'))closeContextMenu()});
-stage.addEventListener('contextmenu',e=>{const layer=e.target.closest('.L');if(!layer)return;const id=layer.dataset.id;select(id);showContextMenu(e,id)});
-function greet(){chat.innerHTML='';say('agent',`Hi, I’m the Studio agent. I can see the <b>${esc(B.name)}</b> ${esc(FMT.n.toLowerCase())}, built from its palette (${Object.keys(PAL).length} colours), type and imagery. <b>Select a layer</b> or <b>drag an asset onto the canvas</b> and I’ll propose options for that exact element. With nothing selected, here are directions for the whole design:`,concepts().slice(0,3))}
 
 /* ---------- toolbar ---------- */
 $('#undo').onclick=()=>{if(hist.length){scene=hist.pop();if(!scene.find(l=>l.id===sel))sel=null;render();layers();$('#status').textContent='Undone.'}};
@@ -1961,21 +2202,21 @@ const remember=()=>{LS.set('agentStudio.last.v1',{packId:P&&P.id,brandId:B&&B.id
 
 /* ---------- selection flow ---------- */
 async function setFormat(id){
- const f=FMTS.find(x=>x.id===id)||FMTS[0];if(B)saveScene();FMT=f;const kind=$('#fmtKind');if(kind)kind.value=fmtGroupFor(f.id);buildFormats();fitStage();sizeProbe();
+ const f=FMTS.find(x=>x.id===id)||FMTS[0];if(B)saveScene();FMT=f;AS.savedActive=null;const kind=$('#fmtKind');if(kind)kind.value=fmtGroupFor(f.id);buildFormats();fitStage();sizeProbe();
  hist=[];sel=null;seen=new Set();
  if(B){const saved=loadScene();scene=saved||fitScene(buildScene('classic'));render();layers();assets();greet();remember()}}
 async function selectBrand(id){
  const b=(P.brands||[]).find(x=>x.id===id);if(!b)return;const tok=++selTok;
  if(B)saveScene();
  $('#brands').querySelectorAll('button').forEach(x=>x.disabled=true);
- B=b;deriveTheme(b);BF=brandFonts(b);hist=[];sel=null;seen=new Set();stopP();T=DUR;
+ B=b;deriveTheme(b);BF=brandFonts(b);hist=[];sel=null;seen=new Set();stopP();setDuration(DEFAULT_DUR);T=DUR;
  await Promise.all([brandLogos(b),engMedia(b),document.fonts&&document.fonts.ready].filter(Boolean)).catch(()=>{});
  if(tok!==selTok)return;
  (b.photography||[]).slice(0,1).forEach(p=>ensurePx(p.url));
  fitStage();sizeProbe();
  const saved=loadScene();scene=saved||(FMT.eng&&hasEngine()?engBuild():fitScene(buildScene('classic')));
  $('#brands').querySelectorAll('button').forEach(x=>x.disabled=false);
- chrome();render();layers();assets();greet();remember();loadLibrary(b);
+ chrome();render();layers();assets();greet();remember();loadLibrary(b);loadSavedTemplates(b);
  $('#status').textContent=`${b.name} · ${FMT.n}`}
 const packFull=async id=>{if(packCache.has(id))return packCache.get(id);const d=await jget(`${API}/brand-packs/${encodeURIComponent(id)}`),p=d&&d.pack;if(!p||!(p.brands||[]).length)throw new Error('The brand group contains no brands.');packCache.set(id,p);return p};
 async function selectPack(id,preferBrand){

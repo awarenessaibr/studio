@@ -16,6 +16,7 @@
     "test:visual:report": "node tests/visual.js --report",
     "test:all": "npm test && npm run test:smoke && npm run test:asset-studio && npm run test:visual",
     "crawl": ".venv/bin/python scripts/crawler-combined.py",
+    "publish:templates": "node scripts/publish-brand-templates.js",
     "test:crawler": "node --test tests/crawler.test.js"
   }
 }
