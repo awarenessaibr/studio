@@ -4,8 +4,14 @@ A JSON contract that lets a language model (or any script) direct a
 composition without touching the internals: the studio exports what exists,
 the model returns commands, the studio validates and applies them.
 
-Schema id: `layer-studio/agent/v1` · system prompt:
-[agent-prompt.md](briefs/agent-prompt.md)
+Two schema ids, both served by the studio:
+
+| Schema id | Scope | Entry point |
+|---|---|---|
+| `layer-studio/agent/v1` | Preset/keyframe commands for animating an existing scene (§1–6) | **Export → Agent spec** → `exportAgentSpec()`, `applyAgentCommands()` |
+| `layer-studio/agent-commands/v2` | Batches that also restyle, re-layout and re-format a scene, with guardrails, sandboxing and snapshots (§8) | `src/shared/agent-commands.js` |
+
+System prompt: [agent-prompt.md](briefs/agent-prompt.md)
 
 ---
 
@@ -221,3 +227,143 @@ The schema string is the contract. Adding presets or vocabulary is additive
 and keeps `v1`; changing command shapes or removing fields would require
 `layer-studio/agent/v2` and an update to `exportAgentSpec()`,
 `applyAgentCommands()`, `agent-prompt.md` and this document.
+
+`layer-studio/agent/v2` **has not been created**. The broader batch protocol in
+§8 uses its own id (`layer-studio/agent-commands/v2`) and its own module, so
+`v1` keeps its exact shape and both can be served at the same time.
+
+---
+
+## 8. Batch protocol v2 — `layer-studio/agent-commands/v2`
+
+`v1` animates a scene whose layout is already settled. v2 is the *scene* edit
+protocol: it can restyle, re-layout, add and remove layers, swap assets, set
+formats and retime, and it decides whether the result is allowed to land.
+
+Implementation: [src/shared/agent-commands.js](../src/shared/agent-commands.js)
+(UMD — `window.AgentCommands` in the browser, `require()` in Node). It depends
+on `studio-core.js` only, so it is testable without a DOM
+(`tests/agent-commands.test.js`).
+
+### 8.1 A batch
+
+```json
+{
+  "schema": "layer-studio/agent-commands/v2",
+  "sceneId": "the-physician-flyer",
+  "baseRevision": 4,
+  "formatId": "master",
+  "label": "E · Motion",
+  "rationale": "Full-bleed photo with a slow drift.",
+  "atomic": true,
+  "commands": [ … ]
+}
+```
+
+`baseRevision` is the revision the plan was made against. If the scene has
+moved on, the batch is rejected with `STALE_REVISION` and a
+`suggestion: "baseRevision=<now>"`. `atomic: false` applies the valid commands
+and reports the rest; the default (`true`) is all-or-nothing.
+
+### 8.2 The twelve commands
+
+| Type | Fields | Effect |
+|---|---|---|
+| `set-variable` | `variableId`, `value`, `locale?` | Sets the default value, or one locale |
+| `set-layer` | `layerId`, `patch` | Patches box, z, opacity, text, font, colour, fit, outline, bindings… |
+| `add-layer` | `layer`, `above?` | Adds a `shape`, `gradient`, `image` (via `assetRef`) or `text` layer |
+| `remove-layer` | `layerId` | Deletes the layer |
+| `duplicate-layer` | `layerId`, `newId`, `patch?` | Copy with a new id |
+| `reorder-layer` | `layerId`, exactly one of `z` \| `above` \| `below` | Moves within the stack |
+| `swap-asset` | `layerId`, `asset{catalog,name,variant?}`, `focus?` | Swaps by catalogue reference, not URL |
+| `set-animation` | `layerId`, `preset`, `startMs?`, `durationMs?`, `easing?`, `loop?`, `intensity?` | Applies a preset (the same 20 the Inspector offers) |
+| `set-keyframes` | `layerId`, `keyframes[{t, easing?, values{x,y,w,h,rotation,opacity,scale}}]` | 2–40 explicit frames, sorted by `t` |
+| `clear-animation` | `layerId` | Removes keyframes |
+| `set-format` | `formatId`, `label?`, `width?`, `height?`, `safeZone?`, `pinnedLayerIds?`, `layerOverrides?` | Creates or updates a format |
+| `set-scene-duration` | `durationMs` | Retimes the scene; rejected if a keyframe falls past the end |
+
+There is no `params` field: a preset is a preset. Custom motion is expressed
+with `set-keyframes`, where `scale` expands around the layer centre.
+
+`add-layer` desugars shapes and gradients into self-contained
+`data:image/svg+xml` layers drawn with `fit: "fill"`, so every exporter already
+works. New layers default to `role: "foreground"`, which puts them inside the
+safe zone — a full-bleed decoration must declare `role: "background"`.
+
+Colours may be a hex string, `rgb()`/`rgba()`, or a palette **name**
+(`"Vermilion"`); names resolve to the brand kit's hex before applying.
+
+### 8.3 Guardrails
+
+Guardrails judge the *result*, not the command. Codes: `SAFE_ZONE`,
+`TEXT_OVERFLOW`, `BRAND_COLOR`, `BRAND_FONT`, `CONTRAST`, `MIN_TEXT_SIZE`,
+`LOGO_INTEGRITY`, `LOCKED_LAYER`, `NO_INVENTED_FACTS`. Defaults —
+`SAFE_ZONE`, `TEXT_OVERFLOW`, `BRAND_FONT`, `LOGO_INTEGRITY`, `LOCKED_LAYER`
+and `NO_INVENTED_FACTS` **block**; `BRAND_COLOR`, `CONTRAST` and
+`MIN_TEXT_SIZE` **warn**. A composition's own `guardrails` object and the
+caller's overrides are merged on top.
+
+Two rules are regression checks rather than absolute ones:
+
+- `TEXT_OVERFLOW` only fires when a layer that fitted *before* the batch no
+  longer fits. Pre-existing clipping is not attributed to the agent.
+- `NO_INVENTED_FACTS` compares new phone numbers, URLs and e-mail addresses
+  against `sourceFacts`; anything the operator did not supply is refused.
+
+Non-blocking mode reports the same codes as warnings and applies anyway.
+
+### 8.4 Result
+
+```json
+{
+  "status": "applied-to-sandbox",
+  "sceneRevision": 5,
+  "sandboxId": "sandbox-m1k2j3",
+  "errors": [],
+  "warnings": [{ "code": "BRAND_COLOR", "message": "…", "layerId": "flyer-headline", "suggestion": "use a palette colour" }]
+}
+```
+
+`status` is `applied-to-sandbox` or `rejected`. Issues carry `code`,
+`message` and, where useful, `layerId`, `commandIndex` and `suggestion`.
+Schema issues are reported **before** `STALE_REVISION`.
+
+### 8.5 Sandbox, revision and undo
+
+A batch applies to a sandbox copy of the composition. The scene's `revision`
+is part of the document: autosave bumps it, and applying a batch commits
+`baseRevision + 1`, so the number the agent quotes is never ambiguous. The
+studio keeps one undo step for the last agent batch (`agentUndoAvailable()`,
+`revertAgentBatch()`), and the status bar reports what landed.
+
+### 8.6 Snapshots
+
+**Export → Agent snapshot** (or `exportAgentSnapshot()`) writes
+`<name>-agent-snapshot-r<revision>.json` with:
+
+| Field | Contents |
+|---|---|
+| `revision` | The revision the snapshot was taken at |
+| `scene` | The resolved composition (layers, formats, variables, brand kit) |
+| `render` | `formatId`, canvas size, per-layer `rect`, `clipped`, `textLines`, `naturalHeightPct`, `contrastRatio` |
+| `assets` | The catalogue the agent may reference: `logos`, `photography`, `uploads` |
+| `brandKit` | Palette, fonts, logo count |
+| `guardrails` | Effective rules and thresholds |
+| `sourceFacts` | The facts the operator supplied, for `NO_INVENTED_FACTS` |
+
+The agent quotes `revision` as `baseRevision` and refers to assets by
+catalogue name — never by URL.
+
+### 8.7 Layout alternatives
+
+**Layouts…** in the Export bar asks the local planner for five layout
+concepts (`proposeLayoutVariants()`) and shows them as painted thumbnails with
+their command lists. Each concept is a *complete alternative* planned against
+the same revision: pressing Apply rewinds to the scene captured when the
+dialog opened and then applies that concept, so B does not inherit A's scrim.
+**Revert** restores the captured scene, and **Regenerate** re-plans from the
+current one.
+
+The five concepts (photo-led, ink night, framed editorial, type poster,
+motion) are ordinary v2 batches, so anything an outside model returns through
+the same dialog behaves identically.

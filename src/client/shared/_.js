@@ -54,6 +54,20 @@
 
     const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
     const finite = (value, fallback) => Number.isFinite(Number(value)) ? Number(value) : fallback;
+    // Scattering presets (flicker) draw from this so a re-render, an export and
+    // an agent-applied preset all produce the same frames.
+    function seededRandom(seed) {
+        const text = String(seed);
+        let state = 0;
+        for (let i = 0; i < text.length; i += 1) state = (Math.imul(state, 31) + text.charCodeAt(i)) >>> 0;
+        return () => {
+            state = (state + 0x6d2b79f5) >>> 0;
+            let t = state;
+            t = Math.imul(t ^ (t >>> 15), t | 1);
+            t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+    }
     const HEX_COLOR = /^#[0-9a-f]{6}$/i;
     const SVG_NS = 'http://www.w3.org/2000/svg';
     const IMAGE_DATA_URL = /^data:image\/(?:png|jpe?g|gif|webp|svg\+xml);/i;
@@ -463,7 +477,7 @@
             outlineWidth: Math.round(clamp(finite(source.outlineWidth, 3), 1, 16)),
             z: clamp(finite(source.z, index), -1000, 1000),
             rotation: clamp(finite(source.rotation, 0), -3600, 3600),
-            fit: source.fit === 'cover' ? 'cover' : 'contain',
+            fit: source.fit === 'cover' || source.fit === 'fill' ? source.fit : 'contain',
             visible: source.visible !== false,
             locked: source.locked === true,
             positionConfirmed: source.positionConfirmed === true,
@@ -1119,6 +1133,15 @@
         };
     }
 
+    /** A representative frame for static previews: the last keyframe, not 0 ms. */
+    function layoutPreviewTime(composition) {
+        const duration = Number(composition?.duration) || 0;
+        const times = (composition?.layers || []).flatMap((layer) =>
+            (layer.keyframes || []).map((frame) => Number(frame.time) || 0));
+        if (!times.length) return 0;
+        return Math.min(duration || Math.max(...times), Math.max(...times));
+    }
+
     function normalizeComposition(value) {
         if (!value || typeof value !== 'object' || Array.isArray(value)) {
             throw new Error('The project file must contain a composition object.');
@@ -1183,6 +1206,10 @@
                 : null,
             guardrails: normalizeGuardrails(value.guardrails),
             showSafeZones: value.showSafeZones !== false,
+            // Monotonic counter used by the v2 agent protocol to detect stale
+            // batches. Absent in v3 files written before the protocol existed.
+            revision: Math.max(0, Math.round(finite(value.revision, 0))),
+            sourceFacts: value.sourceFacts && typeof value.sourceFacts === 'object' ? value.sourceFacts : {},
             layers,
         };
     }
@@ -1698,6 +1725,10 @@
                 formatStatus: root.querySelector('#layerFormatStatus'),
                 contactSheet: root.querySelector('#layerContactSheet'),
                 contactSheetGrid: root.querySelector('#layerContactSheetGrid'),
+                layoutDialog: root.querySelector('#layerLayoutDialog'),
+                layoutGrid: root.querySelector('#layerLayoutGrid'),
+                layoutStatus: root.querySelector('#layerLayoutStatus'),
+                layoutRevision: root.querySelector('#layerLayoutRevision'),
                 batchDialog: root.querySelector('#layerBatchDialog'),
                 batchLocales: root.querySelector('#layerBatchLocales'),
                 batchStatus: root.querySelector('#layerBatchStatus'),
@@ -2505,7 +2536,7 @@
 
             if (!isText) {
                 this.el.inspector.appendChild(this.makeSelect('Image fit', 'fit', [
-                    ['contain', 'Contain'], ['cover', 'Cover'],
+                    ['contain', 'Contain'], ['cover', 'Cover'], ['fill', 'Fill'],
                 ], layer.fit));
 
                 const urlVariables = [...this.variablesOfKind('url'), ...this.variablesOfKind('image')];
@@ -4403,6 +4434,38 @@
                 case 'export-agent-spec':
                     this.exportAgentSpec();
                     break;
+                case 'export-agent-snapshot':
+                    this.downloadAgentSnapshot().catch((error) => {
+                        this.setStatus(error.message || 'Could not export the agent snapshot.', true);
+                    });
+                    break;
+                case 'open-layouts':
+                    this.openLayoutVariants();
+                    break;
+                case 'close-layouts':
+                    this.closeLayoutVariants();
+                    break;
+                case 'refresh-layouts':
+                    this.captureLayoutBaseline();
+                    this.renderLayoutVariants().catch((error) => {
+                        this.setLayoutStatus(error.message || 'Could not render the layout concepts.', true);
+                    });
+                    break;
+                case 'apply-layout':
+                    this.applyLayoutVariant(Number(action.dataset.index));
+                    break;
+                case 'revert-layout':
+                    if (this.revertAgentBatch()) {
+                        this.setLayoutStatus(`Reverted to revision ${Number(this.composition.revision) || 0}.`);
+                    } else {
+                        this.setLayoutStatus('There is no agent layout to revert.', true);
+                    }
+                    this.syncLayoutState();
+                    break;
+                case 'replay-layout':
+                    this.applyAnimationTime(0);
+                    if (!this.animation.playing) this.togglePlay();
+                    break;
                 case 'export-svg':
                     this.exportSvg();
                     break;
@@ -5078,6 +5141,8 @@
             });
             const amp  = finite(params.amplitude, 2);
             const tilt = finite(params.tilt, 3);
+            // Seeded so flicker stays identical across renders and exports.
+            const random = seededRandom(`${base.x},${base.y},${base.w},${base.h}`);
 
             const e = (easing) => (frame) => { if (easing) frame.easing = easing; return frame; };
             const easingParam = EASING_NAMES.includes(params.easing) ? params.easing : null;
@@ -5126,7 +5191,7 @@
                     ];
                 },
                 flicker: () => Array.from({ length: 12 }, (_, i) =>
-                    kf((i / 11) * dur, { opacity: 0.55 + Math.random() * 0.45 })),
+                    kf((i / 11) * dur, { opacity: 0.55 + random() * 0.45 })),
                 drift: () => [
                     kf(0,   { x: base.x }),
                     e(easingParam || 'easeInOut')(kf(dur, { x: base.x + finite(params.distance, 15) })),
@@ -5471,6 +5536,365 @@
             );
             this.setStatus(`Agent spec exported (${doc.layers.length} layers).`);
             return doc;
+        }
+
+        // ================================================================
+        // v2 agent commands — schema: layer-studio/agent-commands/v2
+        // ================================================================
+        agentCommandsApi() {
+            return (typeof window !== 'undefined' && window.AgentCommands) || null;
+        }
+
+        /**
+         * Applies a schema-shaped command batch to a sandbox copy, measures the
+         * result, runs guardrails on the measurements and only then commits it as
+         * a single step. `applyAgentCommands` (v1) stays untouched.
+         */
+        applyAgentBatch(batch, options = {}) {
+            const api = this.agentCommandsApi();
+            if (!api) {
+                this.setStatus('The agent command module is not loaded.', true);
+                return null;
+            }
+            const original = JSON.parse(JSON.stringify(this.serializeComposition()));
+            const formatId = (batch && batch.formatId) || this.composition.activeFormatId || 'master';
+            const prepared = api.applyBatch(this.composition, { ...batch, formatId }, {
+                skipGuardrails: true,
+                ignoreRevision: options.ignoreRevision === true,
+            });
+            if (prepared.result.status === 'rejected' || !prepared.composition) {
+                this.reportBatchResult(prepared.result);
+                return prepared.result;
+            }
+            const finalized = api.finalizeBatch(original, { ...batch, formatId }, prepared.composition, {
+                touched: [...prepared.touched],
+                touchedVariables: [...prepared.touchedVariables],
+                measureFactory: textMeasureFactory,
+                facts: this.composition.sourceFacts,
+                contrastByLayer: options.contrastByLayer,
+                sandboxId: prepared.result.sandboxId,
+            });
+            if (finalized.result.status === 'rejected' || !finalized.composition) {
+                this.reportBatchResult(finalized.result);
+                return finalized.result;
+            }
+            this._agentPrevious = original;
+            this._revisionLock = true;
+            try {
+                Object.keys(this.composition).forEach((key) => {
+                    if (!(key in finalized.composition)) delete this.composition[key];
+                });
+                Object.assign(this.composition, finalized.composition);
+                this.render();
+                this.scheduleSave();
+            } finally {
+                this._revisionLock = false;
+            }
+            this.reportBatchResult(finalized.result);
+            return finalized.result;
+        }
+
+        reportBatchResult(result) {
+            if (!result) return;
+            const errors = result.errors || [];
+            const warnings = result.warnings || [];
+            const head = result.status === 'rejected' ? 'Batch rejected' : 'Layout applied';
+            const detail = [...errors, ...warnings]
+                .slice(0, 3)
+                .map((entry) => `${entry.code}: ${entry.message}`)
+                .join(' ');
+            this.setStatus(`${head}${detail ? ` — ${detail}` : ''}`, result.status === 'rejected' || errors.length > 0);
+            this.emitAgentResult?.(result);
+        }
+
+        agentUndoAvailable() {
+            return Boolean(this._agentPrevious);
+        }
+
+        /** Restores the scene from before the last applied agent batch. */
+        revertAgentBatch() {
+            if (!this._agentPrevious) {
+                this.setStatus('There is no agent layout to revert.', true);
+                return false;
+            }
+            const previous = this._agentPrevious;
+            this._agentPrevious = null;
+            this._revisionLock = true;
+            Object.keys(this.composition).forEach((key) => {
+                if (!(key in previous)) delete this.composition[key];
+            });
+            Object.assign(this.composition, previous);
+            this._revisionLock = false;
+            this.render();
+            this.scheduleSave();
+            this.setStatus('Previous layout restored.');
+            return true;
+        }
+
+        /**
+         * The editor half of the protocol: scene, measured bounds, asset
+         * catalogue, brand kit, guardrails and source facts.
+         */
+        async exportAgentSnapshot({ formatId = null, withPng = true, maxEdge = 1400 } = {}) {
+            const api = this.agentCommandsApi();
+            if (!api) throw new Error('The agent command module is not loaded.');
+            let pngBase64 = '';
+            if (withPng) {
+                const chosen = formatId ? (this.composition.formats || []).find((entry) => entry.id === formatId) : null;
+                const snapshot = this.createExportSnapshot(chosen ? { format: chosen } : {});
+                await this.ensureFontsForExport(snapshot);
+                const scale = Math.min(1, maxEdge / Math.max(snapshot.width, snapshot.height));
+                const width = Math.max(1, Math.round(snapshot.width * scale));
+                const height = Math.max(1, Math.round(snapshot.height * scale));
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const context = canvas.getContext('2d');
+                if (context) {
+                    const assets = await this.loadExportAssets(snapshot, maxEdge, Math.max(width, height), 24_000_000);
+                    this.renderExportFrame(context, snapshot, assets, this.animation.currentTime, width, height);
+                    pngBase64 = canvas.toDataURL('image/png');
+                }
+            }
+            return api.createSnapshot(this.composition, {
+                formatId: formatId || this.composition.activeFormatId,
+                measureFactory: textMeasureFactory,
+                pngBase64,
+            });
+        }
+
+        /** Five layout concepts expressed as v2 batches, ready to preview or apply. */
+        proposeAgentLayouts(options = {}) {
+            const api = this.agentCommandsApi();
+            if (!api) return [];
+            return api.proposeLayoutVariants(this.composition, {
+                count: options.count || 5,
+                formatId: this.composition.activeFormatId,
+            });
+        }
+
+        /** Downloads the v2 snapshot (scene + render + measurements) as JSON. */
+        async downloadAgentSnapshot() {
+            const snapshot = await this.exportAgentSnapshot({
+                formatId: this.composition.activeFormatId,
+                withPng: false,
+            });
+            downloadFile(
+                safeFilename(`${this.composition.name}-agent-snapshot-r${snapshot.revision}`, 'json'),
+                'application/json',
+                JSON.stringify(snapshot, null, 2),
+            );
+            this.setStatus(`Agent snapshot exported at revision ${snapshot.revision}.`);
+            return snapshot;
+        }
+
+        setLayoutStatus(message, isError = false) {
+            const status = this.el.layoutStatus;
+            if (!status) return;
+            status.textContent = message || '';
+            status.dataset.error = String(Boolean(isError));
+        }
+
+        syncLayoutState() {
+            const revision = Number(this.composition.revision) || 0;
+            if (this.el.layoutRevision) this.el.layoutRevision.textContent = `Revision ${revision}`;
+            const revert = this.el.layoutDialog?.querySelector('[data-action="revert-layout"]');
+            if (revert) revert.disabled = !this.agentUndoAvailable();
+        }
+
+        openLayoutVariants() {
+            const dialog = this.el.layoutDialog;
+            if (!dialog) {
+                this.setStatus('The layout dialog markup is missing.', true);
+                return;
+            }
+            this.syncLayoutState();
+            if (typeof dialog.showModal === 'function') dialog.showModal();
+            else dialog.setAttribute('open', '');
+            this.captureLayoutBaseline();
+            this.renderLayoutVariants().catch((error) => {
+                this.setLayoutStatus(error.message || 'Could not render the layout concepts.', true);
+            });
+        }
+
+        closeLayoutVariants() {
+            this._layoutBaseline = null;
+            if (this.el.layoutDialog?.open) this.el.layoutDialog.close();
+        }
+
+        /**
+         * The concepts are alternatives, not stacked edits: every batch is planned
+         * against the scene as it stood when the dialog opened, so applying a second
+         * concept first rewinds to that baseline.
+         */
+        captureLayoutBaseline() {
+            this._layoutBaseline = JSON.parse(JSON.stringify(this.serializeComposition()));
+            return this._layoutBaseline;
+        }
+
+        restoreLayoutBaseline() {
+            if (!this._layoutBaseline) return false;
+            const baselineRevision = Number(this._layoutBaseline.revision) || 0;
+            if ((Number(this.composition.revision) || 0) === baselineRevision) return false;
+            const baseline = JSON.parse(JSON.stringify(this._layoutBaseline));
+            Object.keys(this.composition).forEach((key) => {
+                if (!(key in baseline)) delete this.composition[key];
+            });
+            Object.assign(this.composition, baseline);
+            return true;
+        }
+
+        /** Renders one preview card per concept, each drawn from its own sandbox. */
+        async renderLayoutVariants() {
+            const grid = this.el.layoutGrid;
+            if (!grid) return;
+            this.syncLayoutState();
+            const api = this.agentCommandsApi();
+            if (!api) {
+                this.setLayoutStatus('The agent command module is not loaded.', true);
+                return;
+            }
+            this.setLayoutStatus('Measuring layout concepts…');
+            let variants = [];
+            try {
+                variants = this.proposeAgentLayouts({ count: 5 });
+            } catch (error) {
+                this.setLayoutStatus(error.message || 'Could not propose layout concepts.', true);
+                return;
+            }
+            this._layoutVariants = variants;
+            grid.replaceChildren();
+            if (!variants.length) {
+                this.setLayoutStatus('No layout concepts could be derived from this scene.', true);
+                return;
+            }
+            for (const [index, variant] of variants.entries()) {
+                const card = this.buildLayoutCard(index, variant);
+                grid.appendChild(card);
+                const sandbox = api.applyBatch(
+                    this.composition,
+                    { ...variant, formatId: variant.formatId || this.composition.activeFormatId },
+                    { skipGuardrails: true, ignoreRevision: true },
+                );
+                if (sandbox.result.status === 'rejected' || !sandbox.composition) {
+                    card.dataset.status = 'rejected';
+                    const issue = (sandbox.result.errors || [])[0];
+                    this.setLayoutStatus(issue ? `${variant.label}: ${issue.message}` : `${variant.label} could not be prepared.`, true);
+                    continue;
+                }
+                const canvas = card.querySelector('canvas');
+                await this.paintLayoutThumb(canvas, sandbox.composition);
+            }
+            this.setLayoutStatus(`${variants.length} concepts · revision ${Number(this.composition.revision) || 0}`);
+        }
+
+        buildLayoutCard(index, variant) {
+            const card = document.createElement('article');
+            card.className = 'layer-layout-card';
+            card.dataset.status = 'ready';
+
+            const header = document.createElement('header');
+            const title = document.createElement('h3');
+            title.textContent = variant.label;
+            const badge = document.createElement('span');
+            const commands = Array.isArray(variant.commands) ? variant.commands : [];
+            badge.textContent = `${commands.length} command${commands.length === 1 ? '' : 's'}`;
+            header.append(title, badge);
+
+            const rationale = document.createElement('p');
+            rationale.className = 'layer-layout-rationale';
+            rationale.textContent = variant.rationale || '';
+
+            const canvas = document.createElement('canvas');
+            canvas.className = 'layer-layout-canvas';
+            canvas.width = 320;
+            canvas.height = 200;
+            canvas.setAttribute('role', 'img');
+            canvas.setAttribute('aria-label', `${variant.label} preview`);
+
+            const details = document.createElement('details');
+            const summary = document.createElement('summary');
+            summary.textContent = 'Command batch';
+            const list = document.createElement('ol');
+            list.className = 'layer-layout-commands';
+            commands.forEach((command) => {
+                const item = document.createElement('li');
+                const target = command.layerId || command.layer?.id || command.newId || '';
+                item.textContent = `${command.type}${target ? ` · ${target}` : ''}`;
+                list.appendChild(item);
+            });
+            details.append(summary, list);
+
+            const actions = document.createElement('div');
+            actions.className = 'layer-layout-actions';
+            const apply = document.createElement('button');
+            apply.type = 'button';
+            apply.className = 'brand-primary';
+            apply.dataset.action = 'apply-layout';
+            apply.dataset.index = String(index);
+            apply.textContent = 'Apply';
+            actions.appendChild(apply);
+
+            card.append(header, rationale, canvas, details, actions);
+            return card;
+        }
+
+        /** Paints each concept at its last keyframe so entrance animations read as layouts. */
+        async paintLayoutThumb(canvas, composition) {
+            if (!canvas) return;
+            const time = layoutPreviewTime(composition);
+            const snapshot = this.createExportSnapshot({ composition });
+            const scale = Math.min(canvas.width / snapshot.width, canvas.height / snapshot.height);
+            const width = Math.max(1, Math.round(snapshot.width * scale));
+            const height = Math.max(1, Math.round(snapshot.height * scale));
+            canvas.width = width;
+            canvas.height = height;
+            try {
+                const assets = await this.loadExportAssets(snapshot, 1024, Math.max(width, height), 8_000_000);
+                const context = canvas.getContext('2d');
+                if (context) this.renderExportFrame(context, snapshot, assets, time, width, height);
+            } catch (error) {
+                canvas.dataset.error = 'true';
+            }
+        }
+
+        /** Applies a concept through the sandbox → measure → guardrail → commit path. */
+        applyLayoutVariant(index) {
+            const variant = (this._layoutVariants || [])[index];
+            if (!variant) {
+                this.setLayoutStatus('That concept is no longer available. Regenerate and try again.', true);
+                return null;
+            }
+            const rewound = this.restoreLayoutBaseline();
+            const result = this.applyAgentBatch(variant);
+            this.syncLayoutState();
+            const cards = this.el.layoutGrid ? [...this.el.layoutGrid.children] : [];
+            cards.forEach((card, cardIndex) => {
+                card.dataset.applied = String(cardIndex === index && result?.status !== 'rejected');
+            });
+            if (!result) {
+                this.setLayoutStatus('The agent command module is not loaded.', true);
+                return result;
+            }
+            if (result.status === 'rejected') {
+                if (rewound) {
+                    this.render();
+                    this.scheduleSave();
+                }
+                const issue = [...(result.errors || []), ...(result.warnings || [])][0];
+                this.setLayoutStatus(`${variant.label} rejected — ${issue ? `${issue.code}: ${issue.message}` : 'unknown issue'}`, true);
+                return result;
+            }
+            this.applyAnimationTime(layoutPreviewTime(this.composition));
+            this.renderAnimationControls();
+            const warnings = result.warnings || [];
+            this.setLayoutStatus(
+                warnings.length
+                    ? `${variant.label} applied with ${warnings.length} warning${warnings.length === 1 ? '' : 's'}: ${warnings[0].code}`
+                    : `${variant.label} applied at revision ${result.sceneRevision}.`,
+                warnings.length > 0,
+            );
+            return result;
         }
 
         // ================================================================
@@ -7922,7 +8346,21 @@
             }
         }
 
+        /**
+         * Every scene mutation advances the revision so an agent batch planned
+         * against an older snapshot is rejected as stale. Batch applies lock the
+         * counter because they already carry the revision they produced.
+         */
+        bumpRevision() {
+            if (this._revisionLock) return;
+            const current = this.composition && Number.isFinite(this.composition.revision)
+                ? this.composition.revision
+                : 0;
+            if (this.composition) this.composition.revision = current + 1;
+        }
+
         scheduleSave() {
+            this.bumpRevision();
             if (!this.projectId) return;
             if (this._saveTimer) window.clearTimeout(this._saveTimer);
             this._saveTimer = window.setTimeout(() => {
@@ -9048,7 +9486,9 @@
                 }
                 const sourceWidth = image.naturalWidth || image.width;
                 const sourceHeight = image.naturalHeight || image.height;
-                if (layer.fit === 'cover') {
+                if (layer.fit === 'fill') {
+                    context.drawImage(image, -width / 2, -height / 2, width, height);
+                } else if (layer.fit === 'cover') {
                     const targetRatio = width / height;
                     const sourceRatio = sourceWidth / sourceHeight;
                     let sourceX = 0;
@@ -9536,7 +9976,7 @@
                 const h = layer.h * height / 100;
                 const cx = x + w / 2;
                 const cy = y + h / 2;
-                const fit = layer.fit === 'cover' ? 'xMidYMid slice' : 'xMidYMid meet';
+                const fit = layer.fit === 'cover' ? 'xMidYMid slice' : (layer.fit === 'fill' ? 'none' : 'xMidYMid meet');
                 const filter = hasLayerEffects(layer) ? ` filter="url(#${layerFilterId(layer)})"` : '';
                 return `<image href="${escapeXml(layer.frameUrl || layer.url)}" x="${x}" y="${y}" width="${w}" height="${h}"`
                     + ` opacity="${layer.opacity}" preserveAspectRatio="${fit}"${filter}`

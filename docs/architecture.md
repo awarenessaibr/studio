@@ -34,6 +34,7 @@ brand-aware canvas engine. Dependency-free modules sit between them:
 |---|---|---|
 | `src/shared/studio-core.js` | browser **and** Node | Schema normalisers, one text layout, one render-path resolver, formats, variables, brand-kit validation, safe zones, guardrails, brief parsing helpers |
 | `src/shared/brand-pack.js` | browser **and** Node | Brand-pack schema, tokens→kit mapping, palette-role inference, print + animated digital template builders |
+| `src/shared/agent-commands.js` | browser **and** Node | The `layer-studio/agent-commands/v2` batch protocol: validators, sandboxed apply, measurement, guardrails, snapshots and the five layout concepts |
 | `src/server/brand-docx.js` | Node | Word `.docx` reader (ZIP + document XML) |
 | `src/client/shared/_.js` | browser | The Layer Studio engine: state, DOM, canvas, timeline, characters, exports, agent protocol |
 | `src/client/studio/studio-v2.js` | browser | The studio page's own behaviour: zoom/fit, segment tree, group export, organizer dialog, saved projects |
@@ -157,7 +158,7 @@ live in `src/shared/studio-core.js` and in `src/client/shared/_.js` `makeLayer()
 | `opacity` | float | 0–1 |
 | `rotation` | float | Degrees, −3600…3600 |
 | `z` | int | Draw order, −1000…1000 |
-| `fit` | enum | `contain \| cover` |
+| `fit` | enum | `contain \| cover \| fill` (`fill` stretches the image; generated shapes and gradients use it) |
 | `keyframes` | array | `{ time, x, y, w, h, rotation, opacity, easing? }` in ms |
 | `bindings` | object | `{ text?, color?, url? }` → variable ids |
 | `visible`, `locked`, `positionConfirmed` | bool | Editor state |
@@ -192,6 +193,8 @@ across channels without per-format overrides.
   brandKit: BrandKit | null,             // embedded kit / snapshot
   brandKitId: string | null,             // shared kit wins over brandKit
   guardrails: { enabled, block },
+  revision: 0,                           // bumped by autosave and by agent batches
+  sourceFacts: {},                       // operator-supplied facts for NO_INVENTED_FACTS
   showSafeZones: true,
   meta: { context, director, fontSubstitutions, sharedKitId, … }
 }
@@ -224,6 +227,13 @@ Character = {
   applied: bool
 }
 ```
+
+`revision` is the optimistic-concurrency stamp of the agent protocol: autosave
+increments it, a batch records the revision it was planned against
+(`baseRevision`) and commits `baseRevision + 1`. `sourceFacts` holds the facts
+an operator actually supplied (phone, address, URL), which is what lets the
+guardrails refuse invented ones. Both are optional; older documents normalise
+to `revision: 0` and `sourceFacts: {}`.
 
 Caps: 500 layers, 24 formats, 60 variables, 60 sprite frames.
 
@@ -324,7 +334,9 @@ has no supply chain.
 | Add a motif | `src/client/asset-studio/engine.js` motif library + `MOTIF_LABELS` in `app.js` |
 | Add a character part | `src/client/shared/_.js` → `CHARACTER_PART_KEYS` + rig generation + detector |
 | Add an API endpoint | `server.js` router + a test in `tests/server.test.js` |
-| Change the agent schema | `src/client/shared/_.js` → `exportAgentSpec()` / `applyAgentCommands()`, then update `agent-prompt.md` |
+| Change the agent schema (v1) | `src/client/shared/_.js` → `exportAgentSpec()` / `applyAgentCommands()`, then update `agent-prompt.md` |
+| Change the batch protocol (v2) | `src/shared/agent-commands.js` → the command table, `applyCommand()`, `DEFAULT_RULES`, then update `agent-protocol.md` §8 and `tests/agent-commands.test.js` |
+| Add a layout concept | `src/shared/agent-commands.js` → `proposeLayoutVariants()`; it is just another v2 batch |
 
 After a change, run `npm test`; for anything visual, run `npm run test:visual`.
 

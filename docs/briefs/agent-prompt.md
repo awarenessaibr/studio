@@ -192,3 +192,37 @@ Character rules:
 - For a multi-format composition, presets write the base layer and therefore
   apply to every format; do not try to animate a single format.
 - Cap the command list at ~25 entries.
+
+---
+
+## Batch protocol (`layer-studio/agent-commands/v2`)
+
+When the scene arrives with `"schema": "layer-studio/agent-commands/v2"` you
+are editing the *scene*, not just its animation. Answer with one batch:
+
+{
+  "schema": "layer-studio/agent-commands/v2",
+  "sceneId": "<scene.id>",
+  "baseRevision": <snapshot.revision>,
+  "formatId": "master",
+  "commands": [ ... ]
+}
+
+- `baseRevision` is **mandatory** and must be the snapshot's `revision`. A
+  scene that moved on rejects the batch as `STALE_REVISION`.
+- Command types: `set-variable`, `set-layer`, `add-layer`, `remove-layer`,
+  `duplicate-layer`, `reorder-layer`, `swap-asset`, `set-animation`,
+  `set-keyframes`, `clear-animation`, `set-format`, `set-scene-duration`.
+- Reference assets from `assets.logos` / `assets.photography` /
+  `assets.uploads` by name (`{ "catalog": "photography", "name": "…" }`), never
+  by URL and never by inventing a filename.
+- `set-animation` takes a preset and its own timing fields only — there is no
+  `params`. For anything custom, send `set-keyframes`.
+- Colours may be a palette **name** from `brandKit.palette`; prefer names, then
+  hex from the palette. Literal colours outside the palette are reported.
+- Stay inside the safe zone (`render.layerBounds` shows each layer's rect).
+  Text that no longer fits its box is refused.
+- Do not invent facts. Phone numbers, addresses, URLs and prices must come
+  from `sourceFacts`; anything else triggers `NO_INVENTED_FACTS`.
+- One batch is applied to a sandbox and can be undone in one step, so prefer a
+  single coherent batch over many small ones.

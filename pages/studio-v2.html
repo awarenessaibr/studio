@@ -364,7 +364,11 @@
                 </div>
                 <div class="bar-group">
                     <button type="button" data-action="export-json">JSON</button>
-                    <button type="button" data-action="export-agent-spec">Agent spec</button>
+                    <button type="button" data-action="export-agent-spec" title="Read-only scene brief for an agent (v1)">Agent spec</button>
+                    <button type="button" data-action="export-agent-snapshot" title="Scene, render and measured bounds (v2)">Agent snapshot</button>
+                </div>
+                <div class="bar-group">
+                    <button type="button" data-action="open-layouts" title="Five layout concepts as agent command batches">Layouts…</button>
                 </div>
                 <button type="button" data-action="export-all-formats" title="Render every format and locale into one ZIP">All formats (ZIP)</button>
                 <button type="button" data-brand-action="save-current-template"
@@ -673,6 +677,35 @@
             </div>
         </dialog>
 
+        <dialog id="layerLayoutDialog" class="layer-dialog layer-dialog-wide" aria-labelledby="layerLayoutTitle">
+            <div class="layer-dialog-form">
+                <header class="layer-dialog-header">
+                    <div>
+                        <h2 id="layerLayoutTitle">Layout alternatives</h2>
+                        <p>Agent command batches, applied to a sandbox first</p>
+                    </div>
+                    <button type="button" class="layer-icon-btn" data-action="close-layouts" aria-label="Close layout dialog">
+                        <i class="fas fa-xmark" aria-hidden="true"></i>
+                    </button>
+                </header>
+                <p class="layer-dialog-copy">
+                    Each card is a <code>layer-studio/agent-commands/v2</code> batch. Applying one
+                    measures the result, runs the guardrail rules and commits a single step you can revert.
+                </p>
+                <div class="bar-group layer-layout-toolbar">
+                    <button type="button" data-action="refresh-layouts">Regenerate</button>
+                    <button type="button" data-action="replay-layout" title="Restart the animation from 0 ms">Replay motion</button>
+                    <button type="button" data-action="revert-layout" disabled>Revert last layout</button>
+                    <span id="layerLayoutRevision" class="layer-status">Revision 0</span>
+                </div>
+                <p id="layerLayoutStatus" class="layer-dialog-status" role="status"></p>
+                <div id="layerLayoutGrid" class="layer-layout-grid"></div>
+                <div class="layer-dialog-actions layer-dialog-actions--plain">
+                    <button type="button" data-action="close-layouts">Close</button>
+                </div>
+            </div>
+        </dialog>
+
         <dialog id="layerBatchDialog" class="layer-dialog" aria-labelledby="layerBatchTitle">
             <div class="layer-dialog-form">
                 <header class="layer-dialog-header">
@@ -779,6 +812,7 @@
     </div>
 
     <script src="/src/shared/studio-core.js"></script>
+    <script src="/src/shared/agent-commands.js"></script>
     <script src="/src/shared/brand-pack.js"></script>
     <script src="/src/client/shared/_.js"></script>
     <script src="/src/client/brand/brand-identity.js"></script>

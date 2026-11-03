@@ -144,7 +144,7 @@ edit marks the composition dirty and autosaves.
 | | Rotation | degrees, −3600…3600 |
 | | Opacity | percent, 0–100 |
 | | Z-index | draw order |
-| Image | Image fit | `contain` / `cover` |
+| Image | Image fit | `contain` / `cover` / `fill` (`fill` stretches, used by generated shapes and gradients) |
 | | Link image | bind to a `url`/`image` variable |
 | | Replace visible pixels + colour | flat recolour (logos, silhouettes) |
 | | Contour: enable, colour, thickness | 1–16 px outline |
@@ -374,7 +374,7 @@ is not loaded — a silent fallback would produce a wrong export.
 
 ## 10. AI assistance
 
-Both features are review-first and optional; nothing is applied until you
+Every feature here is review-first and optional; nothing is applied until you
 press Apply.
 
 ### Animation ideas (director)
@@ -393,6 +393,21 @@ press Apply.
   `proposals.json`.
 - **Offline**: the panel reports `LLM offline` and shows the command to start
   Ollama. Generation takes roughly 1–2 minutes on an M2 Pro.
+
+### Layout alternatives
+**Layouts…** (Export bar) asks the local planner for five layout concepts —
+photo-led, ink night, framed editorial, type poster and motion — and shows
+each as a painted thumbnail with its command list. They are complete
+alternatives, not increments: applying one rewinds to the scene captured when
+the dialog opened, so the second concept does not inherit the first one's
+layers. **Revert** restores that captured scene; **Regenerate** re-plans from
+the current state. Nothing is applied until **Apply**.
+
+The concepts are ordinary `layer-studio/agent-commands/v2` batches
+([agent-protocol.md §8](agent-protocol.md#8-batch-protocol-v2--layer-studioagent-commandsv2)),
+so an outside model can produce the same thing. Applying a batch advances the
+composition's `revision`; the dialog and the status bar show it, and one
+batch can be undone.
 
 ### Organize with AI (segments)
 - Sends each cut-out thumbnail next to the final image and asks for a
@@ -419,6 +434,8 @@ Export panel:
 | **Save to brand…** | a published brand template | Snapshots the current composition into its brand pack; available again from Brand identity → Templates |
 | **JSON** | the composition | Round-trippable document |
 | **Agent spec** | `layer-studio/agent/v1` | Layer/format/variable/character inventory |
+| **Agent snapshot** | `layer-studio/agent-commands/v2` | `<name>-agent-snapshot-r<revision>.json`: resolved scene, measured per-layer bounds, asset catalogue, brand kit, effective guardrails and `sourceFacts` — the input a v2 batch is planned against |
+| **Layouts…** | five layout concepts | Not an export: opens the layout dialog (§10) |
 | **All formats (ZIP)** | formats × locales × outputs | Outputs: PNG, GIF, SVG, Video; video is the slow path and is transcoded per clip |
 
 Guardrails can refuse any of these (§8). Exports that need pixels or fonts
