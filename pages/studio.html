@@ -1689,6 +1689,60 @@ function engApply(){
 /* ---------- asset panel ---------- */
 const ELS=[{k:'scrim',n:'Scrim gradient',st:()=>`background:linear-gradient(${rgba(TH.ink,0)},${TH.ink})`},{k:'rule',n:'Rule line',st:()=>`background:linear-gradient(#0000 45%,${TH.accent} 45% 55%,#0000 55%)`},
  {k:'badge',n:'Badge',st:()=>`background:${TH.accent};color:${readable('#ffffff',TH.accent)}`,t:'NEW'},{k:'text',n:'Text block',st:()=>`background:${TH.bone};color:${TH.ink}`,t:'Aa'}];
+function buildTemplateFormatChoice(template){
+ const v=String((template && (template.format || template.category || template.kind || '')) || '').toLowerCase();
+ const direct=FMTS.find(f=>{
+  const haystack=`${f.group} ${f.n} ${f.id}`.toLowerCase();
+  const wants=[v, String(template && (template.label || template.name || template.title || '')).toLowerCase()];
+  return wants.some(w=>!w?false:(haystack.includes(w)||w.includes(haystack)));
+ });
+ if(direct)return direct;
+ if(/social|square/.test(v))return FMTS.find(f=>f.id==='sq')||FMTS[0];
+ if(/story|9:16|vertical/.test(v))return FMTS.find(f=>f.id==='story')||FMTS[0];
+ if(/banner|landscape/.test(v))return FMTS.find(f=>f.id==='land')||FMTS[0];
+ if(/portrait\s*4:5|4:5/.test(v))return FMTS.find(f=>f.id==='portrait-45')||FMTS[0];
+ if(/flyer|print|a4/.test(v))return FMTS.find(f=>f.id==='a4')||FMTS[0];
+ return FMTS[0];
+}
+function applyTemplateChoice(template){
+ const item=template || getTemplateCatalog()[0];
+ const label=String(item && (item.label || item.name || item.title || 'Template'));
+ const templateId=String(item && (item.id || item.slug || item.name || label)).toLowerCase();
+ const target=buildTemplateFormatChoice(item);
+ if(hasEngine() && B){
+  const catalog=window.AssetCategories||{};
+  const cats=Object.keys(catalog);
+  const catKey=String(item && (item.category || item.kind || '')).toLowerCase();
+  let nextCat=ENG.cat || cats[0];
+  if(catKey){
+   const match=cats.find(id=>{
+    const title=String((catalog[id]&&catalog[id].title)||id).toLowerCase();
+    return title.includes(catKey) || catKey.includes(title);
+   });
+   if(match)nextCat=match;
+  }
+  if(nextCat&&catalog[nextCat]){
+   ENG.cat=nextCat;
+   const list=(catalog[nextCat].tpls||[]);
+   const index=list.findIndex(t=>{
+    const name=String((t.n||t.name||t.title||'')).toLowerCase();
+    return name.includes(templateId.replace(/[-_]/g,' ')) || templateId.includes(name.replace(/[^a-z0-9]/g,''));
+   });
+   if(index>=0)ENG.tpl=index;
+   ENG.size=0;
+  }
+  ENG.wired=true;
+  engApply();
+ }else{
+  FMT=target;
+  fitStage();sizeProbe();
+  hist=[];sel=null;seen=new Set();stopP();T=DUR;
+  scene=fitScene(buildScene('classic'));
+  render();layers();greet();remember();
+ }
+ $('#status').textContent=`${B ? B.name + ' · ' : ''}${label} · ${FMT ? FMT.n : target.n}`;
+ toast(`Template selected: ${label}`);
+}
 function assets(){
  const tabs=$('#atabs'),n=AS.lib.items.length;
  tabs.innerHTML='';[['brand','Brand'],['lib',n?`Library (${n})`:'Library'],['tmpl','Templates'],['el','Elements']].forEach(([k,t])=>{const b=document.createElement('button');b.textContent=t;b.setAttribute('role','tab');b.setAttribute('aria-selected',String(AS.tab===k));b.onclick=()=>{AS.tab=k;assets()};tabs.appendChild(b)});
@@ -1735,10 +1789,10 @@ function assets(){
    a.addEventListener('click',()=>{
     const k=a.dataset.k||'';
     const [kind, value]=k.split(':');
-    if(kind==='template'){toast(`Template selected: ${a.textContent.trim() || value}`);}
-    else if(kind==='size'){const size=getSizeCatalog().find(s=>s.id===value);if(size){toast(`Size selected: ${size.label}`);}}
-    else if(kind==='format'){const fmt=getFormatCatalog().find(f=>f.id===value);if(fmt){toast(`Format selected: ${fmt.label}`);}}
-    else if(kind==='motif'){const motif=getMotifCatalog().find(m=>m.id===value);if(motif){toast(`Motif selected: ${motif.label}`);}}
+    if(kind==='template'){const t=getTemplateCatalog().find(item=>String(item.id||item.slug||item.name||item.label)===value);if(t){applyTemplateChoice(t);}}
+    else if(kind==='size'){const size=getSizeCatalog().find(s=>s.id===value);if(size){const map={a4:'a4',square:'sq','story-916':'story',landscape:'land','portrait-45':'portrait-45'};const next=FMTS.find(f=>f.id===map[value]||f.n.toLowerCase()===size.label.toLowerCase())||FMTS[0];setFormat(next.id);toast(`Size selected: ${size.label}`);}}
+    else if(kind==='format'){const fmt=getFormatCatalog().find(f=>f.id===value);if(fmt){setFormat(fmt.id);toast(`Format selected: ${fmt.label}`);}}
+    else if(kind==='motif'){const motif=getMotifCatalog().find(m=>m.id===value);if(motif){if(hasEngine() && B){ENG.motif=motif.id;ENG.motifOn=motif.id!=='none';engRefreshArt();} else {toast(`Motif selected: ${motif.label}`);}}}
     p.querySelectorAll('.asset[data-choice]').forEach(item=>item.classList.toggle('is-selected', item===a));
     return;
    });
@@ -1766,7 +1820,7 @@ async function addAsset(k,px,py){
  else if(kind==='logo'){const asp=(B._logos&&B._logos[a]&&B._logos[a].aspect)||4,[w,h]=box(asp,24);Ly={...at(w,h),name:a==='mark'?'Mark':'Logo',type:'logo',which:a,tone:b2}}
  else if(kind==='lib'){const it=AS.lib.items.find(x=>x.id===a);if(!it)return;const asp=it.width&&it.height?it.width/it.height:await aspOf(it.sourceUrl),[w,h]=box(asp,50),logoish=/logo|icon|mark|badge/i.test(`${it.class} ${it.role}`);
   Ly={...at(w,h),name:it.name,type:'image',src:it.sourceUrl,assetId:it.id,fit:logoish?'contain':'cover'};recordUsage(it)}
- else if(kind==='template'){const tpl=getTemplateCatalog().find(t=>t.id===a),label=tpl?tpl.label:'Template';const name=String(label).slice(0,18);Ly={...at(52,18),name, type:'text',text:name.toUpperCase(),font:F(BF.display,BF.dW,4.2,1.2),color:TH.ink,bg:rgba(TH.accent,.14),radius:1};}
+ else if(kind==='template'){const tpl=getTemplateCatalog().find(t=>t.id===a)||getTemplateCatalog()[0];if(tpl){applyTemplateChoice(tpl);return;} }
  else if(kind==='size'){const size=getSizeCatalog().find(s=>s.id===a);if(size){const map={a4:'a4',square:'sq','story-916':'story',landscape:'land','portrait-45':'a4'};const id=map[a]||'a4';const next=FMTS.find(f=>f.id===id)||FMTS[0];setFormat(next.id);toast(`Format changed to ${next.n}.`);return;}Ly={...at(40,6),name:'Size',type:'text',text:'Size',font:F(BF.display,BF.dW,2.4,1.2),color:TH.ink};}
  else if(kind==='format'){const next=FMTS.find(f=>f.id===a) || FMTS[0];setFormat(next.id);toast(`Format changed to ${next.n}.`);return;}
  else if(kind==='motif'){const motif=getMotifCatalog().find(m=>m.id===a)||getMotifCatalog()[0];Ly={...at(18,12),name:motif.label,type:'text',text:motif.icon||'✦',font:F(BF.display,BF.dW,4.6,1.1),color:motif.tone==='accent'?TH.accent:TH.ink};}

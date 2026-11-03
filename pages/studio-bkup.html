@@ -1,0 +1,2019 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Agent Studio</title>
+<style>
+/* ==========================================================================
+   Dual theme system (system | light | dark)
+   ========================================================================== */
+:root {
+  /* Dark (default) */
+  --bg: #131217;
+  --pan: #19181e;
+  --rai: #23222b;
+  --line: #2c2b35;
+  --hi: #3a3946;
+  --tx: #ecebf1;
+  --mu: #8d8b9a;
+  --ac: #e8803a;
+  --ok: #41baae;
+  --warn: #f5b942;
+  --err: #e5584c;
+  --err-bg: #7a2b25;
+  --chip-bg: #1e1d24ee;
+  --shadow: 0 10px 40px #0007;
+  --safe: #00c2ff;
+  color-scheme: dark;
+}
+
+html[data-theme="light"],
+html[data-theme="system"]:not(.dark) {
+  --bg: #e9e7ee;
+  --pan: #ffffff;
+  --rai: #f1eff5;
+  --line: #d9d6e0;
+  --hi: #c9c6d3;
+  --tx: #1b1a24;
+  --mu: #6c6a79;
+  --ac: #d46a1f;
+  --ok: #2a9d8f;
+  --warn: #c9921a;
+  --err: #c13c32;
+  --err-bg: #9b2c24;
+  --chip-bg: #2a2933ee;
+  --shadow: 0 10px 36px rgba(0,0,0,.12);
+  --safe: #0088cc;
+  color-scheme: light;
+}
+
+html[data-theme="dark"],
+html[data-theme="system"].dark {
+  --bg: #131217;
+  --pan: #19181e;
+  --rai: #23222b;
+  --line: #2c2b35;
+  --hi: #3a3946;
+  --tx: #ecebf1;
+  --mu: #8d8b9a;
+  --ac: #e8803a;
+  --ok: #41baae;
+  --warn: #f5b942;
+  --err: #e5584c;
+  --err-bg: #7a2b25;
+  --chip-bg: #1e1d24ee;
+  --shadow: 0 10px 40px #0007;
+  --safe: #00c2ff;
+  color-scheme: dark;
+}
+
+/* Fallback for older browsers that only understand prefers-color-scheme */
+@media (prefers-color-scheme: light) {
+  html[data-theme="system"]:not(.dark) {
+    --bg: #e9e7ee;
+    --pan: #ffffff;
+    --rai: #f1eff5;
+    --line: #d9d6e0;
+    --hi: #c9c6d3;
+    --tx: #1b1a24;
+    --mu: #6c6a79;
+    --ac: #d46a1f;
+    --ok: #2a9d8f;
+    --warn: #c9921a;
+    --err: #c13c32;
+    --err-bg: #9b2c24;
+    --chip-bg: #2a2933ee;
+    --shadow: 0 10px 36px rgba(0,0,0,.12);
+    --safe: #0088cc;
+    color-scheme: light;
+  }
+}
+
+/* ==========================================================================
+   Base
+   ========================================================================== */
+*, *::before, *::after { box-sizing: border-box; }
+html {
+  scroll-padding-top: env(safe-area-inset-top, 0px);
+  height: 100%;
+}
+body {
+  height: 100%;
+  margin: 0;
+  background: var(--bg);
+  color: var(--tx);
+  font: 13px/1.45 "Helvetica Neue", Arial, sans-serif;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+* { scrollbar-width: none; }
+*::-webkit-scrollbar { display: none; width: 0; height: 0; }
+
+button, select {
+  font: inherit;
+  color: inherit;
+  background: var(--rai);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 5px 9px;
+  cursor: pointer;
+  transition: border-color .15s, background .15s, opacity .15s;
+}
+button:hover, select:hover { border-color: var(--ac); }
+button:disabled, select:disabled {
+  opacity: .5;
+  cursor: default;
+  border-color: var(--line);
+}
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--ac);
+  outline-offset: 1px;
+}
+
+/* ==========================================================================
+   Layout
+   ========================================================================== */
+#app {
+  --left-panel: 270px;
+  --right-panel: 390px;
+  height: 100%;
+  display: grid;
+  grid-template-columns: var(--left-panel) 10px 1fr 10px var(--right-panel);
+  grid-template-rows: 48px 1fr;
+}
+
+.resize-handle {
+  position: relative;
+  background: var(--pan);
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  cursor: col-resize;
+  user-select: none;
+  touch-action: none;
+}
+.resize-handle::before {
+  content: "";
+  position: absolute;
+  inset: 0 2px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent 0, transparent 35%, var(--line) 35%, var(--line) 65%, transparent 65%, transparent 100%);
+  opacity: .5;
+}
+.resize-handle:hover::before,
+.resize-handle:active::before { opacity: 1; }
+.resize-handle:focus-visible {
+  outline: 2px solid var(--ac);
+  outline-offset: -2px;
+}
+.resize-handle[data-collapsed] { background: var(--rai); }
+.resize-handle[data-collapsed]::before { display: none; }
+.resize-handle[data-collapsed]::after {
+  content: '›';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 18px;
+  line-height: 1;
+  color: var(--mu);
+}
+.resize-handle[data-resize="right"][data-collapsed]::after { content: '‹'; }
+.resize-handle[data-collapsed]:hover::after { color: var(--ac); }
+
+#app.l-collapsed aside,
+#app.r-collapsed .agent { visibility: hidden; border: 0; }
+
+/* ==========================================================================
+   Header
+   ========================================================================== */
+header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  background: var(--pan);
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+header b { font-size: 14px; white-space: nowrap; }
+header .sp { flex: 1; }
+header select { max-width: 190px; text-overflow: ellipsis; }
+header a {
+  color: var(--mu);
+  text-decoration: none;
+  font-size: 12px;
+  white-space: nowrap;
+}
+header a:hover { color: var(--tx); }
+.logo {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--ac);
+  display: grid;
+  place-items: center;
+  color: #131317;
+  font-weight: 800;
+  flex: none;
+}
+.bsw {
+  display: flex;
+  gap: 5px;
+  overflow-x: auto;
+  min-width: 0;
+  flex: 0 1 auto;
+  padding: 2px 0;
+  scrollbar-width: thin;
+}
+.bsw button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  border-radius: 99px;
+  padding: 3px 10px;
+}
+.bsw button[aria-pressed="true"] {
+  border-color: var(--ac);
+  background: var(--hi);
+}
+.bsw i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid var(--hi);
+  flex: none;
+}
+#net {
+  color: var(--warn);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* Theme toggle */
+.theme-toggle {
+  display: flex;
+  gap: 2px;
+  background: var(--rai);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 2px;
+}
+.theme-toggle button {
+  padding: 3px 8px;
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--mu);
+}
+.theme-toggle button[aria-pressed="true"] {
+  background: var(--hi);
+  color: var(--tx);
+  border: 1px solid var(--line);
+}
+
+/* ==========================================================================
+   Sidebars & panels
+   ========================================================================== */
+aside {
+  background: var(--pan);
+  border-right: 1px solid var(--line);
+  overflow: auto;
+  min-height: 0;
+  min-width: 0;
+}
+h3 {
+  margin: 0;
+  padding: 10px 12px 6px;
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--mu);
+}
+h3 small {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+h3[data-sec] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 6px;
+  cursor: pointer;
+  user-select: none;
+}
+h3[data-sec]::before {
+  content: '▾';
+  font-size: 10px;
+  color: var(--mu);
+  width: 10px;
+  display: inline-block;
+  transition: transform .15s;
+}
+h3[data-sec][aria-expanded="false"]::before { transform: rotate(-90deg); }
+h3[data-sec]:hover { color: var(--tx); }
+h3[data-sec]:focus-visible {
+  outline: 2px solid var(--ac);
+  outline-offset: -2px;
+}
+.sec-body[hidden] { display: none; }
+
+.atabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 10px 10px 6px;
+}
+.atabs button { flex: 1; padding: 4px 6px; font-size: 12px; }
+.atabs button[aria-selected="true"] {
+  border-color: var(--ac);
+  background: var(--hi);
+}
+.sub {
+  padding: 2px 12px 4px;
+  color: var(--mu);
+  font-size: 11px;
+}
+.assets {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 0 10px 8px;
+}
+.asset {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--rai);
+  padding: 6px;
+  cursor: grab;
+  font-size: 11px;
+  text-align: center;
+  min-width: 0;
+}
+.asset[data-choice] { cursor: pointer; }
+.asset:hover { border-color: var(--ac); }
+.asset.is-selected {
+  border-color: var(--ac);
+  box-shadow: inset 0 0 0 1px var(--ac);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ac) 12%, transparent), color-mix(in srgb, var(--ac) 4%, transparent));
+}
+.asset .th {
+  height: 46px;
+  border-radius: 5px;
+  margin-bottom: 4px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+  font: 700 11px Georgia, serif;
+}
+.asset .th img {
+  max-width: 92%;
+  max-height: 84%;
+  object-fit: contain;
+}
+.asset span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.asset .st {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warn);
+  margin-right: 4px;
+}
+.asset .st[data-s="verified"],
+.asset .st[data-s="approved"] { background: var(--ok); }
+.asset .st[data-s="rejected"] { background: var(--err); }
+
+.eng-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 0 10px 8px;
+  max-height: 300px;
+  overflow: auto;
+}
+.eng-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--rai);
+  padding: 5px;
+  cursor: pointer;
+  font-size: 11px;
+  text-align: center;
+  min-width: 0;
+  color: inherit;
+}
+.eng-card:hover { border-color: var(--ac); }
+.eng-card.is-selected {
+  border-color: var(--ac);
+  box-shadow: inset 0 0 0 1px var(--ac);
+}
+.eng-card canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 150px;
+  object-fit: contain;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--tx) 8%, transparent);
+  margin-bottom: 4px;
+}
+.eng-card span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eng-motif {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+  padding: 0 10px 8px;
+}
+.eng-mt {
+  padding: 3px;
+  font-size: 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--rai);
+  min-width: 0;
+  color: inherit;
+}
+.eng-mt:hover { border-color: var(--ac); }
+.eng-mt[aria-pressed="true"] {
+  border-color: var(--ac);
+  background: var(--hi);
+}
+.eng-mt canvas {
+  display: block;
+  width: 100%;
+  height: 34px;
+  object-fit: contain;
+  border-radius: 4px;
+  margin-bottom: 2px;
+}
+.eng-mt span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eng-sl {
+  padding: 0 12px 7px;
+  font-size: 11px;
+  color: var(--mu);
+}
+.eng-sl label {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+.eng-sl input { width: 100%; }
+.eng-row {
+  display: flex;
+  gap: 6px;
+  padding: 0 12px 8px;
+  align-items: center;
+}
+.eng-row button { padding: 3px 9px; }
+.eng-sel {
+  display: block;
+  width: calc(100% - 20px);
+  margin: 0 10px 8px;
+}
+.template-list,
+.mini-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 0 10px 8px;
+}
+.mini-grid { grid-template-columns: 1fr; }
+.mini-grid .asset { min-height: 92px; }
+.template-list .asset .th,
+.mini-grid .asset .th {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.flt {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 0 10px 8px;
+  font-size: 12px;
+  color: var(--mu);
+}
+.flt select {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 6px;
+}
+.note {
+  padding: 0 12px 10px;
+  color: var(--mu);
+  font-size: 12px;
+}
+.note a { color: var(--ac); }
+.sw {
+  display: flex;
+  gap: 4px;
+  padding: 0 12px 8px;
+  flex-wrap: wrap;
+}
+.sw button {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--hi);
+  padding: 0;
+}
+.lrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+}
+.lrow:hover { background: var(--rai); }
+.lrow[data-s="1"] {
+  background: var(--hi);
+  border-left-color: var(--ac);
+}
+.lrow span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lrow small { color: var(--mu); }
+.lrow button {
+  padding: 1px 6px;
+  border: 0;
+  background: transparent;
+  color: var(--mu);
+}
+
+/* ==========================================================================
+   Main stage
+   ========================================================================== */
+main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.tb {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--pan);
+  flex-wrap: wrap;
+}
+.tb .sp { flex: 1; }
+.tb label {
+  color: var(--mu);
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+.wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+  background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--tx) 6%, transparent), transparent);
+}
+.stage {
+  container-type: size;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  flex: none;
+  width: 300px;
+  height: 424px;
+}
+.L {
+  position: absolute;
+  overflow: hidden;
+  touch-action: none;
+  cursor: move;
+}
+.T { display: flex; align-items: center; }
+.sel {
+  outline: 2px solid #fff;
+  outline-offset: -2px;
+}
+.chip {
+  position: absolute;
+  left: 0;
+  top: 0;
+  background: var(--chip-bg);
+  color: #fff;
+  font: 11px Arial;
+  padding: 2px 8px;
+  border-radius: 99px;
+  z-index: 9999;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.safe .stage::after {
+  content: "";
+  position: absolute;
+  inset: 8%;
+  border: 1px dashed var(--safe);
+  pointer-events: none;
+  z-index: 99;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(2cqh); }
+  to { opacity: 1; }
+}
+@keyframes zoom { to { transform: scale(1.08); } }
+@keyframes parallax {
+  from { transform: scale(1.08); }
+  to { transform: translateY(-2.5cqh) scale(1.08); }
+}
+@keyframes pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) {
+  .L[data-an] { animation: none !important; }
+}
+
+/* ==========================================================================
+   Agent panel
+   ========================================================================== */
+.agent {
+  display: flex;
+  flex-direction: column;
+  background: var(--pan);
+  border-left: 1px solid var(--line);
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+.agent h4 {
+  margin: 0;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+.agent h4 .meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.agent h4 button {
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+#chat {
+  flex: 1;
+  overflow: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  max-height: calc(100vh - 120px);
+}
+#ctxMenu {
+  position: fixed;
+  z-index: 1000;
+  display: none;
+  min-width: 160px;
+  padding: 6px;
+  background: var(--rai);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  box-shadow: var(--shadow);
+}
+#ctxMenu.visible { display: block; }
+#ctxMenu button {
+  display: block;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  text-align: left;
+  color: var(--tx);
+  cursor: pointer;
+}
+#ctxMenu button:hover { background: var(--hi); }
+.m {
+  max-width: 94%;
+  padding: 8px 11px;
+  border-radius: 12px;
+  background: var(--rai);
+  align-self: flex-start;
+}
+.m.u {
+  align-self: flex-end;
+  background: var(--ac);
+  color: #131317;
+}
+.cards {
+  display: grid;
+  gap: 7px;
+  align-self: stretch;
+}
+.card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 10px;
+  background: var(--bg);
+}
+.card:hover { border-color: var(--ac); }
+.card b { display: block; }
+.card p {
+  margin: 2px 0 7px;
+  color: var(--mu);
+  font-size: 12px;
+}
+.card .r {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.card .r small {
+  color: var(--mu);
+  flex: 1;
+}
+.card pre {
+  margin: 7px 0 0;
+  max-height: 150px;
+  overflow: auto;
+  font-size: 10.5px;
+  background: var(--rai);
+  padding: 6px;
+  border-radius: 6px;
+}
+.card.done { border-color: var(--ok); }
+.ctx {
+  margin: 0 12px;
+  padding: 6px 9px;
+  border: 1px dashed var(--hi);
+  border-radius: 8px;
+  color: var(--mu);
+  font-size: 12px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.ctx b { color: var(--tx); }
+.ctx button {
+  margin-left: auto;
+  padding: 0 6px;
+}
+.qp {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  padding: 8px 12px 0;
+}
+.qp button {
+  font-size: 11px;
+  border-radius: 99px;
+}
+form {
+  display: flex;
+  gap: 6px;
+  padding: 10px 12px;
+}
+input[type=text] {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg);
+  color: var(--tx);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+}
+form button {
+  background: var(--ac);
+  color: #131317;
+  border: 0;
+  font-weight: 700;
+}
+
+/* ==========================================================================
+   Timeline
+   ========================================================================== */
+main {
+  --timeline-height: 178px;
+}
+.tl {
+  height: var(--timeline-height);
+  flex: none;
+  border-top: 1px solid var(--line);
+  background: var(--pan);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  transition: height .15s ease;
+}
+.tl[data-collapsed="true"] {
+  height: 12px;
+  border-top: 1px solid var(--line);
+}
+.tl[data-collapsed="true"] .tlh,
+.tl[data-collapsed="true"] .tlb {
+  display: none;
+}
+.timeline-resize-handle {
+  position: relative;
+  height: 10px;
+  background: var(--pan);
+  border-top: 1px solid var(--line);
+  cursor: row-resize;
+  user-select: none;
+  touch-action: none;
+}
+.timeline-resize-handle::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 38px;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent 0%, var(--line) 20%, var(--line) 80%, transparent 100%);
+}
+.timeline-resize-handle[data-collapsed="true"]::before {
+  width: 18px;
+  background: linear-gradient(90deg, transparent 0%, var(--ac) 20%, var(--ac) 80%, transparent 100%);
+}
+.timeline-resize-handle[data-collapsed="true"]::after {
+  content: '⌃';
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--ac);
+  font-size: 14px;
+  line-height: 1;
+}
+.tlh {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.tlh input[type=range] { flex: 1; }
+.tlh output {
+  font-variant-numeric: tabular-nums;
+  color: var(--mu);
+  min-width: 96px;
+  text-align: right;
+}
+.tlb {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+}
+.tr {
+  display: grid;
+  grid-template-columns: 116px 1fr;
+  height: 20px;
+  align-items: center;
+}
+.tr .n {
+  padding: 0 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--mu);
+  cursor: pointer;
+}
+.tr[data-s="1"] .n { color: var(--tx); }
+.tk {
+  position: relative;
+  height: 100%;
+  background: repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px 10%);
+}
+.bar {
+  position: absolute;
+  top: 3px;
+  height: 14px;
+  border-radius: 4px;
+  background: var(--ac);
+  cursor: grab;
+  min-width: 6px;
+}
+.bar::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  cursor: ew-resize;
+  background: color-mix(in srgb, #000 30%, transparent);
+  border-radius: 0 4px 4px 0;
+}
+.bar span {
+  display: block;
+  font: 700 9px/14px Arial;
+  color: #131317;
+  padding-left: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.ph {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #fff;
+  pointer-events: none;
+  z-index: 3;
+  left: calc(116px + (100% - 116px) * var(--p, 1));
+}
+.warn { color: var(--warn); }
+#gc { border-color: var(--hi); }
+
+/* ==========================================================================
+   Boot / Toast
+   ========================================================================== */
+#boot {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+  text-align: center;
+  padding: 24px;
+}
+#boot[hidden] { display: none; }
+#boot .box {
+  max-width: 420px;
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+}
+#boot .row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  z-index: 150;
+  background: var(--hi);
+  color: var(--tx);
+  padding: 8px 14px;
+  border-radius: 99px;
+  font-size: 12px;
+  box-shadow: var(--shadow);
+}
+#toast[hidden] { display: none; }
+#toast.err {
+  background: var(--err-bg);
+  color: #fff;
+}
+
+/* ==========================================================================
+   Responsive
+   ========================================================================== */
+@media (max-width: 980px) {
+  .resize-handle { display: none; }
+  #app.l-collapsed aside,
+  #app.r-collapsed .agent { visibility: visible; }
+  body { overflow: auto; }
+  #app {
+    height: auto;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+  }
+  aside { max-height: 300px; }
+  .wrap { height: 80vh; flex: none; }
+  .agent { height: 70vh; }
+  header {
+    flex-wrap: wrap;
+    padding: 8px 12px;
+  }
+}
+</style>
+<script src="/src/client/asset-studio/vendor/qrcode.min.js"></script>
+<script src="/src/shared/brand-pack.js"></script>
+<script src="/src/client/asset-studio/engine.js"></script>
+<script src="/src/client/asset-studio/categories.js"></script>
+</head>
+<body>
+<div id="boot" role="status" aria-live="polite">
+  <div class="box">
+    <span class="logo">A</span>
+    <p id="bootMsg"><b>Agent Studio</b><br>Loading brand groups…</p>
+    <div class="row" id="bootActs"></div>
+  </div>
+</div>
+<div id="toast" role="status" aria-live="polite" hidden></div>
+<div id="app">
+  <header>
+    <span class="logo">A</span>
+    <b>Agent Studio</b>
+    <select id="grp" aria-label="Brand group" title="Brand group"></select>
+    <div class="bsw" id="brands" aria-label="Brand"></div>
+    <span id="net" hidden>Offline demo</span>
+    <span class="sp"></span>
+    <div class="theme-toggle" role="group" aria-label="Theme">
+      <button type="button" data-theme="system" title="System theme">Sys</button>
+      <button type="button" data-theme="light" title="Light theme">Light</button>
+      <button type="button" data-theme="dark" title="Dark theme">Dark</button>
+    </div>
+    <a id="lnkAsset" href="asset-studio.html" title="Open this brand in Asset Studio">Asset Studio</a>
+    <a id="lnkLib" href="library.html" title="Open this brand's asset library">Library</a>
+    <a href="crawler.html" title="Search and crawl a new business">Brand intake</a>
+    <a href="studio-v2.html" title="Layer studio">Studio V2</a>
+    <button id="undo">↶ Undo</button>
+    <button id="reset">Reset scene</button>
+  </header>
+  <aside>
+    <div class="atabs" id="atabs" role="tablist" aria-label="Asset sources"></div>
+    <div id="apanel" role="tabpanel"></div>
+    <h3>Brand palette <small id="swh">· click to apply to the selected layer</small></h3>
+    <div class="sw" id="sw"></div>
+    <div class="sub" id="ty"></div>
+    <h3>Layers</h3>
+    <div id="layers"></div>
+  </aside>
+  <div class="resize-handle" data-resize="left" aria-label="Resize left sidebar"></div>
+  <main>
+    <div class="tb">
+      <button id="play">▶ Replay</button>
+      <label><input type="checkbox" id="sz"> Safe zone</label>
+      <button id="gc" title="Run guardrail report">Checking…</button>
+      <span class="sp"></span>
+      <span style="color:var(--mu)" id="status">Click a layer, or drag an asset in.</span>
+    </div>
+    <div class="wrap" id="wrap"><div class="stage" id="stage"></div></div>
+    <div class="timeline-resize-handle" data-resize="timeline" aria-label="Resize timeline" aria-expanded="true" title="Drag to resize · drag upward to collapse"></div>
+    <div class="tl">
+      <div class="tlh">
+        <button id="tpl">▶ Play</button>
+        <input type="range" id="scrub" min="0" max="10000" step="50" value="10000" aria-label="Playhead">
+        <output id="tt">10.00 / 10.00 s</output>
+      </div>
+      <div class="tlb" id="tlb"></div>
+    </div>
+  </main>
+  <div class="resize-handle" data-resize="right" aria-label="Resize right sidebar"></div>
+  <section class="agent">
+    <h4>
+      <span class="meta">
+        <span class="dot"></span>
+        Studio agent
+        <span style="color:var(--mu);font-weight:400">sees the selected layer</span>
+      </span>
+      <button type="button" id="clearChat">Clear chat</button>
+    </h4>
+    <div id="chat" aria-live="polite"></div>
+    <div id="ctxMenu" role="menu" aria-label="Layer actions"></div>
+    <div class="qp" id="qp"></div>
+    <div class="ctx" id="ctx"></div>
+    <form id="f">
+      <input type="text" id="in" placeholder="Ask for a change… e.g. “bigger”, “animate it”, “accent colour”" autocomplete="off">
+      <button>Send</button>
+    </form>
+  </section>
+</div>
+<script>const DEMO_PHOTO="__PHOTO__";</script>
+<script>
+(function(){
+'use strict';
+/* =====================================================================
+   Agent Studio — brand-wired + dual theme
+   ===================================================================== */
+const API='api',$=s=>document.querySelector(s),stage=$('#stage'),wrapEl=$('#wrap'),chat=$('#chat');
+const appEl=$('#app');
+const clone=o=>JSON.parse(JSON.stringify(o));
+const esc=s=>String(s??'').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const LS={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true}catch{return false}},del(k){try{localStorage.removeItem(k)}catch{}}};
+const jget=async p=>{const r=await fetch(p,{cache:'no-store'});const j=await r.json().catch(()=>null);if(!r.ok)throw new Error((j&&j.error)||r.status+' '+r.statusText);return j};
+
+/* ---------- dual theme ---------- */
+const THEME_KEY='agentStudio.theme.v1';
+function applyTheme(mode){
+  const html=document.documentElement;
+  html.dataset.theme=mode;
+  if(mode==='system'){
+    const dark=window.matchMedia('(prefers-color-scheme: dark)').matches;
+    html.classList.toggle('dark',dark);
+  }else{
+    html.classList.toggle('dark',mode==='dark');
+  }
+  document.querySelectorAll('.theme-toggle button').forEach(b=>{
+    b.setAttribute('aria-pressed',String(b.dataset.theme===mode));
+  });
+  LS.set(THEME_KEY,mode);
+}
+function initTheme(){
+  const saved=LS.get(THEME_KEY,'system');
+  applyTheme(saved);
+  const mq=window.matchMedia('(prefers-color-scheme: dark)');
+  mq.addEventListener('change',()=>{ if(document.documentElement.dataset.theme==='system') applyTheme('system'); });
+  document.querySelectorAll('.theme-toggle button').forEach(b=>{
+    b.addEventListener('click',()=>applyTheme(b.dataset.theme));
+  });
+}
+initTheme();
+
+const PANEL={left:{min:200,max:420,def:270,prop:'--left-panel',cls:'l-collapsed'},right:{min:280,max:560,def:390,prop:'--right-panel',cls:'r-collapsed'}};
+const TIMELINE={min:84,max:260,def:178};
+const resizeState={active:null,startX:0,start:0,moved:false,pid:null};
+const timelineResizeState={active:false,startY:0,startH:0,moved:false};
+const lastW={left:270,right:390};
+const handleEl=side=>document.querySelector(`.resize-handle[data-resize="${side}"]`);
+const timelineEl=document.querySelector('.tl');
+const timelineHandle=document.querySelector('.timeline-resize-handle');
+const panelW=side=>{const v=parseFloat(getComputedStyle(appEl).getPropertyValue(PANEL[side].prop));return Number.isFinite(v)?v:PANEL[side].def};
+const timelineW=()=>{const v=parseFloat(getComputedStyle(timelineEl).height);return Number.isFinite(v)?v:TIMELINE.def};
+function setPanel(side,w,save=true){
+ const P=PANEL[side],h=handleEl(side);
+ if(w<=0){appEl.style.setProperty(P.prop,'0px');appEl.classList.add(P.cls);if(h){h.dataset.collapsed='1';h.setAttribute('aria-expanded','false');h.title='Click to open the sidebar'}}
+ else{const v=clamp(w,P.min,P.max);appEl.style.setProperty(P.prop,v+'px');appEl.classList.remove(P.cls);lastW[side]=v;if(h){delete h.dataset.collapsed;h.setAttribute('aria-expanded','true');h.title='Drag to resize · drag past the edge or double-click to collapse'}}
+ if(save)LS.set('agentStudio.panels.v1',{left:panelW('left'),right:panelW('right')})}
+function setTimelineHeight(h,save=true){
+ const v=clamp(h,0,TIMELINE.max);
+ if(v<=24){
+   timelineEl.style.height='12px';
+   timelineEl.dataset.collapsed='true';
+   timelineHandle.dataset.collapsed='true';
+   timelineHandle.setAttribute('aria-expanded','false');
+   timelineHandle.title='Click to reopen the timeline';
+   if(save)LS.set('agentStudio.timeline.v1',0);
+   return;
+ }
+ timelineEl.style.height=v+'px';
+ timelineEl.style.setProperty('--timeline-height',v+'px');
+ delete timelineEl.dataset.collapsed;
+ delete timelineHandle.dataset.collapsed;
+ timelineHandle.setAttribute('aria-expanded','true');
+ timelineHandle.title='Drag to resize · drag upward to collapse';
+ if(save)LS.set('agentStudio.timeline.v1',v);
+}
+function onResizeHandleMove(e){
+ if(!resizeState.active)return;const side=resizeState.active,P=PANEL[side],dx=e.clientX-resizeState.startX;
+ if(Math.abs(dx)>3)resizeState.moved=true;if(!resizeState.moved)return;
+ const raw=side==='left'?resizeState.start+dx:resizeState.start-dx;
+ setPanel(side,raw<P.min-40?0:raw,false)}
+function stopResizeHandle(){
+ const side=resizeState.active;window.removeEventListener('pointermove',onResizeHandleMove);window.removeEventListener('pointerup',stopResizeHandle);
+ if(!side)return;
+ if(!resizeState.moved&&handleEl(side).dataset.collapsed)setPanel(side,lastW[side]);else setPanel(side,panelW(side),true);
+ resizeState.active=null}
+function bindResizeHandles(){
+ try{const saved=LS.get('agentStudio.panels.v1',null);if(saved)['left','right'].forEach(k=>{if(typeof saved[k]==='number')setPanel(k,saved[k]<=0?0:saved[k],false)})}catch{}
+ document.querySelectorAll('.resize-handle').forEach(handle=>{
+  const side=handle.dataset.resize;handle.setAttribute('role','separator');handle.setAttribute('aria-orientation','vertical');handle.tabIndex=0;
+  if(!handle.title)handle.title='Drag to resize · drag past the edge or double-click to collapse';
+  handle.setAttribute('aria-expanded',String(!handle.dataset.collapsed));
+  handle.addEventListener('pointerdown',e=>{resizeState.active=side;resizeState.startX=e.clientX;resizeState.start=panelW(side);resizeState.moved=false;
+   window.addEventListener('pointermove',onResizeHandleMove);window.addEventListener('pointerup',stopResizeHandle);e.preventDefault()});
+  handle.addEventListener('dblclick',()=>{if(handle.dataset.collapsed)setPanel(side,lastW[side]);else setPanel(side,0)});
+  handle.addEventListener('keydown',e=>{
+   if(e.key==='Enter'||e.key===' '){e.preventDefault();setPanel(side,handle.dataset.collapsed?lastW[side]:0);return}
+   if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;e.preventDefault();
+   const grow=(e.key==='ArrowRight')===(side==='left'),cur=handle.dataset.collapsed?0:panelW(side),P=PANEL[side];
+   setPanel(side,grow?Math.max(P.min,cur+16):(cur-16<P.min?0:cur-16))})})}
+function bindTimelineResize(){
+ try{const saved=LS.get('agentStudio.timeline.v1',TIMELINE.def);if(typeof saved==='number'){setTimelineHeight(saved<=0?0:saved,false)}}catch{}
+ const drag=(e)=>{
+  if(!timelineResizeState.active)return;const dy=e.clientY-timelineResizeState.startY;
+  if(Math.abs(dy)>3)timelineResizeState.moved=true;if(!timelineResizeState.moved)return;
+  const next=timelineResizeState.startH-dy;
+  setTimelineHeight(next<=24?0:next,false);
+ };
+ const stop=()=>{
+  if(!timelineResizeState.active)return;
+  const current=timelineW();
+  if(!timelineResizeState.moved&&timelineHandle.dataset.collapsed)setTimelineHeight(TIMELINE.def,true);
+  else setTimelineHeight(current,true);
+  timelineResizeState.active=false;
+  window.removeEventListener('pointermove',drag);
+  window.removeEventListener('pointerup',stop);
+ };
+ timelineHandle.setAttribute('role','separator');
+ timelineHandle.setAttribute('aria-orientation','vertical');
+ timelineHandle.tabIndex=0;
+ timelineHandle.addEventListener('pointerdown',e=>{
+  timelineResizeState.active=true;timelineResizeState.startY=e.clientY;timelineResizeState.startH=timelineW();timelineResizeState.moved=false;
+  window.addEventListener('pointermove',drag);window.addEventListener('pointerup',stop);e.preventDefault();
+ });
+ timelineHandle.addEventListener('dblclick',()=>setTimelineHeight(timelineHandle.dataset.collapsed?TIMELINE.def:0));
+ timelineHandle.addEventListener('click',()=>{if(timelineHandle.dataset.collapsed)setTimelineHeight(TIMELINE.def,true)});
+ timelineHandle.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setTimelineHeight(timelineHandle.dataset.collapsed?TIMELINE.def:0);return}if(e.key!=='ArrowUp'&&e.key!=='ArrowDown')return; e.preventDefault(); const cur=timelineHandle.dataset.collapsed?0:timelineW(); const delta=e.key==='ArrowUp'?16:-16; setTimelineHeight(clamp(cur+delta,0,TIMELINE.max));});
+}
+
+/* ---------- collapsible sidebar sections ---------- */
+const COLL=new Set(LS.get('agentStudio.collapsed.v1',[]));
+const secKey=h=>String((h.childNodes[0]&&h.childNodes[0].textContent)||h.textContent).trim().toLowerCase();
+function setSection(h,body,open,save=true){
+ h.setAttribute('aria-expanded',String(open));body.hidden=!open;
+ if(save){const k=secKey(h);if(open)COLL.delete(k);else COLL.add(k);LS.set('agentStudio.collapsed.v1',[...COLL])}}
+function wrapSections(root){
+ if(!root)return;
+ [...root.children].filter(n=>n.tagName==='H3'&&!n.dataset.sec).forEach(h=>{
+  const body=document.createElement('div');body.className='sec-body';
+  let n=h.nextSibling;while(n&&!(n.nodeType===1&&n.tagName==='H3')){const nx=n.nextSibling;body.appendChild(n);n=nx}
+  h.after(body);h.dataset.sec='1';h.setAttribute('role','button');h.tabIndex=0;
+  setSection(h,body,!COLL.has(secKey(h)),false);
+  const flip=()=>setSection(h,body,body.hidden);
+  h.addEventListener('click',flip);
+  h.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();flip()}})})}
+let toastT=0;const toast=(m,err)=>{const t=$('#toast');t.textContent=m;t.className=err?'err':'';t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,3200)};
+bindResizeHandles();
+bindTimelineResize();
+wrapSections(document.querySelector('aside'));
+
+/* ---------- colour helpers ---------- */
+const hx=s=>{s=String(s||'').trim();const m=/^#([0-9a-f]{3})$/i.exec(s);if(m)return'#'+[...m[1]].map(c=>c+c).join('').toLowerCase();return/^#[0-9a-f]{6}$/i.test(s)?s.toLowerCase():null};
+const rgb=s=>{if(s[0]==='#')return[1,3,5].map(i=>parseInt(s.substr(i,2),16)).concat(1);const m=s.match(/[\d.]+/g).map(Number);return[m[0],m[1],m[2],m[3]??1]};
+const lum=c=>{const f=v=>{v/=255;return v<=.03928?v/12.92:((v+.055)/1.055)**2.4};return .2126*f(c[0])+.7152*f(c[1])+.0722*f(c[2])};
+const cr=(a,b)=>{const x=lum(a),y=lum(b);return(Math.max(x,y)+.05)/(Math.min(x,y)+.05)};
+const mix=(a,b,t)=>[0,1,2].map(i=>a[i]*(1-t)+b[i]*t);
+const sat=h=>{const[r,g,b]=rgb(h).slice(0,3).map(v=>v/255),mx=Math.max(r,g,b),mn=Math.min(r,g,b);return mx?(mx-mn)/mx*(.4+mx*.6):0};
+const rgba=(h,a)=>{const c=rgb(h);return`rgba(${c[0]},${c[1]},${c[2]},${a})`};
+
+/* ---------- state ---------- */
+let PACKS=[],P=null,B=null,FMT=null,TH={ink:'#17162e',bone:'#ebe6e0',accent:'#eb5b3c',chalk:'#ffffff'},PAL={},BF={display:'Georgia',body:'Helvetica Neue',dW:400,bW:400};
+let scene=[],sel=null,hist=[],uid=1,demo=false,selTok=0,UF=[];
+const packCache=new Map(),IMG=new Map(),PXC=new Map(),TINT=new Map();
+const AS={tab:'brand',lib:{status:'idle',items:[],cls:'',verified:false,err:''}};
+const templateFallback=[
+ {id:'hero-flyer',label:'Hero flyer',summary:'Print-led hero composition',category:'Flyers',format:'A4 portrait'},
+ {id:'social-post',label:'Social post',summary:'Square social layout',category:'Social',format:'Square'},
+ {id:'story-card',label:'Story card',summary:'Vertical story layout',category:'Stories',format:'9:16'},
+ {id:'menu-sheet',label:'Menu sheet',summary:'Menu or feature sheet',category:'Menus',format:'A4 portrait'},
+ {id:'voucher',label:'Gift voucher',summary:'Offer or voucher layout',category:'Promos',format:'Portrait 4:5'},
+ {id:'signage',label:'Signage',summary:'Sign or announcement',category:'Signage',format:'Landscape'}
+];
+const motifFallback=[
+ {id:'sprig',label:'Sprig',icon:'✦',tone:'accent'},
+ {id:'line',label:'Divider',icon:'—',tone:'ink'},
+ {id:'burst',label:'Burst',icon:'✹',tone:'accent'},
+ {id:'leaf',label:'Leaf',icon:'❋',tone:'ok'},
+ {id:'frame',label:'Frame',icon:'▣',tone:'ink'}
+];
+function getTemplateCatalog(){
+ const shared = typeof window !== 'undefined' && window.StudioBrand && typeof window.StudioBrand.templateCatalog === 'function'
+   ? window.StudioBrand.templateCatalog(B || (P && P.brands && P.brands[0]) || null)
+   : [];
+ const sources=[shared && shared.length ? shared : null,B&&Array.isArray(B.templates)?B.templates:null,P&&Array.isArray(P.templates)?P.templates:null,templateFallback];
+ const candidate = sources.find((entry) => Array.isArray(entry) && entry.length) || templateFallback;
+ return candidate.map((item,index)=>({
+  id:String(item.id||item.slug||item.name||item.label||`template-${index}`),
+  label:String(item.label||item.name||item.title||`Template ${index+1}`),
+  summary:String(item.summary||item.description||item.category||item.spec||item.format||item.paper||'Brand template'),
+  category:String(item.category||item.kind||'Template'),
+  format:String(item.format||item.paper||item.spec||item.size||'Brand format')
+ }));
+}
+function getSizeCatalog(){
+ const base=[{id:'a4',label:'A4 portrait',meta:'Print · 1240×1754',w:1240,h:1754},{id:'portrait-45',label:'Portrait 4:5',meta:'Feed · 1080×1350',w:1080,h:1350},{id:'story-916',label:'Story 9:16',meta:'Stories · 1080×1920',w:1080,h:1920},{id:'square',label:'Square',meta:'Post · 1080×1080',w:1080,h:1080},{id:'landscape',label:'Landscape',meta:'Banner · 1920×1080',w:1920,h:1080}];
+ return base.map(x=>({...x,format:x.label}));
+}
+function getFormatCatalog(){
+ return FMTS.map(f=>({id:f.id,label:`${f.n}`,meta:`${f.w}×${f.h}px`,w:f.w,h:f.h}));
+}
+function getMotifCatalog(){
+ return motifFallback;
+}
+
+/* ---------- formats + geometry ---------- */
+const FMTS=[
+ {id:'a4',group:'Flyer',n:'A4 portrait',w:1748,h:2480},
+ {id:'portrait-45',group:'Flyer',n:'Portrait 4:5',w:1080,h:1350},
+ {id:'sq',group:'Social',n:'Square',w:1080,h:1080},
+ {id:'story',group:'Story',n:'9:16',w:1080,h:1920},
+ {id:'land',group:'Banner',n:'Landscape',w:1920,h:1080}];
+const GEO={
+ a4:{photo:[0,0,100,48],logo:[37,9,26,8],head:[8,53,84,16,6.2],sub:[8,69.5,84,5.5,2.4],body:[8,76,84,8.5,1.6],cta:[8,85.4,84,3.1,1.7],foot:[8,89.2,84,2.2,1.05],over:true},
+ story:{photo:[0,0,100,50],logo:[30,10,40,6],head:[8,55,84,14,4.6],sub:[8,70,84,4,2.2],body:[8,75,84,8,1.5],cta:[8,85,84,3,1.6],foot:[8,89,84,2.4,.95],over:true},
+ sq:{photo:[0,0,100,50],logo:[8,9,24,8],head:[8,54,84,15,5.2],sub:[8,69.5,84,5,2.4],body:[8,75,84,9,1.9],cta:[8,85.6,84,3.4,2.1],foot:[8,89.2,84,2.6,1.2],over:true},
+ land:{photo:[0,0,46,100],logo:[52,9,22,9],head:[52,22,40,30,8],sub:[52,53,40,8,3.6],body:[52,62,40,17,2.6],cta:[52,80,40,5,2.6],foot:[52,86.5,40,5.5,1.7],over:false}};
+const MASTER_IDS=new Set(['ground','photo','logo','headline','subhead','body','cta','footer']);
+
+/* ---------- theme from the brand's palette ---------- */
+function deriveTheme(b){
+ const seen=new Set(),ents=[];
+ (b.palette||[]).forEach(p=>{const h=hx(p&&p.hex);if(h&&!seen.has(h)){seen.add(h);ents.push({name:String(p.name||p.role||h),hex:h})}});
+ const byL=[...ents].sort((x,y)=>lum(rgb(x.hex))-lum(rgb(y.hex)));
+ const ink=byL.length&&lum(rgb(byL[0].hex))<.2?byL[0].hex:'#17162e';
+ const bone=byL.length&&lum(rgb(byL[byL.length-1].hex))>.6?byL[byL.length-1].hex:'#f4f1ec';
+ const cand=ents.filter(e=>e.hex!==ink&&e.hex!==bone).sort((x,y)=>sat(y.hex)-sat(x.hex));
+ const accent=cand[0]&&sat(cand[0].hex)>.25?cand[0].hex:'#e1543a';
+ TH={ink,bone,accent,chalk:'#ffffff'};
+ PAL={};const used=new Set(),put=(n,h)=>{if(used.has(h))return;used.add(h);let k=n,i=2;while(PAL[k])k=n+' '+i++;PAL[k]=h};
+ ents.forEach(e=>put(e.name,e.hex));put('Ink',ink);put('Bone',bone);put('Accent',accent);put('Chalk','#ffffff');
+}
+const readable=(c,bg)=>{const B2=rgb(bg);if(cr(rgb(c),B2)>=4.5)return c;return[TH.ink,TH.bone,TH.chalk].map(x=>[x,cr(rgb(x),B2)]).sort((a,b)=>b[1]-a[1])[0][0]};
+const toneHex=t=>t==='white'?'#ffffff':t==='ink'?TH.ink:TH.accent;
+
+/* ---------- fonts ---------- */
+const norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'');
+const WORDS=/\b(thin|hairline|extra\s*light|extralight|light|regular|book|medium|semi\s*bold|semibold|demibold|extra\s*bold|bold|black|heavy|italic|oblique)\b/gi;
+const baseName=f=>String(f).replace(WORDS,'').replace(/\s+/g,' ').trim()||String(f);
+const weightOf=f=>{const t=String(f).toLowerCase();return /thin|hairline|extra\s*light/.test(t)?200:/semi\s*bold|demibold/.test(t)?600:/black|heavy/.test(t)?800:/bold/.test(t)?700:/medium/.test(t)?500:/light/.test(t)?300:400};
+const genericOf=f=>/georgia|times|palatino|garamond|baskerville|didot|bodoni|caslon|playfair|copperplate|cormorant|lora|merriweather|serif/i.test(f)&&!/sans/i.test(f)?'serif':'sans-serif';
+function stackFor(f){
+ const b=baseName(f),g=genericOf(f),u=UF.find(x=>norm(x.family)===norm(b)||norm(x.family)===norm(f));
+ if(u)return`"${u.family}",${g}`;
+ if(/helvetica/i.test(f))return'"Helvetica Neue",Helvetica,Arial,sans-serif';
+ if(/georgia/i.test(f))return'Georgia,"Times New Roman",serif';
+ return`"${b}",${g==='serif'?'Georgia,"Times New Roman",serif':'"Helvetica Neue",Arial,sans-serif'}`}
+function brandFonts(b){
+ const fams=[...new Set([...(b.typography&&b.typography.families||[]),...((b.typography&&b.typography.scale||[]).map(s=>s.family))])].filter(f=>f&&!/wordmark|artwork|logo/i.test(f));
+ const up=fams.filter(f=>UF.some(u=>norm(u.family)===norm(baseName(f))||norm(u.family)===norm(f)));
+ const d=up[0]||fams[0]||'Georgia',bd=up[1]||up[0]||fams[1]||fams[0]||'Helvetica Neue';
+ return{display:stackFor(d),body:stackFor(bd),dW:weightOf(d),bW:weightOf(bd),dName:baseName(d),bName:baseName(bd)}}
+async function loadFonts(){
+ try{const d=await jget(API+'/fonts');for(const f of(d&&d.fonts)||[]){if(!f.family||!f.url)continue;try{const ff=new FontFace(f.family,`url("${f.url}")`,{weight:'100 1000'});await ff.load();document.fonts.add(ff);UF.push(f)}catch{}}}catch{}}
+
+/* ---------- images, logos, pixel sampling ---------- */
+const loadImg=src=>{if(!IMG.has(src))IMG.set(src,new Promise((res,rej)=>{const i=new Image(),t=setTimeout(()=>rej(new Error('Timed out loading '+src)),9000);i.onload=()=>{clearTimeout(t);res(i)};i.onerror=()=>{clearTimeout(t);rej(new Error('Could not load '+src))};i.src=src}));return IMG.get(src)};
+function trimImg(img){
+ const w=img.naturalWidth||300,h=img.naturalHeight||100,c=document.createElement('canvas');c.width=w;c.height=h;
+ const x=c.getContext('2d');x.drawImage(img,0,0,w,h);
+ try{const d=x.getImageData(0,0,w,h).data;let x0=w,y0=h,x1=-1,y1=-1;
+  for(let y=0;y<h;y++)for(let xx=0;xx<w;xx++)if(d[(y*w+xx)*4+3]>8){if(xx<x0)x0=xx;if(xx>x1)x1=xx;if(y<y0)y0=y;if(y>y1)y1=y}
+  if(x1<0)return c;const o=document.createElement('canvas');o.width=x1-x0+1;o.height=y1-y0+1;o.getContext('2d').drawImage(c,x0,y0,o.width,o.height,0,0,o.width,o.height);return o}catch{return c}}
+async function brandLogos(b){
+ if(b._logos)return b._logos;
+ const logos=(b.logos||[]).filter(l=>l&&l.url),plate=l=>/plate|presentation/i.test(l.name||'')||l.presentation;
+ const wm=logos.find(l=>(l.kind==='wordmark'||l.kind==='logo')&&!plate(l))||logos.find(l=>l.kind==='wordmark');
+ const mk=logos.find(l=>l.kind==='mark'&&!plate(l));
+ const out={};
+ await Promise.all([['wordmark',wm],['mark',mk]].map(async([k,l])=>{if(!l)return;try{const c=trimImg(await loadImg(l.url));out[k]={canvas:c,aspect:c.width/c.height}}catch{}}));
+ b._logos=out;return out}
+function logoSrc(which,tone){
+ const L=B&&B._logos&&B._logos[which];if(!L)return'';const col=toneHex(tone),k=B.id+'|'+which+'|'+col;
+ if(!TINT.has(k)){const c=document.createElement('canvas');c.width=L.canvas.width;c.height=L.canvas.height;const x=c.getContext('2d');x.drawImage(L.canvas,0,0);x.globalCompositeOperation='source-in';x.fillStyle=col;x.fillRect(0,0,c.width,c.height);TINT.set(k,c.toDataURL('image/png'))}
+ return TINT.get(k)}
+function ensurePx(src){
+ if(!src||PXC.has(src))return;PXC.set(src,null);
+ loadImg(src).then(im=>{const c=document.createElement('canvas');c.width=140;c.height=Math.max(1,Math.round(140*(im.naturalHeight||1)/(im.naturalWidth||1)));const x=c.getContext('2d');x.drawImage(im,0,0,c.width,c.height);
+  PXC.set(src,{w:c.width,h:c.height,d:x.getImageData(0,0,c.width,c.height).data});layers()}).catch(()=>{PXC.set(src,null)})}
+
+/* ---------- copy from brand fields ---------- */
+const contact=f=>{const e=((B.guidelines&&B.guidelines.contact)||[]).find(c=>String(c.field||'').toLowerCase()===f.toLowerCase());return e&&e.value||''};
+const siteOf=()=>String(contact('Website')||B.url||'').replace(/^https?:\/\//i,'').replace(/\/+$/,'');
+const firstSentence=t=>{t=String(t||'').replace(/\s+/g,' ').trim();return((t.split(/(?<=[.!?])\s/)[0])||'').slice(0,90)};
+function copyFor(){
+ const pos=String((B.guidelines&&B.guidelines.positioning)||'').replace(/\s+/g,' ').trim(),first=firstSentence(pos),site=siteOf(),addr=contact('Address');
+ const head=B.tagline||first||B.name,sub=B.tagline?(first&&first!==B.tagline?first:B.name):B.name;
+ return{head,sub,body:pos&&pos!==head&&pos!==sub?pos.slice(0,220):'',cta:site?'Visit '+site:'Find out more',foot:[addr,site].filter(Boolean).join(' · ')}}
+function copyOptions(){
+ const pos=String((B.guidelines&&B.guidelines.positioning)||''),f=firstSentence(pos),site=siteOf(),u=a=>[...new Set(a.filter(Boolean))];
+ return{headline:u([B.tagline,f,B.name,'Welcome to '+B.name,'Discover '+B.name]),subhead:u([f,B.tagline,B.name]),
+  cta:u([site&&'Visit '+site,'Find out more','Get in touch']),body:u([pos.slice(0,220),f])}}
+
+/* ---------- scene builder ---------- */
+const F=(family,w,s,lh,ls=0,tr='none')=>({family,weight:w,sizePct:s,lineHeight:lh,letterSpacingEm:ls,transform:tr});
+function buildScene(variant='classic',carry=null){
+ const g=GEO[FMT.id]||GEO.a4,night=variant==='night',acc=variant==='accent',framed=variant==='framed';
+ const ground=night?TH.ink:acc?TH.accent:TH.bone;
+ const base=night?TH.bone:acc?(cr(rgb(TH.chalk),rgb(ground))>=cr(rgb(TH.ink),rgb(ground))?TH.chalk:TH.ink):TH.ink;
+ const key=readable(night?TH.accent:acc?base:TH.ink,ground),cp=copyFor();
+ const old=id=>carry&&carry.find(l=>l.id===id),txt=(id,d)=>{const o=old(id);return o&&o.text!=null?o.text:d};
+ let pr=g.photo.slice();if(framed){pr=[8,8,pr[2]>=100?84:pr[2]-8,pr[3]>=100?84:pr[3]-4]}
+ const op=old('photo'),ol=old('logo');
+ const overPhoto=g.over,lt=overPhoto?'white':(lum(rgb(ground))<.4?'white':'ink');
+ const T=(id,name,r,text,font,color,opacity=1)=>({id,name,type:'text',x:r[0],y:r[1],w:r[2],h:r[3],z:12,opacity,text,font,color,hidden:text===''});
+ const L=[
+  {id:'ground',name:'Background',type:'fill',x:0,y:0,w:100,h:100,z:0,opacity:1,color:ground},
+  {id:'photo',name:'Hero photograph',type:'image',x:pr[0],y:pr[1],w:pr[2],h:pr[3],z:2,opacity:1,src:op&&op.src!=null?op.src:(B.photography&&B.photography[0]&&B.photography[0].url)||'',fx:op&&op.fx||50,fy:op&&op.fy||50,fit:op&&op.fit||'cover'},
+  {id:'logo',name:'Logo',type:'logo',which:ol&&ol.which||(B._logos&&B._logos.wordmark?'wordmark':B._logos&&B._logos.mark?'mark':'wordmark'),tone:lt,x:g.logo[0],y:g.logo[1]+(framed&&overPhoto?3:0),w:g.logo[2],h:g.logo[3],z:8,opacity:1},
+  T('headline','Headline',g.head,txt('headline',cp.head),F(BF.display,BF.dW,g.head[4],1.04),base),
+  T('subhead','Sub-headline',g.sub,txt('subhead',cp.sub),F(BF.display,Math.max(BF.dW,400),g.sub[4],1.2,.04),key),
+  T('body','Body copy',g.body,txt('body',cp.body),F(BF.body,BF.bW,g.body[4],1.45),base,.82),
+  T('cta','Call to action',g.cta,txt('cta',cp.cta),F(BF.body,Math.max(BF.bW,500),g.cta[4],1.2,.16,'uppercase'),key),
+  T('footer','Footer',g.foot,txt('footer',cp.foot),F(BF.body,BF.bW,g.foot[4],1.25,.04),base,.7)];
+ if(carry)carry.filter(l=>!MASTER_IDS.has(l.id)).forEach(l=>L.push(clone(l)));
+ return L}
+function fitScene(sc){
+ sizeProbe();render(sc,probe);
+ for(const l of sc){if(l.type!=='text'||l.hidden)continue;const e=probe.querySelector(`[data-id="${l.id}"]`);if(!e)continue;
+  const over=()=>{const rg=document.createRange();rg.selectNodeContents(e);const b=rg.getBoundingClientRect();return b.width&&(b.height>e.clientHeight+1.5||b.width>e.clientWidth+1.5)};
+  let n=0;while(over()&&l.font.sizePct>1&&n++<16){l.font.sizePct=+(l.font.sizePct*.92).toFixed(2);e.style.fontSize=l.font.sizePct+'cqh'}}
+ return sc}
+
+/* ---------- command engine ---------- */
+function run(sc,cmds){for(const c of cmds){const g=id=>sc.find(l=>l.id===id);
+ if(c.type==='set-layer'){const l=g(c.layerId);if(l)for(const[k,v]of Object.entries(c.patch)){if(k==='font')Object.assign(l.font,v);else l[k]=v}}
+ else if(c.type==='add-layer')sc.push(c.layer);
+ else if(c.type==='remove-layer'){const i=sc.findIndex(l=>l.id===c.layerId);if(i>-1)sc.splice(i,1)}
+ else if(c.type==='swap-asset'){const l=g(c.layerId);if(l)l.tone=c.asset}
+ else if(c.type==='variant'){const next=(FMT&&FMT.eng&&hasEngine())?engVariant(c.variant,sc):fitScene(buildScene(c.variant,sc));sc.splice(0,sc.length,...next)}
+ else if(c.type==='set-animation'){const l=g(c.layerId);if(l)l.anim={preset:c.preset,start:c.startMs||0,duration:c.durationMs||900}}
+ else if(c.type==='clear-animation'){const l=g(c.layerId);if(l)delete l.anim}}return sc}
+function commit(cmds){hist.push(clone(scene));run(scene,cmds);if(sel&&!scene.find(l=>l.id===sel))sel=null;render();layers();if(cmds.some(c=>c.type==='set-animation'))setTimeout(()=>play(0),60)}
+
+/* ---------- render ---------- */
+function render(sc=scene,tgt=stage){tgt.innerHTML='';
+ for(const l of sc.slice().sort((a,b)=>a.z-b.z)){if(l.hidden)continue;const e=document.createElement('div');e.className='L';e.dataset.id=l.id;
+  Object.assign(e.style,{left:l.x+'%',top:l.y+'%',width:l.w+'%',height:l.h+'%',zIndex:l.z,opacity:l.opacity});
+  if(l.type==='fill')e.style.background=l.color;
+  if(l.type==='gradient')e.style.background=`linear-gradient(${l.from},${l.to})`;
+  if(l.type==='shape'){e.style.background=l.color;e.style.borderRadius=(l.radius||0)+'cqh'}
+  if(l.type==='image'){
+   if(l.src){e.style.background=l.fit==='contain'?`url("${l.src}") center/contain no-repeat`:`url("${l.src}") ${l.fx||50}% ${l.fy||50}%/cover`;ensurePx(l.src)}
+   else e.style.background=`linear-gradient(135deg,${TH.ink},${TH.accent})`}
+  if(l.type==='logo'){e.classList.add('T');const left=l.x<20,right=l.x+l.w>80,src=logoSrc(l.which,l.tone);
+   e.style.justifyContent=left?'flex-start':right?'flex-end':'center';
+   if(src)e.innerHTML=`<img alt="" draggable="false" src="${src}" style="width:100%;height:100%;object-fit:contain;object-position:${left?'left':right?'right':'center'};pointer-events:none">`;
+   else e.innerHTML=`<span style="font:700 ${l.h*.5}cqh/1 ${BF.display};white-space:nowrap;color:${toneHex(l.tone)};overflow:hidden;text-overflow:ellipsis;max-width:100%">${esc(String(B.wordmark||B.name).toUpperCase())}</span>`}
+  if(l.type==='text'){e.classList.add('T');const f=l.font;e.style.justifyContent=l.align==='center'?'center':l.align==='right'?'flex-end':'flex-start';if(l.align)e.style.textAlign=l.align;
+   Object.assign(e.style,{color:l.color,fontFamily:f.family,fontWeight:f.weight,fontSize:f.sizePct+'cqh',lineHeight:f.lineHeight,letterSpacing:f.letterSpacingEm+'em',textTransform:f.transform});
+   if(l.bg){e.style.background=l.bg;e.style.borderRadius=(l.radius||0)+'cqh';e.style.justifyContent='center'}
+   if(l.nowrap)e.style.whiteSpace='pre';e.textContent=l.text}
+  if(l.anim){e.dataset.an=1;e.style.animation=`${l.anim.preset} ${l.anim.duration}ms ${l.anim.preset==='pulse'?'ease-in-out infinite':'ease-out'} ${l.anim.start-(tgt===stage?T:DUR)}ms both paused`}
+  if(sc===scene&&tgt===stage&&l.id===sel){e.classList.add('sel');const c=document.createElement('span');c.className='chip';c.textContent=l.name;e.appendChild(c)}
+  e.onpointerdown=ev=>down(ev,l.id);tgt.appendChild(e)}}
+function down(ev,id){ev.preventDefault();if(sel!==id)select(id);const l=scene.find(q=>q.id===id);if(!l||l.type==='fill')return;
+ const r=stage.getBoundingClientRect(),sx=ev.clientX,sy=ev.clientY,ox=l.x,oy=l.y;let moved=false;const el=ev.currentTarget;
+ const mv=m=>{if(!moved){hist.push(clone(scene));moved=true}l.x=+(ox+(m.clientX-sx)/r.width*100).toFixed(1);l.y=+(oy+(m.clientY-sy)/r.height*100).toFixed(1);el.style.left=l.x+'%';el.style.top=l.y+'%'};
+ const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);if(moved){layers();say('agent',`Moved ${esc(l.name)} to x ${l.x}, y ${l.y}.`)}};
+ addEventListener('pointermove',mv);addEventListener('pointerup',up)}
+
+/* ---------- stage sizing ---------- */
+function fitStage(){const cs=getComputedStyle(wrapEl),pw=wrapEl.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight),ph=wrapEl.clientHeight-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom);
+ if(!(pw>0&&ph>0)||!FMT)return;const r=FMT.w/FMT.h,w=Math.min(pw,ph*r);stage.style.width=Math.floor(w)+'px';stage.style.height=Math.floor(w/r)+'px'}
+const probe=document.createElement('div');probe.className='stage';probe.setAttribute('aria-hidden','true');probe.style.cssText='position:fixed;left:-99999px;top:0;pointer-events:none';document.body.appendChild(probe);
+function sizeProbe(){probe.style.width=stage.clientWidth+'px';probe.style.height=stage.clientHeight+'px'}
+
+/* ---------- panels ---------- */
+let wt,st;
+function layers(){list();ctx();engSyncSel();tl();clearTimeout(wt);wt=setTimeout(()=>watch(),30);clearTimeout(st);st=setTimeout(saveScene,400)}
+function list(){const w=$('#layers');w.innerHTML='';
+ scene.slice().sort((a,b)=>b.z-a.z).forEach(l=>{const r=document.createElement('div');r.className='lrow';r.dataset.s=l.id===sel?1:0;
+  r.innerHTML=`<span>${esc(l.name)}${cur.some(i=>i.id===l.id)?' <b class="warn">⚠</b>':''}</span><small>${l.type}</small><button title="Show/hide" aria-label="Show or hide ${esc(l.name)}">${l.hidden?'○':'●'}</button>`;
+  r.onclick=()=>select(l.id);r.querySelector('button').onclick=e=>{e.stopPropagation();hist.push(clone(scene));l.hidden=!l.hidden;render();layers()};w.appendChild(r)})}
+function ctx(){const l=scene.find(q=>q.id===sel);$('#ctx').innerHTML=l?`Context: <b>${esc(l.name)}</b> · ${l.type} · x${l.x} y${l.y} <button id="cx" aria-label="Clear selection">✕</button>`:'Context: <b>whole design</b> · select a layer to focus me';
+ if(l)$('#cx').onclick=()=>select(null);
+ const q=l?(l.type==='text'?['Rewrite it','Make it stand out','Animate it']:l.type==='image'?['Crop ideas','Add a scrim','Animate it']:['Options','Animate it']):['Layout concepts','Fix hierarchy','Animate it'];
+ $('#qp').innerHTML='';q.forEach(t=>{const b=document.createElement('button');b.textContent=t;b.onclick=()=>ask(t);$('#qp').appendChild(b)})}
+function select(id){sel=id;render();layers();if(id){const l=scene.find(q=>q.id===id);say('agent',`Looking at <b>${esc(l.name)}</b>. Here’s what I’d try:`,suggest(l,''))}}
+
+/* brand chrome */
+function chrome(){
+ $('#sw').innerHTML='';Object.entries(PAL).forEach(([n,h])=>{const b=document.createElement('button');b.title=`${n} ${h}`;b.setAttribute('aria-label',`Apply ${n}`);b.style.background=h;
+  b.onclick=()=>{const l=scene.find(q=>q.id===sel);if(!l||!['text','fill','shape'].includes(l.type)){toast('Select a text, background or shape layer first.',true);return}commit([S(l.id,{color:h})]);$('#status').textContent=`${l.name} → ${n}`};$('#sw').appendChild(b)});
+ $('#ty').textContent=`Display: ${BF.dName||'Georgia'} · Body: ${BF.bName||'Helvetica Neue'}`;
+ const q=encodeURIComponent(B.id),pk=P?encodeURIComponent(P.id):'';
+ $('#lnkAsset').href=`asset-studio.html?brand=${q}&pack=${pk}`;$('#lnkLib').href=`library.html?brandId=${q}&packId=${pk}`;
+ document.title=`${B.name} · Agent Studio`;
+ document.querySelectorAll('#brands button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.id===B.id)));
+ $('#grp').value=P?P.id:''}
+function buildGroupSelect(){const g=$('#grp');g.innerHTML='';PACKS.forEach(p=>g.append(new Option(p.name||p.id,p.id)));g.value=P?P.id:'';g.disabled=!PACKS.length}
+function buildBrandPills(){const w=$('#brands');w.innerHTML='';
+ (P.brands||[]).forEach(b=>{const btn=document.createElement('button');btn.dataset.id=b.id;btn.type='button';
+  const dot=document.createElement('i');const sw=(b.palette&&((b.palette[1]&&b.palette[1].hex)||(b.palette[0]&&b.palette[0].hex)))||'#e8803a';dot.style.background=sw;
+  btn.append(dot,document.createTextNode(b.name));btn.title=b.tagline||b.name;btn.onclick=()=>{if(!B||b.id!==B.id)selectBrand(b.id)};w.appendChild(btn)})}
+function fmtGroupFor(id){const f=FMTS.find(x=>x.id===id)||FMTS[0];return f.group||'Flyer';}
+function buildFormats(){
+ if(FMT&&FMT.eng)return;
+ const kind=$('#fmtKind'),f=$('#fmt');const groups=[...new Set(FMTS.map(x=>x.group||'Flyer'))];
+ if(kind){kind.innerHTML='';groups.forEach(g=>kind.append(new Option(g,g)));kind.value=fmtGroupFor(FMT.id);}
+ const currentGroup=(kind&&kind.value)||fmtGroupFor(FMT.id);const choices=FMTS.filter(x=>(x.group||'Flyer')===currentGroup);const list=choices.length?choices:FMTS;
+ if(!list.some(x=>x.id===FMT.id))FMT=list[0];
+ if(f){f.innerHTML='';list.forEach(x=>f.append(new Option(`${x.n} · ${x.w}×${x.h}`,x.id)));f.value=FMT.id;}
+ if(kind)kind.value=currentGroup;
+}
+function bindFormatSelectors(){
+ const kind=$('#fmtKind'),fmt=$('#fmt');
+ if(kind){kind.onchange=()=>{const group=kind.value;const next=FMTS.find(x=>x.group===group)||FMTS[0];if(next)setFormat(next.id);}};
+ if(fmt){fmt.onchange=()=>{if(fmt.value)setFormat(fmt.value);}};
+}
+
+/* ---------- asset-studio engine bridge ---------- */
+const ENG={cat:'flyer',tpl:0,size:0,wired:false,motif:'auto',motifOn:true,motifScale:1,motifX:0,motifY:0,textScale:1,flat:false};
+const ENG_TPL_IDS={flyer:'flyer',menu:'menu',voucher:'voucher',bizcard:'business-card-front',tablecard:'table-card',social:'social-post',signage:'flyer',guest:'table-card',stationery:'flyer',packaging:'voucher',compliance:'menu'};
+const hasEngine=()=>!!(window.AssetEngine&&window.AssetCategories&&Object.keys(window.AssetCategories).length);
+const engCat=()=>window.AssetCategories[ENG.cat]||window.AssetCategories[Object.keys(window.AssetCategories)[0]];
+const engCatLabel=id=>{const c=window.AssetCategories[id];return String((c&&c.title)||id).replace(/ Maker$/,'')};
+const engTpl=()=>{const c=engCat();return c.tpls[ENG.tpl]||c.tpls[0]};
+function engSizes(tpl=engTpl(),cat=engCat()){const all=cat.sizes||[];if(!tpl||!Array.isArray(tpl.sizes)||!tpl.sizes.length)return all;const ok=new Set(tpl.sizes),f=all.filter(x=>ok.has(x.n));return f.length?f:all}
+const engSize=()=>{const z=engSizes();return z[ENG.size]||z[0]||{n:'Square',w:1080,h:1080}};
+async function engMedia(b){
+ if(b._engPhotos)return b._engPhotos;
+ const urls=(b.photography||[]).map(p=>p&&p.url).filter(Boolean).slice(0,9);
+ b._engPhotos=(await Promise.all(urls.map(u=>loadImg(u).catch(()=>null)))).filter(Boolean);return b._engPhotos}
+function engPal(){
+ if(ENG.palTmp)return ENG.palTmp;
+ try{const r=window.StudioBrand.paletteRoles(B,ENG_TPL_IDS[ENG.cat]||'flyer');if(r&&r.ground&&r.ink&&r.accent&&r.ground.hex)return{paper:r.ground.hex,ink:r.ink.hex,accent:r.accent.hex}}catch{}
+ return{paper:TH.bone,ink:TH.ink,accent:TH.accent}}
+function engBrandify(v){
+ if(typeof v!=='string'||!B)return v;
+ const site=siteOf(),addr=contact('Address'),ig=contact('Instagram'),mail=contact('Email');
+ let r=v.replace(/the adamson\s*\|\s*THE PHYSICIAN/gi,B.name).replace(/THE PHYSICIAN/g,B.name.toUpperCase()).replace(/The Physician/g,B.name).replace(/the physician/gi,B.name)
+  .replace(/www\.thephysician\.bar/gi,site).replace(/www\.theadamson\.com/gi,site).replace(/www\.hatchstandrews\.com/gi,site)
+  .replace(/@thephysician_standrews/gi,ig).replace(/@theadamsonstandrews/gi,ig).replace(/@hatch_standrews/gi,ig);
+ if(!addr||!r.includes(addr))r=r.replace(/12[79] South Street, St Andrews(?:,?\s*KY16\s*9UH)?/gi,addr);
+ return r.replace(/reservations@theadamson\.com/gi,mail).replace(/\s*·\s*·\s*/g,' · ').replace(/^\s*·\s*/,'').replace(/\s*·\s*$/,'')}
+function engText(tpl){const o={};Object.entries(tpl.t||{}).forEach(([k,v])=>{o[k]=engBrandify(v)});return o}
+function engState(text){
+ const L=(B&&B._logos)||{},fonts={display:BF.display,serif:BF.body,sans:BF.body},boxes=[];
+ const st={t:text||{},slideIndex:0,slideCount:1,pal:engPal(),fonts,photos:(B&&B._engPhotos)||[],sel:0,qr:'',motif:ENG.motif||'auto',motifOn:ENG.motifOn!==false,motifScale:ENG.motifScale||1,motifX:ENG.motifX||0,motifY:ENG.motifY||0,
+  logoWordmark:L.wordmark?L.wordmark.canvas:null,logoMark:L.mark?L.mark.canvas:null,logoScale:1,logoOn:true,logoX:0,logoY:0,
+  brandWordmark:(B&&(B.wordmark||B.name))||'Brand',typeProfile:null,titleWeight:700,defaultQr:(B&&(B.url||(siteOf()?'https://'+siteOf():'')))||''};
+ return st}
+function engThumb(canvas,tpl,size){
+ try{window.AssetEngine.renderThumb(canvas,size,tpl,engState(engText(tpl)),160)}catch(e){canvas.width=160;canvas.height=160}}
+function engPanel(){
+ const cats=Object.keys(window.AssetCategories),c=engCat(),sizes=engSizes();
+ let h=`<h3>Design type</h3><select class="eng-sel" id="engCat" aria-label="Design type">${cats.map(id=>`<option value="${esc(id)}"${id===ENG.cat?' selected':''}>${esc(engCatLabel(id))}</option>`).join('')}</select>`;
+ h+=`<h3>Size</h3><select class="eng-sel" id="engSize" aria-label="Size">${sizes.map((z,i)=>`<option value="${i}"${i===ENG.size?' selected':''}>${esc(z.n)}${z.d?' · '+esc(z.d):''}</option>`).join('')}</select>`;
+ h+=`<h3>Designs <small>· ${c.tpls.length} for ${esc(engCatLabel(ENG.cat))}</small></h3><div class="eng-grid">${c.tpls.map((t,i)=>`<button type="button" class="eng-card${i===ENG.tpl&&ENG.wired?' is-selected':''}" data-i="${i}" title="${esc(t.n)}"><canvas data-th="${i}"></canvas><span>${esc(t.n)}</span></button>`).join('')}</div>`;
+ const pal=engPal(),cur=ENG.motifOn===false?'none':(ENG.motif||'auto'),slot=window.AssetEngine.templateUsesMotif(engTpl());
+ const mids=[...(slot?['auto']:[]),'logo',...window.AssetEngine.VECTORS.filter(i=>i!=='none'),'none'];
+ h+=`<h3>Motif</h3><div class="eng-motif">${mids.map(id=>`<button type="button" class="eng-mt" data-m="${esc(id)}" aria-pressed="${id===cur}"><canvas data-mv="${esc(id)}" style="background:${esc(pal.paper)}"></canvas><span>${esc(id==='auto'?'Auto':id==='none'?'None':id==='logo'?'Logo':id[0].toUpperCase()+id.slice(1))}</span></button>`).join('')}</div>`;
+ const sl=(k,label,v,min,max,step,fmt)=>`<div class="eng-sl"><label for="engM-${k}">${label}<output id="engMo-${k}">${fmt(v)}</output></label><input type="range" id="engM-${k}" data-k="${k}" min="${min}" max="${max}" step="${step}" value="${v}"></div>`;
+ const pc=v=>v+'%',sg=v=>(v>0?'+':'')+v+'%';
+ h+=sl('scale','Motif size',Math.round((ENG.motifScale||1)*100),30,250,5,pc)+sl('x','Motif horizontal',Math.round((ENG.motifX||0)*100),-45,45,1,sg)+sl('y','Motif vertical',Math.round((ENG.motifY||0)*100),-45,45,1,sg);
+ h+=`<h3>Text size</h3><div class="eng-sl"><label for="engAll">All text<output id="engAllOut">${Math.round((ENG.textScale||1)*100)}%</output></label><input type="range" id="engAll" min="50" max="200" step="5" value="${Math.round((ENG.textScale||1)*100)}"></div><div id="engSel"></div>`;
+ h+=`<div class="note">Same designs, sizes and drawing engine as Asset Studio. Picking one turns it into editable layers.</div>`;
+ return h}
+function engBind(p){
+ const c=engCat();
+ p.querySelectorAll('canvas[data-th]').forEach(cv=>{const t=c.tpls[+cv.dataset.th];if(t)engThumb(cv,t,engSizes(t,c)[0]||engSize())});
+ const cat=p.querySelector('#engCat'),sz=p.querySelector('#engSize');
+ if(cat)cat.onchange=()=>{ENG.cat=cat.value;ENG.tpl=0;ENG.size=0;engApply()};
+ if(sz)sz.onchange=()=>{ENG.size=+sz.value||0;engApply()};
+ p.querySelectorAll('.eng-card').forEach(b=>b.onclick=()=>{ENG.tpl=+b.dataset.i;ENG.size=Math.min(ENG.size,engSizes().length-1);engApply()});
+ const pal=engPal();
+ p.querySelectorAll('canvas[data-mv]').forEach(cv=>{const id=cv.dataset.mv;if(id==='auto'||id==='logo'||id==='none'){cv.width=80;cv.height=68;const x=cv.getContext('2d');x.fillStyle=pal.ink;x.font='600 20px Helvetica,Arial,sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(id==='auto'?'A':id==='none'?'∅':'◆',40,34);return}
+  try{window.AssetEngine.drawVectorPreview(cv,id,pal,40,34)}catch{}});
+ p.querySelectorAll('.eng-mt').forEach(b=>b.onclick=()=>{const id=b.dataset.m;hist.push(clone(scene));ENG.motif=id;ENG.motifOn=id!=='none';engRefreshArt();p.querySelectorAll('.eng-mt').forEach(x=>x.setAttribute('aria-pressed',String(x===b)))});
+ let mt=0;p.querySelectorAll('.eng-sl input[data-k]').forEach(inp=>inp.oninput=()=>{const k=inp.dataset.k,v=+inp.value,o=p.querySelector('#engMo-'+k);
+  if(k==='scale'){ENG.motifScale=v/100;o.textContent=v+'%'}else{if(k==='x')ENG.motifX=v/100;else ENG.motifY=v/100;o.textContent=(v>0?'+':'')+v+'%'}
+  clearTimeout(mt);mt=setTimeout(engRefreshArt,70)});
+ const all=p.querySelector('#engAll');
+ if(all){all.onpointerdown=()=>hist.push(clone(scene));all.oninput=()=>{const v=+all.value/100,f=v/(ENG.textScale||1);ENG.textScale=v;p.querySelector('#engAllOut').textContent=all.value+'%';
+   scene.forEach(l=>{if(l.type==='text')engSizeLayer(l,l.font.sizePct*f)});render()};all.onchange=()=>layers()}
+ engSyncSel()}
+function engSizeLayer(l,size){
+ size=clamp(+size,.8,30);const f=size/l.font.sizePct;if(!isFinite(f)||Math.abs(f-1)<1e-4)return;
+ const ow=l.w,oh=l.h,cx=l.x+l.w/2,right=l.x+l.w;
+ const mode=Math.abs(cx-50)<3&&l.w<90?'center':(l.x>45&&right>85?'right':'left');
+ l.font.sizePct=+size.toFixed(2);l.w=+(ow*f).toFixed(2);l.h=+(oh*f).toFixed(2);l.y=+(l.y-(l.h-oh)/2).toFixed(2);
+ if(mode==='center'){l.x=+(cx-l.w/2).toFixed(2);l.align='center'}else if(mode==='right'){l.x=+(right-l.w).toFixed(2);l.align='right'}
+ l.w=Math.min(l.w,100);l.x=clamp(l.x,0,Math.max(0,100-l.w));l.h=Math.min(l.h,100);l.y=clamp(l.y,0,Math.max(0,100-l.h))}
+function engSyncSel(){
+ const w=document.getElementById('engSel');if(!w)return;
+ const l=scene.find(q=>q.id===sel);
+ if(!l||l.type!=='text'){w.innerHTML='<div class="note">Select a text layer on the canvas or in Layers to change just its size.</div>';return}
+ w.innerHTML=`<div class="eng-sl"><label for="engOne">${esc(l.name)}<output id="engOneOut">${l.font.sizePct}</output></label><input type="range" id="engOne" min="0.8" max="20" step="0.1" value="${Math.min(20,l.font.sizePct)}"></div><div class="eng-row"><button type="button" id="engDn" aria-label="Smaller">A−</button><button type="button" id="engUp" aria-label="Larger">A+</button></div>`;
+ const one=w.querySelector('#engOne'),out=w.querySelector('#engOneOut');
+ one.onpointerdown=()=>hist.push(clone(scene));
+ one.oninput=()=>{engSizeLayer(l,+one.value);out.textContent=l.font.sizePct;render()};
+ one.onchange=()=>layers();
+ const step=d=>{hist.push(clone(scene));engSizeLayer(l,l.font.sizePct*d);render();layers()};
+ w.querySelector('#engDn').onclick=()=>step(.9);w.querySelector('#engUp').onclick=()=>step(1.1)}
+function engRefreshArt(){
+ const l=scene.find(q=>q.id==='art');if(!l||!B||!hasEngine())return;
+ const prevT=ENG.palTmp;ENG.palTmp=l.pal||null;
+ try{const tpl=engTpl(),size=engSize(),target=Math.min(size.w,1400),cv=document.createElement('canvas');
+  if(!ENG.flat)cv.getContext('2d').fillText=()=>{};
+  window.AssetEngine.render(cv,size,tpl,engState(engText(tpl)),target);
+  let src='';try{src=cv.toDataURL('image/jpeg',.92)}catch{}
+  if(src){l.src=src;render();layers()}}
+ catch(e){toast('Could not update the motif: '+e.message,true)}finally{ENG.palTmp=prevT}}
+function engGroupText(boxes,ctxFont){
+ const out=[];
+ boxes.forEach(b=>{const prev=out[out.length-1];
+  if(prev&&prev.font===b.font&&prev.color===b.color&&Math.abs(prev.x-b.x)<2&&b.y>=prev.y&&b.y-prev.lastY<b.size*1.9&&b.y-prev.lastY>b.size*.7){prev.lines.push(b.text);prev.lastY=b.y;prev.h=b.y+b.h-prev.y;prev.w=Math.max(prev.w,b.w);prev.step=prev.step||(b.y-prev.firstLast);prev.firstLast=b.y}
+  else out.push({...b,lines:[b.text],lastY:b.y,firstLast:b.y,step:0})});
+ return out}
+function engBuild(ov){const prev=ENG.palTmp;if(ov!==undefined)ENG.palTmp=ov;try{return engBuildInner()}finally{ENG.palTmp=prev}}
+function engVariant(v,sc){
+ const prev=ENG.palTmp;ENG.palTmp=null;const base=engPal();let ov=null;
+ if(v==='night')ov={paper:TH.ink,ink:TH.bone,accent:TH.accent};
+ else if(v==='accent'){const on=cr(rgb(TH.chalk),rgb(TH.accent))>=cr(rgb(TH.ink),rgb(TH.accent))?TH.chalk:TH.ink;ov={paper:TH.accent,ink:on,accent:on}}
+ else if(v==='framed')ov={paper:TH.chalk,ink:TH.ink,accent:base.accent};
+ let next;try{ENG.palTmp=ov;next=engBuildInner()}finally{ENG.palTmp=prev}
+ const old=new Map(sc.map(l=>[l.id,l]));
+ next.forEach(l=>{const o=old.get(l.id);if(l.type==='text'&&o&&o.type==='text'){l.text=o.text;l.x=o.x;l.y=o.y;l.w=o.w;l.h=o.h;l.hidden=o.hidden;if(o.align)l.align=o.align;else delete l.align;l.font.sizePct=o.font.sizePct;l.font.lineHeight=o.font.lineHeight}});
+ const own=id=>id==='ground'||id==='art'||/^t\d+$/.test(id);
+ sc.filter(l=>!own(l.id)).forEach(l=>next.push(clone(l)));
+ return next}
+function engBuildInner(){
+ const tpl=engTpl(),size=engSize(),text=engText(tpl),multi=(size.sides||1)>1||!!size.shape;ENG.flat=multi;ENG.textScale=1;
+ const target=Math.min(size.w,1400),W=Math.round(target),H=Math.round(size.h*(target/size.w));
+ const scratch=document.createElement('canvas'),sctx=scratch.getContext('2d'),runs=[];
+ const st=engState(text);let arr=[];
+ Object.defineProperty(st,'boxes',{configurable:true,get(){return arr},set(v){arr=v;const push=v.push.bind(v);v.push=function(bx){if(bx&&bx.kind==='text'&&(bx.side||'f')==='f'){
+   const m=/([0-9.]+)px/.exec(sctx.font),sz=m?+m[1]:bx.h/1.18,wt=/^(?:\w+\s+)*?(bold|[1-9]00)\b/.exec(sctx.font);
+   let ls=0;try{const nat=sctx.measureText(bx.text).width;ls=Math.max(-.2,Math.min(1,(bx.w-nat)/Math.max(1,[...bx.text].length)/sz))}catch{}
+   const fam=sctx.font.slice(sctx.font.indexOf('px')+2).trim();
+   runs.push({text:bx.text,x:bx.x,y:bx.y,w:bx.w,h:bx.h,size:sz,font:sctx.font,fam,weight:wt?(wt[1]==='bold'?700:+wt[1]):400,color:String(sctx.fillStyle),ls:+ls.toFixed(3)})}
+   return push(bx)}}});
+ window.AssetEngine.render(scratch,size,tpl,st,target);
+ const SW=scratch.width,SH=scratch.height;
+ const art=document.createElement('canvas'),actx=art.getContext('2d');actx.fillText=()=>{};
+ const st2=engState(text);window.AssetEngine.render(art,size,tpl,st2,target);
+ let src='';try{src=art.toDataURL('image/jpeg',.92)}catch{try{src=art.toDataURL('image/png')}catch{}}
+ const pal=st.pal;
+ const L=[{id:'ground',name:'Background',type:'fill',x:0,y:0,w:100,h:100,z:0,opacity:1,color:pal.paper},
+  {id:'art',name:`Design · ${tpl.n}`,type:'image',x:0,y:0,w:100,h:100,z:2,opacity:1,src,fx:50,fy:50,fit:'cover'}];if(ENG.palTmp)L[1].pal=ENG.palTmp;
+ if(multi){
+  const flat=document.createElement('canvas');window.AssetEngine.render(flat,size,tpl,engState(text),target);try{L[1].src=flat.toDataURL('image/jpeg',.92)}catch{}
+  return L}
+ const groups=engGroupText(runs);
+ groups.forEach((g,i)=>{const lh=g.lines.length>1&&g.step>0?+(g.step/g.size).toFixed(2):1.18,pad=SW*.015,hh=g.lines.length>1?(g.lines.length-1)*(g.step||g.size*1.2)+g.h:g.h;
+  const x=clamp((g.x-pad/2)/SW*100,0,100),y=clamp(g.y/SH*100,0,100),w=Math.min(100-x,(g.w+pad)/SW*100),h=Math.min(100-y,hh/SH*100);
+  const name=g.lines[0].replace(/\s+/g,' ').slice(0,22);
+  L.push({id:'t'+(i+1),name:`Text · ${name}`,type:'text',x:+x.toFixed(2),y:+y.toFixed(2),w:+w.toFixed(2),h:+h.toFixed(2),z:12+i,opacity:1,text:g.lines.join('\n'),nowrap:true,
+   font:{family:g.fam,weight:g.weight,sizePct:+(g.size/SH*100).toFixed(2),lineHeight:g.lines.length>1?lh:1.18,letterSpacingEm:g.ls,transform:'none'},color:g.color})});
+ return L}
+function engApply(){
+ if(!B||!hasEngine())return;
+ const size=engSize(),tpl=engTpl();
+ try{
+  if(B)saveScene();
+  ENG.wired=true;Object.assign(ENG,{motif:'auto',motifOn:true,motifScale:1,motifX:0,motifY:0,textScale:1});
+  FMT={id:`eng:${ENG.cat}:${ENG.tpl}:${ENG.size}`,group:engCatLabel(ENG.cat),n:`${engCatLabel(ENG.cat)} · ${size.n}`,w:size.w,h:size.h,eng:true};
+  hist=[];sel=null;seen=new Set();stopP();T=DUR;
+  fitStage();sizeProbe();
+  scene=engBuild();
+  render();layers();assets();greet();remember();
+  $('#status').textContent=`${B.name} · ${tpl.n} · ${size.n}`;
+ }catch(e){toast('Could not build that design: '+e.message,true);console.error(e)}}
+
+/* ---------- asset panel ---------- */
+const ELS=[{k:'scrim',n:'Scrim gradient',st:()=>`background:linear-gradient(${rgba(TH.ink,0)},${TH.ink})`},{k:'rule',n:'Rule line',st:()=>`background:linear-gradient(#0000 45%,${TH.accent} 45% 55%,#0000 55%)`},
+ {k:'badge',n:'Badge',st:()=>`background:${TH.accent};color:${readable('#ffffff',TH.accent)}`,t:'NEW'},{k:'text',n:'Text block',st:()=>`background:${TH.bone};color:${TH.ink}`,t:'Aa'}];
+function buildTemplateFormatChoice(template){
+ const v=String((template && (template.format || template.category || template.kind || '')) || '').toLowerCase();
+ const direct=FMTS.find(f=>{
+  const haystack=`${f.group} ${f.n} ${f.id}`.toLowerCase();
+  const wants=[v, String(template && (template.label || template.name || template.title || '')).toLowerCase()];
+  return wants.some(w=>!w?false:(haystack.includes(w)||w.includes(haystack)));
+ });
+ if(direct)return direct;
+ if(/social|square/.test(v))return FMTS.find(f=>f.id==='sq')||FMTS[0];
+ if(/story|9:16|vertical/.test(v))return FMTS.find(f=>f.id==='story')||FMTS[0];
+ if(/banner|landscape/.test(v))return FMTS.find(f=>f.id==='land')||FMTS[0];
+ if(/portrait\s*4:5|4:5/.test(v))return FMTS.find(f=>f.id==='portrait-45')||FMTS[0];
+ if(/flyer|print|a4/.test(v))return FMTS.find(f=>f.id==='a4')||FMTS[0];
+ return FMTS[0];
+}
+function applyTemplateChoice(template){
+ const item=template || getTemplateCatalog()[0];
+ const label=String(item && (item.label || item.name || item.title || 'Template'));
+ const templateId=String(item && (item.id || item.slug || item.name || label)).toLowerCase();
+ const target=buildTemplateFormatChoice(item);
+ if(hasEngine() && B){
+  const catalog=window.AssetCategories||{};
+  const cats=Object.keys(catalog);
+  const catKey=String(item && (item.category || item.kind || '')).toLowerCase();
+  let nextCat=ENG.cat || cats[0];
+  if(catKey){
+   const match=cats.find(id=>{
+    const title=String((catalog[id]&&catalog[id].title)||id).toLowerCase();
+    return title.includes(catKey) || catKey.includes(title);
+   });
+   if(match)nextCat=match;
+  }
+  if(nextCat&&catalog[nextCat]){
+   ENG.cat=nextCat;
+   const list=(catalog[nextCat].tpls||[]);
+   const index=list.findIndex(t=>{
+    const name=String((t.n||t.name||t.title||'')).toLowerCase();
+    return name.includes(templateId.replace(/[-_]/g,' ')) || templateId.includes(name.replace(/[^a-z0-9]/g,''));
+   });
+   if(index>=0)ENG.tpl=index;
+   ENG.size=0;
+  }
+  ENG.wired=true;
+  engApply();
+ }else{
+  FMT=target;
+  fitStage();sizeProbe();
+  hist=[];sel=null;seen=new Set();stopP();T=DUR;
+  scene=fitScene(buildScene('classic'));
+  render();layers();greet();remember();
+ }
+ $('#status').textContent=`${B ? B.name + ' · ' : ''}${label} · ${FMT ? FMT.n : target.n}`;
+ toast(`Template selected: ${label}`);
+}
+function assets(){
+ const tabs=$('#atabs'),n=AS.lib.items.length;
+ tabs.innerHTML='';[['brand','Brand'],['lib',n?`Library (${n})`:'Library'],['tmpl','Templates'],['el','Elements']].forEach(([k,t])=>{const b=document.createElement('button');b.textContent=t;b.setAttribute('role','tab');b.setAttribute('aria-selected',String(AS.tab===k));b.onclick=()=>{AS.tab=k;assets()};tabs.appendChild(b)});
+ const p=$('#apanel');let h='';
+ if(AS.tab==='brand'){
+  const L=B._logos||{},kinds=['wordmark',...(L.mark?['mark']:[])];
+  h+=`<h3>Logos · drag onto canvas</h3>`;
+  if(!L.wordmark&&!L.mark)h+=`<div class="note">No logo files in this brand pack — the logo layer falls back to the brand name in its display type.</div>`;
+  h+=`<div class="assets">`;
+  kinds.forEach(k=>['white','ink','accent'].forEach(t=>{const src=logoSrc(k,t),bg=t==='white'?'#2a2a31':'#f1efe9';
+   h+=`<div class="asset" draggable="true" data-k="logo:${k}:${t}"><div class="th" style="background:${bg};color:${toneHex(t)}">${src?`<img alt="" src="${src}">`:esc(String(B.wordmark||B.name).toUpperCase().slice(0,12))}</div>${k==='mark'?'Mark':'Logo'} · ${t}</div>`}));
+  h+=`</div><h3>Photography</h3>`;
+  const ph=B.photography||[];
+  h+=ph.length?`<div class="assets">${ph.map((x,i)=>`<div class="asset" draggable="true" data-k="photo:${i}"><div class="th" style="background-image:url('${esc(x.url).replace(/'/g,'%27')}')"></div><span title="${esc(x.name)}">${esc(x.name||'Photo '+(i+1))}</span></div>`).join('')}</div>`:`<div class="note">This brand has no photography in its pack. Check the Library tab or <a href="library.html?brandId=${encodeURIComponent(B.id)}">add images to the library</a>.</div>`}
+ else if(AS.tab==='lib'){
+  const lib=AS.lib;
+  if(lib.status==='loading')h+=`<div class="note">Loading ${esc(B.name)} library…</div>`;
+  else if(lib.status==='error')h+=`<div class="note warn">Library unavailable: ${esc(lib.err)}</div>`;
+  else{
+   const cls=[...new Set(lib.items.map(a=>a.class))].filter(Boolean);
+   const vis=lib.items.filter(a=>(!lib.cls||a.class===lib.cls)&&(!lib.verified||['verified','approved'].includes(a.state)));
+   h+=`<div class="flt"><select id="libCls" aria-label="Asset class"><option value="">All classes</option>${cls.map(c=>`<option value="${esc(c)}"${c===lib.cls?' selected':''}>${esc(c.replace(/-/g,' '))}</option>`).join('')}</select><label><input type="checkbox" id="libVer"${lib.verified?' checked':''}> Verified</label></div>`;
+   h+=vis.length?`<div class="assets">${vis.slice(0,60).map(a=>`<div class="asset" draggable="true" data-k="lib:${esc(a.id)}" title="${esc(a.name)} · ${esc(a.state||'')}"><div class="th" style="background-image:url('${esc(a.thumb||a.sourceUrl)}');background-size:contain;background-repeat:no-repeat"></div><span><i class="st" data-s="${esc(a.state)}"></i>${esc(a.name)}</span></div>`).join('')}</div>`:`<div class="note">${lib.items.length?'No library assets match this filter.':'No images in this brand’s library yet.'}</div>`;
+   h+=`<div class="note"><a href="library.html?brandId=${encodeURIComponent(B.id)}">Open the library →</a> to upload, verify or classify assets.</div>`}}
+ else if(AS.tab==='tmpl'&&hasEngine()){h+=engPanel()}
+ else if(AS.tab==='tmpl'){
+  const templates=getTemplateCatalog();
+  const sizes=getSizeCatalog();
+  const formats=getFormatCatalog();
+  const motifs=getMotifCatalog();
+  h+=`<h3>Choose a template</h3><div class="flt"><label for="fmtKind">Type</label><select id="fmtKind" aria-label="Template type" title="Template type"></select></div><div class="flt"><label for="fmt">Template</label><select id="fmt" aria-label="Template choice" title="Template choice"></select></div><p class="note">Select a template category, then the specific template. These are not dragged onto the canvas.</p>`;
+  h+=`<div class="template-list">${templates.map(t=>`<button type="button" class="asset" data-choice="true" data-k="template:${esc(t.id)}" title="${esc(t.summary)}"><div class="th" style="background:linear-gradient(135deg,${TH.accent},${TH.ink});color:${TH.chalk};">${esc((t.label||'T').slice(0,2).toUpperCase())}</div><span>${esc(t.label)}</span></button>`).join('')}</div>`;
+  h+=`<h3>Choose a size</h3><div class="mini-grid">${sizes.map(s=>`<button type="button" class="asset" data-choice="true" data-k="size:${esc(s.id)}"><div class="th" style="background:${rgba(TH.accent,.2)};color:${TH.tx||TH.ink};">${esc(s.label.slice(0,2).toUpperCase())}</div><span title="${esc(s.meta)}">${esc(s.label)}</span></button>`).join('')}</div>`;
+  h+=`<h3>Choose a format</h3><div class="mini-grid">${formats.map(f=>`<button type="button" class="asset" data-choice="true" data-k="format:${esc(f.id)}"><div class="th" style="background:${rgba(TH.ink,.12)};color:${TH.ink};">${esc(f.label.slice(0,2).toUpperCase())}</div><span title="${esc(f.meta)}">${esc(f.label)}</span></button>`).join('')}</div>`;
+  h+=`<h3>Choose a motif</h3><div class="mini-grid">${motifs.map(m=>`<button type="button" class="asset" data-choice="true" data-k="motif:${esc(m.id)}"><div class="th" style="background:${m.tone==='accent'?rgba(TH.accent,.22):rgba(TH.ink,.12)};color:${m.tone==='accent'?TH.accent:TH.ink};">${esc(m.icon||'✦')}</div><span>${esc(m.label)}</span></button>`).join('')}</div>`;
+ }
+ else h+=`<h3>Elements · drag onto canvas</h3><div class="assets">${ELS.map(a=>`<div class="asset" draggable="true" data-k="el:${a.k}"><div class="th" style="${a.st()}">${a.t||''}</div>${a.n}</div>`).join('')}</div>`;
+ p.innerHTML=h;wrapSections(p);
+ if(AS.tab==='tmpl'&&hasEngine())engBind(p);
+ buildFormats();
+ bindFormatSelectors();
+ p.querySelectorAll('.asset').forEach(a=>{
+  if(a.dataset.choice){
+   a.addEventListener('click',()=>{
+    const k=a.dataset.k||'';
+    const [kind, value]=k.split(':');
+    if(kind==='template'){const t=getTemplateCatalog().find(item=>String(item.id||item.slug||item.name||item.label)===value);if(t){applyTemplateChoice(t);}}
+    else if(kind==='size'){const size=getSizeCatalog().find(s=>s.id===value);if(size){const map={a4:'a4',square:'sq','story-916':'story',landscape:'land','portrait-45':'portrait-45'};const next=FMTS.find(f=>f.id===map[value]||f.n.toLowerCase()===size.label.toLowerCase())||FMTS[0];setFormat(next.id);toast(`Size selected: ${size.label}`);}}
+    else if(kind==='format'){const fmt=getFormatCatalog().find(f=>f.id===value);if(fmt){setFormat(fmt.id);toast(`Format selected: ${fmt.label}`);}}
+    else if(kind==='motif'){const motif=getMotifCatalog().find(m=>m.id===value);if(motif){if(hasEngine() && B){ENG.motif=motif.id;ENG.motifOn=motif.id!=='none';engRefreshArt();} else {toast(`Motif selected: ${motif.label}`);}}}
+    p.querySelectorAll('.asset[data-choice]').forEach(item=>item.classList.toggle('is-selected', item===a));
+    return;
+   });
+   return;
+  }
+  a.ondragstart=e=>e.dataTransfer.setData('k',a.dataset.k);a.addEventListener('click',e=>e.preventDefault());
+ });
+ const c=$('#libCls'),v=$('#libVer');if(c)c.onchange=()=>{AS.lib.cls=c.value;assets()};if(v)v.onchange=()=>{AS.lib.verified=v.checked;assets()}}
+wrapEl.ondragover=e=>e.preventDefault();
+wrapEl.ondrop=e=>{e.preventDefault();const k=e.dataTransfer.getData('k');if(!k)return;const r=stage.getBoundingClientRect();addAsset(k,(e.clientX-r.left)/r.width*100,(e.clientY-r.top)/r.height*100)};
+async function loadLibrary(b){
+ AS.lib={status:'loading',items:[],cls:'',verified:false,err:''};assets();
+ try{const d=await jget(`${API}/assets?brandId=${encodeURIComponent(b.id)}&limit=100`);if(B!==b)return;
+  AS.lib.items=((d&&d.assets)||[]).filter(a=>!['business-document','content'].includes(a.class)&&(!a.format||/png|jpe?g|webp|gif|svg|avif/i.test(a.format)));AS.lib.status='ok'}
+ catch(e){if(B!==b)return;AS.lib.status='error';AS.lib.err=e.message}
+ assets()}
+const recordUsage=a=>{if(demo||!a)return;fetch(API+'/assets/usage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({events:[{assetId:a.id,action:'design',designId:'agent-studio',size:FMT.n,profile:FMT.w>=1700?'print':'screen'}]}),keepalive:true}).catch(()=>{})};
+async function addAsset(k,px,py){
+ const[kind,a,b2]=k.split(':'),id=kind+'-'+uid++,z=20+uid;
+ const at=(w,h)=>({x:clamp(+(px-w/2).toFixed(1),0,100-w),y:clamp(+(py-h/2).toFixed(1),0,100-h),w,h,z,opacity:1,id});
+ const box=(asp,wp)=>{let w=wp,h=w*FMT.w/(asp*FMT.h);if(h>80){h=80;w=h*asp*FMT.h/FMT.w}return[+w.toFixed(1),+h.toFixed(1)]};
+ const aspOf=async src=>{try{const im=await loadImg(src);return(im.naturalWidth||3)/(im.naturalHeight||2)}catch{return 1.5}};
+ let Ly;
+ if(kind==='photo'){const ph=B.photography&&B.photography[+a];if(!ph)return;const[w,h]=box(await aspOf(ph.url),60);Ly={...at(w,h),name:ph.name||'Photo',type:'image',src:ph.url}}
+ else if(kind==='logo'){const asp=(B._logos&&B._logos[a]&&B._logos[a].aspect)||4,[w,h]=box(asp,24);Ly={...at(w,h),name:a==='mark'?'Mark':'Logo',type:'logo',which:a,tone:b2}}
+ else if(kind==='lib'){const it=AS.lib.items.find(x=>x.id===a);if(!it)return;const asp=it.width&&it.height?it.width/it.height:await aspOf(it.sourceUrl),[w,h]=box(asp,50),logoish=/logo|icon|mark|badge/i.test(`${it.class} ${it.role}`);
+  Ly={...at(w,h),name:it.name,type:'image',src:it.sourceUrl,assetId:it.id,fit:logoish?'contain':'cover'};recordUsage(it)}
+ else if(kind==='template'){const tpl=getTemplateCatalog().find(t=>t.id===a)||getTemplateCatalog()[0];if(tpl){applyTemplateChoice(tpl);return;} }
+ else if(kind==='size'){const size=getSizeCatalog().find(s=>s.id===a);if(size){const map={a4:'a4',square:'sq','story-916':'story',landscape:'land','portrait-45':'a4'};const id=map[a]||'a4';const next=FMTS.find(f=>f.id===id)||FMTS[0];setFormat(next.id);toast(`Format changed to ${next.n}.`);return;}Ly={...at(40,6),name:'Size',type:'text',text:'Size',font:F(BF.display,BF.dW,2.4,1.2),color:TH.ink};}
+ else if(kind==='format'){const next=FMTS.find(f=>f.id===a) || FMTS[0];setFormat(next.id);toast(`Format changed to ${next.n}.`);return;}
+ else if(kind==='motif'){const motif=getMotifCatalog().find(m=>m.id===a)||getMotifCatalog()[0];Ly={...at(18,12),name:motif.label,type:'text',text:motif.icon||'✦',font:F(BF.display,BF.dW,4.6,1.1),color:motif.tone==='accent'?TH.accent:TH.ink};}
+ else if(a==='scrim')Ly={...at(100,30),x:0,name:'Scrim',type:'gradient',from:rgba(TH.ink,0),to:TH.ink};
+ else if(a==='rule')Ly={...at(30,.5),name:'Rule',type:'shape',color:TH.accent};
+ else if(a==='badge')Ly={...at(10,4),name:'Badge',type:'text',text:'NEW',bg:TH.accent,radius:2,font:F(BF.body,700,1.4,1.2,.12),color:readable('#ffffff',TH.accent)};
+ else Ly={...at(40,6),name:'New text',type:'text',text:'Your text here',font:F(BF.display,BF.dW,2.4,1.2),color:TH.ink};
+ hist.push(clone(scene));scene.push(Ly);say('agent',`Added <b>${esc(Ly.name)}</b> to the canvas.`);select(Ly.id) }
+
+/* ---------- agent ---------- */
+const S=(layerId,patch)=>({type:'set-layer',layerId,patch}),A=(layerId,preset,startMs,durationMs)=>({type:'set-animation',layerId,preset,startMs,durationMs});
+function suggest(l,msg){const m=msg.toLowerCase(),o=[],id=l.id,add=(title,why,cmds)=>o.push({title,why,cmds}),CO=copyOptions();
+ const col=Object.keys(PAL).find(n=>m.includes(n.toLowerCase())),has=w=>w.some(x=>m.includes(x));
+ if(col&&l.type!=='image'&&l.type!=='logo')add(`Colour → ${col}`,`Brand palette value ${PAL[col]}.`,[S(id,{color:PAL[col]})]);
+ if(has(['bigger','larger','increase']))add('Scale up 20%','Raises presence; I’d check the box still fits.',l.type==='text'?[S(id,{font:{sizePct:+(l.font.sizePct*1.2).toFixed(2)}})]:[S(id,{w:+(l.w*1.2).toFixed(1),h:+(l.h*1.2).toFixed(1)})]);
+ if(has(['smaller','reduce']))add('Scale down 20%','Gives neighbours more room.',l.type==='text'?[S(id,{font:{sizePct:+(l.font.sizePct*.8).toFixed(2)}})]:[S(id,{w:+(l.w*.8).toFixed(1),h:+(l.h*.8).toFixed(1)})]);
+ if(has(['up','higher'])&&m.includes('move'))add('Move up 4%','Nudges toward the top.',[S(id,{y:+(l.y-4).toFixed(1)})]);
+ if(has(['down','lower'])&&m.includes('move'))add('Move down 4%','Nudges toward the bottom.',[S(id,{y:+(l.y+4).toFixed(1)})]);
+ if(has(['center','centre']))add('Centre horizontally','Aligns to the page axis.',[S(id,{x:+((100-l.w)/2).toFixed(1)}),...(l.type==='text'?[S(id,{align:'center'})]:[])]);
+ if(has(['hide','remove','delete']))add('Remove layer','Deletes it from the scene (undoable).',[{type:'remove-layer',layerId:id}]);
+ if(has(['uppercase','caps'])&&l.type==='text')add('Uppercase + tracking','Reads as a label.',[S(id,{font:{transform:'uppercase',letterSpacingEm:.14}})]);
+ if(has(['animat','motion','fade','pulse','zoom','parallax'])||msg==='Animate it'){const p=m.includes('pulse')?'pulse':m.includes('zoom')?'zoom':m.includes('parallax')?'parallax':null;
+  [['fadeIn','Soft entrance (0.9s)',300,900],['pulse','Draws the eye; good for CTAs',2000,2400],...(l.type==='image'?[['zoom','Slow push-in',0,10000],['parallax','Gentle drift',0,10000]]:[])].filter(a=>!p||a[0]===p).forEach(a=>add(`Animate: ${a[0]}`,a[1],[A(id,a[0],a[2],a[3])]))}
+ if(has(['rewrite','alternative','copy','wording'])||msg==='Rewrite it')(CO[id]||[]).filter(t=>t!==l.text).slice(0,3).forEach(t=>add(`“${t.length>48?t.slice(0,47)+'…':t}”`,'Taken from this brand’s own fields; no new facts.',[S(id,{text:t,hidden:false})]));
+ if(!o.length||has(['stand out','options','ideas','crop','scrim','what'])||['Make it stand out','Options','Crop ideas','Add a scrim'].includes(msg)){
+  if(l.type==='text'){add('Make it stand out',`Larger, higher contrast. Currently ${l.font.sizePct}% of height.`,[S(id,{font:{sizePct:+(l.font.sizePct*1.25).toFixed(2),weight:Math.max(l.font.weight,400)}}),S(id,{opacity:1})]);
+   const gr=scene.find(q=>q.id==='ground'),acc=gr?readable(TH.accent,gr.color):TH.accent;add('Accent colour','Brand accent for emphasis, only where contrast holds.',[S(id,{color:acc})]);if(CO[id]){add('Rewrite it','Show me copy options.',[]);o[o.length-1].ask='Rewrite it'}}
+  else if(l.type==='image'){const tall=FMT.h>=FMT.w*.95;
+   if(tall){add('Full-bleed with scrim','Photo to 66% height fading into the brand ink.',[S('ground',{color:TH.ink}),S(id,{h:66}),{type:'add-layer',layer:{id:'scrim-'+uid++,name:'Scrim',type:'gradient',x:0,y:36,w:100,h:30.2,z:6,opacity:1,from:rgba(TH.ink,0),to:TH.ink}}])}
+   add('Inset, framed','Inside the 8% margins, like a print.',[S(id,{x:8,y:8,w:l.w>=100?84:Math.min(l.w,84),h:l.h>=100?84:Math.max(l.h-4,20)})]);add('Shift focus left','Moves the crop toward the left of the picture.',[S(id,{fx:25})]);add('Animate: parallax','Gentle drift, 10s.',[A(id,'parallax',0,10000)])}
+  else if(l.type==='logo'){['white','ink','accent'].filter(t=>t!==l.tone).forEach(t=>add(`${t[0].toUpperCase()+t.slice(1)} logo`,'Swap tone; geometry and aspect preserved.',[{type:'swap-asset',layerId:id,asset:t}]));
+   if(B._logos&&B._logos.mark&&B._logos.wordmark)add(l.which==='mark'?'Use the wordmark':'Use the mark','Other logo cut from the brand pack.',[S(id,{which:l.which==='mark'?'wordmark':'mark'})]);
+   add('Enlarge 25%','More brand presence.',[S(id,{w:+(l.w*1.25).toFixed(1),h:+(l.h*1.25).toFixed(1)})])}
+  else{add('Fade to 50%','Softer presence.',[S(id,{opacity:.5})]);add('Send to back','Behind text.',[S(id,{z:1})])}}
+ return o}
+function concepts(){const g=GEO[FMT.id]||GEO.a4;return[
+ {title:'Dark night',why:'Brand ink ground, light type, accent where contrast allows, pulsing CTA.',cmds:[{type:'variant',variant:'night'},A('cta','pulse',3000,2400)]},
+ {title:'Framed editorial',why:'Photo inset in the margins; text and copy kept.',cmds:[{type:'variant',variant:'framed'}]},
+ {title:'Accent poster',why:'Accent-colour ground with the highest-contrast type.',cmds:[{type:'variant',variant:'accent'}]},
+ {title:'Fix hierarchy',why:'The call to action should read before the address. Move the CTA up, address last.',cmds:[S('cta',{y:g.cta[1]}),S('footer',{y:g.foot[1]})]},
+ {title:'Staggered entrance',why:'Headline, subhead and body fade in one after another, photo drifts, CTA pulses.',cmds:[A('photo','parallax',0,10000),A('headline','fadeIn',400,900),A('subhead','fadeIn',900,900),A('body','fadeIn',1300,900),A('cta','pulse',3000,2400)]}]}
+
+/* ---------- guardrails ---------- */
+let cur=[],seen=new Set();
+const LABEL={SAFE_ZONE:'Safe zone',OVERFLOW:'Text overflow',HIERARCHY:'Reading order',CONTRAST:'Contrast',MIN_SIZE:'Text size',BRAND_COLOR:'Off-palette colour'};
+function bgAt(sc,px,py,bz){const l=sc.filter(q=>q.z<bz&&!q.hidden&&['fill','shape','gradient','image'].includes(q.type)&&px>=q.x&&px<=q.x+q.w&&py>=q.y&&py<=q.y+q.h).sort((a,b)=>b.z-a.z)[0];if(!l)return[128,128,128];
+ const dn=()=>bgAt(sc,px,py,l.z);
+ if(l.type==='gradient'){const t=clamp((py-l.y)/l.h,0,1),a=rgb(l.from),b=rgb(l.to);return mix(dn(),mix(a,b,t),(a[3]*(1-t)+b[3]*t)*l.opacity)}
+ if(l.type==='image'){if(!l.src)return mix(rgb(TH.ink),rgb(TH.accent),.5);const p=PXC.get(l.src);if(!p)return[90,70,50];
+  const bw=l.w*FMT.w/100,bh=l.h*FMT.h/100,s=Math.max(bw/p.w,bh/p.h),ox=(bw-p.w*s)*(l.fx??50)/100,oy=(bh-p.h*s)*(l.fy??50)/100,
+   ix=Math.min(p.w-1,Math.max(0,Math.floor(((px-l.x)*FMT.w/100-ox)/s))),iy=Math.min(p.h-1,Math.max(0,Math.floor(((py-l.y)*FMT.h/100-oy)/s))),k=(iy*p.w+ix)*4;return[p.d[k],p.d[k+1],p.d[k+2]]}
+ return mix(dn(),rgb(l.color),l.opacity)}
+function check(sc){const iss=[],Pl=Object.values(PAL).map(h=>h.toLowerCase()),add=(code,l,msg,fix)=>iss.push({code,id:l.id,key:code+':'+l.id,msg,fix});
+ sizeProbe();render(sc,probe);const pr=probe.getBoundingClientRect(),live=sc.filter(l=>!l.hidden);
+ for(const l of live){if(['fill','gradient','image'].includes(l.type))continue;
+  if(l.x<7.99||l.y<7.99||l.x+l.w>92.01||l.y+l.h>92.01)add('SAFE_ZONE',l,`${l.name} crosses the 8% safe margin.`,[S(l.id,{x:+Math.min(Math.max(l.x,8),92-l.w).toFixed(1),y:+Math.min(Math.max(l.y,8),92-l.h).toFixed(1)})]);
+  if(l.type!=='text')continue;
+  const e=probe.querySelector(`[data-id="${l.id}"]`);if(!e)continue;const rg=document.createRange();rg.selectNodeContents(e);const b=rg.getBoundingClientRect();if(!b.width)continue;
+  if(b.height>e.clientHeight+1.5)add('OVERFLOW',l,`The text needs about ${(b.height/pr.height*100).toFixed(1)}% height but its box is ${l.h}%, so it clips.`,[S(l.id,{h:+(l.h*b.height/e.clientHeight+.3).toFixed(1)})]);
+  else if(b.width>e.clientWidth+1.5)add('OVERFLOW',l,`The text is wider than its ${l.w}% box and will clip.`,[S(l.id,{font:{sizePct:+(l.font.sizePct*e.clientWidth/b.width*.97).toFixed(2)}})]);
+  if(l.font.sizePct<.9)add('MIN_SIZE',l,`${l.font.sizePct}% is below the 0.9% legibility floor.`,[S(l.id,{font:{sizePct:.9}})]);
+  if(!(FMT&&FMT.eng)&&!Pl.includes(String(l.color).toLowerCase()))add('BRAND_COLOR',l,`${l.color} is not in the brand palette.`,[S(l.id,{color:TH.ink})]);
+  const xr=(b.left-pr.left)/pr.width*100,yr=(b.top-pr.top)/pr.height*100,wr=b.width/pr.width*100,hr=b.height/pr.height*100;
+  const bgs=[.1,.5,.9].flatMap(a=>[.2,.8].map(c=>l.bg?rgb(l.bg):bgAt(sc,xr+wr*a,yr+hr*c,l.z)));
+  const worst=(c,op)=>Math.min(...bgs.map(g=>cr(mix(g,rgb(c),op),g))),th=l.font.sizePct>=2.2?3:4.5,w0=worst(l.color,l.opacity);
+  if(w0<th){const best=[TH.ink,TH.bone,TH.chalk].map(c=>[c,worst(c,1)]).sort((x,y)=>y[1]-x[1])[0];add('CONTRAST',l,`Contrast is ${w0.toFixed(1)}:1 against what’s behind it; it needs ${th}:1.`,[S(l.id,{color:best[0],opacity:1})])}}
+ const f=live.find(q=>q.id==='footer'),c=live.find(q=>q.id==='cta');
+ if(f&&c&&f.y<c.y&&Math.abs(f.x-c.x)<5){const y=Math.min(f.y,c.y);add('HIERARCHY',c,'The address reads before the call to action. The action should come first.',[S(c.id,{y}),S(f.id,{y:+(y+c.h+1.5).toFixed(1)})])}
+ return iss}
+function watch(){cur=check(scene);list();$('#gc').innerHTML=cur.length?`<span class="warn">⚠ ${cur.length} guardrail issue${cur.length>1?'s':''}</span>`:'✓ Guardrails clear';
+ const nw=cur.filter(i=>!seen.has(i.key));seen=new Set(cur.map(i=>i.key));if(nw.length)flag(nw,'I noticed')}
+function flag(a,lead){const nm=id=>(scene.find(l=>l.id===id)||{name:id}).name,cards=a.map(i=>({title:LABEL[i.code]+' · '+nm(i.id),why:i.msg,cmds:i.fix||[]})),fx=a.flatMap(i=>i.fix||[]);
+ if(a.length>1)cards.push({title:'Fix all',why:'Apply every suggested fix at once.',cmds:fx});
+ say('agent',`<span class="warn">⚠</span> ${lead} ${a.length} thing${a.length>1?'s':''} worth fixing:`,cards)}
+$('#gc').onclick=()=>cur.length?flag(cur,'Right now there are'):say('agent','✓ All clear: safe zone, text overflow, contrast, reading order, text size and palette.');
+
+/* ---------- timeline ---------- */
+const DUR=10000;let T=DUR,playing=false,raf=0;
+function seek(t){T=Math.max(0,Math.min(DUR,t));stage.querySelectorAll('[data-an]').forEach(e=>{const l=scene.find(q=>q.id===e.dataset.id);if(l&&l.anim)e.style.animationDelay=(l.anim.start-T)+'ms'});
+ $('#scrub').value=T;$('#tt').textContent=(T/1000).toFixed(2)+' / '+(DUR/1000).toFixed(2)+' s';$('#tlb').style.setProperty('--p',T/DUR)}
+function stopP(){playing=false;cancelAnimationFrame(raf);$('#tpl').textContent='▶ Play'}
+function play(from=T){stopP();if(from>=DUR)from=0;playing=true;$('#tpl').textContent='❚❚ Pause';const s=performance.now()-from;const f=n=>{seek(n-s);if(T<DUR&&playing)raf=requestAnimationFrame(f);else stopP()};raf=requestAnimationFrame(f)}
+$('#tpl').onclick=()=>playing?stopP():play();$('#scrub').oninput=e=>{stopP();seek(+e.target.value)};
+const pxb=(l,b)=>{b.style.left=l.anim.start/DUR*100+'%';b.style.width=Math.max(.6,l.anim.duration/DUR*100)+'%'};
+function bd(e,l,b){e.stopPropagation();e.preventDefault();const tk=b.parentNode.getBoundingClientRect(),edge=e.clientX>b.getBoundingClientRect().right-8,sx=e.clientX,s0=l.anim.start,d0=l.anim.duration;let mv=false;
+ const m=ev=>{if(!mv){hist.push(clone(scene));mv=true}const dt=Math.round((ev.clientX-sx)/tk.width*DUR/100)*100;
+  if(edge)l.anim.duration=Math.max(100,Math.min(DUR-s0,d0+dt));else l.anim.start=Math.max(0,Math.min(DUR-l.anim.duration,s0+dt));pxb(l,b);render();seek(T)};
+ const u=()=>{removeEventListener('pointermove',m);removeEventListener('pointerup',u);if(mv){tl();say('agent',`${esc(l.name)}: ${l.anim.preset} now starts at ${(l.anim.start/1000).toFixed(1)}s and runs ${(l.anim.duration/1000).toFixed(1)}s.`);saveScene()}};
+ addEventListener('pointermove',m);addEventListener('pointerup',u)}
+function tl(){const w=$('#tlb');w.innerHTML=`<div class="tr"><div class="n"></div><div class="tk" style="cursor:pointer">${[...Array(11)].map((_,i)=>`<small style="position:absolute;left:${i*10}%;font-size:9px;color:var(--mu);padding-left:2px">${i}s</small>`).join('')}</div></div>`;
+ const rul=w.querySelector('.tk'),go=ev=>{const r=rul.getBoundingClientRect();stopP();seek((ev.clientX-r.left)/r.width*DUR)};
+ rul.onpointerdown=ev=>{go(ev);const u=()=>{removeEventListener('pointermove',go);removeEventListener('pointerup',u)};addEventListener('pointermove',go);addEventListener('pointerup',u)};
+ scene.filter(l=>!l.hidden).sort((a,b)=>b.z-a.z).forEach(l=>{const r=document.createElement('div');r.className='tr';r.dataset.s=l.id===sel?1:0;r.innerHTML=`<div class="n">${esc(l.name)}</div><div class="tk"></div>`;r.querySelector('.n').onclick=()=>select(l.id);
+  if(l.anim){const b=document.createElement('div');b.className='bar';b.innerHTML=`<span>${l.anim.preset}</span>`;pxb(l,b);b.onpointerdown=e=>bd(e,l,b);r.querySelector('.tk').appendChild(b)}w.appendChild(r)});
+ const ph=document.createElement('div');ph.className='ph';w.appendChild(ph);seek(T)}
+
+/* ---------- chat ---------- */
+function say(who,html,cards=[]){const m=document.createElement('div');m.className='m'+(who==='user'?' u':'');m.innerHTML=html;chat.appendChild(m);
+ if(cards.length){const w=document.createElement('div');w.className='cards';cards.forEach(c=>{const d=document.createElement('div');d.className='card';
+  d.innerHTML=`<b>${esc(c.title)}</b><p>${esc(c.why)}</p><div class="r"><small>${c.cmds.length} command${c.cmds.length===1?'':'s'} · hover to preview</small><button data-j>JSON</button><button data-a ${c.cmds.length||c.ask?'':'disabled'}>Apply</button></div>`;
+  const sm=d.querySelector('small');
+  d.onmouseenter=()=>{if(!c.cmds.length||d.classList.contains('done'))return;const t=run(clone(scene),c.cmds);render(t);const ks=new Set(check(scene).map(i=>i.key)),nw=check(t).filter(i=>!ks.has(i.key));render(t);sm.innerHTML=nw.length?`<span class="warn">⚠ introduces ${nw.length}: ${nw.map(i=>LABEL[i.code]).join(', ')}</span>`:'✓ guardrails clean'};
+  d.onmouseleave=()=>render();
+  d.querySelector('[data-j]').onclick=()=>{let p=d.querySelector('pre');if(p)return p.remove();p=document.createElement('pre');p.textContent=JSON.stringify(c.cmds,null,1);d.appendChild(p)};
+  d.querySelector('[data-a]').onclick=e=>{if(c.ask)return ask(c.ask);commit(c.cmds);d.classList.add('done');e.target.textContent='Applied ✓';e.target.disabled=true;$('#status').textContent=`Applied: ${c.title}`};
+  w.appendChild(d)});chat.appendChild(w)}
+ chat.scrollTop=chat.scrollHeight}
+function ask(t){say('user',esc(t));const l=scene.find(q=>q.id===sel);setTimeout(()=>{
+ if(!l){const lm=t.toLowerCase(),an=lm.includes('anim'),C=concepts();const c=lm.includes('hier')?[C[3]]:an?[C[4]]:C.slice(0,3);
+  say('agent',lm.includes('hier')?'One structural issue I can see:':an?'A staggered entrance for the whole design. Drag the bars in the timeline to retime it:':'Three directions for the whole design, built from this brand’s palette and type. Hover to preview each on the canvas:',c)}
+ else{const c=suggest(l,t);say('agent',c.length?`For <b>${esc(l.name)}</b>:`:`I can’t do that to <b>${esc(l.name)}</b> yet. Try “bigger”, “accent colour”, “animate it” or “move up”.`,c)}},300)}
+function deleteSelection(){if(!sel)return;const l=scene.find(q=>q.id===sel);if(!l)return;hist.push(clone(scene));scene=scene.filter(q=>q.id!==sel);sel=null;render();layers();$('#status').textContent=l.name?`Deleted ${l.name}.`:'Deleted layer.';closeContextMenu()}
+function closeContextMenu(){const menu=$('#ctxMenu');if(menu){menu.innerHTML='';menu.classList.remove('visible');menu.setAttribute('hidden','hidden')}}
+function showContextMenu(event, layerId){const menu=$('#ctxMenu');if(!menu)return;event.preventDefault();const item=scene.find(q=>q.id===layerId);if(!item)return;menu.innerHTML='';const btn=document.createElement('button');btn.type='button';btn.setAttribute('role','menuitem');btn.textContent='Delete layer';btn.onclick=()=>{deleteSelection()};menu.appendChild(btn);menu.classList.add('visible');menu.removeAttribute('hidden');const left=Math.min(event.clientX+10,window.innerWidth-180);const top=Math.min(event.clientY+10,window.innerHeight-80);menu.style.left=left+'px';menu.style.top=top+'px'}
+$('#f').onsubmit=e=>{e.preventDefault();const v=$('#in').value.trim();if(v){$('#in').value='';ask(v)}};
+$('#clearChat').onclick=()=>{chat.innerHTML='';$('#status').textContent='Chat cleared.'};
+document.addEventListener('keydown',(event)=>{const target=event.target;const editable=target&&((target.isContentEditable)||(target.tagName==='INPUT')||(target.tagName==='TEXTAREA')||(target.tagName==='SELECT'));if(editable)return;if((event.key==='Delete'||event.key==='Backspace')&&sel){event.preventDefault();deleteSelection()}});
+document.addEventListener('click',e=>{if(!e.target.closest('#ctxMenu'))closeContextMenu()});
+document.addEventListener('contextmenu',e=>{if(!e.target.closest('#ctxMenu'))closeContextMenu()});
+stage.addEventListener('contextmenu',e=>{const layer=e.target.closest('.L');if(!layer)return;const id=layer.dataset.id;select(id);showContextMenu(e,id)});
+function greet(){chat.innerHTML='';say('agent',`Hi, I’m the Studio agent. I can see the <b>${esc(B.name)}</b> ${esc(FMT.n.toLowerCase())}, built from its palette (${Object.keys(PAL).length} colours), type and imagery. <b>Select a layer</b> or <b>drag an asset onto the canvas</b> and I’ll propose options for that exact element. With nothing selected, here are directions for the whole design:`,concepts().slice(0,3))}
+
+/* ---------- toolbar ---------- */
+$('#undo').onclick=()=>{if(hist.length){scene=hist.pop();if(!scene.find(l=>l.id===sel))sel=null;render();layers();$('#status').textContent='Undone.'}};
+$('#reset').onclick=()=>{hist.push(clone(scene));LS.del(sceneKey());scene=fitScene(buildScene('classic'));sel=null;render();layers();toast('Scene reset to the brand defaults.')};
+$('#play').onclick=()=>play(0);
+$('#sz').onchange=e=>$('#app').classList.toggle('safe',e.target.checked);
+wrapEl.onclick=e=>{if(e.target.id==='wrap')select(null)};
+$('#grp').onchange=e=>selectPack(e.target.value);
+bindFormatSelectors();
+
+/* ---------- persistence ---------- */
+const sceneKey=()=>`agentStudio.scene.v2:${B&&B.id}:${FMT&&FMT.id}`;
+function saveScene(){if(!B||demo)return;if(!LS.set(sceneKey(),{v:2,scene}))LS.del(sceneKey())}
+function loadScene(){if(demo)return null;const d=LS.get(sceneKey(),null);return d&&d.v===2&&Array.isArray(d.scene)&&MASTER_IDS.size&&['ground','photo','headline'].every(id=>d.scene.some(l=>l.id===id))?d.scene:null}
+const remember=()=>{LS.set('agentStudio.last.v1',{packId:P&&P.id,brandId:B&&B.id,fmt:FMT&&FMT.id});LS.set('agentStudio.lastBrands.v1',{...LS.get('agentStudio.lastBrands.v1',{}),[P.id]:B.id});
+ if(!demo)try{const u=new URL(location.href);u.searchParams.set('pack',P.id);u.searchParams.set('brand',B.id);history.replaceState(null,'',u)}catch{}};
+
+/* ---------- selection flow ---------- */
+async function setFormat(id){
+ const f=FMTS.find(x=>x.id===id)||FMTS[0];if(B)saveScene();FMT=f;const kind=$('#fmtKind');if(kind)kind.value=fmtGroupFor(f.id);buildFormats();fitStage();sizeProbe();
+ hist=[];sel=null;seen=new Set();
+ if(B){const saved=loadScene();scene=saved||fitScene(buildScene('classic'));render();layers();assets();greet();remember()}}
+async function selectBrand(id){
+ const b=(P.brands||[]).find(x=>x.id===id);if(!b)return;const tok=++selTok;
+ if(B)saveScene();
+ $('#brands').querySelectorAll('button').forEach(x=>x.disabled=true);
+ B=b;deriveTheme(b);BF=brandFonts(b);hist=[];sel=null;seen=new Set();stopP();T=DUR;
+ await Promise.all([brandLogos(b),engMedia(b),document.fonts&&document.fonts.ready].filter(Boolean)).catch(()=>{});
+ if(tok!==selTok)return;
+ (b.photography||[]).slice(0,1).forEach(p=>ensurePx(p.url));
+ fitStage();sizeProbe();
+ const saved=loadScene();scene=saved||(FMT.eng&&hasEngine()?engBuild():fitScene(buildScene('classic')));
+ $('#brands').querySelectorAll('button').forEach(x=>x.disabled=false);
+ chrome();render();layers();assets();greet();remember();loadLibrary(b);
+ $('#status').textContent=`${b.name} · ${FMT.n}`}
+const packFull=async id=>{if(packCache.has(id))return packCache.get(id);const d=await jget(`${API}/brand-packs/${encodeURIComponent(id)}`),p=d&&d.pack;if(!p||!(p.brands||[]).length)throw new Error('The brand group contains no brands.');packCache.set(id,p);return p};
+async function selectPack(id,preferBrand){
+ if(!id)return;const g=$('#grp');g.disabled=true;
+ try{const p=await packFull(id);P=p;buildGroupSelect();buildBrandPills();
+  const last=LS.get('agentStudio.lastBrands.v1',{})[id],pick=[preferBrand,last].find(x=>x&&p.brands.some(b=>b.id===x))||p.brands[0].id;
+  B=null;await selectBrand(pick);toast(`${p.name||id} · ${p.brands.length} brand${p.brands.length===1?'':'s'}`)}
+ catch(e){toast('Could not load that group: '+e.message,true);g.value=P?P.id:''}
+ finally{g.disabled=false}}
+
+/* ---------- boot ---------- */
+function bootMsg(html,acts){$('#bootMsg').innerHTML=html;const a=$('#bootActs');a.innerHTML='';(acts||[]).forEach(([t,fn])=>{const b=document.createElement('button');b.textContent=t;b.onclick=fn;a.appendChild(b)});$('#boot').hidden=false}
+function demoPack(){
+ const brand={id:'demo-physician',name:'The Physician',tagline:'A table worth crossing town for',wordmark:'The Physician',
+  palette:[{name:'Ink',hex:'#17162e'},{name:'Vermilion',hex:'#eb5b3c'},{name:'Bone',hex:'#ebe6e0'},{name:'Sand',hex:'#e8b58e'},{name:'Umber',hex:'#6b4c35'},{name:'Teal',hex:'#41baae'}],
+  typography:{families:['Georgia','Helvetica Neue']},logos:[],photography:[{name:'Hero photo',url:DEMO_PHOTO}],
+  guidelines:{positioning:'Seasonal plates, a considered drinks list and a room built for long lunches. Join us for dinner, private dining or a quiet drink at the bar.',contact:[{field:'Address',value:'129 South Street, St Andrews, KY16 9UH'},{field:'Website',value:'www.thephysician.bar'}]}};
+ return{id:'demo',name:'Offline demo',brands:[brand]}}
+async function startDemo(){demo=true;$('#net').hidden=false;const p=demoPack();PACKS=[{id:p.id,name:p.name,brands:p.brands}];packCache.set(p.id,p);
+ FMT=FMTS[0];buildFormats();P=p;buildGroupSelect();buildBrandPills();await selectBrand(p.brands[0].id);$('#boot').hidden=true}
+async function boot(){
+ FMT=FMTS[0];buildFormats();bootMsg('<b>Agent Studio</b><br>Loading brand groups…');
+ try{
+  const [d]=await Promise.all([jget(API+'/brand-packs'),loadFonts()]);
+  PACKS=(d&&d.packs)||[];if(!PACKS.length)throw new Error('No brand packs are available.');
+  const q=new URLSearchParams(location.search),last=LS.get('agentStudio.last.v1',{}),rb=q.get('brand')||q.get('brandId'),rp=q.get('pack')||q.get('packId');
+  const byBrand=rb&&PACKS.find(p=>(p.brands||[]).some(b=>b.id===rb)),has=id=>id&&PACKS.some(p=>p.id===id);
+  const packId=(byBrand&&byBrand.id)||(has(rp)?rp:null)||(has(last.packId)?last.packId:null)||PACKS[0].id;
+  const fm=FMTS.find(f=>f.id===(q.get('format')||last.fmt));if(fm){FMT=fm;buildFormats()}
+  P=await packFull(packId);buildGroupSelect();buildBrandPills();
+  const lastMap=LS.get('agentStudio.lastBrands.v1',{}),want=[rb,last.packId===packId?last.brandId:null,lastMap[packId]].find(x=>x&&P.brands.some(b=>b.id===x))||P.brands[0].id;
+  await selectBrand(want);$('#boot').hidden=true}
+ catch(e){const m=String(e.message||e);
+  bootMsg(`<b>Agent Studio could not load your brands.</b><br>${esc(/fetch|network|failed|load/i.test(m)?'Start the local studio server with `node server.js`, then reload.':m)}`,[['Reload',()=>location.reload()],['Open offline demo',()=>startDemo()],]);}}
+if(typeof ResizeObserver!=='undefined')new ResizeObserver(()=>{if(!FMT)return;fitStage();clearTimeout(wt);wt=setTimeout(()=>B&&watch(),60)}).observe(wrapEl);
+else addEventListener('resize',fitStage);
+boot();
+})();
+</script>
+</body>
+</html>
