@@ -77,7 +77,7 @@ brand-kit/
 | Source | Becomes |
 |---|---|
 | `tokens/*.tokens.json` | Palette (HEX / RGB / CMYK, role, share, tier), typography families + scale, voice attributes / prefer / avoid, logo notes |
-| `content/*.json` | Structured menus/drinks, hours, booking link and the authored `copy` deck (headline, body, dish special, voucher terms, festive campaign). Asset Studio and the Agent Studio use the menu to prefill menu designs and the copy deck to replace their shared sample text |
+| `content/*.json` | Structured menus/drinks, hours, booking link and the authored `copy` deck (headline, body, dish special, voucher terms, festive campaign, campaign blocks). Asset Studio and the Agent Studio use the menu to prefill menu designs and the copy deck to replace their shared sample text. A brand with `copy.kind: 'ice-cream'` also gets the ice-cream/social template set |
 | `<brand>/social/` | Read-only social-intelligence evidence (profile, voice, channels, reviews). Ignored as tokens and as brand photography; the Social index reads it and `brand.social` carries the bounded summary |
 | `assets/{logos,photography}` | Logo cuts and photo pool; `social/assets/` is excluded from both |
 | `*.docx` guide | Positioning statement, **applications matrix** (menu, brochure, voucher, social, …), print specification, canonical contact block, facts, type hierarchy, logo rules, full section outline |

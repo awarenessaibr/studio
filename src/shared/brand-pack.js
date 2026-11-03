@@ -510,6 +510,7 @@
         const strings = [
             ['eyebrow', 120], ['headline', 180], ['subhead', 120], ['kicker', 60],
             ['detail', 200], ['body', 600], ['cta', 60], ['tag', 180], ['boldTitle', 120],
+            ['kind', 40],
         ];
         strings.forEach(([key, limit]) => {
             const entry = text(value[key], limit);
@@ -544,6 +545,13 @@
             out.festive = { ...(out.festive || {}), dishes: festiveDishes };
         }
         group('card', [['name', 80], ['role', 80]]);
+        group('campaign', [
+            ['rangeKicker', 60], ['rangeTitle', 140], ['rangeBody', 300],
+            ['resellerKicker', 60], ['resellerTitle', 140], ['resellerBody', 300],
+            ['resellerPhone', 60], ['resellerEmail', 120],
+            ['premiumKicker', 60], ['premiumTitle', 140], ['premiumBody', 300],
+            ['premiumBadge', 80],
+        ]);
         return Object.keys(out).length ? out : null;
     }
 
@@ -797,6 +805,7 @@
             cover: normalizeAssetUrl(source.cover) || null,
             guidelines: normalizeGuidelines(source.guidelines),
             brandKitId: ID_PATTERN.test(String(source.brandKitId || '')) ? String(source.brandKitId) : null,
+            fontReady: source.fontReady === true,
             tokens: source.tokens && typeof source.tokens === 'object' ? source.tokens : null,
         };
         // A brand with no name and no palette is a folder, not a brand.
@@ -1315,6 +1324,373 @@
     // ---------------------------------------------------------------------
     // Template catalog
     // ---------------------------------------------------------------------
+    const ICE_CREAM = (brand) => brand?.content?.copy?.kind === 'ice-cream';
+
+    function cutoutPhotos(brand) {
+        return (brand?.photography || []).filter((photo) => /^cutout /i.test(String(photo.name || '')));
+    }
+
+    function cutoutFor(brand, pattern) {
+        const wanted = pattern ? new RegExp(pattern, 'i') : null;
+        const cuts = cutoutPhotos(brand);
+        return (wanted && cuts.find((photo) => wanted.test(photo.name))) || cuts[0] || null;
+    }
+
+    function socialFooter(contact, website) {
+        const handle = String(contact.instagram || '')
+            .replace(/^https?:\/\/(www\.)?instagram\.com\//i, '')
+            .replace(/\/+$/, '');
+        return [handle ? `@${handle}` : '', website].filter(Boolean).join('  ·  ');
+    }
+
+    function buildFlavourCard(ctx) {
+        const { roles, fonts, brand, logoLight, photo, contact, website } = ctx;
+        const copy = brand?.content?.copy || {};
+        const special = copy.special || {};
+        const ground = roles.accent.hex;
+        const white = '#ffffff';
+        const yellow = '#ffec00';
+        const ink = roles.ink.hex;
+        const shot = cutoutFor(brand, 'brigadeiro') || cutoutFor(brand) || photo;
+        const layers = [];
+        const variables = [];
+        layers.push(imageLayer({ id: 'flavour-ground', name: 'Ground', color: ground, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
+        layers.push(imageLayer({ id: 'flavour-rule', name: 'Top rule', color: yellow, x: 0, y: 0, w: 100, h: 1.2, z: 2, bleed: true }));
+        layers.push(imageLayer({ id: 'flavour-band', name: 'Bottom band', color: yellow, x: 0, y: 94, w: 100, h: 6, z: 2, bleed: true }));
+        if (logoLight) {
+            layers.push(imageLayer({ id: 'flavour-logo', name: 'Wordmark', url: logoLight.url, fit: 'contain', x: 8, y: 6, w: 30, h: 7, z: 6, bleed: true }));
+        }
+        variables.push(variable({ id: 'flavour_kicker', name: 'Kicker', value: special.kicker || 'Direto da fábrica' }));
+        layers.push(textLayer({
+            id: 'flavour-kicker', name: 'Kicker', binding: 'flavour_kicker', text: special.kicker || 'Direto da fábrica',
+            family: fonts.label, weight: 600, sizePct: 1.8, letterSpacingEm: 0.22, transform: 'uppercase',
+            color: yellow, align: 'left', x: 8, y: 18.4, w: 46, h: 3, z: 10,
+        }));
+        variables.push(variable({ id: 'flavour_name', name: 'Flavour', value: special.dish || 'Açaí trufado com avelã' }));
+        layers.push(textLayer({
+            id: 'flavour-name', name: 'Flavour name', binding: 'flavour_name', text: special.dish || 'Açaí trufado com avelã',
+            family: fonts.title, weight: 600, sizePct: 7.2, lineHeight: 1.02, color: white,
+            align: 'left', x: 8, y: 22.4, w: 44, h: 20, z: 10,
+        }));
+        variables.push(variable({ id: 'flavour_note', name: 'Note', value: special.description || 'Açaí cremoso com recheio trufado e avelã.' }));
+        layers.push(textLayer({
+            id: 'flavour-note', name: 'Note', binding: 'flavour_note', text: special.description || 'Açaí cremoso com recheio trufado e avelã.',
+            family: fonts.body, weight: 400, sizePct: 2.1, lineHeight: 1.4, color: white, opacity: 0.9,
+            align: 'left', x: 8, y: 44.4, w: 42, h: 9, z: 10,
+        }));
+        layers.push(imageLayer({ id: 'flavour-badge', name: 'Size badge', color: yellow, x: 8, y: 56.4, w: 22, h: 5.6, z: 8, bleed: false }));
+        variables.push(variable({ id: 'flavour_size', name: 'Size', value: special.price || '60 g' }));
+        layers.push(textLayer({
+            id: 'flavour-size', name: 'Size', binding: 'flavour_size', text: special.price || '60 g',
+            family: fonts.label, weight: 600, sizePct: 2.2, letterSpacingEm: 0.06, color: ink,
+            align: 'center', x: 8, y: 57.4, w: 22, h: 4, z: 10,
+        }));
+        if (shot) {
+            layers.push(imageLayer({
+                id: 'flavour-product', name: 'Product cut-out', url: shot.url, fit: 'contain',
+                x: 56, y: 30, w: 40, h: 58, z: 6, bleed: false,
+            }));
+        }
+        layers.push(textLayer({
+            id: 'flavour-cta', name: 'Call to action', text: 'Encontre um revendedor',
+            family: fonts.label, weight: 600, sizePct: 1.7, letterSpacingEm: 0.16, transform: 'uppercase',
+            color: white, align: 'left', x: 8, y: 80.5, w: 60, h: 3, z: 10,
+        }));
+        layers.push(textLayer({
+            id: 'flavour-footer', name: 'Footer', text: socialFooter(contact, website),
+            family: fonts.body, weight: 400, sizePct: 1.1, color: white, opacity: 0.9, align: 'left',
+            x: 8, y: 13.8, w: 84, h: 2.4, z: 10,
+        }));
+        return { layers, variables };
+    }
+
+    function buildRangeSocial(ctx) {
+        const { roles, accentText, fonts, brand, logo, contact, website } = ctx;
+        const copy = brand?.content?.copy || {};
+        const campaign = copy.campaign || {};
+        const cuts = cutoutPhotos(brand);
+        const picks = [
+            cuts.find((p) => /açaí/i.test(p.name)),
+            cuts.find((p) => /brigadeiro/i.test(p.name)),
+            cuts.find((p) => /cupuaçu/i.test(p.name)),
+        ].filter(Boolean);
+        const layers = [];
+        const variables = [];
+        layers.push(imageLayer({ id: 'range-ground', name: 'Ground', color: roles.ground.hex, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
+        layers.push(imageLayer({ id: 'range-bar', name: 'Top bar', color: roles.accent.hex, x: 0, y: 0, w: 100, h: 2, z: 2, bleed: true }));
+        if (logo) {
+            layers.push(imageLayer({ id: 'range-logo', name: 'Wordmark', url: logo.url, fit: 'contain', x: 36, y: 7, w: 28, h: 7, z: 6, bleed: true }));
+        }
+        variables.push(variable({ id: 'range_kicker', name: 'Kicker', value: campaign.rangeKicker || 'Linha completa' }));
+        layers.push(textLayer({
+            id: 'range-kicker', name: 'Kicker', binding: 'range_kicker', text: campaign.rangeKicker || 'Linha completa',
+            family: fonts.label, weight: 600, sizePct: 1.8, letterSpacingEm: 0.22, transform: 'uppercase',
+            color: accentText, align: 'center', x: 8, y: 19, w: 84, h: 3, z: 10,
+        }));
+        variables.push(variable({ id: 'range_title', name: 'Headline', value: campaign.rangeTitle || 'Mais de 80 sabores.' }));
+        layers.push(textLayer({
+            id: 'range-title', name: 'Headline', binding: 'range_title', text: campaign.rangeTitle || 'Mais de 80 sabores.',
+            family: fonts.title, weight: 600, sizePct: 8.4, lineHeight: 1.02, color: roles.ink.hex,
+            align: 'center', x: 8, y: 23, w: 84, h: 13, z: 10,
+        }));
+        layers.push(imageLayer({ id: 'range-rule', name: 'Rule', color: roles.accent.hex, x: 44, y: 37.4, w: 12, h: 0.5, z: 5, bleed: true }));
+        variables.push(variable({ id: 'range_body', name: 'Body', value: campaign.rangeBody || '' }));
+        layers.push(textLayer({
+            id: 'range-body', name: 'Body', binding: 'range_body', text: campaign.rangeBody || '',
+            family: fonts.body, weight: 400, sizePct: 2.1, lineHeight: 1.4, color: roles.ink.hex, opacity: 0.78,
+            align: 'center', x: 12, y: 41, w: 76, h: 8, z: 10,
+        }));
+        picks.slice(0, 3).forEach((photo, index) => {
+            layers.push(imageLayer({
+                id: `range-product-${index + 1}`, name: `Product ${index + 1}`, url: photo.url, fit: 'contain',
+                x: 7 + index * 30, y: 52, w: 26, h: 28, z: 6, bleed: false,
+            }));
+        });
+        layers.push(textLayer({
+            id: 'range-cta', name: 'Call to action', text: copy.cta || 'Conheça os sabores',
+            family: fonts.label, weight: 600, sizePct: 1.9, letterSpacingEm: 0.16, transform: 'uppercase',
+            color: accentText, align: 'center', x: 8, y: 80.5, w: 84, h: 3, z: 10,
+        }));
+        layers.push(textLayer({
+            id: 'range-footer', name: 'Footer', text: socialFooter(contact, website),
+            family: fonts.body, weight: 400, sizePct: 1.2, color: roles.ink.hex, opacity: 0.72,
+            align: 'center', x: 8, y: 15.4, w: 84, h: 3, z: 10,
+        }));
+        return { layers, variables };
+    }
+
+    function buildResellerSocial(ctx) {
+        const { roles, fonts, brand, logoLight, contact, website } = ctx;
+        const copy = brand?.content?.copy || {};
+        const campaign = copy.campaign || {};
+        const ground = roles.accent.hex;
+        const yellow = '#ffec00';
+        const white = '#ffffff';
+        const ink = roles.ink.hex;
+        const layers = [];
+        const variables = [];
+        layers.push(imageLayer({ id: 'reseller-ground', name: 'Ground', color: ground, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
+        layers.push(imageLayer({ id: 'reseller-bar', name: 'Side bar', color: yellow, x: 0, y: 0, w: 2, h: 100, z: 2, bleed: true }));
+        layers.push(textLayer({
+            id: 'reseller-years', name: 'Years', text: '29', family: fonts.title, weight: 600, sizePct: 22,
+            color: yellow, opacity: 0.16, align: 'right', x: 60, y: 48, w: 34, h: 30, z: 1,
+        }));
+        if (logoLight) {
+            layers.push(imageLayer({ id: 'reseller-logo', name: 'Wordmark', url: logoLight.url, fit: 'contain', x: 8, y: 7, w: 32, h: 7, z: 6, bleed: true }));
+        }
+        variables.push(variable({ id: 'reseller_kicker', name: 'Kicker', value: campaign.resellerKicker || 'Seja um revendedor' }));
+        layers.push(textLayer({
+            id: 'reseller-kicker', name: 'Kicker', binding: 'reseller_kicker', text: campaign.resellerKicker || 'Seja um revendedor',
+            family: fonts.label, weight: 600, sizePct: 1.8, letterSpacingEm: 0.22, transform: 'uppercase',
+            color: yellow, align: 'left', x: 8, y: 21, w: 60, h: 3, z: 10,
+        }));
+        variables.push(variable({ id: 'reseller_title', name: 'Headline', value: campaign.resellerTitle || 'Leve a Melano para a sua região.' }));
+        layers.push(textLayer({
+            id: 'reseller-title', name: 'Headline', binding: 'reseller_title', text: campaign.resellerTitle || 'Leve a Melano para a sua região.',
+            family: fonts.title, weight: 600, sizePct: 7.4, lineHeight: 1.03, color: white,
+            align: 'left', x: 8, y: 25, w: 78, h: 18, z: 10,
+        }));
+        variables.push(variable({ id: 'reseller_body', name: 'Body', value: campaign.resellerBody || '' }));
+        layers.push(textLayer({
+            id: 'reseller-body', name: 'Body', binding: 'reseller_body', text: campaign.resellerBody || '',
+            family: fonts.body, weight: 400, sizePct: 2.1, lineHeight: 1.45, color: white, opacity: 0.9,
+            align: 'left', x: 8, y: 46, w: 70, h: 10, z: 10,
+        }));
+        variables.push(variable({ id: 'reseller_phone', name: 'Phone', value: campaign.resellerPhone || contact.phone }));
+        layers.push(textLayer({
+            id: 'reseller-phone', name: 'Phone', binding: 'reseller_phone', text: campaign.resellerPhone || contact.phone,
+            family: fonts.title, weight: 600, sizePct: 4.4, color: yellow, align: 'left',
+            x: 8, y: 59, w: 70, h: 6, z: 10,
+        }));
+        variables.push(variable({ id: 'reseller_email', name: 'Email', value: campaign.resellerEmail || contact.email }));
+        layers.push(textLayer({
+            id: 'reseller-email', name: 'Email', binding: 'reseller_email', text: campaign.resellerEmail || contact.email,
+            family: fonts.body, weight: 400, sizePct: 2, color: white, opacity: 0.92,
+            align: 'left', x: 8, y: 66, w: 70, h: 4, z: 10,
+        }));
+        layers.push(imageLayer({ id: 'reseller-cta-box', name: 'CTA box', color: yellow, x: 8, y: 76, w: 44, h: 7, z: 8, bleed: false }));
+        layers.push(textLayer({
+            id: 'reseller-cta', name: 'Call to action', text: 'Fale com a gente',
+            family: fonts.label, weight: 600, sizePct: 1.9, letterSpacingEm: 0.14, transform: 'uppercase',
+            color: ink, align: 'center', x: 8, y: 78, w: 44, h: 3, z: 10,
+        }));
+        layers.push(textLayer({
+            id: 'reseller-footer', name: 'Footer', text: socialFooter(contact, website),
+            family: fonts.body, weight: 500, sizePct: 1.3, color: white, opacity: 0.9,
+            align: 'left', x: 8, y: 15.4, w: 84, h: 3, z: 10,
+        }));
+        return { layers, variables };
+    }
+
+    function buildPremiumSocial(ctx) {
+        const { roles, fonts, brand, logoLight, contact, website } = ctx;
+        const copy = brand?.content?.copy || {};
+        const campaign = copy.campaign || {};
+        const chocolate = '#2b1207';
+        const gold = '#d9a441';
+        const cream = '#fff6e5';
+        const shot = cutoutFor(brand, 'brigadeiro') || cutoutFor(brand);
+        const layers = [];
+        const variables = [];
+        layers.push(imageLayer({ id: 'premium-ground', name: 'Chocolate ground', color: chocolate, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
+        layers.push(imageLayer({ id: 'premium-rule-top', name: 'Gold rule', color: gold, x: 8, y: 6.6, w: 38, h: 0.22, z: 4, bleed: true }));
+        layers.push(imageLayer({ id: 'premium-rule-side', name: 'Gold side rule', color: gold, x: 6, y: 24, w: 0.16, h: 34, z: 4, bleed: true }));
+        if (logoLight) {
+            layers.push(imageLayer({ id: 'premium-logo', name: 'Wordmark', url: logoLight.url, fit: 'contain', x: 8, y: 9, w: 28, h: 6, z: 6, bleed: true }));
+        }
+        variables.push(variable({ id: 'premium_kicker', name: 'Kicker', value: campaign.premiumKicker || 'Melano Premium' }));
+        layers.push(textLayer({
+            id: 'premium-kicker', name: 'Kicker', binding: 'premium_kicker', text: campaign.premiumKicker || 'Melano Premium',
+            family: fonts.label, weight: 600, sizePct: 1.7, letterSpacingEm: 0.26, transform: 'uppercase',
+            color: gold, align: 'left', x: 8, y: 21, w: 50, h: 3, z: 10,
+        }));
+        variables.push(variable({ id: 'premium_title', name: 'Headline', value: campaign.premiumTitle || 'Açaí trufado com avelã.' }));
+        layers.push(textLayer({
+            id: 'premium-title', name: 'Headline', binding: 'premium_title', text: campaign.premiumTitle || 'Açaí trufado com avelã.',
+            family: fonts.title, weight: 600, sizePct: 7.0, lineHeight: 1.02, color: cream,
+            align: 'left', x: 8, y: 26, w: 44, h: 18, z: 10,
+        }));
+        variables.push(variable({ id: 'premium_body', name: 'Body', value: campaign.premiumBody || '' }));
+        layers.push(textLayer({
+            id: 'premium-body', name: 'Body', binding: 'premium_body', text: campaign.premiumBody || '',
+            family: fonts.body, weight: 400, sizePct: 1.9, lineHeight: 1.45, color: cream, opacity: 0.82,
+            align: 'left', x: 8, y: 47, w: 40, h: 10, z: 10,
+        }));
+        layers.push(imageLayer({ id: 'premium-badge', name: 'Badge', color: gold, x: 8, y: 65, w: 34, h: 6.4, z: 8, bleed: false }));
+        variables.push(variable({ id: 'premium_badge', name: 'Badge', value: campaign.premiumBadge || '29 anos de sabor' }));
+        layers.push(textLayer({
+            id: 'premium-badge-text', name: 'Badge text', binding: 'premium_badge', text: campaign.premiumBadge || '29 anos de sabor',
+            family: fonts.label, weight: 600, sizePct: 1.7, letterSpacingEm: 0.12, transform: 'uppercase',
+            color: chocolate, align: 'center', x: 8, y: 66.4, w: 34, h: 3.4, z: 10,
+        }));
+        if (shot) {
+            layers.push(imageLayer({
+                id: 'premium-product', name: 'Product cut-out', url: shot.url, fit: 'contain',
+                x: 55, y: 28, w: 42, h: 58, z: 6, bleed: false,
+            }));
+        }
+        layers.push(textLayer({
+            id: 'premium-footer', name: 'Footer', text: socialFooter(contact, website),
+            family: fonts.body, weight: 400, sizePct: 1.2, color: cream, opacity: 0.72,
+            align: 'left', x: 8, y: 91.5, w: 84, h: 3, z: 10,
+        }));
+        return { layers, variables };
+    }
+
+    function buildFlavourStory(ctx) {
+        const { roles, fonts, brand, logoLight, photo, contact, website } = ctx;
+        const copy = brand?.content?.copy || {};
+        const special = copy.special || {};
+        const white = '#ffffff';
+        const yellow = '#ffec00';
+        const ink = roles.ink.hex;
+        const shot = cutoutFor(brand, 'brigadeiro') || photo;
+        const layers = [];
+        const variables = [];
+        layers.push(imageLayer({ id: 'fstory-ground', name: 'Ground', color: roles.accent.hex, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
+        layers.push(imageLayer({ id: 'fstory-rule', name: 'Top rule', color: yellow, x: 0, y: 0, w: 100, h: 0.8, z: 2, bleed: true }));
+        layers.push(imageLayer({ id: 'fstory-band', name: 'Bottom band', color: yellow, x: 0, y: 95, w: 100, h: 5, z: 2, bleed: true }));
+        if (logoLight) {
+            layers.push(imageLayer({ id: 'fstory-logo', name: 'Wordmark', url: logoLight.url, fit: 'contain', x: 8, y: 6, w: 34, h: 6, z: 6, bleed: true }));
+        }
+        layers.push(textLayer({
+            id: 'fstory-handle', name: 'Handle', text: socialFooter(contact, website),
+            family: fonts.body, weight: 400, sizePct: 0.9, color: white, opacity: 0.85,
+            align: 'left', x: 8, y: 12.4, w: 84, h: 1.8, z: 10,
+        }));
+        variables.push(variable({ id: 'fstory_kicker', name: 'Kicker', value: special.kicker || 'Direto da fábrica' }));
+        layers.push(textLayer({
+            id: 'fstory-kicker', name: 'Kicker', binding: 'fstory_kicker', text: special.kicker || 'Direto da fábrica',
+            family: fonts.label, weight: 600, sizePct: 1.5, letterSpacingEm: 0.22, transform: 'uppercase',
+            color: yellow, align: 'left', x: 8, y: 16.8, w: 70, h: 2.6, z: 10,
+        }));
+        variables.push(variable({ id: 'fstory_name', name: 'Flavour', value: special.dish || 'Picolé brigadeiro' }));
+        layers.push(textLayer({
+            id: 'fstory-name', name: 'Flavour name', binding: 'fstory_name', text: special.dish || 'Picolé brigadeiro',
+            family: fonts.title, weight: 600, sizePct: 6.6, lineHeight: 1.02, color: white,
+            align: 'left', x: 8, y: 20.4, w: 84, h: 14, z: 10,
+        }));
+        variables.push(variable({ id: 'fstory_note', name: 'Note', value: special.description || '' }));
+        layers.push(textLayer({
+            id: 'fstory-note', name: 'Note', binding: 'fstory_note', text: special.description || '',
+            family: fonts.body, weight: 400, sizePct: 1.7, lineHeight: 1.4, color: white, opacity: 0.9,
+            align: 'left', x: 8, y: 35.4, w: 80, h: 7, z: 10,
+        }));
+        layers.push(imageLayer({ id: 'fstory-badge', name: 'Size badge', color: yellow, x: 8, y: 44, w: 30, h: 4.4, z: 8, bleed: false }));
+        variables.push(variable({ id: 'fstory_size', name: 'Size', value: special.price || '75 g' }));
+        layers.push(textLayer({
+            id: 'fstory-size', name: 'Size', binding: 'fstory_size', text: special.price || '75 g',
+            family: fonts.label, weight: 600, sizePct: 1.7, color: ink, align: 'center',
+            x: 8, y: 44.9, w: 30, h: 2.8, z: 10,
+        }));
+        if (shot) {
+            layers.push(imageLayer({
+                id: 'fstory-product', name: 'Product cut-out', url: shot.url, fit: 'contain',
+                x: 20, y: 48, w: 60, h: 30, z: 6, bleed: false,
+            }));
+        }
+        layers.push(textLayer({
+            id: 'fstory-cta', name: 'Call to action', text: 'Encontre um revendedor',
+            family: fonts.label, weight: 600, sizePct: 1.4, letterSpacingEm: 0.16, transform: 'uppercase',
+            color: white, align: 'left', x: 8, y: 80.4, w: 80, h: 2.4, z: 10,
+        }));
+        return { layers, variables };
+    }
+
+    function buildPremiumStory(ctx) {
+        const { roles, fonts, brand, logoLight, contact, website } = ctx;
+        const copy = brand?.content?.copy || {};
+        const campaign = copy.campaign || {};
+        const chocolate = '#2b1207';
+        const gold = '#d9a441';
+        const cream = '#fff6e5';
+        const shot = cutoutFor(brand, 'brigadeiro') || cutoutFor(brand);
+        const layers = [];
+        const variables = [];
+        layers.push(imageLayer({ id: 'pstory-ground', name: 'Chocolate ground', color: chocolate, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
+        layers.push(imageLayer({ id: 'pstory-rule-top', name: 'Gold rule', color: gold, x: 8, y: 5.4, w: 44, h: 0.18, z: 4, bleed: true }));
+        if (logoLight) {
+            layers.push(imageLayer({ id: 'pstory-logo', name: 'Wordmark', url: logoLight.url, fit: 'contain', x: 8, y: 7, w: 30, h: 5, z: 6, bleed: true }));
+        }
+        layers.push(textLayer({
+            id: 'pstory-handle', name: 'Handle', text: socialFooter(contact, website),
+            family: fonts.body, weight: 400, sizePct: 0.9, color: cream, opacity: 0.65,
+            align: 'left', x: 8, y: 12.2, w: 84, h: 1.8, z: 10,
+        }));
+        variables.push(variable({ id: 'pstory_kicker', name: 'Kicker', value: campaign.premiumKicker || 'Melano Premium' }));
+        layers.push(textLayer({
+            id: 'pstory-kicker', name: 'Kicker', binding: 'pstory_kicker', text: campaign.premiumKicker || 'Melano Premium',
+            family: fonts.label, weight: 600, sizePct: 1.5, letterSpacingEm: 0.26, transform: 'uppercase',
+            color: gold, align: 'left', x: 8, y: 16.2, w: 70, h: 2.6, z: 10,
+        }));
+        variables.push(variable({ id: 'pstory_title', name: 'Headline', value: campaign.premiumTitle || 'Brigadeiro trufado.' }));
+        layers.push(textLayer({
+            id: 'pstory-title', name: 'Headline', binding: 'pstory_title', text: campaign.premiumTitle || 'Brigadeiro trufado.',
+            family: fonts.title, weight: 600, sizePct: 6.4, lineHeight: 1.02, color: cream,
+            align: 'left', x: 8, y: 20, w: 78, h: 12, z: 10,
+        }));
+        variables.push(variable({ id: 'pstory_body', name: 'Body', value: campaign.premiumBody || '' }));
+        layers.push(textLayer({
+            id: 'pstory-body', name: 'Body', binding: 'pstory_body', text: campaign.premiumBody || '',
+            family: fonts.body, weight: 400, sizePct: 1.6, lineHeight: 1.4, color: cream, opacity: 0.82,
+            align: 'left', x: 8, y: 32.4, w: 72, h: 6, z: 10,
+        }));
+        if (shot) {
+            layers.push(imageLayer({
+                id: 'pstory-product', name: 'Product cut-out', url: shot.url, fit: 'contain',
+                x: 18, y: 39, w: 64, h: 38, z: 6, bleed: false,
+            }));
+        }
+        layers.push(imageLayer({ id: 'pstory-badge', name: 'Badge', color: gold, x: 8, y: 79, w: 38, h: 4.2, z: 8, bleed: false }));
+        variables.push(variable({ id: 'pstory_badge', name: 'Badge', value: campaign.premiumBadge || '29 anos de sabor' }));
+        layers.push(textLayer({
+            id: 'pstory-badge-text', name: 'Badge text', binding: 'pstory_badge', text: campaign.premiumBadge || '29 anos de sabor',
+            family: fonts.label, weight: 600, sizePct: 1.4, letterSpacingEm: 0.12, transform: 'uppercase',
+            color: chocolate, align: 'center', x: 8, y: 79.9, w: 38, h: 2.4, z: 10,
+        }));
+        return { layers, variables };
+    }
+
     const TEMPLATES = [
         {
             id: 'menu',
@@ -1528,6 +1904,102 @@
             formats: [],
             build: buildLinkPreview,
         },
+        {
+            id: 'flavour-card',
+            label: 'Flavour spotlight',
+            category: 'Social',
+            description: 'A 4:5 flavour card with a cut-out product, size badge and a reseller call to action.',
+            channel: 'social',
+            width: 1080,
+            height: 1350,
+            widthMm: null,
+            heightMm: null,
+            paper: '4:5',
+            dpi: 72,
+            formats: [],
+            appliesTo: ICE_CREAM,
+            build: buildFlavourCard,
+        },
+        {
+            id: 'range-social',
+            label: 'Range post',
+            category: 'Social',
+            description: 'A square range post: three cut-out products under the 80-flavour headline.',
+            channel: 'social',
+            width: 1080,
+            height: 1080,
+            widthMm: null,
+            heightMm: null,
+            paper: '1:1',
+            dpi: 72,
+            formats: [],
+            appliesTo: ICE_CREAM,
+            build: buildRangeSocial,
+        },
+        {
+            id: 'reseller-social',
+            label: 'Reseller post',
+            category: 'Social',
+            description: 'A 4:5 recruitment post for new resellers, with the commercial phone and email.',
+            channel: 'social',
+            width: 1080,
+            height: 1350,
+            widthMm: null,
+            heightMm: null,
+            paper: '4:5',
+            dpi: 72,
+            formats: [],
+            appliesTo: ICE_CREAM,
+            build: buildResellerSocial,
+        },
+        {
+            id: 'premium-social',
+            label: 'Premium post',
+            category: 'Social',
+            description: 'A dark chocolate-and-gold 4:5 post for the truffled/pistachio line, product cut-out and 29-year seal.',
+            channel: 'social',
+            width: 1080,
+            height: 1350,
+            widthMm: null,
+            heightMm: null,
+            paper: '4:5',
+            dpi: 72,
+            formats: [],
+            appliesTo: ICE_CREAM,
+            build: buildPremiumSocial,
+        },
+        {
+            id: 'flavour-story',
+            label: 'Flavour story',
+            category: 'Social',
+            description: 'A 9:16 flavour story with a cut-out product, size badge and reseller call to action.',
+            channel: 'social',
+            width: 1080,
+            height: 1920,
+            widthMm: null,
+            heightMm: null,
+            paper: '9:16',
+            dpi: 72,
+            formats: [],
+            appliesTo: ICE_CREAM,
+            build: buildFlavourStory,
+        },
+        {
+            id: 'premium-story',
+            label: 'Premium story',
+            category: 'Social',
+            description: 'A 9:16 chocolate-and-gold story for the truffled line, with the 29-year seal.',
+            channel: 'social',
+            width: 1080,
+            height: 1920,
+            widthMm: null,
+            heightMm: null,
+            paper: '9:16',
+            dpi: 72,
+            formats: [],
+            appliesTo: ICE_CREAM,
+            build: buildPremiumStory,
+        },
     ];
 
     function templateById(id) {
@@ -1542,7 +2014,7 @@
     }
 
     function templateCatalog(brand) {
-        return TEMPLATES.map((template) => {
+        return TEMPLATES.filter((template) => !template.appliesTo || template.appliesTo(brand)).map((template) => {
             const application = brand ? applicationFor(brand, template.id) : null;
             return {
                 id: template.id,
@@ -2899,7 +3371,7 @@
         // binaries travel with the pack. Map each non-system family to a
         // stand-in and record the intent in meta.fontSubstitutions.
         const fontSubstitutions = {};
-        if (source.useFallbackFonts !== false) {
+        if (source.useFallbackFonts !== false && brand.fontReady !== true) {
             built.layers.forEach((layer) => {
                 if (layer.type !== 'text') return;
                 const family = layer.font?.family || '';

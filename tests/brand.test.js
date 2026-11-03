@@ -322,6 +322,44 @@ const copyBrand = () => Brand.normalizeBrand({
     },
 }, 0);
 
+test('ice-cream templates are offered only to ice-cream brands', () => {
+    const ice = Brand.normalizeBrand({
+        id: 'ice-brand',
+        name: 'Ice Brand',
+        fontReady: true,
+        palette: [{ name: 'Blue', hex: '#0070d3' }, { name: 'Paper', hex: '#ffffff' }],
+        typography: { families: ['Poppins', 'Roboto'], scale: [{ id: 'title', family: 'Poppins', size: '64px', px: 64 }, { id: 'body-m', family: 'Roboto', size: '16px', px: 16 }] },
+        content: {
+            copy: {
+                kind: 'ice-cream',
+                headline: 'Sabor de felicidade.',
+                special: { dish: 'Picolé brigadeiro', price: '75 g' },
+                campaign: { rangeTitle: 'Mais de 80 sabores.', premiumTitle: 'Brigadeiro trufado.' },
+            },
+        },
+    }, 0);
+    const iceIds = Brand.templateCatalog(ice).map((template) => template.id);
+    assert.ok(iceIds.includes('flavour-card'));
+    assert.ok(iceIds.includes('premium-social'));
+    assert.ok(iceIds.includes('premium-story'));
+    const plain = Brand.normalizeBrand({
+        id: 'plain-brand',
+        name: 'Plain Brand',
+        palette: [{ name: 'Ink', hex: '#111111' }, { name: 'Paper', hex: '#ffffff' }],
+    }, 0);
+    const plainIds = Brand.templateCatalog(plain).map((template) => template.id);
+    assert.ok(!plainIds.includes('flavour-card'));
+    const composition = Brand.createTemplateComposition({ brand: ice, templateId: 'premium-social' });
+    const variables = {};
+    composition.variables.forEach((variable) => { variables[variable.id] = variable.defaultValue; });
+    assert.equal(variables.premium_title, 'Brigadeiro trufado.');
+    assert.equal(variables.premium_badge, '29 anos de sabor');
+    assert.equal(variables.premium_kicker, 'Melano Premium');
+    // A brand that declares its fonts are on the shelf keeps them.
+    const text = composition.layers.find((layer) => layer.type === 'text' && layer.id === 'premium-title');
+    assert.equal(text.font.family, 'Poppins');
+});
+
 test('voucher terms fall back to the brand group, never another group', () => {
     const brand = Brand.normalizeBrand({
         id: 'group-venue',
