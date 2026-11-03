@@ -1042,6 +1042,183 @@ main {
 }
 
 /* ==========================================================================
+   Save · export · import
+   ========================================================================== */
+.hact {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+.hact button { white-space: nowrap; }
+.hact .pri {
+  background: var(--ac);
+  border-color: var(--ac);
+  color: #131317;
+  font-weight: 600;
+}
+.hact .pri:hover { filter: brightness(1.08); }
+.exwrap { position: relative; flex: none; }
+#expBtn[aria-expanded="true"] { border-color: var(--ac); }
+.exmenu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 140;
+  min-width: 300px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--pan);
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 2px;
+  text-align: left;
+}
+.exmenu[hidden] { display: none; }
+.exmenu > button {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  border-radius: 8px;
+  padding: 7px 9px;
+  white-space: normal;
+}
+.exmenu > button:hover,
+.exmenu > button:focus-visible { background: var(--hi); border-color: transparent; }
+.exmenu > button b { font-size: 12.5px; font-weight: 600; }
+.exmenu > button small { color: var(--mu); font-size: 11px; line-height: 1.35; }
+.exmenu hr { border: 0; border-top: 1px solid var(--line); margin: 5px 3px; }
+.exmenu kbd {
+  float: right;
+  font: 10px/1 inherit;
+  color: var(--mu);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 2px 4px;
+  margin-left: 6px;
+}
+
+dialog.dlg {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 0;
+  width: min(94vw, 680px);
+  max-height: 86vh;
+  background: var(--pan);
+  color: var(--tx);
+  box-shadow: var(--shadow);
+}
+dialog.dlg::backdrop { background: rgba(8, 8, 12, .6); }
+.dlg-in {
+  padding: 16px 18px 14px;
+  display: grid;
+  gap: 12px;
+  max-height: 86vh;
+  overflow: auto;
+}
+.dlg-in h4 { margin: 0; font-size: 14px; }
+.dlg-in p { margin: 0; }
+.dlg-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  position: sticky;
+  bottom: -14px;
+  padding: 10px 0 0;
+  background: linear-gradient(transparent, var(--pan) 40%);
+}
+.dlg-actions .pri {
+  background: var(--ac);
+  border-color: var(--ac);
+  color: #131317;
+  font-weight: 600;
+}
+.fld {
+  display: grid;
+  gap: 5px;
+  font-size: 11px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--mu);
+}
+.fld input,
+.fld textarea {
+  font: 13px/1.45 inherit;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--tx);
+  background: var(--rai);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 9px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.fld textarea { min-height: 72px; resize: vertical; font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; }
+.dlg-h {
+  margin: 6px 0 0;
+  font-size: 10.5px;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--mu);
+}
+.imp-list {
+  display: grid;
+  gap: 2px;
+  max-height: 236px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 6px;
+}
+.imp-list:empty::after {
+  content: "Nothing to load yet.";
+  color: var(--mu);
+  font-size: 12px;
+  padding: 6px;
+}
+.imp-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 1px 10px;
+  align-items: center;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  border-radius: 8px;
+  padding: 6px 9px;
+}
+.imp-row:hover,
+.imp-row:focus-visible { background: var(--hi); border-color: transparent; }
+.imp-row b {
+  font-size: 12.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.imp-row small { color: var(--mu); font-size: 11px; }
+.imp-row em {
+  font-style: normal;
+  color: var(--mu);
+  font-size: 11px;
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  white-space: nowrap;
+}
+.pane-save {
+  display: block;
+  width: 100%;
+  margin: 8px 0 2px;
+  border-style: dashed;
+  color: var(--tx);
+}
+.pane-save:hover { border-color: var(--ac); color: var(--ac); }
+
+/* ==========================================================================
    Responsive
    ========================================================================== */
 @media (max-width: 980px) {
@@ -1067,6 +1244,7 @@ main {
 <script src="/src/shared/brand-pack.js"></script>
 <script src="/src/client/asset-studio/engine.js"></script>
 <script src="/src/client/asset-studio/categories.js"></script>
+<script src="/src/client/asset-studio/print.js"></script>
 </head>
 <body>
 <div id="boot" role="status" aria-live="polite">
@@ -1077,6 +1255,13 @@ main {
   </div>
 </div>
 <div id="toast" role="status" aria-live="polite" hidden></div>
+<dialog id="dlg" class="dlg" aria-labelledby="dlgTitle">
+  <div class="dlg-in">
+    <h4 id="dlgTitle"></h4>
+    <div id="dlgBody"></div>
+    <div class="dlg-actions" id="dlgActs"></div>
+  </div>
+</dialog>
 <div id="app">
   <header>
     <span class="logo">A</span>
@@ -1096,6 +1281,14 @@ main {
     <a href="studio-v2.html" title="Layer studio">Studio V2</a>
     <button id="undo">↶ Undo</button>
     <button id="reset">Reset scene</button>
+    <div class="hact">
+      <button type="button" id="impBtn" title="Open an existing composition or scene from Studio Layers">⤒ Import</button>
+      <button type="button" id="saveTpl" class="pri" title="Save this design as a new template for the active brand">Save as template</button>
+      <div class="exwrap">
+        <button type="button" id="expBtn" aria-haspopup="true" aria-expanded="false" title="Export the final PNG, PDF, GIF, video, composition and segments">⤓ Export</button>
+        <div class="exmenu" id="exMenu" role="menu" aria-label="Export options" hidden></div>
+      </div>
+    </div>
   </header>
   <aside>
     <div class="atabs" id="atabs" role="tablist" aria-label="Asset sources"></div>
@@ -1816,7 +2009,8 @@ function compositionLayer(l,i){
  }
  if(!url)return null;
  const logoish=/logo|mark|wordmark/i.test(base.name);
- return {...base,type:'image',src:absUrl(url),fit:logoish?'contain':'cover'};
+ const fit=l.fit==='contain'||l.fit==='cover'?l.fit:(logoish?'contain':'cover');
+ return {...base,type:'image',src:absUrl(url),fit};
 }
 // Published templates animate x/y/w/h/opacity with keyframes; the studio plays
 // that as a bar on the timeline and interpolates the layer on each seek.
@@ -1844,14 +2038,15 @@ function compositionToScene(record){
 function savedTemplatesPanel(){
  if(!B)return '';
  const st=AS.saved,head=`<h3>Published templates <small>· saved from Asset Studio</small></h3>`;
+ const save=`<button type="button" class="pane-save" data-save-tpl title="Save the current design into ${esc(B.name)}">＋ Save this design as a template</button>`;
  const link=`<a href="asset-studio.html?brand=${encodeURIComponent(B.id)}&pack=${encodeURIComponent(P?P.id:'')}">Publish one in Asset Studio →</a>`;
- if(st.status==='idle'||st.status==='loading')return head+`<div class="note">Loading published templates for ${esc(B.name)}…</div>`;
- if(st.status==='error')return head+`<div class="note warn">Published templates unavailable: ${esc(st.err)}</div>`;
- if(!st.items.length)return head+`<div class="note">Nothing published for <b>${esc(B.name)}</b> yet — the designs below are generated live from the brand pack. ${link}</div>`;
+ if(st.status==='idle'||st.status==='loading')return save+head+`<div class="note">Loading published templates for ${esc(B.name)}…</div>`;
+ if(st.status==='error')return save+head+`<div class="note warn">Published templates unavailable: ${esc(st.err)}</div>`;
+ if(!st.items.length)return save+head+`<div class="note">Nothing published for <b>${esc(B.name)}</b> yet — the designs below are generated live from the brand pack. ${link}</div>`;
  // Published names are "<Brand> — <Template>", so the brand prefix only eats
  // the space that tells the designs apart.
  const short=n=>{const s=String(n||'');if(s.startsWith(B.name)){const rest=s.slice(B.name.length).replace(/^\s*[—–-]\s*/,'');if(rest)return rest}return s};
- return `<h3>Published templates <small>· ${st.items.length} saved from Asset Studio</small></h3><div class="eng-grid">${st.items.map(t=>`<button type="button" class="eng-card${t.id===AS.savedActive?' is-selected':''}" data-saved="${esc(t.id)}" title="${esc(t.name)} · ${t.width}×${t.height}px · ${t.layerCount} layer${t.layerCount===1?'':'s'}"><canvas></canvas><span>${esc(short(t.name))}</span></button>`).join('')}</div><p class="note">Published designs load their exact layers and artwork so you can keep editing them. ${link}</p>`;
+ return save+`<h3>Published templates <small>· ${st.items.length} saved from Asset Studio</small></h3><div class="eng-grid">${st.items.map(t=>`<button type="button" class="eng-card${t.id===AS.savedActive?' is-selected':''}" data-saved="${esc(t.id)}" title="${esc(t.name)} · ${t.width}×${t.height}px · ${t.layerCount} layer${t.layerCount===1?'':'s'}"><canvas></canvas><span>${esc(short(t.name))}</span></button>`).join('')}</div><p class="note">Published designs load their exact layers and artwork so you can keep editing them. ${link}</p>`;
 }
 async function savedThumb(cv,tpl){
  const comp=tpl.composition||{},w0=+(tpl.width||comp.width)||1748,h0=+(tpl.height||comp.height)||2480;
@@ -1892,6 +2087,7 @@ async function applySavedTemplate(id){
  }catch(e){toast('Could not load that template: '+e.message,true);console.error(e)}
 }
 function bindSaved(p){
+ p.querySelectorAll('[data-save-tpl]').forEach(b=>{b.onclick=()=>openSaveTemplate()});
  p.querySelectorAll('[data-saved]').forEach(b=>{
   const id=b.dataset.saved,tpl=AS.saved.items.find(t=>t.id===id),cv=b.querySelector('canvas');
   if(cv&&tpl)savedThumb(cv,tpl).catch(()=>{});
@@ -2214,6 +2410,1060 @@ $('#sz').onchange=e=>$('#app').classList.toggle('safe',e.target.checked);
 wrapEl.onclick=e=>{if(e.target.id==='wrap')select(null)};
 $('#grp').onchange=e=>selectPack(e.target.value);
 bindFormatSelectors();
+
+/* ==========================================================================
+   Design export — a canvas renderer that mirrors render()
+   ========================================================================== */
+const ANIM_LOOPING=new Set(['pulse','float','glowPulse']);
+const EXPORT_BG='#ffffff';
+
+function easeOutCubic(t){return 1-Math.pow(1-t,3)}
+function easeOutQuint(t){return 1-Math.pow(1-t,5)}
+
+function roundRectPath(ctx,x,y,w,h,r){
+ const rr=Math.max(0,Math.min(+r||0,Math.min(w,h)/2));
+ ctx.beginPath();
+ ctx.moveTo(x+rr,y);ctx.lineTo(x+w-rr,y);ctx.arcTo(x+w,y,x+w,y+rr,rr);
+ ctx.lineTo(x+w,y+h-rr);ctx.arcTo(x+w,y+h,x+w-rr,y+h,rr);
+ ctx.lineTo(x+rr,y+h);ctx.arcTo(x,y+h,x,y+h-rr,rr);
+ ctx.lineTo(x,y+rr);ctx.arcTo(x,y,x+rr,y,rr);
+ ctx.closePath();
+}
+
+/* Interpolated geometry for one layer at `t` (ms), matching applyKf() and the
+   CSS animation presets the stage renders. Box values stay in stage percent. */
+function layerState(l,t){
+ const num=(v,d)=>{const n=+v;return Number.isFinite(n)?n:d};
+ const st={x:num(l.x,0),y:num(l.y,0),w:num(l.w,100),h:num(l.h,10),opacity:1,scale:1,ty:0,clip:null};
+ const k=l.kf;
+ if(k&&k.length){
+  let i=0;while(i<k.length-1&&k[i+1].time<=t)i++;
+  const a=k[i],b=k[i+1];
+  if(!b||b.time<=a.time){
+   st.x=num(a.x,st.x);st.y=num(a.y,st.y);st.w=num(a.w,st.w);st.h=num(a.h,st.h);
+   st.opacity=clamp(num(a.opacity,1),0,1);
+   return st;
+  }
+  const p=easeSmooth(clamp((t-a.time)/(b.time-a.time),0,1));
+  st.x=a.x+(num(b.x,a.x)-num(a.x,0))*p;
+  st.y=a.y+(num(b.y,a.y)-num(a.y,0))*p;
+  st.w=num(a.w,st.w)+(num(b.w,a.w)-num(a.w,st.w))*p;
+  st.h=num(a.h,st.h)+(num(b.h,a.h)-num(a.h,st.h))*p;
+  const oa=clamp(num(a.opacity,1),0,1),ob=clamp(num(b.opacity,1),0,1);
+  st.opacity=oa+(ob-oa)*p;
+  return st;
+ }
+ const a=l.anim;
+ if(!a)return st;
+ const dur=Math.max(1,num(a.duration,900)),start=num(a.start,0),preset=String(a.preset||'');
+ const looping=ANIM_LOOPING.has(preset);
+ let p=looping?((((t-start)/dur)%1)+1)%1:clamp((t-start)/dur,0,1);
+ if(preset==='fadeIn'){st.opacity=p;st.ty=(1-p)*0.02}
+ else if(preset==='zoom')st.scale=1+0.08*easeOutCubic(p);
+ else if(preset==='parallax'){st.scale=1.08;st.ty=-0.025*easeOutCubic(p)}
+ else if(preset==='pulse')st.opacity=Math.max(0,1-0.65*Math.sin(Math.PI*p));
+ else if(preset.startsWith('clip'))st.clip={preset,p:easeOutQuint(p)};
+ return st;
+}
+
+/* Clip-path presets from the stylesheet, evaluated as polygons/circles. */
+function clipPathFor(ctx,clip,x,y,w,h){
+ const p=clip.p,cx=x+w/2,cy=y+h/2;
+ const poly=pts=>{ctx.beginPath();pts.forEach(([px,py],i)=>i?ctx.lineTo(px,py):ctx.moveTo(px,py));ctx.closePath()};
+ const lerpTo=(from,to)=>to.map(([tx,ty])=>[from[0]+(tx-from[0])*p,from[1]+(ty-from[1])*p]);
+ switch(clip.preset){
+  case 'clipWipeRight': poly([[x,y],[x+w*p,y],[x+w*p,y+h],[x,y+h]]);return;
+  case 'clipWipeLeft': poly([[x+w*(1-p),y],[x+w,y],[x+w,y+h],[x+w*(1-p),y+h]]);return;
+  case 'clipWipeDown': poly([[x,y],[x+w,y],[x+w,y+h*p],[x,y+h*p]]);return;
+  case 'clipWipeUp': poly([[x,y+h*(1-p)],[x+w,y+h*(1-p)],[x+w,y+h],[x,y+h]]);return;
+  case 'clipWipeDiag': poly([[x,y],[x+w*p,y],[x+w*p,y+h],[x,y+h]]);return;
+  case 'clipCornerIn': poly([[x,y],[x+w*p,y],[x+w*p,y+h*p],[x,y+h*p]]);return;
+  case 'clipSplitCenter': poly(lerpTo([cx,cy],[[x,y],[x+w,y],[x+w,y+h],[x,y+h]]));return;
+  case 'clipDiamond': poly(lerpTo([cx,cy],[[cx,y],[x+w,cy],[cx,y+h],[x,cy]]));return;
+  case 'clipChevron': poly(lerpTo([x,cy],[[x,y],[x+w*.7,y],[x+w,cy],[x+w*.7,y+h],[x,y+h],[x+w*.3,cy]]));return;
+  case 'clipArrow': poly(lerpTo([x,cy],[[x,y+h*.3],[x+w*.6,y+h*.3],[x+w*.6,y],[x+w,cy],[x+w*.6,y+h],[x+w*.6,y+h*.7],[x,y+h*.7]]));return;
+  default: {
+   const diag=Math.hypot(w,h)/Math.SQRT2;
+   const iris=(ox,oy,scale)=>{ctx.beginPath();ctx.arc(ox,oy,Math.max(0,diag*scale*p),0,Math.PI*2)};
+   if(clip.preset==='clipIris')iris(cx,cy,.75);
+   else if(clip.preset==='clipIrisTop')iris(cx,y,1.2);
+   else if(clip.preset==='clipIrisBottom')iris(cx,y+h,1.2);
+   else poly([[x,y],[x+w,y],[x+w,y+h],[x,y+h]]);
+  }
+ }
+}
+
+function applyTextTransform(text,transform){
+ const value=String(text==null?'':text);
+ if(transform==='uppercase')return value.toUpperCase();
+ if(transform==='lowercase')return value.toLowerCase();
+ if(transform==='capitalize')return value.replace(/(^|\s)(\p{Ll})/gu,(m,a,b)=>a+b.toUpperCase());
+ return value;
+}
+
+function paintText(ctx,l,x,y,w,h,H){
+ const f=l.font||{},fs=Math.max(1,(+f.sizePct||2)/100*H),lh=+f.lineHeight||1.2,ls=(+f.letterSpacingEm||0)*fs;
+ const family=String(f.family||'Helvetica Neue').replace(/"/g,'');
+ ctx.save();
+ roundRectPath(ctx,x,y,w,h,(+l.radius||0)/100*H);
+ if(l.bg){ctx.fillStyle=l.bg;ctx.fill()}
+ ctx.clip();
+ ctx.font=`${+f.weight||400} ${fs}px "${family}", Helvetica, Arial, sans-serif`;
+ try{ctx.letterSpacing=ls+'px'}catch{}
+ const raw=applyTextTransform(l.text,f.transform);
+ const lines=[];
+ if(l.nowrap)lines.push(...raw.split('\n'));
+ else raw.split('\n').forEach(para=>{
+  const words=para.split(/\s+/).filter(Boolean);
+  if(!words.length){lines.push('');return}
+  let cur='';
+  for(const word of words){
+   const next=cur?cur+' '+word:word;
+   if(!cur||ctx.measureText(next).width<=w)cur=next;
+   else{lines.push(cur);cur=word}
+  }
+  lines.push(cur);
+ });
+ const blockH=lines.length*fs*lh;
+ const align=l.bg?'center':(l.align==='center'?'center':l.align==='right'?'right':'left');
+ const ax=l.bg?x+w/2:align==='center'?x+w/2:align==='right'?x+w:x;
+ ctx.fillStyle=l.color||TH.ink;
+ ctx.textAlign=align;
+ ctx.textBaseline='middle';
+ let ty=y+h/2-blockH/2+fs*lh/2;
+ for(const line of lines){
+  if(line)ctx.fillText(align==='center'?line.trim():line,ax,ty,w);
+  ty+=fs*lh;
+ }
+ try{ctx.letterSpacing='0px'}catch{}
+ ctx.restore();
+}
+
+async function paintImageLayer(ctx,l,x,y,w,h){
+ const src=l.src?absUrl(l.src):'';
+ if(!src){
+  const g=ctx.createLinearGradient(x,y,x+w,y+h);
+  g.addColorStop(0,TH.ink);g.addColorStop(1,TH.accent);
+  ctx.fillStyle=g;ctx.fillRect(x,y,w,h);
+  return;
+ }
+ let im;
+ try{im=await loadImg(src)}catch{return}
+ const nw=im.naturalWidth||im.width||1,nh=im.naturalHeight||im.height||1;
+ if(l.fit==='contain'){
+  const s=Math.min(w/nw,h/nh);
+  ctx.drawImage(im,x+(w-nw*s)/2,y+(h-nh*s)/2,nw*s,nh*s);
+  return;
+ }
+ const s=Math.max(w/nw,h/nh),iw=nw*s,ih=nh*s;
+ const fx=clamp((+l.fx||50)/100,0,1),fy=clamp((+l.fy||50)/100,0,1);
+ ctx.save();ctx.beginPath();ctx.rect(x,y,w,h);ctx.clip();
+ ctx.drawImage(im,x+(w-iw)*fx,y+(h-ih)*fy,iw,ih);
+ ctx.restore();
+}
+
+async function paintLogoLayer(ctx,l,x,y,w,h,H){
+ const src=l.which?logoSrc(l.which,l.tone):'';
+ if(src){
+  let im;
+  try{im=await loadImg(src)}catch{im=null}
+  if(im){
+   const nw=im.naturalWidth||im.width||1,nh=im.naturalHeight||im.height||1;
+   const s=Math.min(w/nw,h/nh),iw=nw*s,ih=nh*s;
+   const left=(+l.x||0)<20,right=(+l.x||0)+(+l.w||0)>80;
+   ctx.drawImage(im,left?x:right?x+w-iw:x+(w-iw)/2,y+(h-ih)/2,iw,ih);
+   return;
+  }
+ }
+ const word=String((B&&(B.wordmark||B.name))||'Brand').toUpperCase();
+ ctx.save();ctx.beginPath();ctx.rect(x,y,w,h);ctx.clip();
+ ctx.fillStyle=toneHex(l.tone);
+ ctx.font=`700 ${Math.max(1,h*.5)}px "${String(BF.display||'Georgia').replace(/"/g,'')}", Georgia, serif`;
+ ctx.textBaseline='middle';
+ const left=(+l.x||0)<20,right=(+l.x||0)+(+l.w||0)>80;
+ ctx.textAlign=left?'left':right?'right':'center';
+ ctx.fillText(word,left?x:right?x+w:x+w/2,y+h/2);
+ ctx.restore();
+}
+
+async function paintLayer(ctx,l,W,H,t){
+ const st=layerState(l,t);
+ const x=st.x/100*W,y=st.y/100*H;
+ const w=Math.max(.5,st.w/100*W),h=Math.max(.5,st.h/100*H);
+ const base=Array.isArray(l.kf)&&l.kf.length?1:(l.opacity==null?1:+l.opacity);
+ const alpha=clamp(st.opacity*base,0,1);
+ if(alpha<=.004)return;
+ ctx.save();
+ if(st.clip){clipPathFor(ctx,st.clip,x,y,w,h);ctx.clip()}
+ if(st.scale!==1||st.ty){
+  const cx=x+w/2,cy=y+h/2;
+  ctx.translate(cx,cy+st.ty*H);ctx.scale(st.scale,st.scale);ctx.translate(-cx,-cy);
+ }
+ ctx.globalAlpha=alpha;
+ if(l.type==='fill'){
+  ctx.fillStyle=l.color||EXPORT_BG;ctx.fillRect(x,y,w,h);
+ }else if(l.type==='gradient'){
+  const g=ctx.createLinearGradient(x,y,x,y+h);
+  g.addColorStop(0,l.from||TH.ink);g.addColorStop(1,l.to||TH.accent);
+  ctx.fillStyle=g;ctx.fillRect(x,y,w,h);
+ }else if(l.type==='shape'){
+  roundRectPath(ctx,x,y,w,h,(+l.radius||0)/100*H);
+  ctx.fillStyle=l.color||TH.ink;ctx.fill();
+ }else if(l.type==='image'){
+  await paintImageLayer(ctx,l,x,y,w,h);
+ }else if(l.type==='logo'){
+  await paintLogoLayer(ctx,l,x,y,w,h,H);
+ }else if(l.type==='text'){
+  paintText(ctx,l,x,y,w,h,H);
+ }
+ ctx.restore();
+}
+
+/* Paints the whole design at `time` (ms). `only` limits the render to layer
+   ids (segment export) and `background:null` keeps it transparent. */
+async function paintScene(ctx,W,H,opts){
+ const o=opts||{},t=o.time==null?DUR:o.time,only=o.only||null;
+ if(o.background!==null){ctx.save();ctx.fillStyle=o.background||EXPORT_BG;ctx.fillRect(0,0,W,H);ctx.restore()}
+ const layers=scene
+  .filter(l=>l&&(!only||only.includes(l.id))&&(only||!l.hidden))
+  .slice().sort((a,b)=>(a.z||0)-(b.z||0));
+ for(const l of layers)await paintLayer(ctx,l,W,H,t);
+}
+
+async function frameCanvas(time,W,H){
+ const cv=document.createElement('canvas');
+ cv.width=Math.max(1,Math.round(W));cv.height=Math.max(1,Math.round(H));
+ const ctx=cv.getContext('2d');
+ await paintScene(ctx,cv.width,cv.height,{time});
+ return cv;
+}
+const canvasBlob=(cv,type)=>new Promise(res=>cv.toBlob(res,type||'image/png'));
+
+/* ---------- export helpers ---------- */
+const pad2=n=>String(n).padStart(2,'0');
+const stampNow=()=>{const d=new Date();return `${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}-${pad2(d.getHours())}${pad2(d.getMinutes())}`};
+const slugText=v=>String(v||'design').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,64)||'design';
+const designName=()=>`${(B&&B.name)||'Agent Studio'} — ${(FMT&&FMT.n)||'Design'}`;
+const fileBase=()=>`${slugText((B&&B.name)||'agent-studio')}-${slugText((FMT&&FMT.n)||'design')}-${stampNow()}`;
+const utf8=s=>new TextEncoder().encode(String(s));
+const readBlob=async blob=>new Uint8Array(await blob.arrayBuffer());
+const progress=msg=>{const el=$('#status');if(!el)return;el.textContent=msg||`${B?B.name+' · ':''}${FMT?FMT.n:''}`};
+function downloadBlob(blob,name){
+ const url=URL.createObjectURL(blob),a=document.createElement('a');
+ a.href=url;a.download=name;a.rel='noopener';
+ document.body.appendChild(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),10000);
+}
+
+/* ==========================================================================
+   Save the current design as a brand template
+   ========================================================================== */
+const ART_CAP=1400;
+
+/* A layer that already points at a server file keeps that URL so the server can
+   copy it into the template; everything else (tinted logos, gradient fills) is
+   baked into a PNG so the template looks exactly like the stage. */
+async function layerArtwork(l,force){
+ if(!force&&l.type==='image'&&l.src&&!/^data:/i.test(String(l.src)))return String(l.src);
+ const scale=Math.min(1,ART_CAP/FMT.w);
+ const W=Math.max(2,Math.round(FMT.w*scale)),H=Math.max(2,Math.round(FMT.h*scale));
+ const cv=document.createElement('canvas');cv.width=W;cv.height=H;
+ await paintScene(cv.getContext('2d'),W,H,{time:DUR,only:[l.id],background:null});
+ // Crop to the layer box so the baked PNG drops straight back into the same
+ // rectangle when the template is reopened.
+ const x0=clamp(Math.floor(W*(l.x||0)/100),0,W-2),y0=clamp(Math.floor(H*(l.y||0)/100),0,H-2);
+ const x1=clamp(Math.ceil(W*((l.x||0)+(l.w||0))/100),x0+2,W),y1=clamp(Math.ceil(H*((l.y||0)+(l.h||0))/100),y0+2,H);
+ const cw=x1-x0,ch=y1-y0;
+ if(cw>=W&&ch>=H)return cv.toDataURL('image/png');
+ const out=document.createElement('canvas');out.width=cw;out.height=ch;
+ out.getContext('2d').drawImage(cv,x0,y0,cw,ch,0,0,cw,ch);
+ return out.toDataURL('image/png');
+}
+
+/* The server copies brand-pack and import files into the saved template; any
+  other address (a repository project asset, a remote link) is baked instead so
+  the template stays self-contained. */
+const localisePath=/^\/(?:api\/brand-packs|data\/imports)\//;
+function sameOriginPath(src){
+ try{const url=new URL(String(src||''),location.href);return url.origin===location.origin?url.pathname:''}catch{return ''}
+}
+function templateArtwork(l){
+ const src=String((l&&l.src)||'');
+ if(!src||/^data:/i.test(src))return layerArtwork(l);
+ return layerArtwork(l,!localisePath.test(sameOriginPath(src)));
+}
+
+/* Inverse of compositionToScene(): turns the live stage scene into the
+   composition document LayerStudio and the brand packs already understand. */
+async function compositionFromScene(name){
+ const title=String(name||designName());
+ const ordered=scene.slice().sort((a,b)=>(a.z||0)-(b.z||0));
+ const layers=[];
+ for(let i=0;i<ordered.length;i++){
+  const l=ordered[i];
+  const base={
+   id:String(l.id||`layer-${i+1}`),
+   name:String(l.name||`Layer ${i+1}`),
+   x:+clamp(+l.x||0,0,100).toFixed(2),
+   y:+clamp(+l.y||0,0,100).toFixed(2),
+   w:+clamp(l.w==null?100:+l.w,.1,100).toFixed(2),
+   h:+clamp(l.h==null?10:+l.h,.1,100).toFixed(2),
+   z:+(+l.z||i),
+   opacity:+clamp(l.opacity==null?1:+l.opacity,0,1).toFixed(3),
+   visible:!l.hidden,
+  };
+  if(l.type==='text'){
+   const f=l.font||{};
+   layers.push({...base,type:'text',text:String(l.text==null?'':l.text),color:l.color||TH.ink,
+    align:['center','right'].includes(l.align)?l.align:'left',
+    ...(l.bg?{bg:l.bg,radius:+clamp(+l.radius||0,0,50).toFixed(2)}:{}),
+    font:{family:f.family||BF.body,weight:+f.weight||400,
+     sizePct:+clamp(+f.sizePct||2,.4,40).toFixed(2),
+     lineHeight:+f.lineHeight||1.2,
+     letterSpacingEm:+f.letterSpacingEm||0,
+     transform:f.transform||'none'}});
+  }else{
+   layers.push({...base,type:'image',url:await templateArtwork(l),fit:(l.type==='logo'||l.fit==='contain')?'contain':'cover'});
+  }
+  if(Array.isArray(l.kf)&&l.kf.length>1){
+   layers[layers.length-1].keyframes=l.kf.slice().sort((a,b)=>a.time-b.time).map(k=>({
+    time:+k.time||0,x:+k.x||0,y:+k.y||0,w:+k.w||0,h:+k.h||0,
+    opacity:+clamp(k.opacity==null?1:+k.opacity,0,1).toFixed(3)}));
+  }
+ }
+ const brand=B||{};
+ const kit=(window.StudioBrand&&StudioBrand.brandKitFor)?StudioBrand.brandKitFor(brand):null;
+ const now=new Date().toISOString();
+ return {
+  version:3,
+  id:`agent-studio-${slugText(title)}`,
+  name:title,
+  width:FMT.w,
+  height:FMT.h,
+  duration:DUR,
+  defaultLocale:'en',
+  referenceLayerId:null,
+  characters:[],
+  variables:[],
+  formats:[{id:'master',isMaster:true,channel:'print',label:'Master',width:FMT.w,height:FMT.h,layerOverrides:{},variableValues:{}}],
+  activeFormatId:'master',
+  brandKit:kit,
+  brandKitId:brand.brandKitId||null,
+  guardrails:{enabled:false,block:false},
+  showSafeZones:false,
+  layers,
+  meta:{
+   source:'agent-studio',
+   schema:'agent-studio/composition/1',
+   packId:P&&P.id,packName:P&&P.name,
+   brandId:brand.id,brandName:brand.name,
+   templateId:FMT.saved?String(FMT.id).replace(/^saved:/,''):FMT.id,
+   formatLabel:FMT.n,
+   createdAt:now,updatedAt:now,
+   agentScene:clone(scene),
+  },
+ };
+}
+
+async function saveAsTemplate(name){
+ if(!P||!B)throw new Error('Pick a brand before saving a template.');
+ if(P.id==='demo'||demo)throw new Error('The offline demo has no brand pack to save into. Start the server with `node server.js` and reload.');
+ const composition=await compositionFromScene(name);
+ const res=await fetch(`${API}/brand-packs/${encodeURIComponent(P.id)}/templates/save`,{
+  method:'POST',
+  headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({brandId:B.id,name,composition}),
+ });
+ const data=await res.json().catch(()=>null);
+ if(!res.ok)throw new Error((data&&data.error)||`The template could not be saved (${res.status}).`);
+ const saved=(data&&data.template)||{};
+ await loadSavedTemplates(B);
+ if(AS.tab!=='tmpl'){AS.tab='tmpl'}
+ AS.savedActive=saved.id||null;
+ assets();
+ toast(`Saved “${saved.name||name}” to ${B.name}`);
+ say('agent',`Saved <b>${esc(saved.name||name)}</b> as a template for <b>${esc(B.name)}</b>. It’s in the <b>Templates</b> tab and Asset Studio can use it too.`);
+ return saved;
+}
+
+function openSaveTemplate(){
+ if(!B||!P){toast('Pick a brand before saving a template.',true);return}
+ openDialog({
+  title:'Save as template',
+  body:`<label class="fld">Template name<input id="tplName" value="${esc(designName())}" spellcheck="false" autocomplete="off"></label>`+
+   `<p class="note">Saves a snapshot of the current design — ${scene.filter(l=>!l.hidden).length} visible layer${scene.filter(l=>!l.hidden).length===1?'':'s'} at ${FMT.w}×${FMT.h}px — into <b>${esc(B.name)}</b> (${esc(P.name||P.id)}). The artwork is copied with it, so later edits never change this template.</p>`,
+  actions:[
+   {label:'Cancel',value:null},
+   {label:'Save template',primary:true,busy:'Saving…',run:body=>saveAsTemplate(String(body.querySelector('#tplName').value||'').trim()||designName())},
+  ],
+  onMount:body=>{const input=body.querySelector('#tplName');if(input){input.focus();input.select()}},
+ });
+}
+
+/* ==========================================================================
+   Export: PNG · PDF · GIF · video · composition · segments
+   ========================================================================== */
+
+/* ---------- dialog ---------- */
+const dlgEl=$('#dlg');
+function openDialog(opts){
+ if(!dlgEl)return Promise.resolve(null);
+ $('#dlgTitle').textContent=opts.title||'';
+ $('#dlgBody').innerHTML=opts.body||'';
+ const acts=$('#dlgActs');
+ acts.innerHTML='';
+ return new Promise(resolve=>{
+  let settled=false;
+  const finish=value=>{
+   if(settled)return;
+   settled=true;
+   dlgEl.onkeydown=null;dlgEl.onclick=null;dlgEl.oncancel=null;
+   if(dlgEl.open)dlgEl.close();
+   resolve(value);
+  };
+  (opts.actions||[{label:'Close',value:null}]).forEach(action=>{
+   const btn=document.createElement('button');
+   btn.type='button';
+   btn.textContent=action.label;
+   if(action.primary)btn.className='pri';
+   btn.onclick=async()=>{
+    if(typeof action.run!=='function'){finish(action.value==null?null:action.value);return}
+    const label=btn.textContent;
+    btn.disabled=true;btn.textContent=action.busy||'Working…';
+    try{finish(await action.run($('#dlgBody')))}catch(error){toast(error&&error.message?error.message:String(error),true);btn.disabled=false;btn.textContent=label}
+   };
+   acts.appendChild(btn);
+  });
+  dlgEl.oncancel=event=>{event.preventDefault();finish(null)};
+  dlgEl.onclick=event=>{if(event.target===dlgEl)finish(null)};
+  dlgEl.onkeydown=event=>{
+   if(event.key!=='Enter'||event.target.tagName!=='INPUT')return;
+   const primary=acts.querySelector('.pri');
+   if(primary){event.preventDefault();primary.click()}
+  };
+  if(!dlgEl.open)dlgEl.showModal();
+  if(typeof opts.onMount==='function')opts.onMount($('#dlgBody'),finish);
+ });
+}
+
+/* ---------- GIF89a writer (global palette + LZW) ---------- */
+const GIF_CLEAR=256,GIF_END=257;
+const gifDictionary=new Uint16Array(4096*256);
+function gifResetDictionary(){
+ gifDictionary.fill(0xffff);
+}
+function gifLzw(indices){
+ let nextCode=258,codeSize=9;
+ const clearCode=GIF_CLEAR,endCode=GIF_END;
+ const bytes=new Uint8Array(indices.length*2+16);
+ let byteLength=0,buffer=0,bitCount=0;
+ const writeCode=code=>{
+  buffer|=code<<bitCount;bitCount+=codeSize;
+  while(bitCount>=8){bytes[byteLength++]=buffer&255;buffer>>>=8;bitCount-=8}
+ };
+ gifResetDictionary();
+ writeCode(clearCode);
+ if(!indices.length){
+  writeCode(endCode);
+ }else{
+  let prefix=indices[0];
+  for(let i=1;i<indices.length;i++){
+   const value=indices[i],key=(prefix<<8)|value,existing=gifDictionary[key];
+   if(existing!==0xffff){prefix=existing;continue}
+   writeCode(prefix);
+   if(nextCode<4096){
+    gifDictionary[key]=nextCode;nextCode+=1;
+    if(nextCode>(1<<codeSize)&&codeSize<12)codeSize+=1;
+   }else{
+    writeCode(clearCode);gifResetDictionary();nextCode=258;codeSize=9;
+   }
+   prefix=value;
+  }
+  writeCode(prefix);
+  writeCode(endCode);
+ }
+ if(bitCount)bytes[byteLength++]=buffer&255;
+ return bytes.subarray(0,byteLength);
+}
+
+/* The palette leads with the brand colours, then the most common pixels of the
+   first frame, then a 6×6×6 cube so photos and gradients stay close. */
+function gifPalette(firstFrame){
+ const out=[],seen=new Set();
+ const add=colour=>{
+  const r=clamp(Math.round(colour[0]),0,255),g=clamp(Math.round(colour[1]),0,255),b=clamp(Math.round(colour[2]),0,255);
+  const key=(r>>2<<12)|(g>>2<<6)|(b>>2);
+  if(seen.has(key)||out.length>=256)return;
+  seen.add(key);out.push([r,g,b]);
+ };
+ const brand=[TH.ink,TH.accent,TH.bone,TH.chalk,EXPORT_BG].concat(Object.values(PAL||{}));
+ brand.forEach(hex=>{const c=hx(hex);if(c)add(rgb(c))});
+ const counts=new Map();
+ if(firstFrame){
+  const px=firstFrame.data;
+  for(let i=0;i<px.length;i+=4*3){
+   const key=((px[i]>>2)<<12)|((px[i+1]>>2)<<6)|(px[i+2]>>2);
+   counts.set(key,(counts.get(key)||0)+1);
+  }
+ }
+ [...counts.entries()].sort((a,b)=>b[1]-a[1]).slice(0,190).forEach(([key])=>{
+  add([((key>>12)&63)*255/63,((key>>6)&63)*255/63,(key&63)*255/63]);
+ });
+ for(let r=0;r<6&&out.length<256;r+=1){
+  for(let g=0;g<6&&out.length<256;g+=1){
+   for(let b=0;b<6&&out.length<256;b+=1)add([r*51,g*51,b*51]);
+  }
+ }
+ while(out.length<256)out.push([0,0,0]);
+ return out;
+}
+
+function gifLookup(palette){
+ const lookup=new Uint8Array(32768);
+ for(let key=0;key<32768;key+=1){
+  const red=((key>>10)&31)<<3,green=((key>>5)&31)<<3,blue=(key&31)<<3;
+  let best=0,bestDistance=Infinity;
+  for(let index=0;index<palette.length;index+=1){
+   const colour=palette[index];
+   const dr=red-colour[0],dg=green-colour[1],db=blue-colour[2];
+   const distance=dr*dr+dg*dg+db*db;
+   if(distance<bestDistance){bestDistance=distance;best=index}
+  }
+  lookup[key]=best;
+ }
+ return lookup;
+}
+
+function makeGifWriter(width,height,palette,lookup){
+ const parts=[];
+ const push=bytes=>parts.push(Uint8Array.from(bytes));
+ const word=value=>push([value&255,(value>>8)&255]);
+ const text=value=>push(Array.from(value,char=>char.charCodeAt(0)));
+ text('GIF89a');
+ word(width);word(height);
+ push([0xf7,0,0]);
+ palette.forEach(colour=>push(colour));
+ push([0x21,0xff,0x0b]);
+ text('NETSCAPE2.0');
+ push([3,1,0,0,0]);
+ return {
+  addFrame(imageData,delayMs){
+   const indices=new Uint8Array(width*height);
+   const px=imageData.data;
+   for(let pixel=0;pixel<indices.length;pixel+=1){
+    const offset=pixel*4;
+    indices[pixel]=lookup[((px[offset]>>3)<<10)|((px[offset+1]>>3)<<5)|(px[offset+2]>>3)];
+   }
+   const compressed=gifLzw(indices);
+   push([0x21,0xf9,4,0x04]);
+   word(Math.max(2,Math.round(delayMs/10)));
+   push([0,0,0x2c]);
+   word(0);word(0);word(width);word(height);
+   push([0,8]);
+   for(let offset=0;offset<compressed.length;offset+=255){
+    const block=compressed.subarray(offset,offset+255);
+    push([block.length]);
+    parts.push(block);
+   }
+   push([0]);
+  },
+  finish(){
+   push([0x3b]);
+   return new Blob(parts,{type:'image/gif'});
+  },
+ };
+}
+
+/* ---------- ZIP (stored, no compression) ---------- */
+let CRC_TABLE=null;
+function crcTable(){
+ if(CRC_TABLE)return CRC_TABLE;
+ CRC_TABLE=new Uint32Array(256);
+ for(let n=0;n<256;n+=1){
+  let c=n;
+  for(let k=0;k<8;k+=1)c=c&1?0xEDB88320^(c>>>1):c>>>1;
+  CRC_TABLE[n]=c>>>0;
+ }
+ return CRC_TABLE;
+}
+function crc32(bytes){
+ const table=crcTable();
+ let c=0xFFFFFFFF;
+ for(let i=0;i<bytes.length;i+=1)c=table[(c^bytes[i])&255]^(c>>>8);
+ return (c^0xFFFFFFFF)>>>0;
+}
+function zipStore(files){
+ const chunks=[],central=[];
+ const now=new Date();
+ const dosTime=((now.getHours()<<11)|(now.getMinutes()<<5)|(now.getSeconds()>>1))&0xffff;
+ const dosDate=(((now.getFullYear()-1980)<<9)|((now.getMonth()+1)<<5)|now.getDate())&0xffff;
+ let offset=0;
+ files.forEach(entry=>{
+  const name=utf8(entry.name);
+  const data=entry.data;
+  const crc=crc32(data);
+  const local=new Uint8Array(30+name.length);
+  const lv=new DataView(local.buffer);
+  lv.setUint32(0,0x04034b50,true);
+  lv.setUint16(4,20,true);
+  lv.setUint16(6,0x0800,true);
+  lv.setUint16(8,0,true);
+  lv.setUint16(10,dosTime,true);
+  lv.setUint16(12,dosDate,true);
+  lv.setUint32(14,crc,true);
+  lv.setUint32(18,data.length,true);
+  lv.setUint32(22,data.length,true);
+  lv.setUint16(26,name.length,true);
+  lv.setUint16(28,0,true);
+  local.set(name,30);
+  chunks.push(local,data);
+  const cen=new Uint8Array(46+name.length);
+  const cv=new DataView(cen.buffer);
+  cv.setUint32(0,0x02014b50,true);
+  cv.setUint16(4,20,true);
+  cv.setUint16(6,20,true);
+  cv.setUint16(8,0x0800,true);
+  cv.setUint16(10,0,true);
+  cv.setUint16(12,dosTime,true);
+  cv.setUint16(14,dosDate,true);
+  cv.setUint32(16,crc,true);
+  cv.setUint32(20,data.length,true);
+  cv.setUint32(24,data.length,true);
+  cv.setUint16(28,name.length,true);
+  cv.setUint32(42,offset,true);
+  cen.set(name,46);
+  central.push(cen);
+  offset+=local.length+data.length;
+ });
+ const centralSize=central.reduce((sum,block)=>sum+block.length,0);
+ const end=new Uint8Array(22);
+ const ev=new DataView(end.buffer);
+ ev.setUint32(0,0x06054b50,true);
+ ev.setUint16(8,files.length,true);
+ ev.setUint16(10,files.length,true);
+ ev.setUint32(12,centralSize,true);
+ ev.setUint32(16,offset,true);
+ return new Blob([...chunks,...central,end],{type:'application/zip'});
+}
+
+/* ---------- individual exports ---------- */
+async function pngBlob(){
+ const cv=await frameCanvas(DUR,FMT.w,FMT.h);
+ return await canvasBlob(cv,'image/png');
+}
+
+function pdfSpec(){
+ return window.AssetPrint.resolveSpec(FMT.saved?'saved':FMT.id,{n:FMT.n,w:FMT.w,h:FMT.h});
+}
+
+async function pdfBlob(){
+ if(!window.AssetPrint||typeof window.AssetPrint.buildPdf!=='function'){
+  throw new Error('The PDF writer did not load — check /src/client/asset-studio/print.js.');
+ }
+ const spec=pdfSpec();
+ const cv=await frameCanvas(DUR,FMT.w,FMT.h);
+ return await window.AssetPrint.buildPdf({
+  pages:[{canvas:cv,trimW:spec.w,trimH:spec.h,bleed:0,slug:0,marks:false}],
+  title:`${(B&&B.name)||'Agent Studio'} — ${FMT.n}`,
+ });
+}
+
+async function gifBlob(){
+ const frames=Math.round(clamp(DUR/1000*10,8,90));
+ const W=Math.min(720,Math.round(FMT.w)),H=Math.max(2,Math.round(W*FMT.h/FMT.w));
+ const cv=document.createElement('canvas');
+ cv.width=W;cv.height=H;
+ const ctx=cv.getContext('2d',{willReadFrequently:true});
+ await paintScene(ctx,W,H,{time:0});
+ const palette=gifPalette(ctx.getImageData(0,0,W,H));
+ const writer=makeGifWriter(W,H,palette,gifLookup(palette));
+ const delay=DUR/frames;
+ for(let i=0;i<frames;i+=1){
+  progress(`Rendering GIF frame ${i+1} of ${frames}…`);
+  await paintScene(ctx,W,H,{time:Math.round(i*DUR/frames)});
+  writer.addFrame(ctx.getImageData(0,0,W,H),delay);
+  await new Promise(resolve=>setTimeout(resolve,0));
+ }
+ return writer.finish();
+}
+
+async function transcodeMp4(blob){
+ const res=await fetch(`${API}/video/transcode`,{
+  method:'POST',
+  headers:{'Content-Type':blob.type||'video/webm'},
+  body:blob,
+ });
+ if(!res.ok){
+  const data=await res.json().catch(()=>null);
+  throw new Error((data&&data.error)||`The server cannot transcode MP4 (${res.status}).`);
+ }
+ return await res.blob();
+}
+
+async function videoFile(){
+ if(typeof MediaRecorder!=='function'||typeof HTMLCanvasElement.prototype.captureStream!=='function'){
+  throw new Error('This browser cannot record video from a canvas.');
+ }
+ const W=Math.round(FMT.w),H=Math.round(FMT.h);
+ const cv=document.createElement('canvas');
+ cv.width=W;cv.height=H;
+ const ctx=cv.getContext('2d');
+ await paintScene(ctx,W,H,{time:0});
+ const mimeList=['video/mp4;codecs=avc1.42E01E','video/mp4','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'];
+ const mime=mimeList.find(candidate=>{
+  try{return MediaRecorder.isTypeSupported(candidate)}catch{return false}
+ })||'';
+ const stream=cv.captureStream(30);
+ let recorder;
+ try{
+  recorder=new MediaRecorder(stream,mime?{mimeType:mime,videoBitsPerSecond:8000000}:undefined);
+ }catch(error){
+  stream.getTracks().forEach(track=>track.stop());
+  throw new Error(`The browser refused to start recording: ${error.message}`);
+ }
+ const chunks=[];
+ recorder.ondataavailable=event=>{if(event.data&&event.data.size)chunks.push(event.data)};
+ const stopped=new Promise(resolve=>{recorder.onstop=resolve});
+ recorder.start();
+ const started=performance.now();
+ await new Promise(resolve=>{
+  const step=()=>{
+   const elapsed=Math.min(DUR,performance.now()-started);
+   progress(`Recording video ${(elapsed/1000).toFixed(1)}s of ${(DUR/1000).toFixed(1)}s…`);
+   paintScene(ctx,W,H,{time:elapsed}).then(()=>{
+    if(elapsed>=DUR)resolve();else requestAnimationFrame(step);
+   });
+  };
+  requestAnimationFrame(step);
+ });
+ await new Promise(resolve=>requestAnimationFrame(()=>resolve()));
+ recorder.stop();
+ await stopped;
+ stream.getTracks().forEach(track=>track.stop());
+ const type=recorder.mimeType||mime||'video/webm';
+ let blob=new Blob(chunks,{type});
+ if(/mp4/i.test(type))return {blob,name:'.mp4'};
+ try{
+  progress('Converting the recording to MP4…');
+  blob=await transcodeMp4(blob);
+  return {blob,name:'.mp4'};
+ }catch(error){
+  toast(`Saved as WebM — ${error.message}`,true);
+  return {blob,name:'.webm'};
+ }
+}
+
+/* ---------- segments ---------- */
+async function layerPng(l){
+ const cv=document.createElement('canvas');
+ cv.width=FMT.w;cv.height=FMT.h;
+ await paintScene(cv.getContext('2d'),FMT.w,FMT.h,{time:DUR,only:[l.id],background:null});
+ const blob=await canvasBlob(cv,'image/png');
+ return blob?readBlob(blob):null;
+}
+
+async function segmentsFiles(){
+ const composition=await compositionFromScene(designName());
+ const ordered=scene.filter(l=>!l.hidden).slice().sort((a,b)=>(a.z||0)-(b.z||0));
+ const segments=ordered.map((l,index)=>({
+  index:index+1,
+  id:l.id,
+  name:l.name,
+  type:l.type,
+  z:l.z||0,
+  box:{x:l.x,y:l.y,w:l.w,h:l.h},
+  opacity:l.opacity==null?1:l.opacity,
+  ...(l.type==='text'?{text:l.text,font:l.font,color:l.color,align:l.align}:{}),
+  ...(l.src?{src:l.src}:{}),
+  ...(l.anim?{animation:l.anim}:{}),
+  file:`segments/${pad2(index+1)}-${slugText(l.name)}.png`,
+ }));
+ const manifest={
+  schema:'agent-studio.segments/1',
+  name:composition.name,
+  width:FMT.w,
+  height:FMT.h,
+  duration:DUR,
+  createdAt:new Date().toISOString(),
+  brand:B?{id:B.id,name:B.name,wordmark:B.wordmark||null}:null,
+  pack:P?{id:P.id,name:P.name}:null,
+  templateId:FMT.saved?String(FMT.id).replace(/^saved:/,''):FMT.id,
+  formatLabel:FMT.n,
+  palette:(B&&B.palette)||[],
+  segments,
+ };
+ const files=[
+  {name:'composition.json',data:utf8(JSON.stringify(composition,null,2))},
+  {name:'segments.json',data:utf8(JSON.stringify(manifest,null,2))},
+ ];
+ for(let i=0;i<ordered.length;i+=1){
+  progress(`Rendering segment ${i+1} of ${ordered.length}…`);
+  const bytes=await layerPng(ordered[i]);
+  if(bytes)files.push({name:`segments/${pad2(i+1)}-${slugText(ordered[i].name)}.png`,data:bytes});
+ }
+ return files;
+}
+
+/* ---------- entry points ---------- */
+async function exportPng(){
+ progress('Rendering the final PNG…');
+ downloadBlob(await pngBlob(),`${fileBase()}.png`);
+ progress('');
+ toast('Exported the final PNG');
+}
+
+async function exportPdf(){
+ progress('Building the PDF…');
+ downloadBlob(await pdfBlob(),`${fileBase()}.pdf`);
+ progress('');
+ toast('Exported the PDF');
+}
+
+async function exportGif(){
+ downloadBlob(await gifBlob(),`${fileBase()}.gif`);
+ progress('');
+ toast('Exported the animated GIF');
+}
+
+async function exportVideo(){
+ const {blob,name}=await videoFile();
+ downloadBlob(blob,`${fileBase()}${name}`);
+ progress('');
+ toast(`Exported the video (${name.slice(1).toUpperCase()})`);
+}
+
+async function exportComposition(){
+ progress('Writing the composition…');
+ const composition=await compositionFromScene(designName());
+ downloadBlob(new Blob([JSON.stringify(composition,null,2)],{type:'application/json'}),`${fileBase()}-composition.json`);
+ progress('');
+ toast('Exported the composition');
+}
+
+async function exportSegments(){
+ const files=await segmentsFiles();
+ downloadBlob(zipStore(files),`${fileBase()}-segments.zip`);
+ progress('');
+ toast(`Exported ${files.length} files`);
+}
+
+async function exportAll(){
+ const base=fileBase();
+ const files=await segmentsFiles();
+ progress('Rendering the final PNG…');
+ const png=await pngBlob();
+ if(png)files.push({name:'final.png',data:await readBlob(png)});
+ try{
+  progress('Building the PDF…');
+  files.push({name:'final.pdf',data:await readBlob(await pdfBlob())});
+ }catch(error){toast(`PDF skipped — ${error.message}`,true)}
+ try{
+  files.push({name:'animation.gif',data:await readBlob(await gifBlob())});
+ }catch(error){toast(`GIF skipped — ${error.message}`,true)}
+ try{
+  const {blob,name}=await videoFile();
+  files.push({name:`animation${name}`,data:await readBlob(blob)});
+ }catch(error){toast(`Video skipped — ${error.message}`,true)}
+ downloadBlob(zipStore(files),`${base}-export.zip`);
+ progress('');
+ toast(`Exported ${files.length} files`);
+}
+
+const EXPORT_ITEMS=[
+ {id:'png',label:'Final PNG',note:'The design at full size, last frame of the timeline.',run:exportPng},
+ {id:'pdf',label:'Final PDF',note:'Print PDF with trim boxes at the physical size of this format.',run:exportPdf},
+ {id:'gif',label:'Animated GIF',note:'The whole timeline, 10 frames a second.',run:exportGif},
+ {id:'mp4',label:'Video (MP4)',note:'Records the timeline, then converts to H.264 MP4.',run:exportVideo},
+ {id:'composition',label:'Composition JSON',note:'The full LayerStudio composition document.',run:exportComposition},
+ {id:'segments',label:'Composition + segments',note:'Composition, segment manifest and one PNG per layer, zipped.',run:exportSegments},
+ {id:'all',label:'Full export',note:'Everything above in one ZIP.',run:exportAll},
+];
+
+function buildExportMenu(){
+ const menu=$('#exMenu');
+ if(!menu)return;
+ menu.innerHTML='';
+ EXPORT_ITEMS.forEach((item,index)=>{
+  if(index===4)menu.appendChild(document.createElement('hr'));
+  const btn=document.createElement('button');
+  btn.type='button';
+  btn.setAttribute('role','menuitem');
+  btn.dataset.export=item.id;
+  btn.innerHTML=`<b>${esc(item.label)}</b><small>${esc(item.note)}</small>`;
+  btn.onclick=()=>{toggleExportMenu(false);runExport(item)};
+  menu.appendChild(btn);
+ });
+}
+
+async function runExport(item){
+ const btn=$('#expBtn');
+ if(btn)btn.disabled=true;
+ try{await item.run()}
+ catch(error){progress('');toast(error&&error.message?error.message:String(error),true);console.error(error)}
+ finally{if(btn)btn.disabled=false}
+}
+
+function toggleExportMenu(force){
+ const menu=$('#exMenu'),btn=$('#expBtn');
+ if(!menu||!btn)return;
+ const open=typeof force==='boolean'?force:menu.hidden;
+ menu.hidden=!open;
+ btn.setAttribute('aria-expanded',String(open));
+ if(open)buildExportMenu();
+}
+
+/* ==========================================================================
+   Import a composition — Studio Layers projects, imports, a link or JSON
+   ========================================================================== */
+// Checked-in compositions address their PNGs as /data/projects/<p>/assets/…,
+// which is not served; /api/projects/<p>/assets/… exposes the same files.
+const serveableUrl=url=>{
+ const match=/^\/data\/projects\/([^/]+)\/(.+)$/.exec(String(url||''));
+ return match?`${API}/projects/${match[1]}/${match[2]}`:url;
+};
+function importedScene(composition){
+ const layers=compositionToScene({composition:{...composition,layers:(composition.layers||[]).map(l=>({
+  ...l,url:serveableUrl(l&&l.url),frames:Array.isArray(l&&l.frames)?l.frames.map(serveableUrl):l&&l.frames,
+ }))}});
+ const source=new Map((composition.layers||[]).map(l=>[String(l&&l.id),l]));
+ layers.forEach(layer=>{
+  const from=source.get(layer.id);
+  if(!from)return;
+  if(from.bg)layer.bg=from.bg;
+  if(from.radius!=null&&+from.radius>0)layer.radius=+from.radius;
+  if(from.nowrap)layer.nowrap=true;
+  if(from.anim&&from.anim.preset&&!layer.anim)layer.anim={...from.anim};
+ });
+ return layers;
+}
+
+async function adoptComposition(composition,label){
+ if(!composition||!Array.isArray(composition.layers)||!composition.layers.length)throw new Error('That composition has no layers to load.');
+ const next=importedScene(composition);
+ if(!next.length)throw new Error('That composition has no layers to load.');
+ const title=String(composition.name||label||'Imported composition');
+ const w=Math.max(64,Math.round(+(composition.width||FMT.w)));
+ const h=Math.max(64,Math.round(+(composition.height||FMT.h)));
+ saveScene();
+ FMT={id:'saved:imported',group:'Imported',n:title,w,h,saved:true};
+ AS.savedActive=null;hist=[];sel=null;seen=new Set();stopP();
+ setDuration(+(composition.duration)||DEFAULT_DUR);
+ T=next.some(l=>l.anim)?0:DUR;
+ fitStage();sizeProbe();
+ scene=next;
+ chrome();render();layers();assets();greet();remember();
+ $('#status').textContent=`${title} · ${w}×${h}`;
+ say('agent',`Imported <b>${esc(title)}</b> — ${next.length} editable layer${next.length===1?'':'s'} at ${w}×${h}px. Everything is on the canvas, the timeline and the layer panel.`);
+ toast(`Imported ${title}`);
+ return next.length;
+}
+
+async function compositionCandidates(){
+ const list=[];
+ try{
+  const data=await jget(`${API}/projects`);
+  (data&&data.projects||[]).forEach(project=>{
+   if(!project||!project.id||project.id.indexOf('import-')===0)return;
+   (project.compositions||[]).forEach(comp=>{
+    list.push({key:`${project.id}/${comp.id}`,kind:'project',label:String(comp.name||comp.id),note:String(project.name||project.id)});
+   });
+  });
+ }catch(error){list.push({key:'',kind:'error',label:'Studio projects unavailable',note:error.message})}
+ try{
+  const data=await jget(`${API}/imports`);
+  (data&&data.projects||[]).forEach(item=>{
+   if(!item||!item.id)return;
+   list.push({key:`import:${item.id}`,kind:'import',label:String(item.name||item.id),
+    note:`Import · ${item.layerCount||0} layer${item.layerCount===1?'':'s'} · ${item.width||'?'}×${item.height||'?'}`});
+  });
+ }catch(error){list.push({key:'',kind:'error',label:'Imports unavailable',note:error.message})}
+ return list;
+}
+
+async function fetchCandidate(key){
+ const text=String(key||'');
+ const imported=/^import:(.+)$/.exec(text);
+ if(imported)return await jget(`${API}/imports/${encodeURIComponent(imported[1])}/composition.json`);
+ const [projectId,compositionId]=text.split('/');
+ if(!projectId||!compositionId)throw new Error('That composition cannot be addressed.');
+ return await jget(`${API}/projects/${encodeURIComponent(projectId)}/compositions/${encodeURIComponent(compositionId)}`);
+}
+
+function compositionPayload(data){
+ if(data&&data.composition&&Array.isArray(data.composition.layers))return data.composition;
+ if(data&&Array.isArray(data.layers))return data;
+ if(data&&data.scene&&Array.isArray(data.scene.layers))return data.scene;
+ throw new Error('That is not a Studio Layers composition — it has no layers.');
+}
+
+async function importFromValue(value){
+ const text=String(value||'').trim();
+ if(!text)throw new Error('Paste a composition link or some JSON first.');
+ if(/^[[{]/.test(text)){
+  let data;
+  try{data=JSON.parse(text)}catch{throw new Error('That JSON could not be parsed.')}
+  return compositionPayload(data);
+ }
+ const url=/^https?:\/\//.test(text)?text:(text.startsWith('/')?text:`/${text}`);
+ /* Studio Import addresses files on disk; the server only serves them under /api. */
+ return compositionPayload(await jget(url.replace(/\/data\/imports\//,'/api/imports/')));
+}
+
+async function openImport(){
+ await openDialog({
+  title:'Import a composition',
+  body:`<div class="dlg-h">Compositions on this server</div>`+
+   `<div class="imp-list" id="impList"><div class="note">Looking for compositions…</div></div>`+
+   `<p class="note">Layers, artwork and keyframes load onto this stage. Nothing is written back — edit the file itself in <a href="studio-import.html">Studio Import</a>.</p>`+
+   `<div class="dlg-h">Or use a link or JSON</div>`+
+   `<label class="fld">Composition URL, or a pasted composition<textarea id="impValue" rows="3" spellcheck="false" placeholder="/data/imports/…/composition.json"></textarea></label>`,
+  actions:[
+   {label:'Close',value:null},
+   {label:'Load',primary:true,busy:'Loading…',run:async body=>{
+    const composition=await importFromValue(body.querySelector('#impValue').value);
+    await adoptComposition(composition);
+    return {ok:true};
+   }},
+  ],
+  onMount:(body,finish)=>{
+   const list=body.querySelector('#impList');
+   list.addEventListener('click',async event=>{
+    const row=event.target.closest('[data-cand]');
+    if(!row||row.disabled)return;
+    row.disabled=true;
+    try{
+     const record=await fetchCandidate(row.dataset.cand);
+     await adoptComposition(compositionPayload(record),row.dataset.label);
+     finish(null);
+    }catch(error){
+     toast(error&&error.message?error.message:String(error),true);
+     row.disabled=false;
+    }
+   });
+   compositionCandidates().then(candidates=>{
+    if(!candidates.length){list.innerHTML='';return}
+    list.innerHTML=candidates.map(c=>c.key
+     ?`<button type="button" class="imp-row" data-cand="${esc(c.key)}" data-label="${esc(c.label)}"><b>${esc(c.label)}</b><small>${esc(c.note)}</small><em>${esc(c.kind)}</em></button>`
+     :`<div class="note warn">${esc(c.label)} — ${esc(c.note)}</div>`).join('');
+   }).catch(error=>{list.innerHTML=`<div class="note warn">${esc(error.message)}</div>`});
+  },
+ });
+}
+
+/* ---------- wire the header actions ---------- */
+(function bindStudioActions(){
+ const importBtn=$('#impBtn'),saveBtn=$('#saveTpl'),exportBtn=$('#expBtn');
+ if(importBtn)importBtn.onclick=()=>openImport();
+ if(saveBtn)saveBtn.onclick=()=>openSaveTemplate();
+ if(exportBtn)exportBtn.onclick=event=>{event.stopPropagation();toggleExportMenu()};
+ buildExportMenu();
+ document.addEventListener('click',event=>{
+  if(!event.target.closest('.exwrap'))toggleExportMenu(false);
+ });
+ document.addEventListener('keydown',event=>{
+  if(event.key==='Escape')toggleExportMenu(false);
+ });
+})();
 
 /* ---------- persistence ---------- */
 const sceneKey=()=>`agentStudio.scene.v2:${B&&B.id}:${FMT&&FMT.id}`;
