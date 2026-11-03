@@ -270,8 +270,8 @@ These were real defects found while reviewing the July Dalton group output:
 3. **HTML error pages were saved as images.** Downloads are now rejected on
    `text/html`, verified with Pillow, and tiny images are discarded.
 4. **Photos were not deduplicated.** The same image at six sizes is grouped
-   by media id; up to six distinct, ≥600 px photos are kept, print-ready
-   flagged at ≥2000 px. A cover falls back to the best photo.
+   by media id; up to `MAX_CURATED_PHOTOS` (12) distinct, ≥600 px photos are
+   kept, print-ready flagged at ≥2000 px. A cover falls back to the best photo.
 5. **Menus with the price on the next line produced no content.** The parser
    now handles `item / description / £price`, skips page chrome, and picks
    section headings without turning every item into a section.
@@ -296,6 +296,62 @@ These were real defects found while reviewing the July Dalton group output:
     even though rating and reviews were available. The field is no longer
     requested, so Google rating/reviews load when `GOOGLE_PLACES_API_KEY` is
     set (verified: The Physician, 3.7 · 65 reviews).
+12. **Press and partner logos filled the logo slot.** A 32-file
+    `assets/logos/` was all *Exame*, *Vogue*, *Monashees* and social icons.
+    Logos are now only taken from the header/nav (or a same-site link), and
+    press-wall containers, third-party-linked images and known outlet/partner
+    names are rejected. Inline SVG marks are written first, at most three
+    logos are kept, and at most `MAX_CURATED_LOGOS` files enter the kit.
+13. **External SVG wordmarks were downloaded and then deleted.** `.svg` is an
+    image extension but Pillow cannot open it, so every header wordmark was
+    printed as "Discarding non-image download". Downloads are now sniffed for
+    a real `<svg>` root, sized from `viewBox`/`width`, kept as `.svg`, given
+    the camel-case `viewBox`/`preserveAspectRatio` casing, and stripped of
+    `<script>`, `<foreignObject>`, `on*` handlers and `javascript:` hrefs.
+14. **Every venue without an explicit country was treated as British.** The
+    Lisbon cafe inherited `country: "United Kingdom"`, so the UK FSA lookup
+    ran, "matched" an unrelated shop at score 0.5, and published a live
+    `ratings.food.gov.uk` URL for it. Country now comes from the address
+    (`COUNTRY_HINTS`) and postal evidence wins over a stale `targets.json`
+    label (`resolve_target_country`), stays blank when unknown, is checked
+    against the declared country in `reconcile_identity` (a mismatch is a
+    conflict), and the FSA connector skips non-UK/unknown venues and never
+    emits a ratings URL below `0.55`. `--report-only` re-reads saved platform
+    JSON, so `drop_offshore_results` also discards a cached UK rating for a
+    non-UK venue; such skipped sources are reported as *not applicable*
+    instead of as discovery gaps. `normalize_phone` keeps non-UK numbers as
+    written instead of returning `None`.
+15. **Unused video downloads dominated the run.** A single crawl pulled 137 MB
+    of `.mp4` (one clip 51 MB) that nothing in the brand pack reads. Videos are
+    now listed in `discovered_media.csv` but not downloaded; `--with-videos`
+    restores the old behaviour.
+16. **Photography was capped at six photos.** `MAX_CURATED_PHOTOS = 12`; the
+    dedupe-by-media-id and ≥600 px rules are unchanged.
+17. **Profile URLs were used exactly as typed.** A hand-entered
+    `youtube.com/thecoffeejp` went straight to the connector and 404'd, and
+    `instagram.com/name/?igshid=…` was stored with tracking noise.
+    `canonical_profile_url` rebuilds social URLs from their identity segment
+    (`@handle`, `/channel/UC…`, `/company/x/`, `/in/x/`), keeps legacy
+    `/c/`, `/user/` paths intact, drops tracking parameters everywhere, and is
+    applied to seeds, website links, structured data, search hits and handle
+    guesses. Restaurant Guru slug guesses now use `slugify` (lowercase) instead
+    of a capitalised ad-hoc slug. The Maps fallback URL takes `hl`/`gl` from the
+    venue country instead of hardcoded `en-GB`.
+18. **A dead seed still ran its connector.** `drop_dead_seeds` probes each
+    seeded social URL before the social phase; a `404`/`410` removes it from the
+    plan and is listed under provenance as a rejected seed, so the report says
+    "rejected" rather than "platform empty".
+19. **Presence and gaps were misleading.** `ok` alone counted as presence, an
+    empty profile page made a platform look active, and gaps were a hardcoded
+    Instagram/Facebook/TikTok/YouTube list — LinkedIn was invisible and a
+    never-discovered YouTube looked like a defect. Presence now needs a real
+    profile field (handle, name, followers, bio, …) or fetched posts; `gaps`
+    means "URL known but unreadable" and `not_discovered` is reported
+    separately.
+20. **`collected_reviews` never matched the per-source counts.** The headline
+    number is de-duplicated (author + first 80 chars); `duplicates_merged` and
+    `collected_raw` are now published next to it, and the markdown report shows
+    the delta.
 
 ---
 
@@ -310,6 +366,9 @@ The Python script still works standalone. The UI only uses the JSON modes.
 # one site, website only
 .venv/bin/python scripts/crawler-combined.py https://example.com/ \
   --max-pages 40 --skip-social --output-root data/_crawler/manual --group "Example"
+
+# also fetch the (otherwise skipped) video files
+.venv/bin/python scripts/crawler-combined.py https://example.com/ --with-videos
 
 # one site with confirmed target and profiles
 .venv/bin/python scripts/crawler-combined.py https://example.com/ \

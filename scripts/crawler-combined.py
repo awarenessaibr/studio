@@ -92,6 +92,9 @@ LIMITS (observed, not speculative)
   * Sentiment and themes are lexicon-based and indicative; read the sample size.
   * Phone normalisation and the default locale/currency are UK-oriented; change
     DEFAULT_* / KNOWN_CITIES below (and normalize_phone) for other markets.
+    The country itself is derived from the address, so non-UK venues no longer
+    inherit UK-only lookups; phone numbers from other countries are kept as
+    written instead of being dropped.
   * Asset rights and licensing are NOT verified by this tool.
 
 TERMS OF SERVICE
@@ -185,6 +188,71 @@ DEFAULT_LOCALE = "en-GB"
 DEFAULT_CURRENCY = "GBP"
 KNOWN_CITIES = ("St Andrews", "Glasgow", "Edinburgh")   # fallback city detection from page text
 
+# Address -> country. A venue's country must come from its own evidence; never
+# default it to the UK (that made a Lisbon cafe inherit UK food-hygiene checks).
+COUNTRY_HINTS = (
+    # UK first so "Northern Ireland" resolves to the UK, not Ireland.
+    ("United Kingdom", ("united kingdom", "great britain", "england", "scotland",
+                        "wales", "northern ireland", "london", "manchester",
+                        "edinburgh", "glasgow", "st andrews", "birmingham", "bristol",
+                        "leeds", "liverpool", "belfast", "cardiff")),
+    ("Portugal", ("portugal", "lisboa", "lisbon", "porto", "cascais", "sintra")),
+    ("Spain", ("spain", "españa", "espana", "madrid", "barcelona", "valencia", "sevilla")),
+    ("Brazil", ("brasil", "brazil", "são paulo", "sao paulo", "rio de janeiro",
+                "curitiba", "belo horizonte", "porto alegre")),
+    ("France", ("france", "paris", "lyon", "marseille", "bordeaux")),
+    ("Germany", ("germany", "deutschland", "berlin", "münchen", "munich", "hamburg")),
+    ("Italy", ("italy", "italia", "milano", "milan", "roma", "rome", "firenze")),
+    ("Netherlands", ("netherlands", "nederland", "amsterdam", "rotterdam")),
+    ("Belgium", ("belgium", "belgië", "brussels", "bruxelles", "antwerp")),
+    ("Austria", ("austria", "österreich", "wien", "vienna")),
+    ("Switzerland", ("switzerland", "schweiz", "zürich", "zurich", "genève", "geneva")),
+    ("Denmark", ("denmark", "danmark", "københavn", "copenhagen")),
+    ("Sweden", ("sweden", "sverige", "stockholm", "göteborg")),
+    ("Norway", ("norway", "norge", "oslo", "bergen")),
+    ("Finland", ("finland", "suomi", "helsinki")),
+    ("Ireland", ("ireland", "éire", "dublin", "cork", "galway")),
+    ("Poland", ("poland", "polska", "warszawa", "warsaw", "kraków", "krakow")),
+    ("Czechia", ("czechia", "czech republic", "praha", "prague")),
+    ("Greece", ("greece", "ελλάδα", "athens", "αθήνα", "thessaloniki")),
+    ("Turkey", ("turkey", "türkiye", "istanbul", "ankara", "izmir")),
+    ("United Arab Emirates", ("united arab emirates", "uae", "dubai", "abu dhabi")),
+    ("Japan", ("japan", "日本", "tokyo", "東京", "osaka", "大阪", "kyoto")),
+    ("South Korea", ("south korea", "korea", "seoul", "서울", "busan")),
+    ("Singapore", ("singapore",)),
+    ("Australia", ("australia", "sydney", "melbourne", "brisbane", "perth")),
+    ("New Zealand", ("new zealand", "aotearoa", "auckland", "wellington")),
+    ("Canada", ("canada", "toronto", "vancouver", "montréal", "montreal")),
+    ("United States", ("united states", "usa", "u.s.a.", "new york", "brooklyn",
+                       "los angeles", "san francisco", "chicago", "miami", "seattle",
+                       "austin", "boston", "portland", "denver", "atlanta")),
+    ("Mexico", ("mexico", "méxico", "ciudad de méxico", "cdmx", "guadalajara")),
+    ("Argentina", ("argentina", "buenos aires", "córdoba", "cordoba")),
+    ("Colombia", ("colombia", "bogotá", "bogota", "medellín", "medellin")),
+    ("Chile", ("chile", "santiago de chile")),
+    ("South Africa", ("south africa", "cape town", "johannesburg", "durban")),
+)
+
+UK_COUNTRY_NAMES = ("united kingdom", "uk", "gb", "great britain", "england",
+                    "scotland", "wales", "northern ireland")
+
+# Google country signal (`gl`) + UI language (`hl`) for the Maps fallback URL.
+# Was hardcoded to `hl=en&gl=gb`, which localises results to the UK.
+COUNTRY_LOCALE = {
+    "United Kingdom": ("en", "gb"), "Portugal": ("pt", "pt"), "Spain": ("es", "es"),
+    "Brazil": ("pt-BR", "br"), "France": ("fr", "fr"), "Germany": ("de", "de"),
+    "Italy": ("it", "it"), "Netherlands": ("nl", "nl"), "Belgium": ("nl", "be"),
+    "Austria": ("de", "at"), "Switzerland": ("de", "ch"), "Denmark": ("da", "dk"),
+    "Sweden": ("sv", "se"), "Norway": ("no", "no"), "Finland": ("fi", "fi"),
+    "Ireland": ("en", "ie"), "Poland": ("pl", "pl"), "Czechia": ("cs", "cz"),
+    "Greece": ("el", "gr"), "Turkey": ("tr", "tr"),
+    "United Arab Emirates": ("en", "ae"), "Japan": ("ja", "jp"),
+    "South Korea": ("ko", "kr"), "Singapore": ("en", "sg"),
+    "Australia": ("en", "au"), "New Zealand": ("en", "nz"), "Canada": ("en", "ca"),
+    "United States": ("en", "us"), "Mexico": ("es", "mx"), "Argentina": ("es", "ar"),
+    "Colombia": ("es", "co"), "Chile": ("es", "cl"), "South Africa": ("en", "za"),
+}
+
 # ---- Hand-confirmed facts for the social phase (formerly TARGETS) ----------
 # Matched to a crawled site by the host of `website`. Values here WIN over what
 # the crawl derives; empty values never erase crawled ones. `profiles` are merged
@@ -274,6 +342,12 @@ PHOTO_MIN_SHORT_EDGE = 600     # px; keep photos at least this large
 PHOTO_PRINT_SHORT_EDGE = 2000  # target for print-capable photos (flagged, not filtered)
 COVER_MIN_WIDTH = 1600
 COVER_MIN_HEIGHT = 1000
+MAX_CURATED_PHOTOS = 12        # pack photography; was a hardcoded 6
+
+# Videos never enter the brand pack and a single hero clip can be hundreds of
+# MB, so the bytes are not downloaded unless asked for. They still appear in
+# discovered_media.csv / video_embeds.csv.
+DOWNLOAD_VIDEOS = False
 
 
 
@@ -451,6 +525,28 @@ LOGO_REJECT_KEYWORDS = (
     'hero', 'banner', 'storefront', 'interior', 'exterior', 'food-photo',
     'gallery', 'thumbnail', 'thumb', 'cropped', 'crop-',
 )
+
+# Press walls, "as featured in" strips and partner grids are not the brand's
+# own mark. They almost always live in a dedicated container, link out to a
+# third-party site, or carry an outlet name in the filename/alt text.
+PRESS_LOGO_CONTAINERS = (
+    'press', 'as-seen', 'as_seen', 'featured-in', 'featured_in', 'in-the-media',
+    'media-logos', 'partner', 'client', 'imprensa', 'parceiro',
+)
+
+PRESS_LOGO_KEYWORDS = (
+    'exame', 'vogue', 'veja', 'dezeen', 'forbes', 'bloomberg', 'monocle',
+    'hypebeast', 'time out', 'timeout', 'wallpaper', 'guardian', 'nytimes',
+    'new york times', 'financial times', 'estadao', 'gazeta', 'brasil journal',
+    'bomgourmet', 'axis magazine', 'poppaganda', 'restaurant guru',
+    'tripadvisor', 'opentable', 'yelp', 'michelin', 'monashees', 'ukio',
+    'carolina herrera', 'heliotemil', 'egonlab', 'minor figures', 'nude project',
+    'visa', 'mastercard', 'amex', 'paypal', 'klarna', 'spotify', 'apple',
+    'google', 'linkedin', 'instagram', 'facebook', 'youtube', 'tiktok',
+)
+
+# A pack needs a primary mark, not every third-party logo on the homepage.
+MAX_CURATED_LOGOS = 3
 
 
 # =========================================================
@@ -690,6 +786,46 @@ def file_hash(path):
         return None
 
 
+def looks_like_svg(path):
+    """True when the file really is an SVG document, not an HTML error page."""
+    try:
+        with open(path, 'rb') as svg_file:
+            head = svg_file.read(8192)
+    except OSError:
+        return False
+    low = head.lstrip().lower()
+    if b'<html' in low[:2048] or b'<!doctype html' in low[:2048]:
+        return False
+    return b'<svg' in low[:4096]
+
+
+def svg_dimensions(path):
+    """Return (width, height) from viewBox or width/height; browsers default 300x150."""
+    try:
+        with open(path, 'r', encoding='utf-8', errors='ignore') as svg_file:
+            text = svg_file.read(20000)
+    except OSError:
+        return (300, 150)
+    match = re.search(r'viewBox\s*=\s*["\']([^"\']+)', text, re.I)
+    if match:
+        parts = re.split(r'[\s,]+', match.group(1).strip())
+        if len(parts) == 4:
+            try:
+                return (max(1, int(round(abs(float(parts[2]))))),
+                        max(1, int(round(abs(float(parts[3]))))))
+            except ValueError:
+                pass
+    width = re.search(r'\bwidth\s*=\s*["\']\s*([\d.]+)', text, re.I)
+    height = re.search(r'\bheight\s*=\s*["\']\s*([\d.]+)', text, re.I)
+    if width and height:
+        try:
+            return (max(1, int(float(width.group(1)))),
+                    max(1, int(float(height.group(1)))))
+        except ValueError:
+            pass
+    return (300, 150)
+
+
 def image_info_without_pillow(path):
     """Read common raster dimensions and formats using only the standard library."""
     try:
@@ -753,6 +889,9 @@ def get_image_info(path):
     """Return (width, height, format) or None."""
     if not path or not os.path.isfile(path):
         return None
+    if looks_like_svg(path):
+        width, height = svg_dimensions(path)
+        return (width, height, 'SVG')
     if HAVE_PIL:
         try:
             with Image.open(path) as img:
@@ -772,7 +911,7 @@ def fix_image_extension(path):
     fmt = info[2].upper()
     expected = {
         'JPEG': '.jpg', 'PNG': '.png', 'WEBP': '.webp',
-        'GIF': '.gif', 'BMP': '.bmp', 'TIFF': '.tif',
+        'GIF': '.gif', 'BMP': '.bmp', 'TIFF': '.tif', 'SVG': '.svg',
     }.get(fmt)
     if not expected:
         return path
@@ -901,14 +1040,23 @@ def is_media_host_allowed(url):
 # =========================================================
 # CONTACT VALIDATION
 # =========================================================
-def normalize_phone(phone):
-    """Normalize a UK phone number to a clean local/international form."""
+def normalize_phone(phone, country=None):
+    """Normalize a phone number, keeping unknown-country numbers intact.
+
+    UK numbers get the local ``0…`` form. Numbers from other countries are
+    returned trimmed but otherwise unmodified — guessing a UK shape for a
+    Lisbon landline used to yield None and silently drop the NAP.
+    """
     if not phone:
         return None
     raw = str(phone).strip()
     digits = re.sub(r'[^\d+]', '', raw)
     if not digits:
         return None
+    is_uk = (not country) or normalize_text(country) in tuple(
+        normalize_text(name) for name in UK_COUNTRY_NAMES)
+    if not is_uk:
+        return raw or None
     if digits.startswith('+44'):
         national = digits[3:]
     elif digits.startswith('0044'):
@@ -1021,7 +1169,8 @@ def tidy_brand_name(raw, url):
 def build_contact_block(brand_data):
     """Build the importer-native contact block from tokens + page text."""
     raw = brand_data['contact']
-    phones = sorted(set(filter(None, (normalize_phone(p) for p in raw['phones']))))
+    country = country_from_address(raw.get('address') or '')
+    phones = sorted(set(filter(None, (normalize_phone(p, country) for p in raw['phones']))))
     emails = dedupe_emails(raw['emails'])
     social = clean_social_links(raw.get('social', {}))
     result = {
@@ -1217,19 +1366,79 @@ def extract_css_tokens_into(css_text, tokens):
             tokens['colors'][parsed[0]] += 1
 
 
+def is_press_logo(text):
+    """True when the filename/alt/label names a press outlet or partner."""
+    flat = re.sub(r'[^a-z0-9]+', ' ', (text or '').lower()).strip()
+    return any(keyword in flat for keyword in PRESS_LOGO_KEYWORDS)
+
+
+def _logo_nav_context(img):
+    """Return (in_header, in_press_wall) for an <img> candidate."""
+    in_header = False
+    press_wall = False
+    node = img
+    for _ in range(6):
+        node = getattr(node, 'parent', None)
+        if node is None or getattr(node, 'name', None) is None:
+            break
+        name = (node.name or '').lower()
+        ident = ' '.join(
+            [str(node.get('id') or '')]
+            + [str(cls) for cls in (node.get('class') or [])]
+        ).lower()
+        if name in ('header', 'nav') or any(
+                marker in ident for marker in ('masthead', 'site-header',
+                                               'navbar', 'header', 'menu-bar')):
+            in_header = True
+        if any(marker in ident for marker in PRESS_LOGO_CONTAINERS):
+            press_wall = True
+        if press_wall:
+            break
+        # A strip of four or more logo-hinted images is a logo wall, not the
+        # brand's own mark (press, partners, stockists, payments).
+        if name in ('section', 'div', 'ul', 'footer') and len(node.find_all('img')) >= 4:
+            logoish = 0
+            for other in node.find_all('img'):
+                text = ' '.join([
+                    str(other.get('src') or ''), str(other.get('alt') or ''),
+                    str(other.get('class') or ''),
+                ]).lower()
+                if any(hint in text for hint in LOGO_HINTS):
+                    logoish += 1
+            if logoish >= 4:
+                press_wall = True
+    return in_header, press_wall
+
+
+def _logo_link_host(img, page_url):
+    """Host of the anchor wrapping an image, so press logos that link out are dropped."""
+    node = img
+    for _ in range(4):
+        node = getattr(node, 'parent', None)
+        if node is None or getattr(node, 'name', None) is None:
+            break
+        if node.name == 'a' and node.get('href'):
+            href = str(node['href']).strip()
+            if href.lower().startswith(('javascript:', 'mailto:', 'tel:', '#')):
+                return None
+            return domain_of(urljoin(page_url, href))
+    return None
+
+
 def extract_logo_candidates(soup, page_url):
     """Return list of {kind, url, source} for logo candidates."""
     out = []
     seen = set()
 
-    def add(url, source, kind='logo', label=''):
+    def add(url, source, kind='logo', label='', in_nav=False):
         if not url:
             return
         url = urljoin(page_url, url)
         if url in seen:
             return
         seen.add(url)
-        out.append({'url': url, 'source': source, 'kind': kind, 'label': label})
+        out.append({'url': url, 'source': source, 'kind': kind, 'label': label,
+                    'in_nav': in_nav})
 
     # <img> with logo hints
     for img in soup.find_all('img'):
@@ -1245,7 +1454,18 @@ def extract_logo_candidates(soup, page_url):
             src = (img.get('src') or img.get('data-src')
                    or img.get('data-lazy-src') or img.get('data-original'))
             if src:
-                add(src, 'img', 'logo', haystack)
+                in_header, press_wall = _logo_nav_context(img)
+                page_host = domain_of(page_url)
+                link_host = _logo_link_host(img, page_url)
+                third_party = bool(
+                    link_host and page_host and link_host != page_host
+                    and not link_host.endswith('.' + page_host)
+                    and not page_host.endswith('.' + link_host)
+                )
+                if not in_header and (press_wall or third_party
+                                      or is_press_logo(haystack)):
+                    continue
+                add(src, 'img', 'logo', haystack, in_nav=in_header)
 
     # favicon / apple-touch-icon
     for link in soup.find_all('link', href=True):
@@ -1292,6 +1512,7 @@ def extract_logo_candidates(soup, page_url):
                 'inline_svg': str(svg),
                 'index': i,
                 'label': svg_context,
+                'in_nav': in_nav,
             })
 
     return out
@@ -1992,12 +2213,16 @@ def target_dir_for(url):
 
 def download_media_file(url):
     try:
+        if not DOWNLOAD_VIDEOS and classify_media(url) == 'video':
+            return None
         resp = get(url, stream=True)
         if not resp:
             return None
 
         content_type = (resp.headers.get('content-type') or '').lower()
         kind = classify_media(url)
+        if 'svg' in content_type:
+            kind = 'image'
 
         # A media URL can still return an HTML error page (Wix/Squarespace
         # 404s, hotlink walls). Never save that as an image or a video.
@@ -2037,13 +2262,19 @@ def download_media_file(url):
                 except OSError:
                     pass
                 return None
-            if info[0] < 32 or info[1] < 32:
+            # SVGs are vector: a 120x20 wordmark is legitimate, so judge them
+            # by their longer edge instead of requiring 32px on both sides.
+            too_small = (max(info[0], info[1]) < 32 if info[2] == 'SVG'
+                         else info[0] < 32 or info[1] < 32)
+            if too_small:
                 print(f"Discarding tiny image {info[0]}x{info[1]} at {url}")
                 try:
                     os.remove(filepath)
                 except OSError:
                     pass
                 return None
+            if info[2] == 'SVG':
+                clean_svg_file(filepath)
         elif kind == 'video':
             if os.path.getsize(filepath) < 4096:
                 try:
@@ -2063,9 +2294,16 @@ def download_all(media_urls):
     os.makedirs(IMAGE_DIR, exist_ok=True)
     os.makedirs(VIDEO_DIR, exist_ok=True)
 
+    urls = list(media_urls)
+    videos = {u for u in urls if classify_media(u) == 'video'}
+    if videos and not DOWNLOAD_VIDEOS:
+        urls = [u for u in urls if u not in videos]
+        print(f"Skipping {len(videos)} video file(s): not used by the brand pack "
+              f"(listed in discovered_media.csv; pass --with-videos to fetch).")
+
     url_to_path = {}
     with ThreadPoolExecutor(max_workers=WEB_MAX_WORKERS) as executor:
-        futures = {executor.submit(download_media_file, url): url for url in media_urls}
+        futures = {executor.submit(download_media_file, url): url for url in urls}
         for future in as_completed(futures):
             url = futures[future]
             try:
@@ -2102,6 +2340,38 @@ def normalize_inline_svg(text):
                 tag = tag[:-1] + f' height="{height}">'
             value = value[:open_tag.start()] + tag + value[open_tag.end():]
     return value
+
+
+def sanitize_svg_text(text):
+    """Strip scriptable content from a downloaded SVG before it enters a pack."""
+    if not text:
+        return text
+    value = re.sub(r'<\s*script\b.*?<\s*/\s*script\s*>', '', text,
+                   flags=re.I | re.S)
+    value = re.sub(r'<\s*foreignObject\b.*?<\s*/\s*foreignObject\s*>', '',
+                   value, flags=re.I | re.S)
+    value = re.sub(r'\son[a-z]+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)', '', value,
+                   flags=re.I)
+    value = re.sub(r'(href|xlink:href)\s*=\s*("|\')\s*javascript:[^"\']*\2', '',
+                   value, flags=re.I)
+    return normalize_inline_svg(value)
+
+
+def clean_svg_file(path):
+    """Rewrite a downloaded .svg in place: sanitized, sized, camel-cased."""
+    try:
+        with open(path, 'r', encoding='utf-8', errors='ignore') as svg_file:
+            raw = svg_file.read()
+    except OSError:
+        return path
+    cleaned = sanitize_svg_text(raw)
+    if cleaned != raw:
+        try:
+            with open(path, 'w', encoding='utf-8') as svg_file:
+                svg_file.write(cleaned)
+        except OSError:
+            pass
+    return path
 
 
 # PHASE 5: BRAND PACK WRITER
@@ -2198,6 +2468,8 @@ def select_curated_logos(brand_data, url_to_path):
             continue
         if any(keyword in candidate_text.lower() for keyword in LOGO_REJECT_KEYWORDS):
             continue
+        if not cand.get('in_nav') and is_press_logo(candidate_text):
+            continue
         if re.search(r'-\d{2,4}x\d{2,4}(?:\.[a-z0-9]+)?$', urlparse(url).path.lower()):
             continue
         local = url_to_path.get(url)
@@ -2213,9 +2485,11 @@ def select_curated_logos(brand_data, url_to_path):
             'variant': variant,
             'kind': kind,
             'source': cand['source'],
+            'in_nav': bool(cand.get('in_nav')),
             'index': i,
         })
-    # De-dup by file hash
+    # De-dup by file hash; header/nav marks win, then extraction order.
+    candidates.sort(key=lambda c: not c.get('in_nav'))
     seen_hashes = set()
     unique = []
     for c in candidates:
@@ -2224,11 +2498,11 @@ def select_curated_logos(brand_data, url_to_path):
             continue
         seen_hashes.add(h)
         unique.append(c)
-    return unique
+    return unique[:MAX_CURATED_LOGOS]
 
 
 def select_curated_photography(brand_data, url_to_path, cover_local=None):
-    """Return up to six distinct, print-capable photography files.
+    """Return up to MAX_CURATED_PHOTOS distinct, print-capable photos.
 
     The same Wix/Squarespace image arrives as several sizes (``~mv2.jpg``,
     ``~mv2_1.jpg``, ...). Group by the underlying media id and keep the largest
@@ -2272,7 +2546,7 @@ def select_curated_photography(brand_data, url_to_path, cover_local=None):
             continue
         seen_hashes.add(digest)
         chosen.append(local)
-        if len(chosen) >= 6:
+        if len(chosen) >= MAX_CURATED_PHOTOS:
             break
     return chosen
 
@@ -2836,26 +3110,13 @@ def copy_brand_assets(brand_data, url_to_path, brand_dir):
 
     # ---- Logos (curated + deduped) ----
     logo_files = []
-    curated = select_curated_logos(brand_data, url_to_path)
     inline_hashes = set()
-    for i, c in enumerate(curated):
-        ext = os.path.splitext(c['local'])[1].lower() or '.png'
-        name = f"logo-{c['variant']}-{c['kind']}-{i}{ext}"
-        dest = os.path.join(assets['logos'], name)
-        try:
-            shutil.copy(c['local'], dest)
-            logo_files.append({
-                'file': f'assets/logos/{name}',
-                'variant': c['variant'],
-                'kind': c['kind'],
-                'source': c['source'],
-                'rights': 'unknown; verify before publication',
-            })
-        except OSError as e:
-            print(f"Could not copy logo {c['local']}: {e}")
 
-    # Inline SVGs — only keep ones that look like real logos (filtered by sub-brand keywords)
+    # Inline SVGs come first: they are the site's own header mark and cannot be
+    # a third-party press logo. Keep at most MAX_CURATED_LOGOS of them.
     for svg in brand_data.get('inline_svgs', []):
+        if len(logo_files) >= MAX_CURATED_LOGOS:
+            break
         text = svg.get('inline_svg', '')
         digest = hashlib.sha256(text.encode('utf-8')).hexdigest()
         if (digest in inline_hashes or is_sub_brand(text[:300])
@@ -2889,6 +3150,25 @@ def copy_brand_assets(brand_data, url_to_path, brand_dir):
             })
         except OSError as e:
             print(f"Could not write inline SVG logo {dest}: {e}")
+
+    curated = select_curated_logos(brand_data, url_to_path)
+    for i, c in enumerate(curated):
+        if len(logo_files) >= MAX_CURATED_LOGOS:
+            break
+        ext = os.path.splitext(c['local'])[1].lower() or '.png'
+        name = f"logo-{c['variant']}-{c['kind']}-{i}{ext}"
+        dest = os.path.join(assets['logos'], name)
+        try:
+            shutil.copy(c['local'], dest)
+            logo_files.append({
+                'file': f'assets/logos/{name}',
+                'variant': c['variant'],
+                'kind': c['kind'],
+                'source': c['source'],
+                'rights': 'unknown; verify before publication',
+            })
+        except OSError as e:
+            print(f"Could not copy logo {c['local']}: {e}")
 
     # ---- Photography ----
     photo_files = []
@@ -3382,10 +3662,9 @@ def build_social_target(brand_data, pages_texts):
     if not location.get('region') and re.search(r'\bScotland\b', location_text, re.IGNORECASE):
         location['region'] = 'Scotland'
     if not location.get('country'):
-        if re.search(r'\b(?:United Kingdom|UK|GB)\b', location_text, re.IGNORECASE):
-            location['country'] = 'United Kingdom'
-        elif re.search(r'\bScotland\b', location_text, re.IGNORECASE):
-            location['country'] = 'United Kingdom'
+        # Address only — page text mentions foreign cities in press/awards copy.
+        # Blank is the honest answer when nothing is certain.
+        location['country'] = country_from_address(address)
 
     category = brand_data.get('category')
     if not category:
@@ -4872,12 +5151,94 @@ def handle_from_url(platform, url):
 def canonical_social_url(platform, handle):
     if not handle:
         return None
-    if platform == "youtube" and handle.startswith("UC") and len(handle) > 20:
-        return f"https://www.youtube.com/channel/{handle}"
+    if platform == "youtube":
+        # Channel ids are stable; everything else is a modern @handle. The old
+        # template produced youtube.com/<name>, which 404s.
+        if handle.startswith("UC") and len(handle) > 20:
+            return f"https://www.youtube.com/channel/{handle}"
+        return f"https://www.youtube.com/@{handle.lstrip('@')}"
     if platform == "facebook" and str(handle).isdigit():
         return f"https://www.facebook.com/profile.php?id={handle}"
     template = CANONICAL_URL.get(platform)
     return template.format(handle) if template else None
+
+
+TRACKING_PARAMS = ("utm_source", "utm_medium", "utm_campaign", "utm_term",
+                   "utm_content", "utm_id", "gclid", "fbclid", "igshid",
+                   "ref_src", "ref_url", "si", "feature", "_ga", "mc_cid",
+                   "mc_eid", "yclid", "msclkid", "trk", "trkCampaign")
+
+
+def canonical_profile_url(platform, url):
+    """Canonical form of a discovered/seed profile URL.
+
+    Seeds were used verbatim, so a hand-typed `youtube.com/thecoffeejp` (a 404)
+    or an `instagram.com/name/?hl=en&igshid=...` went straight to the connector.
+    Social links are rebuilt from the handle; tracking params are dropped
+    everywhere except where they carry identity (`?cid=` on Google Maps).
+    """
+    if not url:
+        return url
+    raw = str(url).strip()
+    if not raw.lower().startswith(("http://", "https://")):
+        if raw.startswith("www.") or "." in raw.split("/")[0]:
+            raw = "https://" + raw.lstrip("/")
+        else:
+            return url
+    parsed = up.urlparse(raw)
+    if not parsed.netloc:
+        return url
+
+    if platform in SOCIAL_SOURCES:
+        rebuilt = _canonical_social_path(platform, parsed)
+        if rebuilt:
+            return rebuilt
+
+    keep = [(k, v) for k, v in up.parse_qsl(parsed.query, keep_blank_values=True)
+            if k.lower() not in TRACKING_PARAMS]
+    query = up.urlencode(keep)
+    return up.urlunparse((parsed.scheme, parsed.netloc.lower(), parsed.path.rstrip("/") or "/",
+                          "", query, ""))
+
+
+YT_NON_PROFILE = {"watch", "results", "feed", "playlist", "shorts", "hashtag",
+                  "about", "premium", "gaming", "music"}
+LI_ENTITY_KINDS = ("in", "company", "school", "showcase")
+
+
+def _canonical_social_path(platform, parsed):
+    """Rebuild a social URL from its identity segment, or None to leave it alone.
+
+    Legacy vanity paths (`youtube.com/c/Name`, `linkedin.com/school/x`) are kept
+    as-is: converting them to `@handle`/`company` invents a URL that 404s.
+    """
+    segments = [s for s in parsed.path.split("/") if s]
+    if not segments:
+        return None
+    first = segments[0]
+
+    if platform == "youtube":
+        if first.startswith("@"):
+            return f"https://www.youtube.com/@{first[1:]}"
+        if first.lower() in ("channel", "c", "user") and len(segments) > 1:
+            return f"https://www.youtube.com/{first.lower()}/{segments[1]}"
+        if first.lower() in YT_NON_PROFILE:
+            return None
+        return f"https://www.youtube.com/@{first}"
+
+    if platform == "linkedin":
+        if first.lower() in LI_ENTITY_KINDS and len(segments) > 1:
+            return f"https://www.linkedin.com/{first.lower()}/{segments[1]}/"
+        return None
+
+    handle = handle_from_url(platform, up.urlunparse(parsed))
+    if not handle:
+        return None
+    canonical = canonical_social_url(platform, handle)
+    # Only trust a single-segment path: `/p/`, `/reel/`, `/explore/` are content.
+    if platform in ("instagram", "tiktok", "threads") and len(segments) > 1:
+        return None
+    return canonical
 
 
 def classify_url(url):
@@ -5059,24 +5420,28 @@ def discover_profiles(business, max_pages=None):
         if platform in SOCIAL_SOURCES or platform in REVIEW_SOURCES:
             handles = [e for e in entries if e.get("handle")]
             if handles:
-                profiles.setdefault(platform, handles[0]["url"] if platform not in SOCIAL_SOURCES
-                                    else canonical_social_url(platform, handles[0]["handle"]))
+                profiles.setdefault(
+                    platform,
+                    canonical_profile_url(
+                        platform,
+                        canonical_social_url(platform, handles[0]["handle"])
+                        if platform in SOCIAL_SOURCES else handles[0]["url"]))
                 evidence[platform] = "website"
             elif entries:
-                profiles.setdefault(platform, entries[0]["url"])
+                profiles.setdefault(platform, canonical_profile_url(platform, entries[0]["url"]))
                 evidence[platform] = "website"
 
     schema_links = website_data.get("facts", {}).get("same_as") or []
     for url in schema_links:
         platform, handle = classify_url(url)
         if platform and platform not in profiles:
-            profiles[platform] = canonical_social_url(platform, handle) if platform in SOCIAL_SOURCES and handle else url
+            profiles[platform] = canonical_profile_url(platform, url)
             evidence[platform] = "website-schema"
 
     # Seeds override discovered values (human-confirmed)
     for platform, url in (business.get("profiles") or {}).items():
         if url:
-            profiles[platform] = url
+            profiles[platform] = canonical_profile_url(platform, url)
             evidence[platform] = "seed"
 
     return {
@@ -5197,7 +5562,7 @@ def search_for_profile(business, platform):
     scored.sort(reverse=True)
     if not scored:
         return None
-    return scored[0][1]
+    return canonical_profile_url(platform, scored[0][1])
 
 
 
@@ -5467,6 +5832,47 @@ def search_businesses(query, city="", limit=6, provider="auto"):
     }
 
 
+def country_from_address(address):
+    """Best-effort country for a postal address string, or '' when unknown.
+
+    Only the last address component (the country slot) and explicit country
+    names are trusted; a city mention alone is weaker evidence and is used
+    only when nothing better exists.
+    """
+    if isinstance(address, dict):
+        address = " ".join(str(address.get(key) or "") for key in
+                          ("full", "line", "streetAddress", "addressLocality",
+                           "addressRegion", "postalCode", "addressCountry"))
+    raw = _clean_display(address) if address else ""
+    if not raw:
+        return ""
+    # Split before de-accenting: normalize_text turns commas into spaces.
+    parts = [p.strip() for p in re.split(r'[,;]', raw) if p.strip()]
+    tail = normalize_text(parts[-1]) if parts else normalize_text(raw)
+    for country, hints in COUNTRY_HINTS:
+        if any(normalize_text(hint) == tail for hint in hints):
+            return country
+    text = normalize_text(raw)
+    for country, hints in COUNTRY_HINTS:
+        if any(re.search(r'\b' + re.escape(normalize_text(hint)) + r'\b', text)
+               for hint in hints):
+            return country
+    return ""
+
+
+def resolve_target_country(business):
+    """Country for a saved target, preferring postal evidence over the label.
+
+    A targets.json written by an older build may still say "United Kingdom"
+    for a Lisbon venue, so the address (and the intake hint) win when they
+    disagree.
+    """
+    hints = business.get("hints") or {}
+    derived = country_from_address(business.get("address") or hints.get("address") or "")
+    declared = clean_text(business.get("country") or "", 80)
+    return derived or declared
+
+
 def _address_city(address):
     if not address:
         return ""
@@ -5490,16 +5896,7 @@ def _contact_address(value):
 
 
 def _canonical_profile(platform, url):
-    url = _http_url(url)
-    if not url:
-        return None
-    if platform == "facebook" and "profile.php" in url:
-        return url
-    if platform in SOCIAL_SOURCES:
-        guessed, handle = classify_url(url)
-        if guessed == platform and handle:
-            return canonical_social_url(platform, handle)
-    return url
+    return canonical_profile_url(platform, _http_url(url))
 
 
 def build_discovery(website, name="", city="", category="", region="", country="",
@@ -5537,10 +5934,9 @@ def build_discovery(website, name="", city="", category="", region="", country="
     resolved_city = city or maps.get("city") or _address_city(address)
     resolved_category = category or maps.get("category") or facts.get("category") or ""
     resolved_region = region or ("Scotland" if resolved_city == "St Andrews" else "")
-    resolved_country = country or (
+    resolved_country = country or country_from_address(address) or (
         "United Kingdom"
-        if (re.search(r"\b(?:UK|United Kingdom|Scotland|Fife)\b", address, re.I)
-            or re.search(r"\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b", address))
+        if re.search(r"\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b", address)
         else ""
     )
 
@@ -5720,6 +6116,7 @@ class BizContext:
         self.assets_dir = os.path.join(output_dir, "assets")
         self.raw_dir = os.path.join(self.platforms_dir, "raw")
         self.results = {}
+        self.dropped_seeds = {}
         for path in (self.output_dir, self.platforms_dir, self.assets_dir):
             os.makedirs(path, exist_ok=True)
 
@@ -5733,7 +6130,12 @@ class BizContext:
 
     @property
     def country(self):
-        return self.business.get("country") or "United Kingdom"
+        return resolve_target_country(self.business)
+
+    @property
+    def is_uk(self):
+        return normalize_text(self.country) in tuple(
+            normalize_text(name) for name in UK_COUNTRY_NAMES)
 
     def url_for(self, source):
         return self.profiles.get(source)
@@ -6653,8 +7055,8 @@ def fetch_restaurantguru(ctx):
     candidates = []
     if ctx.url_for("restaurantguru"):
         candidates.append(ctx.url_for("restaurantguru"))
-    city_slug = ctx.city.replace(" ", "-")
-    name_slug = re.sub(r"[^A-Za-z0-9]+", "-", ctx.name).strip("-")
+    city_slug = slugify(ctx.city)
+    name_slug = slugify(ctx.name)
     candidates.append(f"https://restaurantguru.com/{name_slug}-{city_slug}")
     candidates.append(f"https://restaurantguru.com/{name_slug}")
 
@@ -7297,9 +7699,13 @@ def _fsa_match_score(establishment, ctx):
 def fetch_food_hygiene(ctx):
     """UK Food Standards Agency ratings: pass / improvement required / 0-5."""
     result = new_result("food_hygiene", None, "fsa-api")
-    if normalize_text(ctx.country) not in ("united kingdom", "uk", "england",
-                                           "scotland", "wales", "northern ireland"):
-        result["warnings"].append("FSA data only covers UK establishments")
+    country_text = normalize_text(getattr(ctx, "country", "") or "")
+    if not country_text:
+        result["warnings"].append("country unknown — skipped UK food-hygiene lookup")
+        return finalize(result)
+    if country_text not in tuple(normalize_text(name) for name in UK_COUNTRY_NAMES):
+        # Expected for non-UK venues; not a defect worth flagging in the report.
+        result["metrics"]["skipped_reason"] = "not a UK establishment"
         return finalize(result)
 
     words = [w for w in ctx.name.split() if w]
@@ -7335,14 +7741,15 @@ def fetch_food_hygiene(ctx):
         return finalize(result)
     best = max(establishments, key=lambda e: _fsa_match_score(e, ctx))
     score = _fsa_match_score(best, ctx)
-    result["url"] = (f"https://ratings.food.gov.uk/business/en-GB/"
-                     f"{best.get('FHRSID')}")
-    result["mode"] = "fsa-api"
     if score < 0.55:
+        # Never publish an authoritative-looking ratings URL for a guess.
         result["warnings"].append(
             f"weak name match (score {score}) — please confirm manually")
         result["metrics"]["match_score"] = score
         return finalize(result)
+    result["url"] = (f"https://ratings.food.gov.uk/business/en-GB/"
+                     f"{best.get('FHRSID')}")
+    result["mode"] = "fsa-api"
 
     rating_value = best.get("RatingValue")
     scheme = best.get("SchemeType") or ""
@@ -7932,6 +8339,8 @@ def aggregate_reviews(results):
         "rating_disagreement": disagreement,
         "total_reviews_across_sources": total_count,
         "collected_reviews": len(unique_reviews),
+        "collected_raw": len(all_reviews),
+        "duplicates_merged": len(all_reviews) - len(unique_reviews),
         "distribution": distribution,
         "sentiment": sentiment_summary,
         "themes": extract_themes(unique_reviews),
@@ -8016,11 +8425,16 @@ def analyze_social(results):
     handles = {}
 
     for source in sorted(SOCIAL_SOURCES):
-        data = results.get(source) or {}
-        profile = data.get("profile") or {}
-        present = bool(profile) or bool(data.get("ok"))
         if source not in results:
             continue
+        data = results.get(source) or {}
+        profile = data.get("profile") or {}
+        # `ok` only means the fetch worked; a shell page with no identity fields is
+        # not presence. Require at least one real profile field (or fetched posts).
+        identity_fields = ("handle", "name", "followers", "bio", "profile_pic_url",
+                           "external_url", "id", "likes", "checkins")
+        present = any(profile.get(field) for field in identity_fields) or bool(
+            data.get("posts") or data.get("videos"))
         totals["platforms_configured"] += 1
         if present:
             totals["platforms_present"] += 1
@@ -8070,8 +8484,14 @@ def analyze_social(results):
     common = set.intersection(*token_sets) if len(token_sets) >= 2 else set()
     consistency = round(len(common) / max(1, len(token_sets)), 2) if token_sets else None
 
-    gaps = [source for source in ("instagram", "facebook", "tiktok", "youtube")
-            if source not in {row["source"] for row in matrix if row["present"]}]
+    confirmed = {row["source"] for row in matrix if row["present"]}
+    # A gap is a platform we actually tried (had a URL for) but could not confirm.
+    # Platforms never discovered are reported separately — "no YouTube" is not a
+    # defect when nobody ever found a channel.
+    gaps = sorted(source for source in results
+                  if source in SOCIAL_SOURCES and source not in confirmed)
+    not_discovered = [source for source in ("instagram", "facebook", "tiktok", "youtube")
+                      if source not in results]
 
     return {
         "matrix": matrix,
@@ -8083,6 +8503,7 @@ def analyze_social(results):
         "stale_platforms": stale,
         "active_platforms": active,
         "gaps": gaps,
+        "not_discovered": not_discovered,
         "cadence": _cadence_from_results(results),
         "hashtags": _hashtags_from_results(results),
         "content_mix": _content_mix(results),
@@ -8260,6 +8681,19 @@ def reconcile_identity(results, business):
     if len(websites) > 2:
         conflicts.append({"field": "website", "variants": [w for w, _ in websites.most_common(6)]})
 
+    # A single wrong country used to pass silently because consistency only
+    # counted address/phone/website clusters. Compare declared vs derived.
+    seen_countries = {country_from_address(form) for form in addresses}
+    seen_countries.add(country_from_address(business.get("address") or ""))
+    seen_countries.discard("")
+    declared_country = clean_text(business.get("country") or "")
+    if len(seen_countries) > 1:
+        conflicts.append({"field": "country",
+                          "variants": sorted(seen_countries)})
+    elif declared_country and seen_countries and declared_country not in seen_countries:
+        conflicts.append({"field": "country",
+                          "variants": [declared_country, *sorted(seen_countries)]})
+
     return {
         "canonical": {
             "name": canonical_name,
@@ -8395,7 +8829,7 @@ def build_signals(reviews, social, identity, web, scores):
     if negative_themes:
         weaknesses.append("Negative theme clusters: " + ", ".join(negative_themes[:3]))
     if social.get("gaps"):
-        weaknesses.append("No presence on " + ", ".join(social["gaps"]))
+        weaknesses.append("Profile found but not readable: " + ", ".join(social["gaps"]))
     if social.get("stale_platforms"):
         weaknesses.append("Stale profiles: " + ", ".join(social["stale_platforms"]))
     if identity.get("conflicts"):
@@ -8405,9 +8839,13 @@ def build_signals(reviews, social, identity, web, scores):
     if not web.get("has_online_booking"):
         opportunities.append("Add online booking (OpenTable/ResDiary/SevenRooms) "
                              "to capture direct demand")
+    if social.get("not_discovered"):
+        opportunities.append("No profile found on " + ", ".join(social["not_discovered"]) +
+                             " — seed UGC reposts and short-form video there")
     if social.get("gaps"):
-        opportunities.append("Open and seed " + ", ".join(social["gaps"]) +
-                             " with UGC reposts and short-form video")
+        opportunities.append("Profiles exist but are unreadable on "
+                             + ", ".join(social["gaps"]) +
+                             " — re-check handle/URL or connect the platform API")
     if (reviews.get("owner_response_rate") or 0) < 0.5:
         opportunities.append("Reply to every recent review — replies correlate with "
                              "higher ratings and conversion")
@@ -8437,7 +8875,28 @@ def build_signals(reviews, social, identity, web, scores):
 # =========================================================================
 # 22. PROFILE ASSEMBLY
 # =========================================================================
+def drop_offshore_results(ctx):
+    """Discard persisted UK-only results when the venue is not in the UK.
+
+    `--report-only` reuses saved platform JSON, so a run made before the
+    country fix would still publish an FSA hygiene rating for, say, a Lisbon
+    cafe. The country is checked here again, at read time.
+    """
+    country = normalize_text(getattr(ctx, "country", "") or "")
+    if not country or country in UK_COUNTRY_NAMES:
+        return
+    for source in ("food_hygiene",):
+        result = (ctx.results or {}).get(source) or {}
+        if not (result.get("url") or result.get("compliance")):
+            continue
+        dropped = new_result(source, None, result.get("mode"))
+        dropped["metrics"]["skipped_reason"] = (
+            f"UK-only source dropped — venue is in {ctx.country}")
+        ctx.results[source] = dropped
+
+
 def assemble_profile(ctx, assets):
+    drop_offshore_results(ctx)
     results = ctx.results
     reviews = aggregate_reviews(results)
     social = analyze_social(results)
@@ -8553,12 +9012,21 @@ def assemble_profile(ctx, assets):
         "provenance": {
             "profiles": ctx.profiles,
             "profile_evidence": ctx.evidence,
+            "dropped_seeds": getattr(ctx, "dropped_seeds", {}) or {},
             "sources": {source: {"mode": data.get("mode"), "url": data.get("url"),
                                  "ok": data.get("ok"),
                                  "reviews": len(data.get("reviews") or []),
                                  "rating": (data.get("rating") or {}).get("value"),
                                  "count": (data.get("rating") or {}).get("count"),
-                                 "warnings": data.get("warnings") or []}
+                                 # A skipped source was never applicable (e.g. the
+                                 # UK hygiene register for a Lisbon venue), so it
+                                 # must not be reported as a discovery gap.
+                                 "skipped": bool(
+                                     (data.get("metrics") or {}).get("skipped_reason")),
+                                 "warnings": (data.get("warnings") or []) + (
+                                     [(data.get("metrics") or {})["skipped_reason"]]
+                                     if (data.get("metrics") or {}).get("skipped_reason")
+                                     else [])}
                         for source, data in results.items() if data},
             "assets": assets,
             "run_stats": dict(State.stats),
@@ -8625,7 +9093,10 @@ def write_insights_md(path, profile, reviews):
         ["Signal", "Value"],
         [["Consensus rating", f"{format_number(rep['consensus_rating'])} / 5"],
          ["Reviews across sources", format_number(rep["total_reviews"])],
-         ["Reviews analysed in detail", format_number(rep["collected_reviews"])],
+         ["Reviews analysed in detail", format_number(rep["collected_reviews"]) + (
+              f" ({format_number(rep['duplicates_merged'])} duplicates merged from "
+              f"{format_number(rep['collected_raw'])})"
+              if rep.get("duplicates_merged") else "")],
          ["Sources present", ", ".join(rep["sources"]) or "—"],
          ["Combined social followers", format_number(social["totals"]["followers"])],
          ["Platforms present", f"{social['totals']['platforms_present']} of "
@@ -8757,7 +9228,9 @@ def write_insights_md(path, profile, reviews):
                      row.get("mode") or "—"])
     lines.append(md_table(["Platform", "Present", "Followers", "Posts", "Last post", "Mode"], rows))
     if social.get("gaps"):
-        lines.append(f"- **Gaps:** {', '.join(social['gaps'])}")
+        lines.append(f"- **Found but unreadable:** {', '.join(social['gaps'])}")
+    if social.get("not_discovered"):
+        lines.append(f"- **Not discovered:** {', '.join(social['not_discovered'])}")
     if social.get("stale_platforms"):
         lines.append(f"- **Stale (>60 days):** {', '.join(social['stale_platforms'])}")
     if social.get("handle_consistency") is not None:
@@ -8808,7 +9281,7 @@ def write_insights_md(path, profile, reviews):
         # Only sources actually consulted belong in the provenance table. A
         # source with no URL and no data was never reached: listing it as a row
         # reads like a platform gap nobody verified.
-        if not entry.get("ok") and not entry.get("url"):
+        if not entry.get("ok") and not entry.get("url") and not entry.get("skipped"):
             not_found.append(source)
             continue
         rows.append([source, entry.get("mode") or "—", entry.get("url") or "—",
@@ -8819,6 +9292,12 @@ def write_insights_md(path, profile, reviews):
     if not_found:
         lines.append(f"_Searched, no profile URL discovered ({len(not_found)}): "
                      f"{', '.join(sorted(not_found))}. These are discovery gaps, not platform gaps._")
+        lines.append("")
+    dropped = (profile.get("provenance") or {}).get("dropped_seeds") or {}
+    if dropped:
+        lines.append("_Seed URLs rejected before the social phase (no connector run):_")
+        for source, entry in sorted(dropped.items()):
+            lines.append(f"- `{source}` {entry.get('url')} — {entry.get('reason')}")
         lines.append("")
     with open(path, "w", encoding="utf-8") as fh:
         fh.write("\n".join(lines) + "\n")
@@ -8957,6 +9436,11 @@ def write_report_html(path, profile, reviews):
                      f'<td>{format_number(row["followers"])}</td><td>{format_number(row["posts"])}</td>'
                      f'<td>{esc(row["last_post"] or "—")}</td><td>{link}</td></tr>')
     parts.append('</tbody></table>')
+    if social.get("gaps"):
+        parts.append(f'<p class="small">Found but unreadable: {esc(", ".join(social["gaps"]))}</p>')
+    if social.get("not_discovered"):
+        parts.append(f'<p class="small">Not discovered: '
+                     f'{esc(", ".join(social["not_discovered"]))}</p>')
 
     parts.append('<div class="split">')
     parts.append('<div><h2>Strengths</h2><ul>')
@@ -9008,9 +9492,10 @@ def write_report_html(path, profile, reviews):
                  '<th>Pulled</th><th>Notes</th></tr></thead><tbody>')
     provenance = profile["provenance"]["sources"] or {}
     not_found = sorted(source for source, entry in provenance.items()
-                       if not entry.get("ok") and not entry.get("url"))
+                       if not entry.get("ok") and not entry.get("url")
+                       and not entry.get("skipped"))
     for source, entry in provenance.items():
-        if not entry.get("ok") and not entry.get("url"):
+        if not entry.get("ok") and not entry.get("url") and not entry.get("skipped"):
             continue
         note = "; ".join(entry.get("warnings") or [])[:200] or "ok"
         parts.append(f'<tr><td>{esc(source)}</td><td class="small">{esc(entry.get("mode") or "—")}</td>'
@@ -9019,6 +9504,12 @@ def write_report_html(path, profile, reviews):
     if not_found:
         parts.append(f'<p class="small">Searched, no profile URL discovered ({len(not_found)}): '
                      f'{esc(", ".join(not_found))} — discovery gaps, not platform gaps.</p>')
+    dropped = (profile.get("provenance") or {}).get("dropped_seeds") or {}
+    if dropped:
+        parts.append('<p class="small">Seed URLs rejected before the social phase: '
+                     + esc("; ".join(f"{source} {entry.get('url')} ({entry.get('reason')})"
+                                     for source, entry in sorted(dropped.items())))
+                     + '</p>')
     parts.append(f'<p class="small">Generated by crawler-studio-social.py v{SCHEMA_VERSION} · '
                  f'{esc(profile["generated_at"])}</p>')
     parts.append('</div></body></html>')
@@ -9227,6 +9718,41 @@ def _run_connector(ctx, source, state):
 ENABLE_CHECKPOINT = True
 
 
+def _seed_probe_candidates(profiles, evidence):
+    """Seeds worth validating: an explicit URL for a source we know how to read."""
+    for source, url in sorted(profiles.items()):
+        if source not in SOCIAL_SOURCES or not url:
+            continue
+        if evidence.get(source) not in ("seed", "website", "website-schema",
+                                        "search", "handle-guess", "maps-search"):
+            continue
+        if not str(url).lower().startswith("http"):
+            continue
+        yield source, url
+
+
+def drop_dead_seeds(profiles, evidence):
+    """Remove profile URLs that hard-404 so no connector is wasted on them.
+
+    The reviewed run seeded `youtube.com/thecoffeejp`, fetched it once in
+    discovery, got 404, and still ran the YouTube connector (another 404,
+    reported as an empty platform). One probe here turns that into a warning.
+    """
+    dropped = {}
+    for source, url in list(_seed_probe_candidates(profiles, evidence)):
+        try:
+            page = fetch(url, platform=source)
+        except Exception as exc:
+            log(f"discovery: {source} seed probe failed: {exc}", "debug")
+            continue
+        if page.status in (404, 410):
+            dropped[source] = {"url": url, "reason": blocked_reason(page)}
+            profiles.pop(source, None)
+            evidence.pop(source, None)
+            log(f"discovery: dropped {source} — {url} ({blocked_reason(page)})", "warn")
+    return dropped
+
+
 def run_business(business, index=1, total=1):
     out_dir = business_dir(business)
     os.makedirs(out_dir, exist_ok=True)
@@ -9261,14 +9787,17 @@ def run_business(business, index=1, total=1):
             log(f"discovery: {source} -> {found[:80]}", "ok")
 
     if not profiles.get("google"):
+        gl_country = resolve_target_country(business)
+        hl, gl = COUNTRY_LOCALE.get(gl_country, ("en", "gb"))
         profiles["google"] = ("https://www.google.com/maps/search/"
                               + up.quote(f"{business['name']} {business.get('city') or ''}".strip())
-                              + "?hl=en&gl=gb")
+                              + f"?hl={hl}&gl={gl}")
         evidence["google"] = "maps-search"
 
     ctx = BizContext(business, {"profiles": profiles, "evidence": evidence,
                                 "website": discovery.get("website") or {}}, out_dir)
     ctx.log_file = State.log_file
+    ctx.dropped_seeds = drop_dead_seeds(profiles, evidence)
 
     log("profiles resolved:")
     for source, url in sorted(profiles.items()):
@@ -9429,7 +9958,7 @@ def run_report_only(business):
     ctx.results = results
     ctx.name = business["name"]
     ctx.city = business.get("city") or ""
-    ctx.country = business.get("country") or "United Kingdom"
+    ctx.country = resolve_target_country(business)
     discovery = read_json(os.path.join(out_dir, "discovery.json"), {})
     ctx.profiles = discovery.get("profiles") or {}
     ctx.evidence = discovery.get("evidence") or {}
@@ -9784,6 +10313,7 @@ def build_social_guide_blocks(profile):
         "socialPresence": {
             "totals": social.get("totals") or {},
             "gaps": social.get("gaps") or [],
+            "notDiscovered": social.get("not_discovered") or [],
             "platforms": [{
                 "platform": row.get("source"), "label": row.get("label"),
                 "url": row.get("url"), "handle": row.get("handle"),
@@ -10102,6 +10632,9 @@ examples:
     pipe.add_argument("--group", default=None, help="group name (also names the brand kit)")
     pipe.add_argument("--group-description", default=None,
                       help="one-line description used in the README and portfolio")
+    pipe.add_argument("--with-videos", action="store_true",
+                      help="also download video files (off by default: unused by the pack, "
+                           "often hundreds of MB)")
 
     intake = parser.add_argument_group("intake / discovery (studio UI)")
     intake.add_argument("--status-json", action="store_true",
@@ -10164,6 +10697,7 @@ def configure_run(args):
     global OUTPUT_ROOT, BRAND_PACK_GROUP_NAME, BRAND_PACK_GROUP_SLUG, MAX_PAGE_CRAWL
     global PARALLEL, FORCE_REFRESH, MERGE_PREVIOUS_RUNS
     global MAX_POSTS_PER_PROFILE, KEEP_RAW_HTML, DOWNLOAD_ASSETS, RUN_SOCIAL_PHASE
+    global DOWNLOAD_VIDEOS
     if args.output_root:
         OUTPUT_ROOT = args.output_root
     if args.group:
@@ -10179,6 +10713,8 @@ def configure_run(args):
         MAX_PAGE_CRAWL = max(1, args.max_pages)
     if args.skip_social:
         RUN_SOCIAL_PHASE = False
+    if getattr(args, "with_videos", False):
+        DOWNLOAD_VIDEOS = True
 
     State.verbose = args.verbose
     State.use_browser = not args.no_browser
