@@ -253,6 +253,129 @@ test('normalizeBrandPack keeps structured crawler menu content', () => {
     assert.equal(brand.content.bookingUrl, 'https://content.example/book');
 });
 
+test('normalizeBrandPack keeps the authored copy deck bounded', () => {
+    const pack = Brand.normalizeBrandPack({
+        name: 'Copy pack',
+        brands: [{
+            id: 'copy-brand',
+            name: 'Copy Brand',
+            content: {
+                menu: {
+                    title: 'À la carte',
+                    sections: [{ name: 'Starters', items: [{ name: 'Cullen skink', price: '£10.95' }] }],
+                },
+                copy: {
+                    headline: 'A table by the water.',
+                    body: 'Country dining with a view.',
+                    subhead: 'The Test Arms',
+                    special: { dish: 'Roast chicken Balmoral', price: '£20.95', note: 'Ask the team.' },
+                    voucher: { value: '£50', terms: 'Redeemable at any Test Group venue.' },
+                    festive: { title: 'Christmas at the Test Arms', price: '3 courses £39.50' },
+                    card: { role: 'Your role' },
+                    unknown: 'dropped',
+                },
+            },
+        }],
+    });
+    const copy = pack.brands[0].content.copy;
+    assert.equal(copy.headline, 'A table by the water.');
+    assert.equal(copy.subhead, 'The Test Arms');
+    assert.equal(copy.special.dish, 'Roast chicken Balmoral');
+    assert.equal(copy.voucher.terms, 'Redeemable at any Test Group venue.');
+    assert.equal(copy.festive.price, '3 courses £39.50');
+    assert.equal(copy.card.role, 'Your role');
+    assert.equal(copy.unknown, undefined);
+});
+
+const copyBrand = () => Brand.normalizeBrand({
+    id: 'copy-venue',
+    name: 'Copy Venue',
+    tagline: 'Lochside luxury.',
+    palette: [{ name: 'Ink', hex: '#111111' }, { name: 'Paper', hex: '#ffffff' }],
+    guidelines: {
+        contact: [{ field: 'Address', value: '1 Test Road' }, { field: 'Website', value: 'test.example' }],
+        facts: [{ field: 'Group', value: 'Test Group' }],
+    },
+    content: {
+        menu: {
+            title: 'À la carte',
+            sections: [{
+                name: 'Starters',
+                items: [
+                    { name: 'Cullen skink', price: '£10.95', description: 'Smoked haddock' },
+                    { name: 'Haggis fritters', price: '£10.95', description: 'Peppercorn sauce' },
+                    { name: 'Roast chicken', price: '£20.95', description: 'Parma ham' },
+                ],
+            }],
+        },
+        copy: {
+            headline: 'Lochside luxury.',
+            subhead: 'Copy Venue',
+            body: 'Real food, real prices.',
+            cta: 'Book a table',
+            tag: 'Lochside luxury.',
+            special: { dish: 'Roast chicken Balmoral', price: '£20.95', description: 'Parma ham.', note: 'Ask the team.' },
+            voucher: { value: '£50', terms: 'Redeemable at any Test Group venue. Valid for 12 months.' },
+            festive: { title: 'Christmas at Copy Venue', date: 'Festive menu · from 12 noon', price: '3 courses £39.50', body: 'Roast turkey beside the water.', message: 'Merry Christmas.' },
+            card: { role: 'Your role' },
+        },
+    },
+}, 0);
+
+test('voucher terms fall back to the brand group, never another group', () => {
+    const brand = Brand.normalizeBrand({
+        id: 'group-venue',
+        name: 'Group Venue',
+        palette: [{ name: 'Ink', hex: '#111111' }, { name: 'Paper', hex: '#ffffff' }],
+        guidelines: { facts: [{ field: 'Group', value: 'Test Group' }] },
+    }, 0);
+    const composition = Brand.createTemplateComposition({ brand, templateId: 'voucher' });
+    const terms = composition.variables.find((variable) => variable.id === 'voucher_terms').defaultValue;
+    assert.match(terms, /any Test Group venue/);
+    assert.ok(!/Dalton/.test(terms));
+});
+
+test('templates take their copy from the deck, not the sample catalogue', () => {
+    const brand = copyBrand();
+    const variables = (templateId) => {
+        const composition = Brand.createTemplateComposition({ brand, templateId });
+        const map = {};
+        composition.variables.forEach((variable) => { map[variable.id] = variable.defaultValue; });
+        return map;
+    };
+    const menu = variables('menu');
+    assert.equal(menu.item_1_name, 'Cullen skink');
+    assert.equal(menu.item_1_price, '£10.95');
+    assert.ok(!JSON.stringify(menu).includes('Hand-dived'));
+    const flyer = variables('flyer');
+    assert.equal(flyer.flyer_headline, 'Lochside luxury.');
+    assert.equal(flyer.flyer_subhead, 'Copy Venue');
+    assert.equal(flyer.flyer_body, 'Real food, real prices.');
+    const voucher = variables('voucher');
+    assert.match(voucher.voucher_terms, /any Test Group venue/);
+    assert.ok(!/Dalton/.test(voucher.voucher_terms));
+    const table = variables('table-card');
+    assert.equal(table.table_dish, 'Roast chicken Balmoral');
+    assert.equal(table.table_price, '£20.95');
+    assert.equal(variables('business-card-back').card_role, 'Your role');
+});
+
+test('applyTemplateCopy replaces another client\'s festive event', () => {
+    const brand = copyBrand();
+    const source = {
+        title: 'Christmas Brunch',
+        date: 'Sunday 13th December',
+        price: '2 courses + cocktail £49',
+        body: 'With Decadance DJs, singalongs, confetti & glowsticks',
+    };
+    Brand.applyTemplateCopy(brand, 'flyer', 'Christmas · photo', source);
+    assert.equal(source.title, 'Christmas at Copy Venue');
+    assert.equal(source.date, 'Festive menu · from 12 noon');
+    assert.equal(source.price, '3 courses £39.50');
+    assert.ok(!/Decadance/.test(source.body));
+    assert.match(source.body, /Roast turkey/);
+});
+
 test('normalizeBrandPack carries the social intelligence summary', () => {
     const pack = Brand.normalizeBrandPack({
         name: 'Social pack',

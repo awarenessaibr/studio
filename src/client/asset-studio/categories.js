@@ -15,18 +15,18 @@ draw(W,H){const ph=H*.48,p=W*.08,qs=S.qr?W*.19:0;photo(0,0,W,ph);grad(0,0,W,ph*.
 stack([p,ph+H*.035,W-2*p-qs,H-ph-H*.07],[{k:'title',z:92,lh:1.06},{k:'sub',z:44,g:40,ls:.03},{k:'body',z:27,f:'b',c:'mute',g:44,lh:1.4},{k:'foot',z:19,f:'l',c:'mute',g:30,ls:.04},{k:'cta',z:28,f:'l',up:1,ls:.16,g:26}],{al:'l',va:'t'});
 if(S.qr)qrAt(W-p-qs,H-H*.04-qs,qs)}},
 {n:'Christmas · photo',ph:1,pi:'cocktail',t:{title:'Christmas Brunch',date:'Sunday 13th December',price:'2 courses + cocktail £49',body:'With Decadance DJs, singalongs, confetti & glowsticks'},
-draw(W,H){const m=W*.04,ph=H*.58;photo(m,m,W-2*m,ph-m);stack([W*.05,ph+H*.025,W*.9,H-ph-H*.05],[{k:'title',z:82,up:1,ls:.01,lh:1.05},{k:'date',z:32,f:'l',up:1,ls:.28,g:34},{k:'price',z:42,f:'l',w:700,up:1,g:30},{k:'body',z:21,f:'l',w:600,up:1,ls:.1,g:36}])}},
+draw(W,H){const m=W*.08,ph=H*.56;photo(m,m,W-2*m,ph-m);stack([m,ph+H*.02,W-2*m,H-ph-H*.08],[{k:'title',z:82,up:1,ls:.01,lh:1.05},{k:'date',z:32,f:'l',up:1,ls:.28,g:34},{k:'price',z:42,f:'l',w:700,up:1,g:30},{k:'body',z:21,f:'l',w:600,up:1,ls:.1,g:36}])}},
 {n:'Christmas · type',t:{eyebrow:'Decadance Daytime Clubbing',title:'Christmas Brunch',date:'Sunday 13th December',price:'2 courses + cocktail £49',body:'Decadance DJs, Singalongs, Confetti, Glowsticks & More\nWith DJs Vanessa Motion & Chris Jordan',foot:'the adamson | THE PHYSICIAN'},
-draw(W,H){const p=W*.09,w=W-2*p;stack([p,H*.05,w,H*.05],[{k:'eyebrow',z:24,f:'l',up:1,ls:.32}],{va:'t'});
-stack([p,H*.14,w,H*.56],[{k:'title',z:126,up:1,lh:1.02},{bar:1,h:7,c:'accent',g:44},{k:'date',z:48,f:'l',up:1,ls:.1,g:40},{k:'price',z:46,up:1,w:700,g:18}]);
-stack([p,H*.76,w,H*.19],[{k:'body',z:27,f:'l',lh:1.5},{k:'foot',z:32,f:'l',w:600,g:40}],{va:'b'})}},
+draw(W,H){const p=W*.09,w=W-2*p;stack([p,H*.08,w,H*.05],[{k:'eyebrow',z:24,f:'l',up:1,ls:.32}],{va:'t'});
+stack([p,H*.16,w,H*.54],[{k:'title',z:126,up:1,lh:1.02},{bar:1,h:7,c:'accent',g:44},{k:'date',z:48,f:'l',up:1,ls:.1,g:40},{k:'price',z:46,up:1,w:700,g:18}]);
+stack([p,H*.72,w,H*.2],[{k:'body',z:27,f:'l',lh:1.5},{k:'foot',z:32,f:'l',w:600,g:40}],{va:'b'})}},
 {n:'Bold colour',q:1,t:{eyebrow:'Sunday sessions',title:'Dinner, served properly.',sub:'Find your cure.',date:'',body:'Book a table for Sunday lunch or dinner.',cta:'Book a table',foot:'www.thephysician.bar'},
 draw(W,H){const p=W*.08,qs=S.qr?W*.2:0,on=accentTextColor();R(0,0,W,H,'accent');logoAt(p,H*.05,W*.04,on,'l');rod(W-p-W*.03,H*.045,H*.1,on,W*.004);
 stack([p,H*.28,W-2*p-qs,H*.66],[{k:'eyebrow',z:26,f:'l',up:1,ls:.25,c:on},{k:'title',z:128,lh:1.02,g:30,c:on},{k:'sub',z:44,g:30,c:on},{k:'date',z:34,f:'l',up:1,ls:.14,g:30,c:on},{k:'body',z:28,f:'b',g:36,c:on},{k:'cta',z:30,f:'l',up:1,ls:.16,g:40,c:on},{k:'foot',z:20,f:'l',g:24,ls:.05,c:on}],{al:'l',va:'b'});
 if(S.qr)qrAt(W-p-qs,H*.94-qs,qs)}},
 {n:'Night photo',ph:1,q:1,pi:'beef',t:{eyebrow:'Chef’s special',title:'Dry-aged beef, bone marrow',date:'',price:'£34',body:'Charcoal-grilled, watercress, roast shallot and a red wine jus.',cta:'Book a table',foot:'129 South Street, St Andrews · www.thephysician.bar'},
 draw(W,H){const p=W*.08,qs=S.qr?W*.2:0,cr='#f6f1ea';photo(0,0,W,H);grad(0,H*.12,W,H*.88,'#0e0e1a',0,.97);grad(0,H*.4,W,H*.6,'#0e0e1a',0,.6);logoAt(p,H*.04,W*.036,cr,'l');
-stack([p,H*.38,W-2*p-qs,H*.57],[{k:'eyebrow',z:26,f:'l',up:1,ls:.25,c:'accent'},{k:'title',z:112,lh:1.04,g:26,c:cr},{k:'price',z:56,g:24,c:'accent'},{k:'date',z:32,f:'l',up:1,ls:.14,g:20,c:cr},{k:'body',z:28,f:'b',g:30,c:cr,lh:1.4},{k:'cta',z:28,f:'l',up:1,ls:.16,g:36,c:cr},{k:'foot',z:19,f:'l',g:22,ls:.04,c:'#c9c3ba'}],{al:'l',va:'b'});
+stack([p,H*.38,W-2*p-qs,H*.53],[{k:'eyebrow',z:26,f:'l',up:1,ls:.25,c:cr},{k:'title',z:112,lh:1.04,g:26,c:cr},{k:'price',z:56,g:24,c:cr},{k:'date',z:32,f:'l',up:1,ls:.14,g:20,c:cr},{k:'body',z:28,f:'b',g:30,c:cr,lh:1.4},{k:'cta',z:28,f:'l',up:1,ls:.16,g:36,c:cr},{k:'foot',z:19,f:'l',g:22,ls:.04,c:'#c9c3ba'}],{al:'l',va:'b'});
 if(S.qr)qrAt(W-p-qs,H*.95-qs,qs)}}]};
 window.AssetCategories['flyer'] = CFG;
 })();
@@ -42,33 +42,33 @@ fields:[['sub','Small label'],['title','Title'],['items','Items — one per line
 tpls:[
 {n:'Classic',t:{sub:'Menu',title:'The Physician menu',items:IT1,foot:FT},
 draw(W,H){const p=W*.09,w=W-2*p;R(p,H*.07,w,H*.011,'accent');stack([p,H*.11,w,H*.22],[{logo:36},{k:'sub',z:24,f:'l',up:1,ls:.3,g:56},{k:'title',z:84,g:14},{bar:1,w:.38,h:9,c:'accent',g:34}],{va:'t'});
-menuList([p,H*.35,w,H*.53],{zn:46,zd:28,zp:46,g:66,zh:22});stack([p,H*.91,w,H*.04],[{k:'foot',z:19,f:'l',c:'mute',ls:.04}],{va:'b'})}},
+menuList([p,H*.35,w,H*.52],{zn:46,zd:28,zp:46,g:66,zh:22});stack([p,H*.88,w,H*.03],[{k:'foot',z:19,f:'l',c:'mute',ls:.04}],{va:'b'})}},
 {n:'Festive',t:{title:'Festive Menu',items:IT2,foot:'Two courses £49 · Sunday 13th December'},
 draw(W,H){const p=W*.09,w=W-2*p;R(p,H*.05,w,H*.011,'accent');stack([p,H*.09,w,H*.12],[{k:'title',z:84,up:1,w:700}]);
-menuList([p,H*.26,w,H*.62],{zn:50,wn:700,up:1,zd:30,zp:46,g:96,zh:22});stack([p,H*.91,w,H*.04],[{k:'foot',z:21,f:'l',up:1,ls:.16,c:'mute'}],{va:'b'})}},
+menuList([p,H*.26,w,H*.60],{zn:50,wn:700,up:1,zd:30,zp:46,g:96,zh:22});stack([p,H*.88,w,H*.03],[{k:'foot',z:21,f:'l',up:1,ls:.16,c:'mute'}],{va:'b'})}},
 {n:'Centred',t:{sub:'Dinner',title:'Seasonal plates',items:IT3,foot:FT},
 draw(W,H){const p=W*.1,w=W-2*p;stack([p,H*.05,w,H*.2],[{logo:34},{k:'sub',z:22,f:'l',up:1,ls:.3,g:46},{k:'title',z:70,g:12}],{va:'t'});
-menuList([p,H*.26,w,H*.62],{al:'c',zn:50,zd:28,zp:38,g:58,zh:22});stack([p,H*.91,w,H*.04],[{k:'foot',z:18,f:'l',c:'mute',ls:.04}],{va:'b'})}},
+menuList([p,H*.26,w,H*.60],{al:'c',zn:50,zd:28,zp:38,g:58,zh:22});stack([p,H*.88,w,H*.03],[{k:'foot',z:18,f:'l',c:'mute',ls:.04}],{va:'b'})}},
 {n:'Photo header',ph:1,pi:'prawns',t:{title:'Sharing plates',items:IT1,foot:FT},
 draw(W,H){const p=W*.09,w=W-2*p,ph=H*.27;photo(0,0,W,ph);grad(0,0,W,ph*.5,'#000000',.55,0);logoAt(W/2,H*.03,W*.04,'#ffffff','c');
-stack([p,ph+H*.025,w,H*.1],[{k:'title',z:72},{bar:1,w:.3,h:8,c:'accent',g:20}],{al:'l',va:'t'});menuList([p,ph+H*.14,w,H*.56],{zn:38,zd:24,zp:38,g:54,zh:22,top:1});stack([p,H*.93,w,H*.03],[{k:'foot',z:18,f:'l',c:'mute',ls:.04}],{va:'b'})}}]};
+stack([p,ph+H*.025,w,H*.1],[{k:'title',z:72},{bar:1,w:.3,h:8,c:'accent',g:20}],{al:'l',va:'t'});menuList([p,ph+H*.13,w,H*.47],{zn:38,zd:24,zp:38,g:54,zh:22,top:1});stack([p,H*.88,w,H*.03],[{k:'foot',z:18,f:'l',c:'mute',ls:.04}],{va:'b'})}}]};
 window.AssetCategories['menu'] = CFG;
 })();
 
 (function () {
-const AD='129 South Street, St Andrews, KY16 9UH · www.thephysician.bar',TM='Redeemable at any Dalton family venue. Valid for 12 months from purchase. One voucher per booking, not exchangeable for cash.';
+const AD='129 South Street, St Andrews, KY16 9UH · www.thephysician.bar',TM='Redeemable at this venue. Valid for 12 months from purchase. Not exchangeable for cash.';
 function codeBox(x,y,s,inner,box,code){const fill=box||'ink',ink=code||'accent';R(x,y,s,s,fill);if(inner){X.strokeStyle=C(ink);X.lineWidth=Math.max(2,s*.006);X.strokeRect(x+s*.035,y+s*.035,s*.93,s*.93)}
 if(S.qr)qrAt(x+s*.12,y+s*.12,s*.76);else put(T('code'),x+s/2,y+s/2,fnt('l',400,s*.085),s*.012,'c',C(ink))}
-const cream=(n,deco,t)=>({n,q:1,t,draw(W,H){const p=W*.06,s=Math.min(H*.5,W*.26),sw=W*.2;R(0,0,W,H,'paper');R(0,0,sw,H,'accent');
+const cream=(n,deco,t)=>({n,q:1,t,draw(W,H){const p=W*.08,s=Math.min(H*.48,W*.23),sw=W*.18;R(0,0,W,H,'paper');R(0,0,sw,H,'accent');
 deco?sprig(sw/2,H*.5,H*.62,C('paper'),C('ink')):rod(sw/2,H*.12,H*.76,C('paper'),W*.004);
 stack([sw+p,H*.1,W-sw-2*p-s-p,H*.8],[{logo:30},{k:'eyebrow',z:20,f:'l',up:1,ls:.2,g:40},{k:'amount',z:118,g:6},{k:'to',z:26,g:20},{k:'msg',z:22,f:'b',c:'mute',g:10,lh:1.35},{k:'terms',z:13,f:'b',c:'mute',g:26,lh:1.4},{k:'foot',z:12,f:'l',c:'mute',g:10}],{al:'l',va:'t'});
-codeBox(W-p-s,H-p-s,s,1)}});
+codeBox(W-p-s,H-p-s,s,1,'ink','paper')}});
 const CFG={id:'voucher',title:'Gift Voucher Maker',sub:'Set the amount, the message and the code. Download and print or send.',qr:'Link for a QR code (optional – replaces the code text)',
 sizes:[{n:'Wide card',d:'Print · 2480×1169',w:2480,h:1169},{n:'A5 landscape',d:'Print · 1748×1240',w:1748,h:1240},{n:'Digital 16:9',d:'Email · 1600×900',w:1600,h:900}],
 fields:[['eyebrow','Label'],['amount','Amount'],['to','To / From'],['msg','Message',2],['terms','Terms',3],['foot','Address line'],['code','Voucher code']],
 tpls:[
 {n:'Brand accent',q:1,t:{eyebrow:'Gift voucher',amount:'£50',to:'',msg:'',terms:TM,foot:AD,code:'GIFT-0001'},
-draw(W,H){const p=W*.07,s=Math.min(H*.6,W*.28),on=accentTextColor();R(0,0,W,H,'accent');logoAt(p,H*.1,W*.032,on,'l');
+draw(W,H){const p=W*.08,s=Math.min(H*.56,W*.25),on=accentTextColor();R(0,0,W,H,'accent');logoAt(p,H*.1,W*.032,on,'l');
 stack([p,H*.3,W-2*p-s-W*.05,H*.6],[{k:'eyebrow',z:22,f:'l',up:1,ls:.18,c:on},{k:'amount',z:118,g:24,c:on},{k:'to',z:26,g:16,c:on},{k:'msg',z:22,f:'b',g:8,lh:1.35,c:on},{k:'terms',z:14,f:'b',g:36,lh:1.4,c:on},{k:'foot',z:12,f:'l',g:12,ls:.03,c:on}],{al:'l',va:'t'});codeBox(W-p-s,(H-s)/2,s,0,on,'accent')}},
 {n:'Secret Santa',q:1,t:{eyebrow:'Secret Santa voucher',amount:'£50',to:'',msg:'',code:'SANTA-0001'},
 draw(W,H){const p=W*.08,s=Math.min(H*.72,W*.36),on=accentTextColor();R(0,0,W,H,'accent');stack([p,H*.1,W-2*p-s-W*.05,H*.8],[{k:'eyebrow',z:34,f:'l',up:1,ls:.22,c:on},{k:'amount',z:190,c:on,g:20},{k:'to',z:28,c:on,g:10},{k:'msg',z:24,f:'b',c:on,g:10}],{al:'l'});codeBox(W-p-s,(H-s)/2,s,1,on,'accent')}},
@@ -100,7 +100,7 @@ sizes:[{n:'A5 portrait',d:'Print · 1240×1748',w:1240,h:1748},{n:'Square',d:'Pr
 fields:[['eyebrow','Small label'],['title','Headline',2],['sub','Sub-line'],['body','Description',3],['price','Price'],['date','Time / date'],['foot','Footer line']],
 tpls:[
 {n:'Chef’s special',t:{eyebrow:'Chef’s special',title:'Dry-aged beef, bone marrow',body:'Charcoal-grilled, watercress, roast shallot and a red wine jus.',price:'£34',foot:'Ask the team about allergens. Available while the kitchen is open.'},
-draw(W,H){const p=W*.1,w=W-2*p;R(p,H*.07,w,H*.01,'accent');logoAt(W/2,H*.13,W*.045,C('ink'),'c');stack([p,H*.25,w,H*.57],[{k:'eyebrow',z:26,f:'l',up:1,ls:.28},{k:'title',z:78,g:60,lh:1.08},{k:'body',z:28,f:'b',c:'mute',g:56,lh:1.4},{k:'price',z:66,g:60}]);stack([p,H*.87,w,H*.07],[{k:'foot',z:19,f:'b',c:'mute'}],{va:'b'})}},
+draw(W,H){const p=W*.1,w=W-2*p;R(p,H*.07,w,H*.01,'accent');logoAt(W/2,H*.13,W*.045,C('ink'),'c');stack([p,H*.25,w,H*.57],[{k:'eyebrow',z:26,f:'l',up:1,ls:.28},{k:'title',z:78,g:60,lh:1.08},{k:'body',z:28,f:'b',c:'mute',g:56,lh:1.4},{k:'price',z:66,g:60}]);stack([p,H*.82,w,H*.06],[{k:'foot',z:19,f:'b',c:'mute'}],{va:'b'})}},
 {n:'Season’s greetings',t:{title:'Season’s Greetings',sub:'Find your cure.'},
 draw(W,H){const p=W*.1,sh=Math.min(H*.4,W*.6);sprig(W/2,H*.12+sh*.5,sh,C('ink'),C('accent'));stack([p,H*.12+sh+H*.05,W-2*p,H*.2],[{k:'title',z:76,lh:1.1},{k:'sub',z:22,f:'l',up:1,ls:.24,g:34}],{va:'t'})}},
 {n:'Scan for the menu',q:1,t:{eyebrow:'Menu & booking',title:'Scan to see the menu',foot:'www.thephysician.bar'},
@@ -117,15 +117,15 @@ sizes:[{n:'Square',d:'Post · 1080×1080',w:1080,h:1080},{n:'Portrait 4:5',d:'Fe
 fields:[['eyebrow','Small line'],['title','Headline',2],['sub','Sub-headline'],['date','Date'],['price','Price / offer'],['cta','Button text'],['foot','Footer line']],
 tpls:[
 {n:'Statement',t:{title:'Dinner, served properly.',sub:'Find your cure.',foot:'@thephysician_standrews · www.thephysician.bar'},
-draw(W,H){const p=W*.08;R(0,0,W,H*.015,'accent');stack([p,H*.08,W-2*p,H*.8],[{logo:50},{sp:1,g:H/U*.16},{k:'title',z:108,lh:1.06},{k:'sub',z:30,f:'l',up:1,ls:.16,g:60}]);stack([p,H*.88,W-2*p,H*.07],[{k:'foot',z:25,f:'b',c:'mute'}],{va:'b'})}},
+draw(W,H){const p=W*.08;R(0,0,W,H*.015,'accent');stack([p,H*.08,W-2*p,H*.8],[{logo:50},{sp:1,g:H/U*.16},{k:'title',z:108,lh:1.06},{k:'sub',z:30,f:'l',up:1,ls:.16,g:60}]);stack([p,H*.84,W-2*p,H*.07],[{k:'foot',z:25,f:'b',c:'mute'}],{va:'b'})}},
 {n:'Chef’s special',ph:1,pi:'beef',t:{eyebrow:'Chef’s special',title:'Dry-aged beef, bone marrow',price:'£34',foot:'Charcoal-grilled · watercress · red wine jus'},
-draw(W,H){const ph=H*(H<=W?.5:.46),p=W*.08;photo(0,0,W,ph);stack([p,ph+H*.03,W-2*p,H-ph-H*.06],[{k:'eyebrow',z:24,f:'l',up:1,ls:.3},{k:'title',z:78,lh:1.1,g:34},{k:'price',z:40,c:'accent',g:24},{k:'foot',z:21,f:'b',c:'mute',g:24}])}},
+draw(W,H){const ph=H*(H<=W?.5:.46),p=W*.08;photo(0,0,W,ph);stack([p,ph+H*.03,W-2*p,H-ph-H*.09],[{k:'eyebrow',z:24,f:'l',up:1,ls:.3},{k:'title',z:78,lh:1.1,g:34},{k:'price',z:40,c:'accent',g:24},{k:'foot',z:21,f:'b',c:'mute',g:24}])}},
 {n:'Sunday sessions',ph:1,pi:'duck',t:{title:'Sunday Sessions',cta:'Book a table',foot:'www.thephysician.bar'},
-draw(W,H){const ph=H*(H<=W?.5:.46),p=W*.08;photo(0,0,W,ph);stack([p,ph+H*.03,W-2*p,H-ph-H*.06],[{k:'title',z:118,w:700,lh:1.05},{k:'cta',z:25,f:'l',up:1,ls:.24,g:56},{k:'foot',z:20,f:'b',c:'mute',g:22}])}},
+draw(W,H){const ph=H*(H<=W?.5:.46),p=W*.08;photo(0,0,W,ph);stack([p,ph+H*.03,W-2*p,H-ph-H*.09],[{k:'title',z:118,w:700,lh:1.05},{k:'cta',z:25,f:'l',up:1,ls:.24,g:56},{k:'foot',z:20,f:'b',c:'mute',g:22}])}},
 {n:'Christmas icon',t:{title:'Christmas Brunch',date:'Sunday 13th December',price:'2 courses + cocktail £49'},
 draw(W,H){const p=W*.06,gh=Math.min(H*.34,W*.5);glass(W/2,H*.5-gh*.95-H*.02,gh,C('ink'),C('accent'));stack([p,H*.52,W-2*p,H*.4],[{k:'title',z:104,up:1,lh:1.04},{k:'date',z:32,f:'l',up:1,ls:.28,g:40},{k:'price',z:32,f:'l',up:1,ls:.04,c:accentTextColor(),bg:'accent',g:50}],{va:'t'})}},
 {n:'Announcement',t:{eyebrow:'New on the menu',title:'The Sunday roast is back.',sub:'Every Sunday from 12',foot:'Book at www.thephysician.bar'},
-draw(W,H){const p=W*.09,on=accentTextColor();R(0,0,W,H,'accent');rod(W/2,H*.07,H*.17,on,W*.004);stack([p,H*.28,W-2*p,H*.6],[{k:'eyebrow',z:26,f:'l',up:1,ls:.26,c:on},{k:'title',z:118,lh:1.04,g:36,c:on},{k:'sub',z:34,c:on,g:36}]);stack([p,H*.88,W-2*p,H*.06],[{k:'foot',z:22,f:'l',up:1,ls:.14,c:on}],{va:'b'})}}]};
+draw(W,H){const p=W*.09,on=accentTextColor();R(0,0,W,H,'accent');rod(W/2,H*.07,H*.17,on,W*.004);stack([p,H*.28,W-2*p,H*.6],[{k:'eyebrow',z:26,f:'l',up:1,ls:.26,c:on},{k:'title',z:118,lh:1.04,g:36,c:on},{k:'sub',z:34,c:on,g:36}]);stack([p,H*.85,W-2*p,H*.06],[{k:'foot',z:22,f:'l',up:1,ls:.14,c:on}],{va:'b'})}}]};
 window.AssetCategories['social'] = CFG;
 })();
 

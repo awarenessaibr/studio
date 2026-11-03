@@ -1404,15 +1404,20 @@ function ensurePx(src){
 /* ---------- copy from brand fields ---------- */
 const contact=f=>{const e=((B.guidelines&&B.guidelines.contact)||[]).find(c=>String(c.field||'').toLowerCase()===f.toLowerCase());return e&&e.value||''};
 const siteOf=()=>String(contact('Website')||B.url||'').replace(/^https?:\/\//i,'').replace(/\/+$/,'');
-const firstSentence=t=>{t=String(t||'').replace(/\s+/g,' ').trim();return((t.split(/(?<=[.!?])\s/)[0])||'').slice(0,90)};
+const clipText=(t,max)=>{t=String(t||'').replace(/\s+/g,' ').trim();if(t.length<=max)return t;
+ const cut=t.slice(0,max),i=cut.lastIndexOf(' ');return((i>max*.6?cut.slice(0,i):cut).replace(/[\s,;:.\-–—]+$/,''))+'…'};
+const firstSentence=t=>{t=String(t||'').replace(/\s+/g,' ').trim();return clipText((t.split(/(?<=[.!?])\s/)[0])||'',90)};
+const brandCopy=()=>(B&&B.content&&B.content.copy)||{};
 function copyFor(){
- const pos=String((B.guidelines&&B.guidelines.positioning)||'').replace(/\s+/g,' ').trim(),first=firstSentence(pos),site=siteOf(),addr=contact('Address');
- const head=B.tagline||first||B.name,sub=B.tagline?(first&&first!==B.tagline?first:B.name):B.name;
- return{head,sub,body:pos&&pos!==head&&pos!==sub?pos.slice(0,220):'',cta:site?'Visit '+site:'Find out more',foot:[addr,site].filter(Boolean).join(' · ')}}
+ const c=brandCopy(),pos=String((B.guidelines&&B.guidelines.positioning)||'').replace(/\s+/g,' ').trim(),first=firstSentence(pos),site=siteOf(),addr=contact('Address');
+ const head=c.headline||B.tagline||first||B.name;
+ const sub=c.subhead||(B.tagline?(first&&first!==B.tagline?first:B.name):B.name);
+ const body=c.body||(pos&&pos!==head&&pos!==sub?clipText(pos,220):'');
+ return{head,sub,body,cta:c.cta||(site?'Visit '+site:'Find out more'),foot:[addr,site].filter(Boolean).join(' · ')}}
 function copyOptions(){
- const pos=String((B.guidelines&&B.guidelines.positioning)||''),f=firstSentence(pos),site=siteOf(),u=a=>[...new Set(a.filter(Boolean))];
- return{headline:u([B.tagline,f,B.name,'Welcome to '+B.name,'Discover '+B.name]),subhead:u([f,B.tagline,B.name]),
-  cta:u([site&&'Visit '+site,'Find out more','Get in touch']),body:u([pos.slice(0,220),f])}}
+ const c=brandCopy(),pos=String((B.guidelines&&B.guidelines.positioning)||''),f=firstSentence(pos),site=siteOf(),u=a=>[...new Set(a.filter(Boolean))];
+ return{headline:u([c.headline,B.tagline,f,B.name,'Welcome to '+B.name,'Discover '+B.name]),subhead:u([c.subhead,f,B.tagline,B.name]),
+  cta:u([c.cta,site&&'Visit '+site,'Find out more','Get in touch']),body:u([c.body,pos&&clipText(pos,220),f])}}
 
 /* ---------- scene builder ---------- */
 const F=(family,w,s,lh,ls=0,tr='none')=>({family,weight:w,sizePct:s,lineHeight:lh,letterSpacingEm:ls,transform:tr});

@@ -349,6 +349,49 @@ MAX_CURATED_PHOTOS = 12        # pack photography; was a hardcoded 6
 # discovered_media.csv / video_embeds.csv.
 DOWNLOAD_VIDEOS = False
 
+# ---- Client-rendered (SPA) sites ----
+# A Vite/Next/Nuxt shell returns no text, no links and no images, so the
+# static crawl reports a one-page site. Detect that shape and render it.
+RENDER_JS_SITES = True         # env CRAWLER_RENDER_JS=0 disables
+SHELL_MAX_TEXT = 600           # visible characters in a shell document
+SHELL_MAX_ELEMENTS = 60
+SHELL_MAX_MEDIA = 2
+SPA_MAX_ROUTES = 12            # rendered routes beyond the seed page
+SPA_SETTLE_MS = 2500           # JS hydration wait after domcontentloaded
+SPA_MAX_SCROLLS = 6
+BUNDLE_MAX_FILES = 4
+BUNDLE_MAX_BYTES = 4_000_000
+
+# Absolute and root-relative asset paths inside a JS/CSS bundle.
+LOGO_ASSET_PATTERN = re.compile(
+    r'(?:^|[/_-])(?:logo|logotipo|wordmark|marca)(?:[/_.-]|$)', re.I)
+BUNDLE_ASSET_PATTERN = re.compile(
+    r'["\'(\s=]((?:https?://[^\s"\'()<>]+'
+    r'|\.{0,2}/?(?:assets|static|media|images|img|uploads|files|build)/'
+    r'[^\s"\'()<>]*?\.(?:jpe?g|png|gif|webp|avif|svg))'
+    r'(?:[?#][^\s"\'()<>]*)?)["\')\s]',
+    re.I,
+)
+
+# Route words used to pick the pages worth rendering/reading for a brand pack.
+BRAND_PAGE_KEYWORDS = (
+    'about', 'sobre', 'empresa', 'quem-somos', 'contact', 'contato', 'fale-conosco',
+    'press', 'imprensa', 'brand', 'marca', 'media', 'midia', 'produtos', 'products',
+    'onde-encontrar', 'onde-encontrar', 'lojas', 'stores', 'menu', 'cardapio',
+)
+# Link discovery only follows pages that carry NAP/brand facts. The English-only
+# pattern meant a Portuguese nav ("Sobre", "Contato", "Onde Encontrar") was
+# never queued, so a live site reported "1 page crawled".
+DISCOVERY_PAGE_PATTERN = re.compile(
+    r'contact|contato|contacto|about|sobre|empresa|quem[-_ ]somos|quienes[-_ ]somos|'
+    r'menu|cardapio|produtos|productos|book|reserv|find[-_ ]?us|onde[-_ ]encontrar|'
+    r'donde|location|localizacao|localizacion|lojas|tienda|horario|hours|gift|'
+    r'franquia|revenda|distribuidor')
+SPA_PRIORITY_ROUTE_WORDS = (
+    'sobre', 'about', 'empresa', 'quem-somos', 'contato', 'contact', 'produtos',
+    'products', 'onde-encontrar', 'lojas',
+)
+
 
 
 # =========================================================================
@@ -685,6 +728,33 @@ def fetch_text_cached(url):
     text = resp.text if resp else None
     _page_cache[url] = text
     return text
+
+
+def cached_html_for(url):
+    """Best cached HTML for a URL, tolerating scheme/trailing-slash drift.
+
+    The render pass stores HTML under the URL it rendered; link discovery then
+    asks for slightly different spellings of the same page.
+    """
+    if not url:
+        return None
+    candidates = [url, url.rstrip('/'), url.rstrip('/') + '/']
+    parsed = urlparse(url)
+    if parsed.scheme == 'http':
+        https = parsed._replace(scheme='https').geturl()
+        candidates += [https, https.rstrip('/'), https.rstrip('/') + '/']
+    for candidate in candidates:
+        html = _page_cache.get(candidate)
+        if html:
+            return html
+    key = (parsed.netloc.lower(), (parsed.path or '/').rstrip('/').lower())
+    for cached_url, html in list(_page_cache.items()):
+        if not html:
+            continue
+        other = urlparse(cached_url)
+        if (other.netloc.lower(), (other.path or '/').rstrip('/').lower()) == key:
+            return html
+    return None
 
 
 def is_same_domain(url):
@@ -1053,6 +1123,13 @@ def normalize_phone(phone, country=None):
     digits = re.sub(r'[^\d+]', '', raw)
     if not digits:
         return None
+    # An explicit foreign dialling code is authoritative: a Brazilian
+    # `tel:+556333513307` used to be pushed through the UK rules and dropped
+    # because the address did not resolve to a country.
+    if digits.startswith('+') and not digits.startswith('+44'):
+        return raw or None
+    if digits.startswith('00') and not digits.startswith('0044'):
+        return raw or None
     is_uk = (not country) or normalize_text(country) in tuple(
         normalize_text(name) for name in UK_COUNTRY_NAMES)
     if not is_uk:
@@ -1071,6 +1148,32 @@ def normalize_phone(phone, country=None):
     if not local.isdigit() or len(local) not in (10, 11):
         return None
     return local
+
+
+def select_brand_phones(phones_by_page, start_url):
+    """Return the numbers that belong to the brand itself, not its stores.
+
+    A "onde encontrar" / "store locator" page lists every franchisee's mobile;
+    those are not the brand's NAP. Numbers from the home page and the contact
+    page win, and a directory-only list is capped so the guide stays readable.
+    """
+    def page_rank(page_url):
+        low = (page_url or '').lower()
+        if low.rstrip('/') == (start_url or '').rstrip('/'):
+            return 0
+        if any(k in low for k in ('contact', 'contato', 'fale-conosco', 'atendimento')):
+            return 1
+        if any(k in low for k in ('onde-encontrar', 'lojas', 'stores', 'franquia',
+                                  'revenda', 'distribuidor', 'localizacao')):
+            return 3
+        return 2
+
+    ordered = sorted(phones_by_page.items(), key=lambda kv: page_rank(kv[0]))
+    primary = [p for url, phones in ordered if page_rank(url) <= 1 for p in phones]
+    if primary:
+        return set(primary)
+    fallback = [p for url, phones in ordered for p in phones]
+    return set(fallback[:3])
 
 
 def is_valid_email(email):
@@ -1425,6 +1528,46 @@ def _logo_link_host(img, page_url):
     return None
 
 
+ICON_SVG_TOKENS = ('lucide', 'feather', 'heroicon', 'fontawesome', 'fa-solid',
+                   'fa-regular', 'fa-brands', 'material-icons', 'tabler-icon',
+                   'bi bi-', 'ionicon', 'oi oi-')
+
+
+def _svg_is_decorative_icon(svg, context=''):
+    """True for UI glyphs (menu, moon, map-pin) that sit inside a header.
+
+    A rendered SPA puts icon-library SVGs in the nav, and every one of them used
+    to be collected as a logo candidate.
+    """
+    haystack = context
+    if not haystack:
+        haystack = ' '.join([
+            ' '.join(svg.get('class', [])) if isinstance(svg.get('class'), list)
+            else str(svg.get('class', '')),
+            str(svg.get('id', '')),
+        ]).lower()
+    if any(token in haystack for token in ICON_SVG_TOKENS):
+        return True
+    edges = []
+    for attr in ('width', 'height'):
+        raw = str(svg.get(attr) or '').replace('px', '').strip()
+        try:
+            edges.append(float(raw))
+        except ValueError:
+            pass
+    if edges and max(edges) <= 32:
+        return True
+    viewbox = str(svg.get('viewbox') or svg.get('viewBox') or '')
+    parts = viewbox.replace(',', ' ').split()
+    if len(parts) == 4:
+        try:
+            if max(float(parts[2]), float(parts[3])) <= 32:
+                return True
+        except ValueError:
+            pass
+    return False
+
+
 def extract_logo_candidates(soup, page_url):
     """Return list of {kind, url, source} for logo candidates."""
     out = []
@@ -1501,6 +1644,8 @@ def extract_logo_candidates(soup, page_url):
             else '',
         ]).lower()
         has_logo_hint = any(hint in svg_context for hint in LOGO_HINTS)
+        if _svg_is_decorative_icon(svg, svg_context) and not has_logo_hint:
+            continue
         if (in_nav or has_logo_hint) and not any(
             word in svg_context for word in ('social', 'sprite', 'facebook', 'instagram',
                                              'tiktok', 'twitter', 'youtube')
@@ -1672,7 +1817,99 @@ def extract_contact_info(soup):
                     if isinstance(same, str) and re.search(pat, same, re.IGNORECASE):
                         add_social(platform, same)
 
+    if not contacts['address']:
+        address = extract_address_from_html(soup)
+        if address:
+            contacts['address'] = address
+            contacts['location'] = location_from_address_string(address)
+
     return contacts
+
+
+ADDRESS_CONTAINER_HINTS = ('address', 'endereco', 'endereço', 'adres', 'location',
+                           'morada', 'where', 'onde-estamos', 'onde estamos')
+ADDRESS_TEXT_HINTS = (
+    r'\b(?:rua|avenida|av\.|alameda|travessa|rodovia|estrada|praça|praca|'
+    r'street|road|avenue|lane|drive|high\s*street)\b',
+    r'\b(?:cep|zip|postcode|post\s*code)\b',
+    r'\b\d{5}-?\d{3}\b',
+)
+ADDRESS_BLOCKLIST = ('cookie', 'newsletter', 'banner', 'modal', 'copyright')
+
+
+def _address_text(element):
+    """Text of an address block, turning <br> into separators."""
+    clone = BeautifulSoup(str(element), 'lxml')
+    for br in clone.find_all('br'):
+        br.replace_with(', ')
+    text = clone.get_text(' ', strip=True)
+    return re.sub(r'\s*,\s*', ', ', re.sub(r'\s+', ' ', text)).strip(' ,')
+
+
+def extract_address_from_html(soup):
+    """Postal address from markup when no JSON-LD carries one.
+
+    Client-rendered sites (melano.com.br) ship the address as
+    `<address>Rua …<br>CEP …</address>` and nothing structured.
+    """
+    for element in soup.find_all('address'):
+        text = _address_text(element)
+        if text and len(text) >= 12:
+            return text
+
+    for element in soup.find_all(attrs={'itemprop': True}):
+        prop = str(element.get('itemprop', '')).lower()
+        if prop in ('streetaddress', 'address'):
+            text = _address_text(element)
+            if text and len(text) >= 12:
+                return text
+
+    best, best_score = None, 0
+    for element in soup.find_all(['div', 'p', 'span', 'li', 'section', 'footer']):
+        if element.find(['div', 'p', 'section', 'footer']) is not None:
+            continue  # innermost blocks only, so the whole page never matches
+        text = _address_text(element)
+        if not (12 <= len(text) <= 220):
+            continue
+        low = text.lower()
+        if any(bad in low for bad in ADDRESS_BLOCKLIST):
+            continue
+        hint_blob = ' '.join([
+            str(element.get('id', '')), str(element.get('class', '')),
+            str(element.get('aria-label', '')),
+        ]).lower()
+        score = sum(1 for pat in ADDRESS_TEXT_HINTS if re.search(pat, low, re.I))
+        if any(hint in hint_blob for hint in ADDRESS_CONTAINER_HINTS):
+            score += 1
+        if re.search(r'\d', text):
+            score += 1
+        if score >= 3 and score > best_score:
+            best, best_score = text, score
+    return best
+
+
+def location_from_address_string(address):
+    """city/region/country hints parsed out of a postal address string."""
+    location = {}
+    if not address:
+        return location
+    country = country_from_address(address)
+    if country:
+        location['country'] = country
+    match = re.search(r',\s*([A-Za-z .\'\-]{3,})\s+(?:[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}|[A-Z]{1,2}\d)',
+                      address)
+    city = match.group(1).strip() if match else ''
+    if not city:
+        for known in KNOWN_CITIES:
+            if re.search(r'\b' + re.escape(known) + r'\b', address, re.I):
+                city = known
+                break
+    if city:
+        location['city'] = city
+    region = re.search(r'[–-]\s*([A-Z]{2})\s*$', address.strip())
+    if region:
+        location.setdefault('region', region.group(1))
+    return location
 
 
 def extract_og_meta(soup):
@@ -1695,8 +1932,13 @@ def extract_og_meta(soup):
     return meta
 
 
-def extract_brand_data(start_url, visited_pages):
-    """Fetch home + a handful of key pages; return the brand dict."""
+def extract_brand_data(start_url, visited_pages, extra_media=None):
+    """Fetch home + a handful of key pages; return the brand dict.
+
+    extra_media are images the crawl already discovered (rendered <img> tags and
+    asset paths inside a JS bundle) so a client-rendered site contributes real
+    photography rather than only its og:image.
+    """
     brand = {
         'name': None,
         'description': None,
@@ -1724,10 +1966,11 @@ def extract_brand_data(start_url, visited_pages):
     key_pages = [start_url]
     for u in sorted(visited_pages):
         low = u.lower()
-        if any(k in low for k in ('/about', '/press', '/contact', '/brand', '/media')):
+        if any(k in low for k in BRAND_PAGE_KEYWORDS):
             key_pages.append(u)
     key_pages = list(dict.fromkeys(key_pages))[:8]
 
+    phones_by_page = {}
     for page_url in key_pages:
         html = fetch_text_cached(page_url)
         if not html:
@@ -1758,6 +2001,8 @@ def extract_brand_data(start_url, visited_pages):
 
         contact = extract_contact_info(soup)
         brand['contact']['phones'].update(contact['phones'])
+        if contact['phones']:
+            phones_by_page[page_url] = set(contact['phones'])
         brand['contact']['emails'].update(contact['emails'])
         if contact['address']:
             brand['contact']['address'] = contact['address']
@@ -1797,6 +2042,8 @@ def extract_brand_data(start_url, visited_pages):
                 if 'menu' in text or 'menu' in href.lower():
                     brand['menu_urls'].append(href)
 
+    brand['contact']['phones'] = select_brand_phones(phones_by_page, start_url)
+
     # Fetch up to 12 stylesheets for tokens
     for css_url in sorted(brand['stylesheet_urls'])[:12]:
         css = fetch_text_cached(css_url)
@@ -1811,6 +2058,45 @@ def extract_brand_data(start_url, visited_pages):
         parsed = urlparse(start_url)
         host = parsed.netloc.replace('www.', '')
         brand['name'] = host.split('.')[0].title()
+
+    # Key pages repeat the same favicon/og:image; keep first-seen order but one
+    # entry each so the pack does not list a logo five times.
+    brand['photography_urls'] = list(dict.fromkeys(brand['photography_urls']))
+    unique_logos, seen_logos = [], set()
+    for candidate in brand['logo_candidates']:
+        key = (candidate.get('source'), candidate.get('url') or candidate.get('inline_svg'))
+        if key in seen_logos:
+            continue
+        seen_logos.add(key)
+        unique_logos.append(candidate)
+    brand['logo_candidates'] = unique_logos
+
+    if extra_media:
+        already = set(brand['photography_urls'])
+        reject_words = ('logo', 'icon', 'favicon', 'sprite', 'avatar', 'placeholder')
+        for url in sorted(extra_media):
+            if url in already or not is_image_url(url):
+                continue
+            low = unquote(url).lower()
+            name = unquote(urlparse(url).path).rsplit('/', 1)[-1]
+            if LOGO_ASSET_PATTERN.search(name):
+                # A React/Vite site often ships its wordmark only as a bundle
+                # import, so no <img> ever exists in the DOM. The filename is
+                # then the only evidence that this asset is the logo.
+                if not (is_favicon_url(url) or is_icon_url(url)
+                        or is_press_logo(name) or is_sub_brand(name)):
+                    brand['logo_candidates'].append({
+                        'url': url,
+                        'source': 'bundle',
+                        'kind': classify_logo_kind(name),
+                        'label': os.path.splitext(name)[0],
+                        'in_nav': False,
+                    })
+                continue
+            if any(word in low for word in reject_words):
+                continue
+            brand['photography_urls'].append(url)
+            already.add(url)
 
     # If no cover, take the first photography URL
     if not brand['cover_url'] and brand['photography_urls']:
@@ -1946,13 +2232,201 @@ def get_sitemap_urls():
 # =========================================================
 # PHASE 3: PAGE CRAWLING
 # =========================================================
-def crawl_pages(start_urls):
-    visited = set()
-    to_visit = []
-    media_urls = set()
-    text_pages = set()
-    video_embeds = set()
+def harvest_document(html, current_url):
+    """Media URLs, in-scope links and video embeds found in one document.
 
+    Shared by the static crawler and the headless-browser path so a rendered
+    SPA is harvested exactly like a server-rendered page.
+    """
+    media, links, embeds, seen = set(), [], [], set()
+    if not html:
+        return media, links, embeds
+    soup = BeautifulSoup(html, 'lxml')
+
+    def record(candidate):
+        if not candidate:
+            return False
+        if classify_media(candidate):
+            if is_media_host_allowed(candidate):
+                media.add(candidate)
+            return True
+        return False
+
+    def evaluate(raw_value, parse_embedded=False):
+        if not raw_value:
+            return
+        candidates = []
+        if not parse_embedded:
+            candidates.append(raw_value)
+        else:
+            # Only absolute/path URLs from the HTML blob. Bare filenames inside
+            # script/JSON payloads (_M3A9150.jpg, v.WEBP) are not real links and
+            # used to produce hundreds of 404 downloads.
+            for token in extract_urls_from_text(raw_value):
+                if token.startswith(('http://', 'https://', '//', '/', './', '../')):
+                    candidates.append(token)
+        for token in candidates:
+            href = normalize_candidate_url(token, current_url)
+            if not href or href in seen:
+                continue
+            seen.add(href)
+            if record(href):
+                continue
+            if not is_same_domain(href):
+                continue
+            if href in PERMANENTLY_FAILED:
+                continue
+            if not is_page_in_scope(href):
+                continue
+            if href.lower().endswith(NON_HTML_SUFFIXES):
+                continue
+            links.append(href)
+
+    def handle_srcset(srcset_value):
+        for u in extract_srcset_urls(srcset_value):
+            record(normalize_candidate_url(u, current_url))
+
+    def handle_css_text(css_text):
+        for u in extract_css_background_urls(css_text):
+            record(normalize_candidate_url(u, current_url))
+
+    for tag in soup.find_all(True):
+        for attr in ('srcset', 'data-srcset', 'data-lazy-srcset'):
+            val = tag.get(attr)
+            if val:
+                handle_srcset(val)
+
+        style_val = tag.get('style')
+        if style_val:
+            handle_css_text(style_val)
+
+        if tag.name == 'iframe':
+            src = tag.get('src') or tag.get('data-src') or tag.get('data-lazy-src')
+            if src:
+                for pattern, platform in VIDEO_EMBED_PATTERNS:
+                    if re.search(pattern, src):
+                        embeds.append((platform, src, current_url))
+                        break
+                evaluate(src)
+
+        for attr in EXTRA_LINK_ATTRIBUTES:
+            value = tag.get(attr)
+            if not value:
+                continue
+            if attr in ('srcset', 'data-srcset', 'data-lazy-srcset'):
+                continue
+            evaluate(value, parse_embedded=(attr == 'onclick'))
+
+    for source_tag in soup.find_all('source'):
+        src = source_tag.get('src')
+        if src:
+            evaluate(src)
+        srcset = source_tag.get('srcset')
+        if srcset:
+            handle_srcset(srcset)
+
+    for style_tag in soup.find_all('style'):
+        if style_tag.string:
+            handle_css_text(style_tag.string)
+
+    evaluate(html, parse_embedded=True)
+    return media, links, embeds
+
+
+def looks_like_js_shell(html):
+    """True when the HTML is a near-empty document a framework fills in later.
+
+    Client-rendered sites return a shell with no links, no text and no images,
+    so the static crawl sees a one-page site. Verified against melano.com.br
+    (Vite/React, `<div id="root">` + one module script).
+    """
+    if not html or len(html) > 200_000:
+        return False
+    try:
+        soup = BeautifulSoup(html, 'lxml')
+    except Exception:
+        return False
+    body = soup.body or soup
+    elements = len(body.find_all(True))
+    if elements > SHELL_MAX_ELEMENTS:
+        return False
+    if len(body.find_all(['img', 'picture', 'video', 'source'])) > SHELL_MAX_MEDIA:
+        return False
+    text = body.get_text(' ', strip=True)
+    if len(text) > SHELL_MAX_TEXT:
+        return False
+    if not soup.find('script'):
+        return False
+    root = soup.find(id=re.compile(r'^(?:root|app|__next|__nuxt|___gatsby|svelte)$', re.I))
+    return bool(root) or elements <= 12
+
+
+def _bundle_references(html, page_url):
+    """Same-origin JS/CSS bundles that a shell page loads."""
+    soup = BeautifulSoup(html, 'lxml')
+    refs = []
+    for script in soup.find_all('script', src=True):
+        refs.append(urljoin(page_url, script['src']))
+    for link in soup.find_all('link', href=True):
+        rel = ' '.join(link.get('rel') or []).lower()
+        if 'stylesheet' in rel or 'modulepreload' in rel or 'preload' in rel:
+            refs.append(urljoin(page_url, link['href']))
+    seen, out = set(), []
+    for ref in refs:
+        low = ref.lower().split('?')[0]
+        if not low.endswith(('.js', '.mjs', '.css')):
+            continue
+        if not (is_same_domain(ref) or low.endswith('.css')):
+            continue
+        if ref in seen:
+            continue
+        seen.add(ref)
+        out.append(ref)
+    return out[:BUNDLE_MAX_FILES]
+
+
+def resolve_bundle_asset(raw, page_url, bundle_url=""):
+    """Absolute URL for an asset path found inside a JS/CSS bundle.
+
+    Vite/webpack emit `/assets/…` (root-relative) or a bare `assets/…`, and
+    both are served from the site root; only `./` means "next to the bundle".
+    """
+    value = (raw or "").strip()
+    if not value:
+        return None
+    parsed = urlparse(page_url)
+    origin = f"{parsed.scheme or 'https'}://{parsed.netloc}"
+    if value.startswith(('http://', 'https://', '//')):
+        base = origin
+    elif bundle_url and value.startswith(('./', '../')):
+        base = bundle_url
+    else:
+        base = origin + '/'
+    return normalize_candidate_url(value, base)
+
+
+def harvest_bundle_assets(html, page_url):
+    """Asset URLs that only exist inside a JS/CSS bundle.
+
+    A Vite/webpack build imports images from `/assets/…`; the strings are in
+    the bundle, never in the shell HTML. Without this a client-rendered site
+    yields a favicon and an og:image and nothing else.
+    """
+    assets = set()
+    for bundle_url in _bundle_references(html, page_url):
+        text = fetch_text_cached(bundle_url)
+        if not text or len(text) > BUNDLE_MAX_BYTES:
+            continue
+        for match in BUNDLE_ASSET_PATTERN.finditer(text):
+            candidate = resolve_bundle_asset(match.group(1), page_url, bundle_url)
+            if candidate and is_media_host_allowed(candidate):
+                assets.add(candidate)
+    return assets
+
+
+def crawl_pages(start_urls):
+    visited, to_visit, media_urls = set(), [], set()
+    text_pages, video_embeds = set(), set()
     if ENABLE_CRAWL_CHECKPOINT:
         checkpoint = load_crawl_checkpoint(CRAWL_CHECKPOINT_FILE)
         if checkpoint:
@@ -1972,111 +2446,19 @@ def crawl_pages(start_urls):
     pages_since_checkpoint = 0
     os.makedirs(TEXT_DIR, exist_ok=True)
 
-    def record_candidate(url):
-        if not url:
-            return False
-        kind = classify_media(url)
-        if kind:
-            if is_media_host_allowed(url):
-                media_urls.add(url)
-            return True
-        return False
+    def queue_links(found_links):
+        for href in found_links:
+            if href in visited or href in to_visit:
+                continue
+            if len(to_visit) >= MAX_PAGE_CRAWL:
+                continue
+            to_visit.append(href)
 
-    def handle_srcset(srcset_value, current_url):
-        for u in extract_srcset_urls(srcset_value):
-            normalized = normalize_candidate_url(u, current_url)
-            if normalized:
-                record_candidate(normalized)
-
-    def handle_css_text(css_text, current_url):
-        for u in extract_css_background_urls(css_text):
-            normalized = normalize_candidate_url(u, current_url)
-            if normalized:
-                record_candidate(normalized)
-
-    def handle_iframe(src, source_page):
-        for pattern, platform in VIDEO_EMBED_PATTERNS:
-            if re.search(pattern, src):
-                video_embeds.add((platform, src, source_page))
-                return
-
-    def extract_links(html, current_url):
-        soup = BeautifulSoup(html, 'lxml')
-        seen_here = set()
-
-        def evaluate_candidate(raw_value, parse_embedded=False):
-            if not raw_value:
-                return
-            candidates = []
-            if not parse_embedded:
-                candidates.append(raw_value)
-            else:
-                # Only absolute/path URLs from the HTML blob. Bare filenames
-                # inside script/JSON payloads (_M3A9150.jpg, v.WEBP) are not
-                # real links and used to produce hundreds of 404 downloads.
-                for token in extract_urls_from_text(raw_value):
-                    if token.startswith(('http://', 'https://', '//', '/', './', '../')):
-                        candidates.append(token)
-            for token in candidates:
-                href = normalize_candidate_url(token, current_url)
-                if not href or href in seen_here:
-                    continue
-                seen_here.add(href)
-
-                if record_candidate(href):
-                    continue
-
-                if not is_same_domain(href):
-                    continue
-                if href in visited or href in PERMANENTLY_FAILED:
-                    continue
-                if len(to_visit) >= MAX_PAGE_CRAWL:
-                    continue
-                if href in to_visit:
-                    continue
-                if not is_page_in_scope(href):
-                    continue
-                if href.lower().endswith(NON_HTML_SUFFIXES):
-                    continue
-                to_visit.append(href)
-
-        for tag in soup.find_all(True):
-            for attr in ('srcset', 'data-srcset', 'data-lazy-srcset'):
-                val = tag.get(attr)
-                if val:
-                    handle_srcset(val, current_url)
-
-            style_val = tag.get('style')
-            if style_val:
-                handle_css_text(style_val, current_url)
-
-            if tag.name == 'iframe':
-                src = tag.get('src') or tag.get('data-src') or tag.get('data-lazy-src')
-                if src:
-                    handle_iframe(src, current_url)
-                    evaluate_candidate(src)
-
-            for attr in EXTRA_LINK_ATTRIBUTES:
-                value = tag.get(attr)
-                if not value:
-                    continue
-                if attr in ('srcset', 'data-srcset', 'data-lazy-srcset'):
-                    continue
-                evaluate_candidate(value, parse_embedded=(attr == 'onclick'))
-
-        for source_tag in soup.find_all('source'):
-            src = source_tag.get('src')
-            if src:
-                evaluate_candidate(src)
-            srcset = source_tag.get('srcset')
-            if srcset:
-                handle_srcset(srcset, current_url)
-
-        for style_tag in soup.find_all('style'):
-            if style_tag.string:
-                handle_css_text(style_tag.string, current_url)
-
-        evaluate_candidate(html, parse_embedded=True)
+    def handle_page_html(url, html):
+        found_media, found_links, found_embeds = harvest_document(html, url)
+        media_urls.update(found_media)
+        video_embeds.update(found_embeds)
+        queue_links(found_links)
 
     with ThreadPoolExecutor(max_workers=WEB_MAX_WORKERS) as executor:
         futures = {}
@@ -2108,7 +2490,7 @@ def crawl_pages(start_urls):
                                 except Exception as e:
                                     print(f"Text extraction error for {url}: {e}")
                             try:
-                                extract_links(resp.text, url)
+                                handle_page_html(url, resp.text)
                             except Exception as e:
                                 print(f"Link extraction error for {url}: {e}")
                 except Exception as e:
@@ -2131,11 +2513,138 @@ def crawl_pages(start_urls):
                 media_urls, text_pages, video_embeds
             )
 
+    if RENDER_JS_SITES and os.environ.get('CRAWLER_RENDER_JS', '1') != '0':
+        try:
+            rendered = render_js_site(start_urls, visited, text_pages)
+            media_urls.update(rendered['media'])
+            text_pages.update(rendered['text_pages'])
+            video_embeds.update(rendered['video_embeds'])
+        except Exception as e:
+            print(f"JS rendering skipped: {e}")
+
     print(f"Page crawl: visited {len(visited)} pages, "
           f"found {len(media_urls)} media links, "
           f"saved text for {len(text_pages)} pages, "
           f"detected {len(video_embeds)} video embeds.")
     return media_urls, text_pages, video_embeds, visited
+
+
+def _route_key(url):
+    """Scheme/host/trailing-slash-insensitive key so '/produtos' == '/produtos/'."""
+    parsed = urlparse(url)
+    path = (parsed.path or "/").rstrip("/") or "/"
+    return f"{parsed.netloc.lower()}{path}".lower()
+
+
+def _write_page_text(url, html, text_pages, result):
+    try:
+        text = extract_page_text(html)
+    except Exception:
+        return
+    if not text.strip():
+        return
+    try:
+        os.makedirs(TEXT_DIR, exist_ok=True)
+        with open(os.path.join(TEXT_DIR, text_safe_filename(url)), 'w', encoding='utf-8') as f:
+            f.write(text)
+        text_pages.add(url)
+        result['text_pages'].add(url)
+    except Exception as e:
+        print(f"Text write error for {url}: {e}")
+
+
+def _render_route(browser, url, settle_ms):
+    """Render one route, scrolling so lazy grids and carousels populate."""
+    page = browser.render(url, wait_ms=settle_ms, max_scrolls=SPA_MAX_SCROLLS,
+                          scroll_selector="auto", wait_network_idle=True)
+    if not page or not page.ok or len(page.text) < SHELL_MAX_TEXT:
+        page = browser.render(url, wait_ms=max(settle_ms, 4500),
+                              scroll_selector="auto", max_scrolls=SPA_MAX_SCROLLS,
+                              wait_network_idle=True)
+    return page
+
+
+def render_js_site(start_urls, visited, text_pages):
+    """Render client-side pages that the static crawl could only see as shells.
+
+    melano.com.br is a Vite/React build: the HTML is `<div id="root"></div>`
+    plus one module script, so the static crawl found 1 page, 2 media files and
+    no text. Rendering the seed page and its in-scope routes recovers the real
+    nav, copy, address and imagery, and the rendered HTML is cached in
+    _page_cache so the social phase does not refetch the shell.
+    """
+    result = {'media': set(), 'text_pages': set(), 'video_embeds': set()}
+    if not start_urls:
+        return result
+    seed = start_urls[0]
+    shell_html = _page_cache.get(seed) or fetch_text_cached(seed) or ""
+    if not shell_html:
+        return result
+
+    bundle_assets = harvest_bundle_assets(shell_html, seed)
+    if bundle_assets:
+        print(f"Bundle assets: {len(bundle_assets)} media URLs referenced by JS/CSS")
+        result['media'].update(bundle_assets)
+
+    if not looks_like_js_shell(shell_html):
+        return result
+    print("Client-rendered page detected (no server HTML) — rendering with browser")
+
+    browser = Browser()
+    if not browser.available():
+        print("  ! browser unavailable; the page is JS-only — re-run without "
+              "--no-browser to capture it")
+        return result
+
+    routes, queued = [], set()
+    page = _render_route(browser, seed, SPA_SETTLE_MS)
+    if not page or not page.ok:
+        print(f"  ! render failed: {page.error if page else 'no result'}")
+        return result
+
+    rendered_seed = page.text
+    _page_cache[seed] = rendered_seed
+    visited.add(seed)
+    _write_page_text(seed, rendered_seed, text_pages, result)
+
+    found_media, found_links, found_embeds = harvest_document(rendered_seed, seed)
+    result['media'].update(found_media)
+    result['video_embeds'].update(found_embeds)
+    for href in found_links:
+        norm = _route_key(href)
+        if norm in queued or norm == _route_key(seed):
+            continue
+        queued.add(norm)
+        routes.append(href)
+
+    def route_rank(href):
+        low = href.lower()
+        for i, word in enumerate(SPA_PRIORITY_ROUTE_WORDS):
+            if word in low:
+                return i
+        return len(SPA_PRIORITY_ROUTE_WORDS)
+
+    routes.sort(key=route_rank)
+    print(f"  seed rendered: {len(found_media)} media, {len(found_links)} links, "
+          f"{len(routes)} routes to render")
+
+    for href in routes[:SPA_MAX_ROUTES]:
+        route = _render_route(browser, href, SPA_SETTLE_MS)
+        if not route or not route.ok:
+            continue
+        _page_cache[href] = route.text
+        visited.add(href)
+        _write_page_text(href, route.text, text_pages, result)
+        route_media, route_links, route_embeds = harvest_document(route.text, href)
+        result['media'].update(route_media)
+        result['video_embeds'].update(route_embeds)
+        print(f"  rendered {urlparse(href).path or '/'}: "
+              f"{len(route_media)} media")
+
+    print(f"JS rendering: {len(result['media'])} media, "
+          f"{len(result['text_pages'])} text pages, "
+          f"{len(result['video_embeds'])} video embeds")
+    return result
 
 
 # =========================================================
@@ -3156,7 +3665,8 @@ def copy_brand_assets(brand_data, url_to_path, brand_dir):
         if len(logo_files) >= MAX_CURATED_LOGOS:
             break
         ext = os.path.splitext(c['local'])[1].lower() or '.png'
-        name = f"logo-{c['variant']}-{c['kind']}-{i}{ext}"
+        kind_part = '' if c['kind'] == 'logo' else f"-{c['kind']}"
+        name = f"logo-{c['variant']}{kind_part}-{i}{ext}"
         dest = os.path.join(assets['logos'], name)
         try:
             shutil.copy(c['local'], dest)
@@ -3302,9 +3812,37 @@ def copy_brand_assets(brand_data, url_to_path, brand_dir):
     }
 
 
+LOCALE_BY_COUNTRY = {
+    'Brazil': ('pt-BR', 'BRL'),
+    'Portugal': ('pt-PT', 'EUR'),
+    'United Kingdom': ('en-GB', 'GBP'),
+    'Ireland': ('en-IE', 'EUR'),
+    'United States': ('en-US', 'USD'),
+    'Canada': ('en-CA', 'CAD'),
+    'Australia': ('en-AU', 'AUD'),
+    'Spain': ('es-ES', 'EUR'),
+    'Mexico': ('es-MX', 'MXN'),
+    'Argentina': ('es-AR', 'ARS'),
+    'France': ('fr-FR', 'EUR'),
+    'Italy': ('it-IT', 'EUR'),
+    'Germany': ('de-DE', 'EUR'),
+    'Netherlands': ('nl-NL', 'EUR'),
+    'Japan': ('ja-JP', 'JPY'),
+    'South Korea': ('ko-KR', 'KRW'),
+}
+
+
+def locale_and_currency(brand_data):
+    """Locale/currency for the pack, taken from the brand's own country."""
+    country = (brand_data.get('location') or {}).get('country') \
+        or country_from_address((brand_data.get('contact') or {}).get('address') or '')
+    return LOCALE_BY_COUNTRY.get(country, (DEFAULT_LOCALE, DEFAULT_CURRENCY))
+
+
 def build_brand_tokens(brand_data, extras, content):
     contact = build_contact_block(brand_data)
     applications = infer_applications(brand_data, extras, content)
+    locale, currency = locale_and_currency(brand_data)
     return {
         'brand': {
             'name': brand_data['name'],
@@ -3312,8 +3850,8 @@ def build_brand_tokens(brand_data, extras, content):
             'wordmark': brand_data['name'],
             'tagline': None,
             'url': BASE_URL,
-            'locale': DEFAULT_LOCALE,
-            'currency': DEFAULT_CURRENCY,
+            'locale': locale,
+            'currency': currency,
         },
         'color': extras['palette'],
         'typography': extras['typography'],
@@ -4439,7 +4977,8 @@ class Browser:
     @classmethod
     def render(cls, url, wait_selector=None, wait_ms=2500, scroll_selector=None,
                max_scrolls=0, click_selectors=None, platform="default", timeout=45000,
-               progress_js=None, wait_after_scroll=1400):
+               progress_js=None, wait_after_scroll=1400, wait_network_idle=False,
+               idle_timeout=8000):
         """Render a URL and return a FetchResult (via='browser').
 
         scroll_selector may be:
@@ -4448,6 +4987,8 @@ class Browser:
           * "js:<code>"     -> custom JS is evaluated between scroll ticks
         progress_js, when given, returns a comparable number used to stop
         scrolling once the page stops producing new content.
+        wait_network_idle additionally waits for pending requests to settle,
+        which client-rendered sites need before their images exist.
         """
         started = time.time()
         if not cls.available():
@@ -4467,6 +5008,12 @@ class Browser:
             status = response.status if response else None
             if wait_ms:
                 page.wait_for_timeout(wait_ms)
+            if wait_network_idle:
+                try:
+                    page.wait_for_load_state("networkidle", timeout=idle_timeout)
+                except Exception:
+                    log("networkidle wait timed out", "debug")
+                page.wait_for_timeout(600)
             if wait_selector:
                 try:
                     page.wait_for_selector(wait_selector, timeout=min(timeout, 15000))
@@ -5301,7 +5848,13 @@ def discover_from_website(business, max_pages=None):
         if key in seen:
             continue
         seen.add(key)
-        page = fetch(url, platform="website")
+        cached = cached_html_for(url)
+        if cached and len(cached) >= 800 and not looks_like_js_shell(cached):
+            # The website crawl already rendered this page; re-fetching would
+            # return the JS shell and report "1 page crawled".
+            page = FetchResult(True, 200, url, cached, {}, "cache")
+        else:
+            page = fetch(url, platform="website")
         if (not page.ok or len(page.text or "") < 800) and Browser.available() and fetched == 0:
             log(f"website: escalating to browser for {url[:70]}", "debug")
             page = Browser.render(url, wait_selector="body", wait_ms=2500,
@@ -5332,9 +5885,16 @@ def discover_from_website(business, max_pages=None):
                                 "menu_url", "price_range") and value:
                     result["facts"].setdefault(key_name, value)
 
-        # visible text of the page feeds email / phone / hours parsing
+        # visible text of the page feeds email / phone / hours parsing. A store
+        # locator is skipped: its numbers belong to franchisees, and feeding
+        # them in reported six false NAP conflicts against the brand's own phone.
+        is_directory = bool(DISCOVERY_PAGE_PATTERN.search(page.url.lower())) and any(
+            word in page.url.lower()
+            for word in ('onde-encontrar', 'loja', 'stores', 'franquia', 'revenda',
+                         'distribuidor', 'localizacao', 'location', 'unidades'))
         try:
-            text_blob_parts.append(soup.get_text(" ", strip=True)[:20000])
+            if not is_directory:
+                text_blob_parts.append(soup.get_text(" ", strip=True)[:20000])
         except Exception:
             pass
         text_hours = extract_hours_from_text(text_blob_parts[-1] if text_blob_parts else "")
@@ -5370,8 +5930,8 @@ def discover_from_website(business, max_pages=None):
             if not same_host(href, site):
                 continue
             text = normalize_text(anchor.get_text())
-            if re.search(r"contact|about|menu|book|reserv|find-?us|location|hours|private|gift", text) \
-                    or re.search(r"/(contact|about|menu|book|reserv|find-?us|location|hours|gift)", href.lower()):
+            if DISCOVERY_PAGE_PATTERN.search(text) \
+                    or DISCOVERY_PAGE_PATTERN.search(href.lower()):
                 if href.rstrip("/").lower() not in seen and len(queue) < MAX_PAGES_WEBSITE * 2:
                     queue.append(href)
 
@@ -5849,13 +6409,23 @@ def country_from_address(address):
     # Split before de-accenting: normalize_text turns commas into spaces.
     parts = [p.strip() for p in re.split(r'[,;]', raw) if p.strip()]
     tail = normalize_text(parts[-1]) if parts else normalize_text(raw)
+
+    def hint_forms(hints):
+        # normalize_text drops non-Latin scripts, and an empty hint matches
+        # everything (an address ending in "- TO" once resolved to Greece
+        # through its Greek-script hint). Never compare against an empty form.
+        return [h for h in (normalize_text(hint) for hint in hints) if h]
+
+    if re.search(r'\bcep\b', raw, re.I) and re.search(r'\b\d{5}-?\d{3}\b', raw):
+        return 'Brazil'
+
     for country, hints in COUNTRY_HINTS:
-        if any(normalize_text(hint) == tail for hint in hints):
+        if any(hint == tail for hint in hint_forms(hints)):
             return country
     text = normalize_text(raw)
     for country, hints in COUNTRY_HINTS:
-        if any(re.search(r'\b' + re.escape(normalize_text(hint)) + r'\b', text)
-               for hint in hints):
+        if any(re.search(r'\b' + re.escape(hint) + r'\b', text)
+               for hint in hint_forms(hints)):
             return country
     return ""
 
@@ -10205,7 +10775,7 @@ def crawl_site(base_url):
 
     print(f"Sitemap discovered {len(sitemap_urls)} URLs.")
     url_to_path = download_all(media_urls)
-    brand_data = extract_brand_data(BASE_URL, visited)
+    brand_data = extract_brand_data(BASE_URL, visited, extra_media=media_urls)
     pages_texts, pdf_texts = read_site_texts()
     return {
         "base_url": BASE_URL,

@@ -313,7 +313,7 @@
         /* ---------- brand copy ---------- */
         const contact = f => { const e = ((B.guidelines && B.guidelines.contact) || []).find(c => String(c.field || '').toLowerCase() === f.toLowerCase()); return e && e.value || ''; };
         const siteOf = () => String(contact('Website') || B.url || '').replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-        const firstSentence = t => { t = String(t || '').replace(/\s+/g, ' ').trim(); return ((t.split(/(?<=[.!?])\s/)[0]) || '').slice(0, 90); };
+        const firstSentence = t => { t = String(t || '').replace(/\s+/g, ' ').trim(); const cut = t.split(/(?<=[.!?])\s/)[0] || ''; return cut.length <= 90 ? cut : cut.slice(0, cut.slice(0, 90).lastIndexOf(' ')).replace(/[\s,;:.\-–—]+$/, '') + '…'; };
         function brandify(v) {
             if (typeof v !== 'string' || !B) return v;
             const site = siteOf(), addr = contact('Address'), ig = contact('Instagram'), mail = contact('Email');
@@ -326,10 +326,10 @@
         const baseText = (s = S) => { const o = {}; Object.entries(tplOf(s).t || {}).forEach(([k, v]) => { o[k] = brandify(v); }); return o; };
         const textOf = (s = S) => ({ ...baseText(s), ...s.t });
         function copyOptions() {
-            const pos = String((B.guidelines && B.guidelines.positioning) || ''), f = firstSentence(pos), site = siteOf(), u = a => [...new Set(a.filter(Boolean))];
+            const c = (B.content && B.content.copy) || {}, pos = String((B.guidelines && B.guidelines.positioning) || ''), f = firstSentence(pos), site = siteOf(), u = a => [...new Set(a.filter(Boolean))];
             return {
-                head: u([B.tagline, f, B.name, 'Welcome to ' + B.name, 'Discover ' + B.name]),
-                sub: u([f, B.tagline, B.name]), cta: u([site && 'Visit ' + site, 'Find out more', 'Get in touch']), body: u([pos.slice(0, 220), f])
+                head: u([c.headline, B.tagline, f, B.name, 'Welcome to ' + B.name, 'Discover ' + B.name]),
+                sub: u([c.subhead, f, B.tagline, B.name]), cta: u([c.cta, site && 'Visit ' + site, 'Find out more', 'Get in touch']), body: u([c.body, pos.slice(0, 220), f])
             };
         }
         const roleOf = k => { k = k.toLowerCase(); return /head|title|name|h1/.test(k) ? 'head' : /sub|tag|line|kicker|eyebrow/.test(k) ? 'sub' : /cta|button|action|book|url|web/.test(k) ? 'cta' : /body|desc|copy|text|detail|note/.test(k) ? 'body' : 'other'; };

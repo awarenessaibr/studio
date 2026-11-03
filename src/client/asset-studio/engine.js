@@ -56,7 +56,9 @@ const C = (token) => {
         ink: S.pal.ink,
         paper: S.pal.paper,
         accent: S.pal.accent,
-        mute: mix(S.pal.ink, S.pal.paper, 0.4),
+        // Secondary text has to clear 4.5:1 at catalogue sizes; 40% toward
+        // paper lands at ~4.2:1 on a white ground and fails the guardrail.
+        mute: mix(S.pal.ink, S.pal.paper, 0.3),
     };
     return map[token] || token;
 };

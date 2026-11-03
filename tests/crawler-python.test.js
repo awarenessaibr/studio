@@ -264,3 +264,146 @@ test('python crawler helpers: canonical URLs, presence, dedupe', (t) => {
     assert.deepEqual(locale.pt, ['pt', 'pt']);
     assert.deepEqual(locale.gb, ['en', 'gb']);
 });
+
+/**
+ * P2: melano.com.br is a Vite/React build. The static crawl saw a 1.3 KB shell,
+ * so the run reported success with one page, no logo, no photography and no
+ * address. A shell must be recognised, its bundle assets harvested, decorative
+ * header icons must stay out of the logo slot, and the HTML <address> block
+ * must supply the postal address.
+ */
+const PROBE_P2 = `
+import importlib.util, json, sys
+spec = importlib.util.spec_from_file_location("crawler", sys.argv[1])
+mod = importlib.util.module_from_spec(spec)
+sys.modules["crawler"] = mod
+spec.loader.exec_module(mod)
+from bs4 import BeautifulSoup
+
+mod.configure_site("https://melano.com.br/")
+out = {}
+
+SHELL = """<!doctype html><html><head>
+<link rel="icon" href="/favicon.png">
+<script type="module" crossorigin src="/assets/index-CZrm7rxH.js"></script>
+<link rel="stylesheet" href="/assets/index-DIBlNMOA.css">
+</head><body><div id="root"></div></body></html>"""
+out["shell_detected"] = mod.looks_like_js_shell(SHELL)
+out["shell_bundles"] = mod._bundle_references(SHELL, "https://melano.com.br/")
+
+RENDERED = """<!doctype html><html><body>
+<header><nav>
+<svg class="lucide lucide-menu" width="24" height="24" viewBox="0 0 24 24"><line x1="4" x2="20"/></svg>
+<img src="/assets/logo-melano-L1W7aZ4g.png" alt="Melano Sorvetes - Logo" width="180" height="90">
+</nav></header>
+<footer>
+<address class="not-italic">Rua Manuel da Rocha, no 753, Setor Central<br>CEP 77402-040 - Gurupi - TO</address>
+</footer>
+</body></html>"""
+out["rendered_is_shell"] = mod.looks_like_js_shell(RENDERED)
+
+soup = BeautifulSoup(RENDERED, "lxml")
+out["logo_urls"] = [c["url"] for c in mod.extract_logo_candidates(soup, "https://melano.com.br/") if c.get("url") and c.get("source") == "img"]
+out["logo_svgs"] = [c for c in mod.extract_logo_candidates(soup, "https://melano.com.br/") if c.get("inline_svg")]
+
+contact = mod.extract_contact_info(soup)
+out["address"] = contact["address"]
+out["region"] = (contact["location"] or {}).get("region")
+
+# A Greek-script hint de-accents to "", which used to match every address.
+out["country_cep"] = mod.country_from_address("Rua X, 753, CEP 77402-040 - Gurupi - TO")
+out["country_to_state"] = mod.country_from_address("Rua X, 753, Setor Central - TO")
+out["phone_br"] = mod.normalize_phone("+556333513307")
+out["country_uk"] = mod.country_from_address("10 Downing St, London SW1A 2AA, United Kingdom")
+
+media, links, embeds = mod.harvest_document(RENDERED, "https://melano.com.br/")
+out["harvest_media"] = sorted(media)
+out["harvest_links"] = sorted(links)
+
+BUNDLE = 'const a="/assets/picoles-DHW2-Oiw.png",b="assets/fachada-melano-DAFmBKzU.webp";'
+out["bundle_assets"] = sorted({
+    mod.resolve_bundle_asset(m.group(1), "https://melano.com.br/",
+                             "https://melano.com.br/assets/index-x.js")
+    for m in mod.BUNDLE_ASSET_PATTERN.finditer(BUNDLE)
+})
+out["route_key"] = [mod._route_key("https://melano.com.br/produtos/"),
+                    mod._route_key("https://melano.com.br/produtos?categoria=acai")]
+out["brand_phones"] = sorted(mod.select_brand_phones({
+    "https://x.com/onde-encontrar": {"63999990000", "63999990001"},
+    "https://x.com/": {"+5511999990000"},
+}, "https://x.com/"))
+out["directory_phone_cap"] = sorted(mod.select_brand_phones({
+    "https://x.com/lojas": {str(i) for i in range(10)},
+}, "https://x.com/"))
+out["locale_br"] = list(mod.locale_and_currency({"location": {"country": "Brazil"}, "contact": {}}))
+out["locale_unknown"] = list(mod.locale_and_currency({"location": {}, "contact": {"address": ""}}))
+out["asset_logo"] = bool(mod.LOGO_ASSET_PATTERN.search("logo-melano-L1W7aZ4g.png"))
+out["asset_photo"] = bool(mod.LOGO_ASSET_PATTERN.search("sorvete-acai-Bw6Bbodv.png"))
+out["pt_nav"] = [bool(mod.DISCOVERY_PAGE_PATTERN.search(w))
+                 for w in ("sobre", "contato", "onde encontrar", "produtos")]
+out["pt_nav_skip"] = bool(mod.DISCOVERY_PAGE_PATTERN.search("politica-de-privacidade"))
+print(json.dumps(out))
+`;
+
+const probeP2 = runProbe(PROBE_P2);
+
+test('python crawler helpers: JS shells, bundle assets, HTML address', (t) => {
+    if (probeP2.skip) {
+        t.skip(probeP2.skip);
+        return;
+    }
+    assert.equal(probeP2.error, undefined, probeP2.error);
+
+    assert.equal(probeP2.data.shell_detected, true, 'a Vite shell is recognised');
+    assert.deepEqual(probeP2.data.shell_bundles, [
+        'https://melano.com.br/assets/index-CZrm7rxH.js',
+        'https://melano.com.br/assets/index-DIBlNMOA.css',
+    ]);
+    assert.equal(probeP2.data.rendered_is_shell, false, 'rendered markup is not a shell');
+
+    assert.deepEqual(probeP2.data.logo_urls,
+        ['https://melano.com.br/assets/logo-melano-L1W7aZ4g.png']);
+    assert.deepEqual(probeP2.data.logo_svgs, [],
+        'lucide nav icons are not logo candidates');
+
+    assert.match(probeP2.data.address, /^Rua Manuel da Rocha/);
+    assert.match(probeP2.data.address, /77402-040/);
+    assert.equal(probeP2.data.region, 'TO');
+
+    assert.equal(probeP2.data.country_cep, 'Brazil', 'a CEP postcode identifies Brazil');
+    assert.equal(probeP2.data.country_to_state, '',
+        'a Greek-script hint must not match a de-accented address');
+    assert.equal(probeP2.data.country_uk, 'United Kingdom');
+
+    assert.equal(probeP2.data.phone_br, '+556333513307',
+        'a foreign dialling code survives an unknown country');
+
+    assert.deepEqual(probeP2.data.brand_phones, ['+5511999990000'],
+        'store-locator numbers do not become the brand NAP');
+    assert.equal(probeP2.data.directory_phone_cap.length, 3,
+        'a directory-only page is capped');
+    assert.deepEqual(probeP2.data.locale_br, ['pt-BR', 'BRL'],
+        'the pack locale follows the address country');
+    assert.deepEqual(probeP2.data.locale_unknown, ['en-GB', 'GBP'],
+        'an unknown country keeps the default locale');
+    assert.equal(probeP2.data.asset_logo, true,
+        'a bundle asset named logo-* is a logo candidate');
+    assert.equal(probeP2.data.asset_photo, false,
+        'product photography is not a logo candidate');
+    assert.deepEqual(probeP2.data.pt_nav, [true, true, true, true],
+        'a localised nav is followed by link discovery');
+    assert.equal(probeP2.data.pt_nav_skip, false,
+        'unrelated pages are still skipped');
+
+    assert.deepEqual(probeP2.data.harvest_media, [
+        'https://melano.com.br/assets/logo-melano-L1W7aZ4g.png',
+    ]);
+
+    assert.deepEqual(probeP2.data.bundle_assets, [
+        'https://melano.com.br/assets/fachada-melano-DAFmBKzU.webp',
+        'https://melano.com.br/assets/picoles-DHW2-Oiw.png',
+    ], 'asset paths inside a JS bundle are recovered');
+
+    assert.equal(probeP2.data.route_key[0], probeP2.data.route_key[1],
+        'query variants of one route collapse to a single render');
+});

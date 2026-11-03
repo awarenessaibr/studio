@@ -1428,15 +1428,23 @@ function ensurePx(src){
 /* ---------- copy from brand fields ---------- */
 const contact=f=>{const e=((B.guidelines&&B.guidelines.contact)||[]).find(c=>String(c.field||'').toLowerCase()===f.toLowerCase());return e&&e.value||''};
 const siteOf=()=>String(contact('Website')||B.url||'').replace(/^https?:\/\//i,'').replace(/\/+$/,'');
-const firstSentence=t=>{t=String(t||'').replace(/\s+/g,' ').trim();return((t.split(/(?<=[.!?])\s/)[0])||'').slice(0,90)};
+/* Words, not characters: a headline or a body that stops mid-word reads
+   like a bug on the artwork. Prefer the authored copy deck; fall back to the
+   brand guide only for the slots it does not fill. */
+const clipText=(t,max)=>{t=String(t||'').replace(/\s+/g,' ').trim();if(t.length<=max)return t;
+ const cut=t.slice(0,max),i=cut.lastIndexOf(' ');return((i>max*.6?cut.slice(0,i):cut).replace(/[\s,;:.\-–—]+$/,''))+'…'};
+const firstSentence=t=>{t=String(t||'').replace(/\s+/g,' ').trim();return clipText((t.split(/(?<=[.!?])\s/)[0])||'',90)};
+function brandCopy(){return(B&&B.content&&B.content.copy)||{}}
 function copyFor(){
- const pos=String((B.guidelines&&B.guidelines.positioning)||'').replace(/\s+/g,' ').trim(),first=firstSentence(pos),site=siteOf(),addr=contact('Address');
- const head=B.tagline||first||B.name,sub=B.tagline?(first&&first!==B.tagline?first:B.name):B.name;
- return{head,sub,body:pos&&pos!==head&&pos!==sub?pos.slice(0,220):'',cta:site?'Visit '+site:'Find out more',foot:[addr,site].filter(Boolean).join(' · ')}}
+ const c=brandCopy(),pos=String((B.guidelines&&B.guidelines.positioning)||'').replace(/\s+/g,' ').trim(),first=firstSentence(pos),site=siteOf(),addr=contact('Address');
+ const head=c.headline||B.tagline||first||B.name;
+ const sub=c.subhead||(B.tagline?(first&&first!==B.tagline?first:B.name):B.name);
+ const body=c.body||(pos&&pos!==head&&pos!==sub?clipText(pos,220):'');
+ return{head,sub,body,cta:c.cta||(site?'Visit '+site:'Find out more'),foot:[addr,site].filter(Boolean).join(' · ')}}
 function copyOptions(){
- const pos=String((B.guidelines&&B.guidelines.positioning)||''),f=firstSentence(pos),site=siteOf(),u=a=>[...new Set(a.filter(Boolean))];
- return{headline:u([B.tagline,f,B.name,'Welcome to '+B.name,'Discover '+B.name]),subhead:u([f,B.tagline,B.name]),
-  cta:u([site&&'Visit '+site,'Find out more','Get in touch']),body:u([pos.slice(0,220),f])}}
+ const c=brandCopy(),pos=String((B.guidelines&&B.guidelines.positioning)||''),f=firstSentence(pos),site=siteOf(),u=a=>[...new Set(a.filter(Boolean))];
+ return{headline:u([c.headline,B.tagline,f,B.name,'Welcome to '+B.name,'Discover '+B.name]),subhead:u([c.subhead,f,B.tagline,B.name]),
+  cta:u([c.cta,site&&'Visit '+site,'Find out more','Get in touch']),body:u([c.body,pos&&clipText(pos,220),f])}}
 
 /* ---------- scene builder ---------- */
 const F=(family,w,s,lh,ls=0,tr='none')=>({family,weight:w,sizePct:s,lineHeight:lh,letterSpacingEm:ls,transform:tr});
@@ -1595,7 +1603,13 @@ function engBrandify(v){
   .replace(/@thephysician_standrews/gi,ig).replace(/@theadamsonstandrews/gi,ig).replace(/@hatch_standrews/gi,ig);
  if(!addr||!r.includes(addr))r=r.replace(/12[79] South Street, St Andrews(?:,?\s*KY16\s*9UH)?/gi,addr);
  return r.replace(/reservations@theadamson\.com/gi,mail).replace(/\s*·\s*·\s*/g,' · ').replace(/^\s*·\s*/,'').replace(/\s*·\s*$/,'')}
-function engText(tpl){const o={};Object.entries(tpl.t||{}).forEach(([k,v])=>{o[k]=engBrandify(v)});return o}
+function engText(tpl){
+ const o={};Object.entries(tpl.t||{}).forEach(([k,v])=>{o[k]=v});
+ /* The catalogue's sample copy belongs to another client. Let the brand's
+    authored deck replace the fields it owns, then brandify whatever is left. */
+ try{if(window.StudioBrand&&window.StudioBrand.applyTemplateCopy)window.StudioBrand.applyTemplateCopy(B,ENG.cat,tpl.n||'',o)}catch{}
+ Object.keys(o).forEach(k=>{o[k]=engBrandify(o[k])});
+ return o}
 function engState(text){
  const L=(B&&B._logos)||{},fonts={display:BF.display,serif:BF.body,sans:BF.body},boxes=[];
  const st={t:text||{},slideIndex:0,slideCount:1,pal:engPal(),fonts,photos:(B&&B._engPhotos)||[],sel:0,qr:'',motif:ENG.motif||'auto',motifOn:ENG.motifOn!==false,motifScale:ENG.motifScale||1,motifX:ENG.motifX||0,motifY:ENG.motifY||0,
@@ -1704,8 +1718,11 @@ function engBuildInner(){
   const flat=document.createElement('canvas');window.AssetEngine.render(flat,size,tpl,engState(text),target);try{L[1].src=flat.toDataURL('image/jpeg',.92)}catch{}
   return L}
  const groups=engGroupText(runs);
- groups.forEach((g,i)=>{const lh=g.lines.length>1&&g.step>0?+(g.step/g.size).toFixed(2):1.18,pad=SW*.015,hh=g.lines.length>1?(g.lines.length-1)*(g.step||g.size*1.2)+g.h:g.h;
-  const x=clamp((g.x-pad/2)/SW*100,0,100),y=clamp(g.y/SH*100,0,100),w=Math.min(100-x,(g.w+pad)/SW*100),h=Math.min(100-y,hh/SH*100);
+ groups.forEach((g,i)=>{const lh=g.lines.length>1&&g.step>0?+(g.step/g.size).toFixed(2):1.18,hh=g.lines.length>1?(g.lines.length-1)*(g.step||g.size*1.2)+g.h:g.h;
+  /* The glyph box is the layer box: padding pushed every text layer a
+     fraction of a percent left of where the design draws it, which is enough
+     to put a margin-respecting layout outside the print safe zone. */
+  const x=clamp(g.x/SW*100,0,100),y=clamp(g.y/SH*100,0,100),w=Math.min(100-x,g.w/SW*100),h=Math.min(100-y,hh/SH*100);
   const name=g.lines[0].replace(/\s+/g,' ').slice(0,22);
   L.push({id:'t'+(i+1),name:`Text · ${name}`,type:'text',x:+x.toFixed(2),y:+y.toFixed(2),w:+w.toFixed(2),h:+h.toFixed(2),z:12+i,opacity:1,text:g.lines.join('\n'),nowrap:true,
    font:{family:g.fam,weight:g.weight,sizePct:+(g.size/SH*100).toFixed(2),lineHeight:g.lines.length>1?lh:1.18,letterSpacingEm:g.ls,transform:'none'},color:g.color})});
@@ -2125,14 +2142,19 @@ function bgAt(sc,px,py,bz){const l=sc.filter(q=>q.z<bz&&!q.hidden&&['fill','shap
 function check(sc){const iss=[],Pl=Object.values(PAL).map(h=>h.toLowerCase()),add=(code,l,msg,fix)=>iss.push({code,id:l.id,key:code+':'+l.id,msg,fix});
  sizeProbe();render(sc,probe);const pr=probe.getBoundingClientRect(),live=sc.filter(l=>!l.hidden);
  for(const l of live){if(['fill','gradient','image'].includes(l.type))continue;
-  if(l.x<7.99||l.y<7.99||l.x+l.w>92.01||l.y+l.h>92.01)add('SAFE_ZONE',l,`${l.name} crosses the 8% safe margin.`,[S(l.id,{x:+Math.min(Math.max(l.x,8),92-l.w).toFixed(1),y:+Math.min(Math.max(l.y,8),92-l.h).toFixed(1)})]);
-  if(l.type!=='text')continue;
+  if(l.type!=='text'){
+   if(l.x<7.99||l.y<7.99||l.x+l.w>92.01||l.y+l.h>92.01)add('SAFE_ZONE',l,`${l.name} crosses the 8% safe margin.`,[S(l.id,{x:+Math.min(Math.max(l.x,8),92-l.w).toFixed(1),y:+Math.min(Math.max(l.y,8),92-l.h).toFixed(1)})]);
+   continue}
   const e=probe.querySelector(`[data-id="${l.id}"]`);if(!e)continue;const rg=document.createRange();rg.selectNodeContents(e);const b=rg.getBoundingClientRect();if(!b.width)continue;
+  const xr=(b.left-pr.left)/pr.width*100,yr=(b.top-pr.top)/pr.height*100,wr=b.width/pr.width*100,hr=b.height/pr.height*100;
+  /* The safe zone is about what prints, so measure the glyph extents rather
+     than the layer box: box padding and sub-pixel rounding otherwise make a
+     margin-respecting design look like it crosses the margin. */
+  if(xr<7.99||yr<7.99||xr+wr>92.01||yr+hr>92.01)add('SAFE_ZONE',l,`${l.name} crosses the 8% safe margin.`);
   if(b.height>e.clientHeight+1.5)add('OVERFLOW',l,`The text needs about ${(b.height/pr.height*100).toFixed(1)}% height but its box is ${l.h}%, so it clips.`,[S(l.id,{h:+(l.h*b.height/e.clientHeight+.3).toFixed(1)})]);
   else if(b.width>e.clientWidth+1.5)add('OVERFLOW',l,`The text is wider than its ${l.w}% box and will clip.`,[S(l.id,{font:{sizePct:+(l.font.sizePct*e.clientWidth/b.width*.97).toFixed(2)}})]);
   if(l.font.sizePct<.9)add('MIN_SIZE',l,`${l.font.sizePct}% is below the 0.9% legibility floor.`,[S(l.id,{font:{sizePct:.9}})]);
   if(!(FMT&&FMT.eng)&&!Pl.includes(String(l.color).toLowerCase()))add('BRAND_COLOR',l,`${l.color} is not in the brand palette.`,[S(l.id,{color:TH.ink})]);
-  const xr=(b.left-pr.left)/pr.width*100,yr=(b.top-pr.top)/pr.height*100,wr=b.width/pr.width*100,hr=b.height/pr.height*100;
   const bgs=[.1,.5,.9].flatMap(a=>[.2,.8].map(c=>l.bg?rgb(l.bg):bgAt(sc,xr+wr*a,yr+hr*c,l.z)));
   const worst=(c,op)=>Math.min(...bgs.map(g=>cr(mix(g,rgb(c),op),g))),th=l.font.sizePct>=2.2?3:4.5,w0=worst(l.color,l.opacity);
   if(w0<th){const best=[TH.ink,TH.bone,TH.chalk].map(c=>[c,worst(c,1)]).sort((x,y)=>y[1]-x[1])[0];add('CONTRAST',l,`Contrast is ${w0.toFixed(1)}:1 against what’s behind it; it needs ${th}:1.`,[S(l.id,{color:best[0],opacity:1})])}}

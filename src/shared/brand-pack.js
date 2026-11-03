@@ -130,28 +130,30 @@
 
     /**
      * A tagline is the one line a pack writes to be read, so it carries the
-     * display headline and the name stands in when there is none. Detail lines
-     * come from the voice's preferred terms. Nothing here is another brand's
-     * copy, which is what the templates used to ship.
+     * display headline and the name stands in when there is none. Authored copy
+     * (`content.copy`) wins over every derived slot; the tagline / voice
+     * fallback only fills what the copy deck has not written yet. Nothing here
+     * is another brand's copy, which is what the templates used to ship.
      */
     function displayLines(brand) {
         const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
         const tagline = clean(brand?.tagline);
         const name = clean(brand?.name);
         const prefer = (brand?.voice?.prefer || []).map(clean).filter(Boolean);
-        const headline = tagline || name || 'Now open';
+        const copy = brand?.content?.copy || {};
+        const headline = clean(copy.headline) || tagline || name || 'Now open';
         // Each of the four slots says something different: the tagline carries
         // the headline, the name labels it, and the voice's own terms fill the
         // detail line. A pack with neither falls back to neutral wording rather
         // than repeating itself.
-        const subhead = name && name !== headline ? name : (prefer[0] || 'Available now');
-        const kicker = headline === name ? (prefer[0] || 'Now open') : (name || 'Open now');
-        const detail = prefer.slice(0, 3).join('  ·  ') || (subhead !== headline ? subhead : tagline || 'Welcome');
+        const subhead = clean(copy.subhead) || (name && name !== headline ? name : (prefer[0] || 'Available now'));
+        const kicker = clean(copy.kicker) || (headline === name ? (prefer[0] || 'Now open') : (name || 'Open now'));
+        const detail = clean(copy.detail) || prefer.slice(0, 3).join('  ·  ') || (subhead !== headline ? subhead : tagline || 'Welcome');
         const phrases = prefer.slice(0, 4);
-        const sentence = phrases.length
+        const derived = phrases.length
             ? `${phrases.slice(0, -1).join(', ')}${phrases.length > 1 ? ' and ' : ''}${phrases[phrases.length - 1]}.`
             : (tagline && name ? `${name} — ${tagline}` : headline);
-        const body = sentence.charAt(0).toUpperCase() + sentence.slice(1);
+        const body = clean(copy.body) || (derived.charAt(0).toUpperCase() + derived.slice(1));
         return { headline, subhead, kicker, detail, body };
     }
 
@@ -494,6 +496,57 @@
     // ---------------------------------------------------------------------
     // Brand / pack normalization
     // ---------------------------------------------------------------------
+
+    /**
+     * Authored copy for a brand. A crawler pack can carry structured facts
+     * (menu, hours) but the words that go on the artwork still need writing:
+     * this block is the single place for the headline, the body, the dish
+     * special, the voucher terms and the festive campaign. Templates and Asset
+     * Studio read it instead of falling back to another venue's sample copy.
+     */
+    function normalizeCopy(value) {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+        const out = {};
+        const strings = [
+            ['eyebrow', 120], ['headline', 180], ['subhead', 120], ['kicker', 60],
+            ['detail', 200], ['body', 600], ['cta', 60], ['tag', 180], ['boldTitle', 120],
+        ];
+        strings.forEach(([key, limit]) => {
+            const entry = text(value[key], limit);
+            if (entry) out[key] = entry;
+        });
+        const group = (key, fields) => {
+            const source = value[key];
+            if (!source || typeof source !== 'object' || Array.isArray(source)) return;
+            const block = {};
+            fields.forEach(([field, limit]) => {
+                const entry = text(source[field], limit);
+                if (entry) block[field] = entry;
+            });
+            if (Object.keys(block).length) out[key] = block;
+        };
+        group('special', [
+            ['kicker', 60], ['dish', 140], ['description', 260], ['price', 40], ['note', 200],
+        ]);
+        group('menu', [['title', 80], ['kicker', 40]]);
+        group('voucher', [
+            ['title', 80], ['value', 40], ['terms', 400], ['message', 200],
+        ]);
+        group('festive', [
+            ['title', 140], ['date', 120], ['price', 80], ['body', 400], ['message', 200],
+        ]);
+        const dishes = Array.isArray(value.festive?.dishes) ? value.festive.dishes : [];
+        const festiveDishes = dishes.slice(0, 12).map((dish) => ({
+            name: text(dish?.name, 140),
+            description: text(dish?.description, 220),
+        })).filter((dish) => dish.name);
+        if (festiveDishes.length) {
+            out.festive = { ...(out.festive || {}), dishes: festiveDishes };
+        }
+        group('card', [['name', 80], ['role', 80]]);
+        return Object.keys(out).length ? out : null;
+    }
+
     function normalizeContent(value) {
         if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
         const out = {};
@@ -520,6 +573,8 @@
         }
         const bookingUrl = normalizeAssetUrl(value.bookingUrl);
         if (bookingUrl) out.bookingUrl = bookingUrl;
+        const copy = normalizeCopy(value.copy);
+        if (copy) out.copy = copy;
         return Object.keys(out).length ? out : null;
     }
 
@@ -1111,6 +1166,150 @@
     function websiteLabel(brand, contact) {
         const url = contact.website || brand.url || '';
         return url.replace(/^https?:\/\//i, '').replace(/\/$/, '');
+    }
+
+    /**
+     * Applies a brand's authored copy deck to one design's default text.
+     *
+     * The Asset Studio catalogue is written for another client, so its sample
+     * dish, price, terms and festive event would otherwise land on every
+     * brand. This is the one place that knows which catalogue field means what
+     * (title on a flyer is the headline, on a voucher it is the label), used by
+     * both Asset Studio and the Agent Studio bridge. A design the deck says
+     * nothing about is left alone rather than filled with the sample.
+     */
+    function applyTemplateCopy(brand, category, designName, source) {
+        const copy = brand?.content?.copy;
+        if (!copy || !source || typeof source !== 'object') return source;
+        const contact = contactMap(brand);
+        const footer = [contact.address, websiteLabel(brand, contact)].filter(Boolean).join('  ·  ');
+        const festive = copy.festive || {};
+        const special = copy.special || {};
+        const menu = copy.menu || {};
+        const voucher = copy.voucher || {};
+        const name = String(designName || '');
+        const set = (field, value) => {
+            if (!(field in source) || !value) return;
+            source[field] = value;
+        };
+        const christmas = /christmas/i.test(name)
+            || /christmas/i.test(source.title || '')
+            || /decadance/i.test(source.body || '');
+
+        const festiveMenu = category === 'menu' && /festive/i.test(name);
+        if (category === 'menu' && 'items' in source) {
+            const lines = [];
+            if (festiveMenu && Array.isArray(festive.dishes) && festive.dishes.length) {
+                festive.dishes.slice(0, 5).forEach((dish) => {
+                    lines.push([dish.name, dish.description || '', ''].join(' | '));
+                });
+            } else {
+                (brand?.content?.menu?.sections || []).slice(0, 3).forEach((section) => {
+                    if (lines.length >= 5) return;
+                    const items = Array.isArray(section.items) ? section.items : [];
+                    if (!items.length) return;
+                    // Designs differ in whether they draw section headings, so
+                    // the shared line format stays flat: five real dishes that fit
+                    // every layout, not eight lines that only fit the tallest.
+                    items.slice(0, 5).forEach((item) => {
+                        if (!item?.name || lines.length >= 5) return;
+                        const description = item.description && item.description.length <= 70 ? item.description : '';
+                        lines.push([item.name, description, item.price || ''].join(' | '));
+                    });
+                });
+            }
+            if (lines.length) source.items = lines.join('\n');
+        }
+
+        if (category === 'bizcard') {
+            set('name', copy.card?.name);
+            set('role', copy.card?.role || 'Your role');
+            set('phone', contact.phone);
+            set('email', contact.email);
+            set('address', contact.address);
+            set('web', websiteLabel(brand, contact));
+            if ('handle' in source) source.handle = contact.instagram || '';
+            set('tag', copy.tag);
+        }
+
+        if ('terms' in source) set('terms', voucher.terms);
+
+        if (category === 'flyer') {
+            if (christmas) {
+                set('eyebrow', copy.kicker);
+                set('title', festive.title);
+                set('date', festive.date);
+                set('price', festive.price);
+                set('body', festive.body);
+            } else {
+                set('title', name === 'Bold colour' ? copy.boldTitle : copy.headline);
+                set('sub', copy.subhead);
+                set('body', copy.body);
+                set('cta', copy.cta);
+                if ('price' in source) set('price', special.price);
+                if ('eyebrow' in source) {
+                    set('eyebrow', /^(?:Sunday sessions|Decadance)/i.test(source.eyebrow || '')
+                        ? copy.kicker
+                        : special.kicker);
+                }
+            }
+            set('foot', footer);
+        }
+
+        if (category === 'menu') {
+            // Drinks, wine, kids and takeaway are their own menus: keep their
+            // labels and leave their sample lists alone. Only the à la carte
+            // layouts take the deck's title.
+            if (/^(classic|centred|photo header)$/i.test(name)) {
+                set('sub', menu.kicker);
+                set('title', menu.title);
+            }
+            set('foot', footer);
+        }
+
+        if (category === 'voucher') {
+            set('eyebrow', voucher.title);
+            set('amount', voucher.value);
+            set('msg', christmas ? festive.message : voucher.message);
+            set('foot', footer);
+        }
+
+        if (category === 'tablecard') {
+            if (/chef.s special/i.test(name)) {
+                set('eyebrow', special.kicker);
+                set('title', special.dish);
+                set('body', special.description);
+                set('price', special.price);
+                set('foot', special.note);
+            } else if (/scan/i.test(name)) {
+                set('foot', websiteLabel(brand, contact));
+            }
+        }
+
+        if (category === 'social') {
+            if (/chef.s special/i.test(name)) {
+                set('eyebrow', special.kicker);
+                set('title', special.dish);
+                set('price', special.price);
+                set('foot', special.description);
+            } else if (/christmas/i.test(name)) {
+                set('title', festive.title);
+                set('date', festive.date);
+                set('price', festive.price);
+            } else if (/statement|sunday sessions/i.test(name)) {
+                set('title', copy.boldTitle);
+                set('sub', copy.tag);
+                set('cta', copy.cta);
+                set('foot', footer);
+            } else if (/announcement/i.test(name)) {
+                set('eyebrow', special.kicker);
+                set('title', special.dish);
+                set('sub', special.price);
+                set('foot', footer);
+            }
+        }
+
+        return source;
     }
 
     // ---------------------------------------------------------------------
@@ -1794,6 +1993,20 @@
 
     function menuItems(brand) {
         const name = String(brand?.name || '').toLowerCase();
+        // A pack that carries a real menu uses it. The layout takes five
+        // entries, so flatten the sections in reading order and stop at five;
+        // prices and descriptions travel with the dish they belong to.
+        const sections = brand?.content?.menu?.sections || [];
+        const fromContent = [];
+        sections.forEach((section) => {
+            (section.items || []).forEach((item) => {
+                if (fromContent.length >= 5 || !item?.name) return;
+                fromContent.push([item.name, item.description || '', item.price || '']);
+            });
+        });
+        if (fromContent.length >= 3) {
+            return fromContent.slice(0, 5);
+        }
         if (/hatch/.test(name)) {
             return [
                 ['Buttermilk pancakes', 'Blueberry compote, maple butter', '£11'],
@@ -1833,16 +2046,17 @@
                 x: 39, y: 8.4, w: 22, h: 6.4, z: 6, bleed: true,
             }));
         }
+        const menuCopy = brand?.content?.copy?.menu || {};
         layers.push(textLayer({
-            id: 'menu-kicker', name: 'Menu kicker', text: 'Menu',
+            id: 'menu-kicker', name: 'Menu kicker', text: menuCopy.kicker || 'Menu',
             family: fonts.label, weight: 400, sizePct: 1.65, letterSpacingEm: 0.24,
             transform: 'uppercase', color: accentText, align: 'center',
             x: 9, y: 15.6, w: 82, h: 3.2, z: 10,
         }));
-        variables.push(variable({ id: 'menu_title', name: 'Menu title', value: `${brand.name} menu` }));
+        variables.push(variable({ id: 'menu_title', name: 'Menu title', value: menuCopy.title || `${brand.name} menu` }));
         layers.push(textLayer({
             id: 'menu-title', name: 'Menu title', binding: 'menu_title',
-            text: `${brand.name} menu`, family: fonts.title, weight: 300,
+            text: menuCopy.title || `${brand.name} menu`, family: fonts.title, weight: 300,
             sizePct: 4.4, lineHeight: 1.05, color: roles.ink.hex, align: 'center',
             x: 9, y: 19, w: 82, h: 7.4, z: 11,
         }));
@@ -1935,15 +2149,18 @@
                 x: 74, y: 10, w: 18, h: 12, z: 6, bleed: true,
             }));
         }
-        variables.push(variable({ id: 'card_name', name: 'Full name', value: 'Your name' }));
+        const card = brand?.content?.copy?.card || {};
+        const cardName = card.name || 'Your name';
+        const cardRole = card.role || 'Your role';
+        variables.push(variable({ id: 'card_name', name: 'Full name', value: cardName }));
         layers.push(textLayer({
-            id: 'card-back-name', name: 'Name', binding: 'card_name', text: 'Your name',
+            id: 'card-back-name', name: 'Name', binding: 'card_name', text: cardName,
             family: fonts.title, weight: 300, sizePct: 6.2, lineHeight: 1.05,
             color: roles.ink.hex, align: 'left', x: 8, y: 11, w: 60, h: 12, z: 10,
         }));
-        variables.push(variable({ id: 'card_role', name: 'Role', value: 'General manager' }));
+        variables.push(variable({ id: 'card_role', name: 'Role', value: cardRole }));
         layers.push(textLayer({
-            id: 'card-back-role', name: 'Role', binding: 'card_role', text: 'General manager',
+            id: 'card-back-role', name: 'Role', binding: 'card_role', text: cardRole,
             family: fonts.label, weight: 400, sizePct: 2.3, letterSpacingEm: 0.12,
             transform: 'uppercase', color: accentText, align: 'left',
             x: 8, y: 24, w: 60, h: 5, z: 10,
@@ -2010,12 +2227,13 @@
             color: roles.ink.hex, opacity: muted(roles.ink.hex), align: 'left',
             x: 8, y: 76, w: 84, h: 8.5, z: 12,
         }));
-        variables.push(variable({ id: 'flyer_cta', name: 'Call to action', value: 'Find out more' }));
+        const flyerCta = brand?.content?.copy?.cta || 'Find out more';
+        variables.push(variable({ id: 'flyer_cta', name: 'Call to action', value: flyerCta }));
         layers.push(textLayer({
-            id: 'flyer-cta', name: 'Call to action', binding: 'flyer_cta', text: 'Find out more',
+            id: 'flyer-cta', name: 'Call to action', binding: 'flyer_cta', text: flyerCta,
             family: fonts.label, weight: 400, sizePct: 1.7, letterSpacingEm: 0.18,
             transform: 'uppercase', color: accentText, align: 'left',
-            x: 8, y: 88.5, w: 84, h: 3.1, z: 12,
+            x: 8, y: 85.4, w: 84, h: 3.1, z: 12,
         }));
         variables.push(variable({
             id: 'flyer_footer', name: 'Footer',
@@ -2026,13 +2244,19 @@
             text: [contact.address, website].filter(Boolean).join('  ·  ') || brand.name,
             family: fonts.label, weight: 400, sizePct: 1.05, letterSpacingEm: 0.05,
             color: roles.ink.hex, opacity: muted(roles.ink.hex), align: 'left',
-            x: 8, y: 85.2, w: 84, h: 2.2, z: 12,
+            x: 8, y: 89.2, w: 84, h: 2.2, z: 12,
         }));
         return { layers, variables };
     }
 
     function buildTableCard(ctx) {
-        const { roles, accentText, fonts, logo, logoMark, muted } = ctx;
+        const { roles, accentText, fonts, brand, logo, logoMark, muted } = ctx;
+        const special = brand?.content?.copy?.special || {};
+        const kicker = special.kicker || "Chef's special";
+        const dish = special.dish || 'Dry-aged beef, bone marrow';
+        const description = special.description || 'Charcoal-grilled, watercress, roast shallot and a red wine jus.';
+        const price = special.price || '£34';
+        const note = special.note || 'Ask the team about allergens. Available while the kitchen is open.';
         const layers = [];
         const variables = [];
         const mark = logoMark || logo;
@@ -2044,43 +2268,43 @@
                 x: 34, y: 11, w: 32, h: 11, z: 6, bleed: true,
             }));
         }
-        variables.push(variable({ id: 'table_kicker', name: 'Kicker', value: "Chef's special" }));
+        variables.push(variable({ id: 'table_kicker', name: 'Kicker', value: kicker }));
         layers.push(textLayer({
-            id: 'table-kicker', name: 'Kicker', binding: 'table_kicker', text: "Chef's special",
+            id: 'table-kicker', name: 'Kicker', binding: 'table_kicker', text: kicker,
             family: fonts.label, weight: 400, sizePct: 1.9, letterSpacingEm: 0.2,
             transform: 'uppercase', color: accentText, align: 'center',
             x: 10, y: 27, w: 80, h: 4, z: 10,
         }));
-        variables.push(variable({ id: 'table_dish', name: 'Dish', value: 'Dry-aged beef, bone marrow' }));
+        variables.push(variable({ id: 'table_dish', name: 'Dish', value: dish }));
         layers.push(textLayer({
-            id: 'table-dish', name: 'Dish', binding: 'table_dish', text: 'Dry-aged beef, bone marrow',
+            id: 'table-dish', name: 'Dish', binding: 'table_dish', text: dish,
             family: fonts.title, weight: 300, sizePct: 4.6, lineHeight: 1.08,
             color: roles.ink.hex, align: 'center', x: 9, y: 33, w: 82, h: 13, z: 10,
         }));
         variables.push(variable({
             id: 'table_description', name: 'Description',
-            value: 'Charcoal-grilled, watercress, roast shallot and a red wine jus.',
+            value: description,
         }));
         layers.push(textLayer({
             id: 'table-description', name: 'Description', binding: 'table_description',
-            text: 'Charcoal-grilled, watercress, roast shallot and a red wine jus.',
+            text: description,
             family: fonts.body, weight: 300, sizePct: 1.8, lineHeight: 1.4,
             color: roles.ink.hex, opacity: 0.76, align: 'center',
             x: 12, y: 48, w: 76, h: 15, z: 10,
         }));
-        variables.push(variable({ id: 'table_price', name: 'Price', value: '£34' }));
+        variables.push(variable({ id: 'table_price', name: 'Price', value: price }));
         layers.push(textLayer({
-            id: 'table-price', name: 'Price', binding: 'table_price', text: '£34',
+            id: 'table-price', name: 'Price', binding: 'table_price', text: price,
             family: fonts.title, weight: 300, sizePct: 3.8, color: accentText,
             align: 'center', x: 10, y: 66, w: 80, h: 8, z: 10,
         }));
         variables.push(variable({
             id: 'table_allergens', name: 'Allergens / note',
-            value: 'Ask the team about allergens. Available while the kitchen is open.',
+            value: note,
         }));
         layers.push(textLayer({
             id: 'table-allergens', name: 'Allergens / note', binding: 'table_allergens',
-            text: 'Ask the team about allergens. Available while the kitchen is open.',
+            text: note,
             family: fonts.body, weight: 300, sizePct: 1.25, lineHeight: 1.4,
             color: roles.ink.hex, opacity: muted(roles.ink.hex), align: 'center',
             x: 12, y: 85, w: 76, h: 5, z: 10,
@@ -2090,6 +2314,16 @@
 
     function buildVoucher(ctx) {
         const { roles, fonts, brand, logo, contact, website, muted } = ctx;
+        const voucher = brand?.content?.copy?.voucher || {};
+        const group = (brand?.guidelines?.facts || [])
+            .find((entry) => /^group$/i.test(String(entry.field || '')))?.value || '';
+        const redeemable = group && group.toLowerCase() !== String(brand.name || '').toLowerCase()
+            ? `any ${group} venue`
+            : String(brand.name || 'this venue');
+        const title = voucher.title || 'Gift voucher';
+        const value = voucher.value || '£50';
+        const terms = voucher.terms
+            || `Redeemable at ${redeemable}. Valid for 12 months from purchase. One voucher per booking, not exchangeable for cash.`;
         const layers = [];
         const variables = [];
         const site = website || brand.url;
@@ -2100,26 +2334,26 @@
                 x: 8, y: 10, w: 26, h: 15, z: 6, bleed: true,
             }));
         }
-        variables.push(variable({ id: 'voucher_title', name: 'Voucher title', value: 'Gift voucher' }));
+        variables.push(variable({ id: 'voucher_title', name: 'Voucher title', value: title }));
         layers.push(textLayer({
-            id: 'voucher-title', name: 'Voucher title', binding: 'voucher_title', text: 'Gift voucher',
+            id: 'voucher-title', name: 'Voucher title', binding: 'voucher_title', text: title,
             family: fonts.label, weight: 400, sizePct: 2.1, letterSpacingEm: 0.18,
             transform: 'uppercase', color: roles.ink.hex, opacity: 0.86, align: 'left',
             x: 8, y: 30, w: 56, h: 5, z: 10,
         }));
-        variables.push(variable({ id: 'voucher_value', name: 'Value', value: '£50' }));
+        variables.push(variable({ id: 'voucher_value', name: 'Value', value }));
         layers.push(textLayer({
-            id: 'voucher-value', name: 'Value', binding: 'voucher_value', text: '£50',
+            id: 'voucher-value', name: 'Value', binding: 'voucher_value', text: value,
             family: fonts.title, weight: 300, sizePct: 8.4, lineHeight: 1,
             color: roles.ink.hex, align: 'left', x: 8, y: 36, w: 56, h: 16, z: 10,
         }));
         variables.push(variable({
             id: 'voucher_terms', name: 'Terms',
-            value: 'Redeemable at any Dalton family venue. Valid for 12 months from purchase. One voucher per booking, not exchangeable for cash.',
+            value: terms,
         }));
         layers.push(textLayer({
             id: 'voucher-terms', name: 'Terms', binding: 'voucher_terms',
-            text: 'Redeemable at any Dalton family venue. Valid for 12 months from purchase. One voucher per booking, not exchangeable for cash.',
+            text: terms,
             family: fonts.body, weight: 300, sizePct: 1.45, lineHeight: 1.4,
             color: roles.ink.hex, opacity: 0.78, align: 'left',
             x: 8, y: 56, w: 56, h: 18, z: 10,
@@ -2511,10 +2745,11 @@
                 x: 7, y: 8, w: 22, h: 7, z: 6, bleed: true,
             }));
         }
-        variables.push(variable({ id: 'board_title', name: 'Board title', value: `${brand.name} — menu` }));
+        const boardTitle = brand?.content?.copy?.menu?.title || `${brand.name} — menu`;
+        variables.push(variable({ id: 'board_title', name: 'Board title', value: boardTitle }));
         layers.push(animate(textLayer({
             id: 'board-title', name: 'Board title', binding: 'board_title',
-            text: `${brand.name} — menu`, family: fonts.title, weight: 300,
+            text: boardTitle, family: fonts.title, weight: 300,
             sizePct: 4.2, lineHeight: 1.05, color: roles.ink.hex, align: 'left',
             x: 7, y: 20.5, w: 60, h: 7, z: 10,
         }), [
@@ -2767,6 +3002,7 @@
         PROVENANCE_CONFIDENCE,
         normalizeLogos,
         normalizeGuidelines,
+        normalizeContent,
         normalizeBrand,
         normalizeBrandPack,
         brandKitFor,
@@ -2776,6 +3012,7 @@
         logoFor,
         photoFor,
         contactMap,
+        applyTemplateCopy,
         templateById,
         templateCatalog,
         templateSpec,

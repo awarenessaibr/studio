@@ -353,6 +353,68 @@ These were real defects found while reviewing the July Dalton group output:
     `collected_raw` are now published next to it, and the markdown report shows
     the delta.
 
+### Client-rendered sites (Vite/React/Next shells)
+
+Found on `melano.com.br`, which returned a 1.3 KB shell (`<div id="root"></div>`
+plus one module script) and produced **1 page, 2 media, no logo, no address** —
+the UI still reported success:
+
+21. **A single-page app was crawled as an empty shell.** Only `requests` was
+    used, so `extract_links`, `extract_page_text` and `extract_brand_data` all
+    read markup with no content. `crawl_pages` now recognises a shell
+    (`looks_like_js_shell`: <60 elements, ≤2 media, <600 chars of text, and a
+    `#root`/`#app`/`__next`/`__nuxt`/`___gatsby` mount) and, after the static
+    pool, renders the seed and up to `SPA_MAX_ROUTES` same-origin routes with
+    the browser (`render_js_site`). Playwright is thread-bound, so this pass is
+    serial on the main thread and runs after the thread pool. Rendered HTML is
+    written back into `_page_cache`, so the social phase reuses it instead of
+    refetching the shell. `--no-browser` or `CRAWLER_RENDER_JS=0` skips the
+    render pass; bundle harvesting (below) still contributes media, so a
+    JS-only site degrades to photography without text.
+22. **Images imported by the JS bundle were invisible.** A Vite build ships
+    `assets/logo-melano-L1W7aZ4g.png` as a module import, so no `<img>` ever
+    exists in the DOM. `harvest_bundle_assets` reads up to `BUNDLE_MAX_FILES`
+    same-origin `.js`/`.css` files and pulls asset paths out of them; those
+    become photography. Assets whose filename matches `logo|logotipo|wordmark|
+    marca` become logo candidates (source `bundle`) instead, because the
+    filename is the only evidence available. Melano now yields 20 media, a
+    1920×1082 wordmark, an 1080×302 SVG lockup and 12 photos.
+23. **Route queries duplicated renders.** `_route_key` collapses scheme,
+    trailing slash and query so `/produtos?categoria=acai` renders once.
+24. **A store locator became the brand's phone list.** Melano's
+    `onde-encontrar` page lists every franchisee's mobile, so the guide carried
+    15 numbers. `select_brand_phones` prefers numbers from the home and contact
+    pages, ignores store-locator pages, and caps a directory-only fallback at 3.
+    The pack now shows the two brand numbers.
+25. **A `+55` number was dropped.** `normalize_phone` sent unknown-country
+    numbers through the UK rules, so `tel:+556333513307` became `None`. An
+    explicit foreign dialling code (`+` other than `+44`, `00` other than
+    `0044`) is now returned as-is, and a `CEP 00000-000` postcode identifies
+    Brazil.
+26. **Every pack claimed `en-GB`/`GBP`.** Locale and currency now follow the
+    address country (`LOCALE_BY_COUNTRY`); Melano is `pt-BR`/`BRL` and an
+    unknown country still falls back to the defaults.
+27. **The social phase still reported "1 page crawled".** `discover_from_website`
+    re-fetched the site with `requests` (getting the shell again) and only
+    followed English nav words, so a Portuguese menu — *Sobre*, *Contato*,
+    *Onde Encontrar* — was never queued. It now reuses the rendered HTML from
+    `_page_cache` (tolerating scheme/trailing-slash drift) and follows a
+    localised `DISCOVERY_PAGE_PATTERN`: 11 pages instead of 1.
+28. **Store-locator numbers were reported as NAP conflicts.** The franchisee
+    mobile list produced six `phone` conflicts and cost ~8 score points. Pages
+    that look like a locator (`onde-encontrar`, `lojas`, `franquia`,
+    `distribuidor`, …) no longer feed the NAP text blob; their numbers were
+    already excluded from the pack by `select_brand_phones`.
+29. **`- TO` in a Brazilian address resolved to Greece.** `normalize_text`
+    strips non-Latin scripts, so Greek hints de-accented to `''` and matched
+    every string. Hints that normalise to empty are now ignored, and an HTML
+    `<address>`/`itemprop` block is read before falling back to `tel:`/`mailto:`
+    scraping.
+
+Verified end to end on `melano.com.br`: **5 pages, 20 media, 12 photos, 2 logo
+files (PNG wordmark + SVG lockup), full address/phones/emails, `pt-BR`/`BRL`,
+score 57.2**, against 1 page / 2 media / no logo / no address before.
+
 ---
 
 ## 5. CLI reference
@@ -482,6 +544,10 @@ exits without writing `business.profile.json`, instead of reporting “complete�
 - **Duplicates.** Importing a re-scrape creates a new pack. There is no
   automatic merge with an existing group yet; use the existing pack if it has
   better assets, or delete the old one deliberately.
+- **Client-rendered sites need the browser.** A Vite/React/Next shell is
+  rendered with Playwright after the static crawl. Without Playwright (or with
+  `--no-browser`) the pack keeps the bundle-harvested photography but has no
+  page text, no address and no NAP, and the run log says so.
 - **No automatic group merge.** A group crawl is sequential and produces one
   new group pack. Re-running the same group creates a new pack; there is no
   merge into an existing pack yet.

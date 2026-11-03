@@ -152,7 +152,7 @@ Flat white | House espresso`,
             cta: 'Book a table',
             tag: 'Stylish, all day dining.',
             boldTitle: 'All day, done properly.',
-            terms: 'Redeemable at Boardwalk. Valid for 12 months from purchase. One voucher per booking, not exchangeable for cash.',
+            terms: 'Redeemable at any Cawley Hotels venue. Valid for 12 months from purchase. Non-refundable; not exchangeable for cash.',
             christmas: {
                 title: 'Christmas at Boardwalk',
                 date: 'Available throughout December',
@@ -176,7 +176,7 @@ Puddings | Ask for today's board`,
             cta: 'Book a table',
             tag: "Renfrewshire's premier restaurant & bar.",
             boldTitle: "Renfrewshire's finest.",
-            terms: 'Redeemable at The Boat Yard. Valid for 12 months from purchase. One voucher per booking, not exchangeable for cash.',
+            terms: 'Redeemable at any Cawley Hotels venue. Valid for 12 months from purchase. Non-refundable; not exchangeable for cash.',
             christmas: {
                 title: 'Christmas at The Boat Yard',
                 date: 'Available throughout December',
@@ -199,7 +199,7 @@ Light bites | Available all day`,
             cta: 'Book a table',
             tag: 'Riverside dining.',
             boldTitle: 'A table by the Clyde.',
-            terms: 'Redeemable at Coast Bar & Restaurant. Valid for 12 months from purchase. One voucher per booking, not exchangeable for cash.',
+            terms: 'Redeemable at any Cawley Hotels venue. Valid for 12 months from purchase. Non-refundable; not exchangeable for cash.',
             christmas: {
                 title: 'Christmas at Coast',
                 date: 'Available throughout December',
@@ -222,7 +222,7 @@ Coast spritz | Ask for today's pour`,
             cta: 'Book a table',
             tag: 'Lochside luxury.',
             boldTitle: 'A table by the loch.',
-            terms: 'Redeemable at Duck Bay Hotel & Cottages. Valid for 12 months from purchase. One voucher per booking, not exchangeable for cash.',
+            terms: 'Redeemable at any Cawley Hotels venue. Valid for 12 months from purchase. Non-refundable; not exchangeable for cash.',
             christmas: {
                 title: 'Christmas at Duck Bay',
                 date: 'Available throughout December',
@@ -244,7 +244,7 @@ Fish and chips | Classic, with tartare`,
             cta: 'Book a table',
             tag: 'Relaxed dining, elevated.',
             boldTitle: 'A table with a view.',
-            terms: 'Redeemable at River House. Valid for 12 months from purchase. One voucher per booking, not exchangeable for cash.',
+            terms: 'Redeemable at any Cawley Hotels venue. Valid for 12 months from purchase. Non-refundable; not exchangeable for cash.',
             christmas: {
                 title: 'Christmas at River House',
                 date: 'Available throughout December',
@@ -737,6 +737,21 @@ Chocolate hazelnut spread | Deez Nuts`,
         state.logoY = 0;
     };
 
+    // The catalogue's sample copy belongs to a different client (The
+    // Physician / The Adamson). `brandify` can swap a phone number or an
+    // address, but it cannot invent the right dish, festive price or voucher
+    // terms. A brand that carries an authored copy deck (`content.copy`) gets
+    // those fields from the deck; the catalogue's sample text is replaced
+    // outright rather than patched word by word.
+
+    const applyAuthoredCopy = (source, template) => {
+        if (!state.brand?.content?.copy) return false;
+        // One shared mapping with the Agent Studio bridge so the same design
+        // reads the same way on both surfaces.
+        window.StudioBrand.applyTemplateCopy(state.brand, state.categoryId, template?.n || '', source);
+        return true;
+    };
+
     const categoryDefaultText = (template, index) => {
         if (!template) return {};
         const key = `${state.brand?.id || 'none'}|${state.categoryId}|${index}`;
@@ -751,15 +766,14 @@ Chocolate hazelnut spread | Deez Nuts`,
             if (menu && Array.isArray(menu.sections) && menu.sections.length) {
                 const lines = [];
                 // A printed menu needs air. The crawler can return 30+ dishes;
-                // keep the first three sections / ten lines so the layout
-                // stays legible, and let the user paste more in the Text tab.
+                // keep the first five so every layout stays legible, and let
+                // the user paste more in the Text tab.
                 menu.sections.slice(0, 3).forEach((section) => {
-                    if (lines.length >= 10) return;
+                    if (lines.length >= 5) return;
                     const items = Array.isArray(section.items) ? section.items : [];
                     if (!items.length) return;
-                    if (section.name) lines.push(`# ${section.name}`);
                     items.slice(0, 5).forEach((item) => {
-                        if (!item || !item.name || lines.length >= 10) return;
+                        if (!item || !item.name || lines.length >= 5) return;
                         const description = item.description && item.description.length <= 70
                             ? item.description
                             : '';
@@ -772,7 +786,8 @@ Chocolate hazelnut spread | Deez Nuts`,
                 }
             }
         }
-        const copy = BRAND_COPY[state.brand?.id];
+        const authored = applyAuthoredCopy(source, template);
+        const copy = authored ? null : BRAND_COPY[state.brand?.id];
         if (copy) {
             Object.entries(copy).forEach(([field, value]) => {
                 if (!(field in source)) return;
