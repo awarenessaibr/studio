@@ -358,12 +358,26 @@
         });
         const notes = h('textarea', { rows: '3', maxlength: '280' });
         notes.value = asset.usage.notes || '';
+        const provenanceKind = h('select');
+        ['unknown', 'supplied', 'public', 'extracted', 'inferred'].forEach((value) => {
+            const option = h('option', { value, text: value === 'unknown' ? 'unknown — not classified' : value });
+            if (value === asset.provenance.kind) option.selected = true;
+            provenanceKind.appendChild(option);
+        });
+        const provenanceConfidence = h('select');
+        ['low', 'medium', 'high'].forEach((value) => {
+            const option = h('option', { value, text: value });
+            if (value === asset.provenance.confidence) option.selected = true;
+            provenanceConfidence.appendChild(option);
+        });
         form.append(
             h('div', { class: 'drawer-grid' }, [
                 field('Usage profile', profile),
                 field('Minimum DPI', dpi),
                 field('Rights', rights),
                 field('Consent', consent),
+                field('Provenance', provenanceKind),
+                field('Confidence', provenanceConfidence),
                 field('Notes', notes, 'span-2'),
             ]),
         );
@@ -376,6 +390,11 @@
                 const payload = {
                     name: name.value, class: cls.value, role: role.value,
                     tags: tags.value.split(',').map((tag) => tag.trim()).filter(Boolean),
+                    provenance: {
+                        ...asset.provenance,
+                        kind: provenanceKind.value,
+                        confidence: provenanceConfidence.value,
+                    },
                     usage: {
                         ...asset.usage, profile: profile.value,
                         printMinDpi: Number(dpi.value) || 300,
@@ -393,10 +412,15 @@
         });
         body.appendChild(section('Record', form));
 
+        const approval = Intel.approvalOf(asset);
         const verifyRow = h('div', { class: 'drawer-actions' }, [
             h('button', {
                 type: 'button', class: 'button', text: 'Verify',
                 onClick: () => review(asset.id, 'verified'),
+            }),
+            h('button', {
+                type: 'button', class: 'button primary', text: 'Approve for use',
+                onClick: () => review(asset.id, 'approved'),
             }),
             h('button', {
                 type: 'button', class: 'button danger', text: 'Reject',
@@ -409,6 +433,13 @@
         ]);
         body.appendChild(section('Review', [
             h('p', { class: 'hint', text: `State: ${asset.review.state} · by ${asset.review.by || '—'}${asset.review.note ? ` · ${asset.review.note}` : ''}` }),
+            h('p', { class: 'hint', text: `Provenance: ${asset.provenance.kind} (${asset.provenance.confidence} confidence)` }),
+            h('p', {
+                class: 'hint',
+                text: approval.usable
+                    ? `Usable: yes — ${approval.reason}.`
+                    : `Usable: no — ${approval.reason}. Unknown rights block every export until an asset is approved.`,
+            }),
             verifyRow,
         ]));
 
@@ -476,7 +507,13 @@
     async function review(id, stateName) {
         try {
             await api(`/api/assets/${encodeURIComponent(id)}/verify`, { method: 'POST', body: { state: stateName } });
-            toast(stateName === 'verified' ? 'Asset verified.' : 'Asset rejected.');
+            const message = {
+                verified: 'Asset verified.',
+                approved: 'Asset approved for use.',
+                rejected: 'Asset rejected.',
+                proposed: 'Asset returned to review.',
+            }[stateName] || 'Review updated.';
+            toast(message);
             await openDetail(id);
             await loadAssets();
             await loadStatus();
@@ -691,6 +728,19 @@
             document.querySelectorAll('.asset-select').forEach((checkbox) => { checkbox.checked = $('selectAll').checked; });
             document.querySelectorAll('.asset-card').forEach((card) => card.classList.toggle('is-selected', $('selectAll').checked));
             $('batchVerify').disabled = state.selected.size === 0;
+            $('batchApprove').disabled = state.selected.size === 0;
+        });
+        $('batchApprove').addEventListener('click', async () => {
+            const ids = [...state.selected];
+            if (!ids.length) return;
+            $('batchApprove').disabled = true;
+            for (const id of ids) {
+                // eslint-disable-next-line no-await-in-loop
+                await api(`/api/assets/${encodeURIComponent(id)}/verify`, { method: 'POST', body: { state: 'approved' } }).catch(() => {});
+            }
+            toast(`Approved ${ids.length} asset${ids.length === 1 ? '' : 's'} for use.`);
+            await loadAssets();
+            await loadStatus();
         });
         $('batchVerify').addEventListener('click', async () => {
             const ids = [...state.selected];

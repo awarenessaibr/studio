@@ -472,6 +472,196 @@
         return Object.keys(out).length ? out : null;
     }
 
+    /**
+     * Social evidence attached to a brand from the social crawler. The raw
+     * profile stays in `<brand>/social/`; this is the bounded summary a
+     * template, a brief or the Brand identity dialog can read without opening
+     * the crawler's JSON. A brand the crawler has not reached keeps a
+     * `not-crawled` marker rather than a fabricated empty footprint.
+     */
+    function normalizeSocial(value) {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+        const source = value;
+        const status = text(source.status, 40);
+        // A venue the crawler has not reached is a known gap, not an empty
+        // footprint. Keep the marker so a scorecard can say "not yet prepared"
+        // instead of rendering a row of zeros.
+        if (status && !source.reputation && !source.socialPresence) {
+            return { status, note: text(source.note, 240) };
+        }
+        const obj = (entry) => (entry && typeof entry === 'object' && !Array.isArray(entry) ? entry : {});
+        const num = (entry) => (Number.isFinite(Number(entry)) ? Number(entry) : null);
+        const safePath = (entry) => {
+            const file = text(entry, 240);
+            return file && !file.split('/').includes('..') ? file : '';
+        };
+        const list = (entry, limit, max) => normalizeStringList(entry, limit, max);
+
+        const files = obj(source.files);
+        const reputation = obj(source.reputation);
+        const presence = obj(source.socialPresence);
+        const web = obj(source.webPresence);
+        const voice = obj(source.voice);
+        const reading = obj(source.reading);
+        const scores = obj(source.scores);
+        const sentiment = obj(reputation.sentiment);
+        const totals = obj(presence.totals);
+
+        const perSource = {};
+        Object.entries(obj(reputation.perSource)).slice(0, 12).forEach(([key, entry]) => {
+            const rating = obj(entry);
+            perSource[text(key, 40)] = { rating: num(rating.rating), count: num(rating.count) };
+        });
+
+        const redFlags = (Array.isArray(reputation.redFlags) ? reputation.redFlags : [])
+            .slice(0, 8)
+            .map((flag) => {
+                const entry = obj(flag);
+                return {
+                    level: text(entry.level, 20),
+                    issue: text(entry.issue, 120),
+                    detail: text(entry.detail, 240),
+                };
+            })
+            .filter((flag) => flag.issue);
+
+        const platforms = (Array.isArray(presence.platforms) ? presence.platforms : [])
+            .slice(0, 10)
+            .map((platform) => {
+                const entry = obj(platform);
+                return {
+                    platform: text(entry.platform, 40),
+                    label: text(entry.label, 60),
+                    url: normalizeAssetUrl(entry.url),
+                    handle: text(entry.handle, 120),
+                    present: entry.present === true,
+                    followers: num(entry.followers),
+                    lastPost: text(entry.lastPost, 40),
+                };
+            })
+            .filter((platform) => platform.platform);
+
+        const actions = (Array.isArray(source.actions) ? source.actions : [])
+            .slice(0, 10)
+            .map((action) => {
+                const entry = obj(action);
+                return {
+                    code: text(entry.code, 60),
+                    severity: text(entry.severity, 20),
+                    title: text(entry.title, 160),
+                    detail: text(entry.detail, 300),
+                };
+            })
+            .filter((action) => action.title);
+
+        const hygiene = obj(reputation.foodHygiene);
+        const foodHygiene = Object.keys(hygiene).length ? {
+            authority: text(hygiene.authority, 80),
+            scheme: text(hygiene.scheme, 20),
+            rating: text(hygiene.rating, 40),
+            passed: hygiene.passed === true,
+            inspectedAt: text(hygiene.inspectedAt || hygiene.inspection_date, 40),
+            sourceUrl: normalizeAssetUrl(hygiene.sourceUrl || hygiene.source_url),
+        } : null;
+
+        const social = {
+            status: text(source.status, 20) || 'crawled',
+            slug: text(source.slug, 120),
+            business: text(source.business, 160),
+            run: text(source.run, 120),
+            crawledAt: text(source.crawledAt, 40),
+            note: text(source.note, 400),
+            files: {
+                profile: safePath(files.profile),
+                tokens: safePath(files.tokens),
+                insights: safePath(files.insights),
+                report: safePath(files.report),
+                reviews: safePath(files.reviews),
+            },
+            reputation: {
+                consensusRating: num(reputation.consensusRating),
+                totalReviews: num(reputation.totalReviews),
+                collectedReviews: num(reputation.collectedReviews),
+                perSource,
+                sentiment: {
+                    mean: num(sentiment.mean),
+                    positive: num(sentiment.positive),
+                    neutral: num(sentiment.neutral),
+                    negative: num(sentiment.negative),
+                    positiveShare: num(sentiment.positiveShare),
+                    negativeShare: num(sentiment.negativeShare),
+                },
+                ownerResponseRate: num(reputation.ownerResponseRate),
+                topThemes: list(reputation.topThemes, 60, 8),
+                redFlags,
+                foodHygiene,
+                strengths: list(reputation.strengths, 240, 6),
+                weaknesses: list(reputation.weaknesses, 240, 6),
+                opportunities: list(reputation.opportunities, 240, 6),
+                risks: list(reputation.risks, 240, 6),
+                generatedAt: text(reputation.generatedAt, 40),
+                detail: safePath(reputation.detail),
+            },
+            socialPresence: {
+                totals: {
+                    followers: num(totals.followers),
+                    platformsPresent: num(totals.platformsPresent),
+                    platformsConfigured: num(totals.platformsConfigured),
+                },
+                gaps: list(presence.gaps, 40, 8),
+                platforms,
+            },
+            webPresence: {
+                hasOnlineBooking: web.hasOnlineBooking === true,
+                bookingProviders: list(web.bookingProviders, 60, 6),
+                deliveryProviders: list(web.deliveryProviders, 60, 6),
+                hasMenuOnline: web.hasMenuOnline === true,
+                tech: list(web.tech, 40, 10),
+                pressMentions: num(web.pressMentions),
+            },
+            voice: {
+                keywords: list(voice.keywords, 60, 12),
+                samples: list(voice.samples, 400, 2),
+                hashtags: list(voice.hashtags, 60, 12),
+            },
+            scores: {
+                overall: num(scores.overall),
+                reputation: num(scores.reputation),
+                socialStrength: num(scores.socialStrength),
+                contentHealth: num(scores.contentHealth),
+                discoverability: num(scores.discoverability),
+            },
+            reading: {
+                tone: text(reading.tone, 20),
+                title: text(reading.title, 160),
+                summary: text(reading.summary, 600),
+            },
+            actions,
+        };
+        social.status = status || 'prepared';
+        const hasEvidence = Boolean(social.slug || social.note || social.files.profile
+            || platforms.length || social.reputation.totalReviews);
+        return hasEvidence ? social : null;
+    }
+
+    // Where a brand's material came from, and how sure we are. Kept in step
+    // with `asset-intel.js` (which owns the same vocabulary for files); the two
+    // modules load independently, so a test asserts they agree rather than one
+    // importing the other.
+    const PROVENANCE_KINDS = ['supplied', 'public', 'extracted', 'inferred', 'unknown'];
+    const PROVENANCE_CONFIDENCE = ['high', 'medium', 'low'];
+
+    function normalizeProvenance(value) {
+        const provenance = value && typeof value === 'object' ? value : {};
+        return {
+            kind: PROVENANCE_KINDS.includes(provenance.kind) ? provenance.kind : 'unknown',
+            confidence: PROVENANCE_CONFIDENCE.includes(provenance.confidence)
+                ? provenance.confidence
+                : 'low',
+            note: text(provenance.note, 280),
+        };
+    }
+
     function normalizeBrand(value, index) {
         const source = value && typeof value === 'object' ? value : {};
         const id = ID_PATTERN.test(String(source.id || ''))
@@ -492,6 +682,8 @@
             typography: normalizeTypography(source.typography),
             voice: normalizeVoice(source.voice),
             content: normalizeContent(source.content),
+            provenance: normalizeProvenance(source.provenance),
+            social: normalizeSocial(source.social),
             logos: normalizeLogos(source.logos),
             photography: normalizePhotos(source.photography),
             paletteImages: normalizeGallery(source.paletteImages),
@@ -539,6 +731,7 @@
             createdAt: text(source.createdAt, 40) || null,
             updatedAt: text(source.updatedAt, 40) || null,
             portfolio: normalizePortfolio(source.portfolio),
+            provenance: normalizeProvenance(source.provenance),
             brands,
             meta: source.meta && typeof source.meta === 'object' ? source.meta : {},
         };
@@ -2216,6 +2409,9 @@
         normalizePalette,
         normalizeTypography,
         normalizeVoice,
+        normalizeProvenance,
+        PROVENANCE_KINDS,
+        PROVENANCE_CONFIDENCE,
         normalizeLogos,
         normalizeGuidelines,
         normalizeBrand,

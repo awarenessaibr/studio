@@ -83,17 +83,51 @@ Uploaded menus pick up `extract-rows`, `extract-text`, `resize`.
 
 ### Review states
 
-`proposed` → `verified` or `rejected`. Pack logos and specimens start
-`verified` because the pack importer already classified them by folder/kind;
-photography, covers and uploads start `proposed`. Only verified assets avoid the
-`ASSET_UNVERIFIED` warning.
+`proposed` → `verified` → `approved`, or `rejected`. Pack logos and specimens
+start `verified` because the pack importer already classified them by
+folder/kind; photography, covers and uploads start `proposed`. Only verified or
+approved assets avoid the `ASSET_UNVERIFIED` warning.
+
+**`approved` is the clearance, not another check.** `verified` says the file is
+what it claims to be; `approved` says a named person decided it may be
+published. Unknown rights are the case that matters: verification does not
+clear them, approval does.
+
+### Provenance
+
+Every asset carries where it came from, separate from what may be done with it:
+
+| `provenance.kind` | Means |
+|---|---|
+| `supplied` | the business handed us the file |
+| `public` | captured from a public source (a live site, a social profile) |
+| `extracted` | we derived it from other material (rendered palette, parsed specimen) |
+| `inferred` | we associated it with this brand without a declaration |
+| `unknown` | nobody has said — the default |
+
+`confidence` is `high`, `medium` or `low`. The default is `unknown`/`low` on
+purpose: most photography travels in a brand-pack ZIP assembled from a public
+site, so defaulting to `supplied` would quietly assert a right nobody confirmed.
+
+The two questions are independent, and conflating them is the usual mistake:
+
+```
+public availability  →  provenance.kind = 'public'      (where it came from)
+permission to publish →  review.state   = 'approved'    (what we may do)
+```
+
+An asset can be `public` + `unknown` rights + `proposed`: on the web, uncleared,
+unusable. That is the honest state of most of a freshly imported pack. The same
+vocabulary lives on the pack and each brand (see
+[brand-packs.md](brand-packs.md#provenance)).
 
 ---
 
 ## 3. Usage rules and the export gate
 
 `evaluateUsage(assets, context)` is shared by the library, Asset Studio and the
-print path. It returns `{ ok, blockers, warnings }` with seven honest rules:
+print path. It returns `{ ok, blockers, warnings }` with the following honest
+rules:
 
 | Code | Severity | Meaning |
 |---|---|---|
@@ -102,12 +136,29 @@ print path. It returns `{ ok, blockers, warnings }` with seven honest rules:
 | `USAGE_PROFILE_BLOCK` | block | screen-only in print, print-only in screen, reference-only anywhere |
 | `FORMAT_DENIED` | block | size denied / outside allowlist |
 | `CONSENT_MISSING` | block | people asset without consent |
+| `RIGHTS_UNRESOLVED` | block | rights unknown and not approved |
 | `MIN_WIDTH` | block | below half the page's required short edge |
-| `RIGHTS_UNKNOWN` | warn | print with unknown rights |
+| `RIGHTS_UNKNOWN` | warn | approved, but rights are still recorded as unknown |
+| `PROVENANCE_UNKNOWN` | warn | nobody has classified where it came from |
 | `PALETTE_DRIFT` | warn | brand fit below threshold |
 | `ASSET_UNVERIFIED` | warn | proposed asset in a design |
 | `PRINT_DPI` | warn | below page dpi but above the block floor |
 | `DUPLICATE` | warn | linked to a master |
+
+Rights are the rule that earns its keep:
+
+```js
+if (usage.rights === 'unknown' && asset.review.state !== 'approved') {
+    block('RIGHTS_UNRESOLVED', 'rights are unknown and it has not been approved for use.');
+} else if (isPrint && usage.rights === 'unknown') {
+    warn('RIGHTS_UNKNOWN', 'rights are unknown — confirmed in review.');
+}
+```
+
+An uncleared photo cannot leave the library for print *or* screen, including as
+a plain PNG. `approvalOf(asset)` returns the same verdict as
+`{ state, provenance, rights, usable, reason }` for any surface that has to show
+why.
 
 The DPI rule uses the page's **own** `dpi` metadata (A4 flyer is 150 dpi, A1
 signage 100 dpi, cards 300 dpi), not a blanket 300 dpi:
@@ -244,7 +295,14 @@ stays editable.
 
 The active photo source is evaluated on every header render. Blockers disable
 Print / Print pack; warnings are shown and acknowledged in the print dialog.
-PNG download remains available.
+PNG download remains available — except for `RIGHTS_UNRESOLVED`, which is a
+blocker on every surface, so an uncleared photo cannot be downloaded either.
+
+The library drawer shows the same verdict in words (*Usable: no — rights unknown
+— approve to clear*) and offers **Approve for use** next to Verify and Reject,
+plus the provenance kind/confidence selects in the record form. Approval is the
+only action that clears unknown rights, which is deliberate: it is the one
+decision that carries a name.
 
 ### Saved and usage
 

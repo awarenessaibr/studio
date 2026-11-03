@@ -60,7 +60,9 @@ data/_crawler/runs/<run>/output/<kit>/<brand>/social/business.profile.json
 data/brand-packs/<pack>/files/<brand>/social/business.profile.json
 ```
 
-It also reads the sibling `social.tokens.json` for voice keywords and samples.
+It also reads the sibling `social.tokens.json` for voice keywords and samples;
+a newer crawler run writes the same `build_tokens()` payload as
+`social-profile.json`, which the store reads as the fallback.
 The index is read-only, cached for a few seconds, and deduplicated by
 group + business slug; the richer copy wins, with the crawler's working `_social`
 copy preferred over its assembled kit copy.

@@ -253,6 +253,102 @@ test('normalizeBrandPack keeps structured crawler menu content', () => {
     assert.equal(brand.content.bookingUrl, 'https://content.example/book');
 });
 
+test('normalizeBrandPack carries the social intelligence summary', () => {
+    const pack = Brand.normalizeBrandPack({
+        name: 'Social pack',
+        brands: [{
+            id: 'duck-bay',
+            name: 'Duck Bay Hotel & Cottages',
+            social: {
+                status: 'crawled',
+                slug: 'duckbay',
+                business: 'Duck Bay Hotel & Restaurant',
+                run: 'cawley-hotel-group-20261102152632-bb41',
+                crawledAt: '2026-11-02T15:31:06Z',
+                files: {
+                    profile: 'social/business.profile.json',
+                    tokens: 'social/social.tokens.json',
+                    report: '../outside.html',
+                    secret: 'social/secret.json',
+                },
+                reputation: {
+                    consensusRating: 4.3,
+                    totalReviews: 3933,
+                    collectedReviews: 52,
+                    perSource: { google: { rating: 4.3, count: 3933 } },
+                    sentiment: { mean: 0.56, positive: 39, neutral: 6, negative: 7, positiveShare: 0.75, negativeShare: 0.14 },
+                    ownerResponseRate: 0,
+                    topThemes: ['food quality', 'service'],
+                    redFlags: [{ level: 'high', issue: 'rating drift downwards', detail: 'recent 3.75 vs older 4.12' }],
+                    foodHygiene: { authority: 'Argyll and Bute', scheme: 'FHIS', rating: 'Pass', passed: true, inspectedAt: '2020-01-05' },
+                    strengths: ['High review volume'],
+                },
+                socialPresence: {
+                    totals: { followers: 7771, platformsPresent: 2, platformsConfigured: 2 },
+                    gaps: ['tiktok', 'youtube'],
+                    platforms: [{
+                        platform: 'instagram',
+                        label: 'Instagram',
+                        url: 'https://www.instagram.com/duckbaymarina/',
+                        handle: 'duckbaymarina',
+                        present: true,
+                        followers: 7771,
+                        lastPost: null,
+                    }],
+                },
+                webPresence: { hasOnlineBooking: false, hasMenuOnline: true, tech: ['wordpress'], pressMentions: 0 },
+                voice: { keywords: ['food quality'], samples: ['A lovely stay by the loch.'], hashtags: [] },
+                scores: { overall: 60.7, reputation: 70.8, socialStrength: 50.6, contentHealth: 44, discoverability: 73 },
+                reading: { tone: 'risk', title: 'The reputation needs attention', summary: 'Read the source reviews before acting.' },
+                actions: [{
+                    code: 'NO_OWNER_RESPONSES',
+                    severity: 'high',
+                    title: 'Start replying to reviews',
+                    detail: 'No owner responses were visible.',
+                    injected: 'x',
+                }],
+                injected: 'ignored',
+            },
+        }],
+    });
+    const social = pack.brands[0].social;
+    assert.ok(social);
+    assert.equal(social.status, 'crawled');
+    assert.equal(social.reputation.consensusRating, 4.3);
+    assert.equal(social.reputation.totalReviews, 3933);
+    assert.equal(social.reputation.perSource.google.count, 3933);
+    assert.equal(social.reputation.foodHygiene.passed, true);
+    assert.equal(social.reputation.redFlags[0].issue, 'rating drift downwards');
+    assert.equal(social.socialPresence.platforms[0].handle, 'duckbaymarina');
+    assert.equal(social.socialPresence.totals.followers, 7771);
+    assert.equal(social.webPresence.hasOnlineBooking, false);
+    assert.deepEqual(social.voice.keywords, ['food quality']);
+    assert.equal(social.scores.socialStrength, 50.6);
+    assert.equal(social.reading.tone, 'risk');
+    assert.equal(social.actions[0].code, 'NO_OWNER_RESPONSES');
+    assert.equal(social.actions[0].injected, undefined);
+    assert.equal(social.files.profile, 'social/business.profile.json');
+    assert.equal(social.files.report, '');
+    assert.equal(social.files.secret, undefined);
+    assert.equal(social.injected, undefined);
+});
+
+test('normalizeBrandPack marks a brand the social crawler has not reached', () => {
+    const pack = Brand.normalizeBrandPack({
+        name: 'Gap pack',
+        brands: [
+            { id: 'boat-yard', name: 'The Boat Yard', social: { status: 'not-crawled', note: 'No target in this run.', files: {} } },
+            { id: 'no-social', name: 'No Social' },
+            { id: 'empty-social', name: 'Empty Social', social: {} },
+        ],
+    });
+    const boatYard = pack.brands.find((brand) => brand.id === 'boat-yard');
+    assert.equal(boatYard.social.status, 'not-crawled');
+    assert.match(boatYard.social.note, /No target/);
+    assert.equal(pack.brands.find((brand) => brand.id === 'no-social').social, null);
+    assert.equal(pack.brands.find((brand) => brand.id === 'empty-social').social, null);
+});
+
 test('normalizeBrandPack preserves percent-encoded asset URLs', () => {
     const pack = Brand.normalizeBrandPack({
         name: 'Encoded pack',
@@ -471,6 +567,14 @@ test('a brand-kit ZIP becomes a pack, kits, assets and a template project', asyn
         const svg = await fsp.readFile(svgFile, 'utf8');
         assert.strictEqual(svg.match(/fill=/g).length, 1);
 
+        // The token file is the brand's canonical record. It is parsed into
+        // pack.json, but it must also exist on disk or tokensPath dangles.
+        assert.strictEqual(brand.tokensPath, 'tokens/test.tokens.json');
+        const tokenFile = path.join(PACKS, packId, 'files', brand.id, ...brand.tokensPath.split('/'));
+        const tokenJson = JSON.parse(await fsp.readFile(tokenFile, 'utf8'));
+        assert.strictEqual(Object.keys(tokenJson.color).length, 3);
+        assert.strictEqual(tokenJson.typography.families.length, 2);
+
         const roundTrip = await server.readBrandPack(packId);
         assert.strictEqual(roundTrip.pack.brands[0].name, 'Test Brand');
         assert.ok((await server.listBrandPacks()).some((entry) => entry.id === packId));
@@ -574,4 +678,23 @@ test('a ZIP without brands is rejected and leaves no pack behind', async () => {
     );
     const after = await fsp.readdir(PACKS).catch(() => []);
     assert.deepStrictEqual(after, before);
+});
+
+test('brand-pack and asset-intel share one provenance vocabulary', () => {
+    // The two modules load independently in the browser, so the shapes are kept
+    // equal by assertion rather than by import.
+    assert.deepEqual(Brand.PROVENANCE_KINDS, require('../src/shared/asset-intel.js').PROVENANCE_KINDS);
+    assert.deepEqual(Brand.PROVENANCE_CONFIDENCE, require('../src/shared/asset-intel.js').PROVENANCE_CONFIDENCE);
+    const pack = Brand.normalizeBrandPack({
+        name: 'Provenance pack',
+        provenance: { kind: 'public', confidence: 'medium', note: 'from the live site' },
+        brands: [{ id: 'a', name: 'A', provenance: { kind: 'extracted', confidence: 'high' } }],
+    });
+    assert.equal(pack.provenance.kind, 'public');
+    assert.equal(pack.brands[0].provenance.kind, 'extracted');
+    assert.equal(pack.brands[0].provenance.confidence, 'high');
+    // Unrecorded provenance stays unknown rather than defaulting to "supplied".
+    const blank = Brand.normalizeBrandPack({ name: 'Blank', brands: [{ id: 'b', name: 'B' }] });
+    assert.equal(blank.provenance.kind, 'unknown');
+    assert.equal(blank.brands[0].provenance.kind, 'unknown');
 });

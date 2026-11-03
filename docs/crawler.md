@@ -226,6 +226,34 @@ The social outputs are read by the **Social intelligence** surface; see
 used `social.tokens.json`, which the importer mistook for a second brand
 (`<brand>-social`); that is fixed on both sides.
 
+### `platforms/` — evidence, not a checklist
+
+`social/platforms/<source>.json` exists only for a source that returned
+something: `ok`, or a real profile URL, or a payload. A source that was
+searched but never located goes to `social/platforms/_discovery.json`
+instead, with `status: "not_found"` and the query that was tried.
+
+That split exists because a folder full of
+`{ ok: false, url: null, warnings: ["no … URL discovered"] }` reads like a
+list of platforms in a file tree, and both people and agents have reported
+those as venue gaps nobody verified. The two are not the same thing:
+
+| File | Means |
+|---|---|
+| `platforms/<source>.json` | The venue is on this source; here is what it said. |
+| `platforms/_discovery.json` | We looked for a profile here and did not find one. |
+
+The provenance tables in `insights.md` and `report.html` follow the same
+rule: they list only sources that were actually consulted, and summarise the
+rest in one line as *discovery gaps, not platform gaps*.
+
+**Embedded widgets count.** Booking and delivery are routinely an `<iframe>`
+from the provider (ResDiary, SevenRooms, OpenTable) rather than a link. The
+website connector scans `<a href>`, `<iframe src>` and `<embed src>`, because
+scanning anchors alone reports "no online booking" for venues that have had
+one for years. If a booking row looks wrong, open the live
+`/book-a-table/` page and look for the widget before trusting the metric.
+
 ---
 
 ## 4. What was fixed in the combined crawler

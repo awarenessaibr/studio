@@ -103,6 +103,7 @@ body {
 .chip { padding: 1px 6px; border-radius: 999px; background: var(--bg-deep); color: var(--muted); font-size: 8.5px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; }
 .state-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--lib-warn); }
 .state-dot[data-state="verified"] { background: var(--lib-ok); }
+.state-dot[data-state="approved"] { background: var(--lib-ok); box-shadow: 0 0 0 2px color-mix(in srgb, var(--lib-ok) 30%, transparent); }
 .state-dot[data-state="rejected"] { background: var(--lib-bad); }
 .asset-select { position: absolute; top: 12px; left: 12px; z-index: 2; width: 16px; height: 16px; accent-color: var(--accent); }
 .asset-open { position: absolute; inset: 0; border: 0; background: transparent; cursor: pointer; }

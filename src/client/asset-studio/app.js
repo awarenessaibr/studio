@@ -959,9 +959,12 @@ Chocolate hazelnut spread | Deez Nuts`,
         if (typeof value !== 'string') return value;
         const brand = state.brand;
         if (!brand) return value;
-        const address = contactValue('Address') || '129 South Street, St Andrews, KY16 9UH';
-        const phone = contactValue('Telephone') || '01334 479191';
-        const email = contactValue('Email') || 'reservations@theadamson.com';
+        // Empty, never another venue's details: if this brand has no recorded
+        // contact value the placeholder is cleared rather than left as someone
+        // else's address.
+        const address = contactValue('Address') || '';
+        const phone = contactValue('Telephone') || '';
+        const email = contactValue('Email') || '';
         const instagram = contactValue('Instagram') || '';
         const site = website();
         const tagline = brand.tagline || '';
@@ -976,15 +979,12 @@ Chocolate hazelnut spread | Deez Nuts`,
             .replace(/@thephysician_standrews/gi, instagram)
             .replace(/@theadamsonstandrews/gi, instagram)
             .replace(/@hatch_standrews/gi, instagram);
-        // Only swap the template's address if it is not already using the
-        // brand's address. Applying both 129 and 127 replacements in sequence
-        // double-appends the country when the contact value ends in ", GB".
-        if (!result.includes(address)) {
-            if (/129 South Street, St Andrews, KY16 9UH/i.test(result)) {
-                result = result.replace(/129 South Street, St Andrews, KY16 9UH/gi, address);
-            } else if (/127 South Street, St Andrews, KY16 9UH/i.test(result)) {
-                result = result.replace(/127 South Street, St Andrews, KY16 9UH/gi, address);
-            }
+        // The catalogue writes the placeholder address in several shapes — with
+        // and without the postcode, before a middot, at the end of a line. Match
+        // the street, not one exact string, or a shorter variant survives into
+        // the artwork.
+        if (!address || !result.includes(address)) {
+            result = result.replace(/12[79] South Street, St Andrews(?:,?\s*KY16\s*9UH)?/gi, address);
         }
         return result
             .replace(/reservations@theadamson\.com/gi, email)
@@ -992,6 +992,10 @@ Chocolate hazelnut spread | Deez Nuts`,
             .replace(/01334\s*479191/g, phone)
             .replace(/01334\s*475\s*557/g, phone)
             .replace(/Find your cure\./gi, tagline)
+            // More catalogue copy that belongs to a specific venue: a tagline and
+            // a fake company number. Both would survive into a real document.
+            .replace(/Scottish produce, warm welcome/gi, tagline)
+            .replace(/Registered in Scotland\s*·\s*Company no\.?\s*SC0+/gi, '')
             .replace(/\s*·\s*·\s*/g, ' · ')
             .replace(/^\s*·\s*/, '')
             .replace(/\s*·\s*$/, '')
@@ -2119,7 +2123,7 @@ Chocolate hazelnut spread | Deez Nuts`,
                 uploaded: asset.source.kind === 'upload',
                 assetId: asset.id,
                 class: asset.class,
-                verified: asset.review.state === 'verified',
+                verified: ['verified', 'approved'].includes(asset.review.state),
             });
             state.photoIndex = state.photos.length - 1;
             renderControlBody();

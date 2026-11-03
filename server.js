@@ -2729,10 +2729,24 @@ async function writeGroupSettings(value) {
 }
 
 /** Filters hidden groups and businesses, and applies the dev-defined order. */
+function overrideVisibleSocialCrawlerRefs(packs, settings) {
+    const hidden = new Set(settings.hidden || []);
+    const hiddenBrands = new Set(settings.hiddenBrands || []);
+    const socialCrawler = new Set(settings.socialCrawler || []);
+    for (const pack of packs || []) {
+        if (hidden.has(pack.id)) continue;
+        for (const brand of pack.brands || []) {
+            const ref = `${pack.id}::${brand.id}`;
+            if (!hiddenBrands.has(ref)) socialCrawler.add(ref);
+        }
+    }
+    return socialCrawler;
+}
+
 function applyPackSettings(pack, settings, includeHidden = false) {
     const hidden = new Set(settings.hidden);
     const hiddenBrands = new Set(settings.hiddenBrands || []);
-    const socialCrawler = new Set(settings.socialCrawler || []);
+    const socialCrawler = overrideVisibleSocialCrawlerRefs([pack], settings);
     const brands = (pack.brands || [])
         .map((brand) => {
             const ref = `${pack.id}::${brand.id}`;
@@ -2794,7 +2808,7 @@ function siteNameKey(value) {
  */
 async function socialCrawlAccess(dataset) {
     const [packs, settings] = await Promise.all([listBrandPacks(), readGroupSettings()]);
-    const allowed = new Set(settings.socialCrawler || []);
+    const allowed = overrideVisibleSocialCrawlerRefs(packs, settings);
     const business = dataset?.business || {};
     const host = siteHostKey(business.website);
     const name = siteNameKey(business.name);
@@ -2833,9 +2847,10 @@ async function socialCrawlAccess(dataset) {
 
 async function groupSettingsPayload() {
     const [packs, settings] = await Promise.all([listBrandPacks(), readGroupSettings()]);
+    const socialCrawler = [...overrideVisibleSocialCrawlerRefs(packs, settings)];
     return {
         packs: applyGroupSettings(packs, settings, true),
-        settings,
+        settings: { ...settings, socialCrawler },
         adminKeyConfigured: Boolean(ADMIN_KEY),
     };
 }
@@ -3109,6 +3124,25 @@ async function brandFromDirectory(options) {
         || titleCaseBrand(brandDir || fallbackName)
         || 'Brand';
     const id = slugify((brandDir || name || fallbackName).replace(/^\d+[-_]?/, '')) || slugify(name) || 'brand';
+
+    // The token file is the brand's canonical record (palette, type, voice).
+    // It is parsed above; keep the JSON on disk as well, otherwise tokensPath
+    // points at a file that was never extracted and every consumer of it has
+    // to guess.
+    if (tokensPath && !/combined file/i.test(tokensPath)) {
+        const tokenFile = inDir.find((file) => relativeToBrand(file) === tokensPath);
+        if (tokenFile) {
+            try {
+                const tokenBuffer = extractZipEntry(zipBuffer, tokenFile.entry);
+                chargeBrandBudget(budget, tokenBuffer.length);
+                const storedTokens = await writeBrandAsset(filesDir, id, tokensPath, tokenBuffer);
+                if (storedTokens) tokensPath = storedTokens;
+                else warnings.push(`Skipped ${tokensPath}: unsafe file name.`);
+            } catch (error) {
+                warnings.push(`Could not store ${tokensPath}: ${error.message}`);
+            }
+        }
+    }
 
     // Guide: prefer a file whose name says brand guide.
     const docxFiles = inDir.filter((file) => /\.docx$/i.test(relativeToBrand(file)) && !/^assets\//i.test(relativeToBrand(file)));

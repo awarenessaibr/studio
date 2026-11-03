@@ -67,7 +67,14 @@
     const USAGE_PROFILES = ['print-and-screen', 'screen-only', 'print-only', 'reference-only'];
     const CONSENT = ['not-applicable', 'granted', 'missing'];
     const RIGHTS = ['brand-owned', 'licensed', 'staff-supplied', 'unknown'];
-    const REVIEW_STATES = ['proposed', 'verified', 'rejected'];
+    // Two independent questions, deliberately not collapsed into one list:
+    //   provenance.kind  — where the file came from (supplied / public / …)
+    //   review.state     — what we are allowed to do with it (cleared / not)
+    // "It is on the public web" answers the first and says nothing about the
+    // second.
+    const PROVENANCE_KINDS = ['supplied', 'public', 'extracted', 'inferred', 'unknown'];
+    const PROVENANCE_CONFIDENCE = ['high', 'medium', 'low'];
+    const REVIEW_STATES = ['proposed', 'verified', 'approved', 'rejected'];
     const STATUSES = ['active', 'archived', 'orphaned'];
 
     const RULES = [
@@ -78,6 +85,8 @@
         { code: 'CONSENT_MISSING', severity: 'block', label: 'Consent missing' },
         { code: 'MIN_WIDTH', severity: 'block', label: 'Too small for the page' },
         { code: 'RIGHTS_UNKNOWN', severity: 'warn', label: 'Rights unknown' },
+        { code: 'RIGHTS_UNRESOLVED', severity: 'block', label: 'Rights unknown and not approved' },
+        { code: 'PROVENANCE_UNKNOWN', severity: 'warn', label: 'Provenance not classified' },
         { code: 'PALETTE_DRIFT', severity: 'warn', label: 'Palette drift' },
         { code: 'ASSET_UNVERIFIED', severity: 'warn', label: 'Not verified' },
         { code: 'PRINT_DPI', severity: 'warn', label: 'Below page resolution' },
@@ -274,6 +283,42 @@
         };
     }
 
+    /**
+     * Where the file came from. Deliberately defaults to `unknown`, not to
+     * `supplied`: most pack photography travels in a ZIP that was assembled
+     * from a public website, and guessing "supplied" here would quietly assert
+     * a right nobody confirmed. Classifying it is the operator's job.
+     */
+    function normalizeProvenance(value) {
+        const provenance = value && typeof value === 'object' ? value : {};
+        return {
+            kind: PROVENANCE_KINDS.includes(provenance.kind) ? provenance.kind : 'unknown',
+            confidence: PROVENANCE_CONFIDENCE.includes(provenance.confidence)
+                ? provenance.confidence
+                : 'low',
+            note: text(provenance.note, 280),
+        };
+    }
+
+    /** The single answer to "may this asset be used for real output?" */
+    function approvalOf(value) {
+        const asset = normalizeAsset(value);
+        const state = asset.review.state;
+        const rightsKnown = asset.usage.rights !== 'unknown';
+        const cleared = state === 'approved';
+        return {
+            state,
+            provenance: asset.provenance.kind,
+            rights: asset.usage.rights,
+            // `approved` is the only clearance that survives unknown rights.
+            usable: state !== 'rejected' && (rightsKnown || cleared),
+            reason: state === 'rejected' ? 'rejected in review'
+                : cleared ? 'approved'
+                    : rightsKnown ? `rights: ${asset.usage.rights}`
+                        : 'rights unknown — approve to clear',
+        };
+    }
+
     function normalizeMaster(value) {
         const master = value && typeof value === 'object' ? value : {};
         const of = isId(master.of) ? master.of : null;
@@ -318,6 +363,7 @@
                 .map(normalizeVariant).filter(Boolean).slice(0, MAX_VARIANTS),
             extracted: extracted && operations.some((op) => op.startsWith('extract-')) ? extracted : null,
             master: normalizeMaster(source.master),
+            provenance: normalizeProvenance(source.provenance),
             review: normalizeReview(source.review),
             status: STATUSES.includes(source.status) ? source.status : 'active',
             usageLog: normalizeUsageLog(source.usageLog),
@@ -396,8 +442,17 @@
                 if (asset.class === 'people' && usage.consent === 'missing') {
                     block('CONSENT_MISSING', 'consent is marked as missing.');
                 }
-                if (isPrint && usage.rights === 'unknown') {
-                    warn('RIGHTS_UNKNOWN', 'rights are unknown — confirm before publishing.');
+                // Rights are the one thing a public URL never settles. An asset
+                // with unknown rights may not leave the library until somebody
+                // approves it by name.
+                if (usage.rights === 'unknown' && asset.review.state !== 'approved') {
+                    block('RIGHTS_UNRESOLVED',
+                        'rights are unknown and it has not been approved for use.');
+                } else if (isPrint && usage.rights === 'unknown') {
+                    warn('RIGHTS_UNKNOWN', 'rights are unknown — confirmed in review.');
+                }
+                if (asset.provenance.kind === 'unknown') {
+                    warn('PROVENANCE_UNKNOWN', 'provenance is unclassified — say where it came from.');
                 }
                 if (asset.review.state === 'proposed') {
                     warn('ASSET_UNVERIFIED', 'it has not been verified in the library.');
@@ -514,6 +569,8 @@
         CONSENT,
         RIGHTS,
         REVIEW_STATES,
+        PROVENANCE_KINDS,
+        PROVENANCE_CONFIDENCE,
         STATUSES,
         RULES,
         clamp,
@@ -533,6 +590,8 @@
         normalizeVariant,
         normalizeExtracted,
         normalizeReview,
+        normalizeProvenance,
+        approvalOf,
         normalizeMaster,
         normalizeUsageLog,
         normalizeAsset,

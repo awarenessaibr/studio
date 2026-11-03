@@ -120,7 +120,11 @@ function loadDataset(file) {
     if (!profile || typeof profile !== 'object') return null;
     if (!profile.business || (!profile.social && !profile.reputation)) return null;
     const dir = path.dirname(file);
-    const tokens = readJson(path.join(dir, 'social.tokens.json'), {});
+    // `build_tokens()` is written as `social-profile.json` by current crawler
+    // runs and as `social.tokens.json` by curated datasets. Both carry the
+    // voice keywords and samples; read whichever one is beside the profile.
+    const tokens = readJson(path.join(dir, 'social.tokens.json'), null)
+        || readJson(path.join(dir, 'social-profile.json'), {});
     // The profile itself only keeps best/worst in `notable`; the crawler's
     // platforms/*.json files hold every readable review. Attach them so the
     // Social page can page through the full set instead of six highlights.

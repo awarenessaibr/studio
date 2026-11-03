@@ -78,6 +78,7 @@ brand-kit/
 |---|---|
 | `tokens/*.tokens.json` | Palette (HEX / RGB / CMYK, role, share, tier), typography families + scale, voice attributes / prefer / avoid, logo notes |
 | `content/*.json` | Structured menus/drinks, hours and booking link; Asset Studio uses the menu to prefill menu designs |
+| `<brand>/social/` | Read-only social-intelligence evidence (profile, voice, channels, reviews). Ignored as tokens and as brand photography; the Social index reads it and `brand.social` carries the bounded summary |
 | `assets/{logos,photography}` | Logo cuts and photo pool; `social/assets/` is excluded from both |
 | `*.docx` guide | Positioning statement, **applications matrix** (menu, brochure, voucher, social, …), print specification, canonical contact block, facts, type hierarchy, logo rules, full section outline |
 | `assets/logos` | Logo cuts classified by variant (`light`, `dark`, `color`, `primary`) and kind (`wordmark`, `mark`, `logo`); presentation plates are excluded from selection |
@@ -106,6 +107,32 @@ dialog work unchanged.
   has not been loaded.
 - **Duplicates.** Logo variants that are really the same artwork are
   de-duplicated; presentation plates never land in a design slot.
+- **The token file is kept.** `<brand>/tokens/*.tokens.json` is the brand's
+  canonical record and the importer parses it into `pack.json`, so it is
+  written to `files/<brand>/…` as well: `brand.tokensPath` must resolve on
+  disk, not only in the manifest. Packs imported before that was fixed have a
+  dangling `tokensPath` and no file; repair them with
+  `node scripts/backfill-tokens.js` (idempotent, rebuilds from the palette,
+  type and voice already in `pack.json`, never overwrites an existing file).
+
+### Provenance
+
+A pack and every brand inside it carry where the material came from:
+
+```json
+"provenance": { "kind": "public", "confidence": "medium", "note": "…" }
+```
+
+`kind` is `supplied` (the business handed it over), `public` (captured from a
+public source), `extracted` (derived from other material), `inferred` (associated
+without a declaration) or `unknown`. The default is **`unknown`**, not
+`supplied`: a pack assembled from live websites is not a licensed asset library,
+and defaulting to "supplied" would assert a right nobody confirmed.
+
+This is provenance only. Permission to publish is a separate decision, held per
+file in the asset library as `review.state` (`approved` is the clearance — see
+[asset-library.md](asset-library.md#review-states)). A brand can be
+`extracted`/`high` and its photography still be unapproved.
 
 ---
 

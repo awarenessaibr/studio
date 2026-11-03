@@ -232,6 +232,29 @@ fadeOut, zoom, spin, shake, hop, swing, orbit, nod, blinkIn`
   composition that shares it.
 - **Limits**: 512 KB per kit, 200 kits.
 
+### Owner-facing artefacts
+- **What**: generated collateral that puts a pack in front of an owner without
+  a slide deck — a **group identity map** (lockups, primaries, shared grey,
+  measured contrast), **per-venue A4 scorecards** (reputation, social, web,
+  compliance, themes, three actions), a **sub-brand map** (one name traced
+  across every venue, with what the guides say versus what the estate does),
+  an **asset and provenance register** (xlsx/csv, plus the correction trail),
+  and **sample collateral rendered by Asset Studio itself**.
+- **Why generated**: they read from `pack.json`, `business.profile.json` and
+  the asset records, so a correction in the data lands on the page. No figure
+  is retyped, so nothing can drift.
+- **Commands**:
+  `scripts/build-identity-map.py`, `scripts/build-venue-scorecard.js`,
+  `scripts/build-subrand-map.js --term "<name>"`,
+  `scripts/export-asset-register.py`, `scripts/render-samples.js`.
+  The first four take `--pack <id>`; samples also take `--venue <id>`.
+- **Honesty rules baked in**: sampled numbers carry their sample size, a
+  consensus rating states the spread between platforms, discovery misses are
+  summarised as *our* gap rather than a venue weakness, and no action promises
+  an outcome the data cannot support.
+- **Output**: `deliverables/<group>/` — see
+  [deliverables/README.md](../deliverables/README.md).
+
 ---
 
 ## 5. Final assets and print

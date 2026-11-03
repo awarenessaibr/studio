@@ -109,6 +109,8 @@ function summary(record) {
         role: record.role,
         tags: record.tags,
         state: record.review.state,
+        provenance: record.provenance,
+        approval: Intel.approvalOf(record),
         status: record.status,
         packId: record.binding.packId,
         brandId: record.binding.brandId,
@@ -532,7 +534,8 @@ async function listAssets(filters = {}) {
         if (filters.status && record.status !== filters.status) return false;
         if (!filters.status && record.status === 'archived') return false;
         if (filters.operation && !record.operations.includes(filters.operation)) return false;
-        if (filters.verified === '1' && record.review.state !== 'verified') return false;
+        if (filters.verified === '1'
+            && !['verified', 'approved'].includes(record.review.state)) return false;
         if (query) {
             const haystack = `${record.name} ${record.tags.join(' ')} ${record.class} ${record.role}`.toLowerCase();
             if (!haystack.includes(query)) return false;
@@ -548,7 +551,7 @@ async function listAssets(filters = {}) {
 
 async function patchAsset(id, changes = {}) {
     const record = await readAsset(id);
-    for (const key of ['name', 'class', 'role', 'tags', 'usage', 'status']) {
+    for (const key of ['name', 'class', 'role', 'tags', 'usage', 'status', 'provenance']) {
         if (!(key in changes)) continue;
         if (key === 'class' && !Intel.CLASSES.includes(changes[key])) throw httpError(400, 'Unknown asset class.');
         if (key === 'status' && !Intel.STATUSES.includes(changes[key])) throw httpError(400, 'Unknown asset status.');
@@ -561,10 +564,15 @@ async function patchAsset(id, changes = {}) {
     return saveAsset(record);
 }
 
-async function verifyAsset(id, state, note = '') {
-    if (!['verified', 'rejected', 'proposed'].includes(state)) throw httpError(400, 'Unknown review state.');
+async function verifyAsset(id, state, note = '', by = 'operator') {
+    if (!Intel.REVIEW_STATES.includes(state)) throw httpError(400, 'Unknown review state.');
     const record = await readAsset(id);
-    record.review = { state, by: 'operator', at: nowIso(), note: String(note || '').slice(0, 280) };
+    record.review = {
+        state,
+        by: String(by || 'operator').slice(0, 80),
+        at: nowIso(),
+        note: String(note || '').slice(0, 280),
+    };
     return saveAsset(record);
 }
 

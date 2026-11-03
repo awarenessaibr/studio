@@ -82,3 +82,50 @@ test('extractRowsFromText emits the studio tabular syntax', () => {
     assert.ok(rows.includes('# SMALL PLATES'));
     assert.ok(rows.some((row) => row.includes('| 4.50')));
 });
+
+test('provenance defaults to unknown rather than asserting a right nobody confirmed', () => {
+    const asset = Intel.normalizeAsset({ name: 'Pack photo', role: 'photo' });
+    assert.equal(asset.provenance.kind, 'unknown');
+    assert.equal(asset.provenance.confidence, 'low');
+    const explicit = Intel.normalizeAsset({
+        name: 'Captured', provenance: { kind: 'public', confidence: 'medium', note: 'live site' },
+    });
+    assert.deepEqual(explicit.provenance, { kind: 'public', confidence: 'medium', note: 'live site' });
+    const bogus = Intel.normalizeAsset({ name: 'Bogus', provenance: { kind: 'maybe', confidence: 'certain' } });
+    assert.equal(bogus.provenance.kind, 'unknown');
+    assert.equal(bogus.provenance.confidence, 'low');
+});
+
+test('unknown rights block every export until the asset is approved', () => {
+    const page = { profile: 'print', surface: 'print', size: { n: 'A4' }, spec: { w: 210, h: 297 } };
+    const unclear = photo({ usage: { rights: 'unknown', profile: 'print-and-screen' }, review: { state: 'proposed' } });
+    const before = Intel.evaluateUsage(unclear, page);
+    assert.ok(before.blockers.some((entry) => entry.code === 'RIGHTS_UNRESOLVED'));
+    assert.equal(Intel.approvalOf(unclear).usable, false);
+
+    // Verified alone does not clear unknown rights; approval does.
+    const verified = photo({ usage: { rights: 'unknown', profile: 'print-and-screen' }, review: { state: 'verified' } });
+    assert.ok(Intel.evaluateUsage(verified, page).blockers.some((entry) => entry.code === 'RIGHTS_UNRESOLVED'));
+
+    const approved = photo({ usage: { rights: 'unknown', profile: 'print-and-screen' }, review: { state: 'approved' } });
+    const after = Intel.evaluateUsage(approved, page);
+    assert.ok(!after.blockers.some((entry) => entry.code === 'RIGHTS_UNRESOLVED'));
+    assert.ok(after.warnings.some((entry) => entry.code === 'RIGHTS_UNKNOWN'), 'still warns for print');
+    assert.equal(Intel.approvalOf(approved).usable, true);
+});
+
+test('a rejected asset is never usable and a known right needs no approval', () => {
+    const rejected = photo({ review: { state: 'rejected' } });
+    assert.equal(Intel.approvalOf(rejected).usable, false);
+    assert.equal(Intel.approvalOf(rejected).reason, 'rejected in review');
+    const owned = photo({ usage: { rights: 'brand-owned' }, review: { state: 'proposed' } });
+    assert.equal(Intel.approvalOf(owned).usable, true);
+    assert.match(Intel.approvalOf(owned).reason, /brand-owned/);
+});
+
+test('unclassified provenance warns without blocking on its own', () => {
+    const asset = photo({ usage: { rights: 'brand-owned' }, review: { state: 'verified' }, provenance: { kind: 'unknown' } });
+    const verdict = Intel.evaluateUsage(asset, { profile: 'screen', surface: 'export', size: { n: 'Square' } });
+    assert.ok(verdict.warnings.some((entry) => entry.code === 'PROVENANCE_UNKNOWN'));
+    assert.equal(verdict.blockers.length, 0);
+});
