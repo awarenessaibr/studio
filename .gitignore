@@ -32,3 +32,7 @@ __pycache__/
 # ─── OS cruft ────────────────────────────────────────────────────────
 .DS_Store
 **/.DS_Store
+
+_dev/
+deliverables/
+improvements/

@@ -728,30 +728,6 @@ main {
   gap: 10px;
   max-height: calc(100vh - 120px);
 }
-#ctxMenu {
-  position: fixed;
-  z-index: 1000;
-  display: none;
-  min-width: 160px;
-  padding: 6px;
-  background: var(--rai);
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  box-shadow: var(--shadow);
-}
-#ctxMenu.visible { display: block; }
-#ctxMenu button {
-  display: block;
-  width: 100%;
-  padding: 7px 8px;
-  border: 0;
-  background: transparent;
-  border-radius: 6px;
-  text-align: left;
-  color: var(--tx);
-  cursor: pointer;
-}
-#ctxMenu button:hover { background: var(--hi); }
 .m {
   max-width: 94%;
   padding: 8px 11px;
@@ -1101,6 +1077,71 @@ main {
   margin-left: 6px;
 }
 
+/* Selection handles and the layer context menu */
+.hnd {
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  box-sizing: border-box;
+  border: 1.5px solid #111;
+  border-radius: 2px;
+  background: #fff;
+  z-index: 10000;
+  opacity: 0;
+  touch-action: none;
+}
+.L.sel .hnd { opacity: 1; }
+/* On very small layers the middle handles would cover the whole box, leaving
+   nothing to drag by — keep only the corners. */
+.L.tiny-h .hnd[data-h="n"],
+.L.tiny-h .hnd[data-h="s"],
+.L.tiny-w .hnd[data-h="w"],
+.L.tiny-w .hnd[data-h="e"] { display: none; }
+.hnd[data-h="nw"] { left: 0; top: 0; cursor: nwse-resize; }
+.hnd[data-h="n"] { left: 50%; top: 0; margin-left: -5.5px; cursor: ns-resize; }
+.hnd[data-h="ne"] { right: 0; top: 0; cursor: nesw-resize; }
+.hnd[data-h="e"] { right: 0; top: 50%; margin-top: -5.5px; cursor: ew-resize; }
+.hnd[data-h="se"] { right: 0; bottom: 0; cursor: nwse-resize; }
+.hnd[data-h="s"] { left: 50%; bottom: 0; margin-left: -5.5px; cursor: ns-resize; }
+.hnd[data-h="sw"] { left: 0; bottom: 0; cursor: nesw-resize; }
+.hnd[data-h="w"] { left: 0; top: 50%; margin-top: -5.5px; cursor: ew-resize; }
+
+.cxmenu {
+  position: fixed;
+  z-index: 10001;
+  min-width: 250px;
+  max-width: 310px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--pan);
+  color: var(--tx);
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 2px;
+}
+.cxmenu[hidden] { display: none; }
+.cxmenu > button {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: var(--tx);
+  font: inherit;
+  border-radius: 8px;
+  padding: 7px 9px;
+  cursor: pointer;
+  white-space: normal;
+}
+.cxmenu > button:hover,
+.cxmenu > button:focus-visible { background: var(--hi); }
+.cxmenu > button b { font-size: 12.5px; font-weight: 600; }
+.cxmenu > button small { color: var(--mu); font-size: 11px; line-height: 1.35; }
+.cxmenu > button[aria-disabled="true"] { opacity: .45; cursor: default; }
+.cxmenu > button[aria-disabled="true"]:hover { background: transparent; }
+.cxmenu hr { border: 0; border-top: 1px solid var(--line); margin: 5px 3px; }
+
 dialog.dlg {
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -1330,7 +1371,6 @@ dialog.dlg::backdrop { background: rgba(8, 8, 12, .6); }
       <button type="button" id="clearChat">Clear chat</button>
     </h4>
     <div id="chat" aria-live="polite"></div>
-    <div id="ctxMenu" role="menu" aria-label="Layer actions"></div>
     <div class="qp" id="qp"></div>
     <div class="ctx" id="ctx"></div>
     <form id="f">
@@ -1673,7 +1713,7 @@ function fitScene(sc){
 function run(sc,cmds){for(const c of cmds){const g=id=>sc.find(l=>l.id===id);
  if(c.type==='set-layer'){const l=g(c.layerId);if(l)for(const[k,v]of Object.entries(c.patch)){if(k==='font')Object.assign(l.font,v);else l[k]=v}}
  else if(c.type==='add-layer')sc.push(c.layer);
- else if(c.type==='remove-layer'){const i=sc.findIndex(l=>l.id===c.layerId);if(i>-1)sc.splice(i,1)}
+ else if(c.type==='remove-layer'){const i=sc.findIndex(l=>l.id===c.layerId);if(i>-1){rememberSlot(sc[i]);sc.splice(i,1)}}
  else if(c.type==='swap-asset'){const l=g(c.layerId);if(l)l.tone=c.asset}
  else if(c.type==='variant'){const next=(FMT&&FMT.eng&&hasEngine())?engVariant(c.variant,sc):fitScene(buildScene(c.variant,sc));sc.splice(0,sc.length,...next)}
  else if(c.type==='set-animation'){const l=g(c.layerId);if(l)l.anim={preset:c.preset,start:c.startMs||0,duration:c.durationMs||900}}
@@ -1705,14 +1745,175 @@ function render(sc=scene,tgt=stage){tgt.innerHTML='';
    e.dataset.an=1;
    e.style.animation=`${l.anim.preset} ${l.anim.duration}ms ${infinite?'ease-in-out infinite':isClip?'cubic-bezier(.22,1,.36,1)':'ease-out'} ${l.anim.start-(tgt===stage?T:DUR)}ms both paused`;
   }
-  if(sc===scene&&tgt===stage&&l.id===sel){e.classList.add('sel');const c=document.createElement('span');c.className='chip';c.textContent=l.name;e.appendChild(c)}
+  if(sc===scene&&tgt===stage&&l.id===sel){
+   e.classList.add('sel');
+   const c=document.createElement('span');c.className='chip';c.textContent=l.name;e.appendChild(c);
+   if(l.type!=='fill'){
+    if(tgt.clientHeight*l.h/100<18)e.classList.add('tiny-h');
+    if(tgt.clientWidth*l.w/100<18)e.classList.add('tiny-w');
+    for(const h of HANDLES){const g=document.createElement('span');g.className='hnd';g.dataset.h=h;g.onpointerdown=ev=>resizeLayer(ev,l,h,e);e.appendChild(g)}}
+  }
   e.onpointerdown=ev=>down(ev,l.id);tgt.appendChild(e)}}
-function down(ev,id){ev.preventDefault();if(sel!==id)select(id);const l=scene.find(q=>q.id===id);if(!l||l.type==='fill')return;
+function down(ev,id){if(ev.button)return;ev.preventDefault();if(sel!==id)select(id);const l=scene.find(q=>q.id===id);if(!l||l.type==='fill')return;
  const r=stage.getBoundingClientRect(),sx=ev.clientX,sy=ev.clientY,ox=l.x,oy=l.y;let moved=false;const el=ev.currentTarget;
  const mv=m=>{if(!moved){hist.push(clone(scene));moved=true}const px=l.x,py=l.y;l.x=+(ox+(m.clientX-sx)/r.width*100).toFixed(1);l.y=+(oy+(m.clientY-sy)/r.height*100).toFixed(1);el.style.left=l.x+'%';el.style.top=l.y+'%';
   if(l.kf)l.kf=l.kf.map(k=>({...k,x:+(k.x+l.x-px).toFixed(2),y:+(k.y+l.y-py).toFixed(2)}))};
  const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);if(moved){layers();say('agent',`Moved ${esc(l.name)} to x ${l.x}, y ${l.y}.`)}};
  addEventListener('pointermove',mv);addEventListener('pointerup',up)}
+
+/* ---------- resizing, layer areas and the right-click menu ---------- */
+const HANDLES=['nw','n','ne','e','se','s','sw','w'];
+const MIN_SIDE=1,SAFE_INSET=8;
+
+/* Which region of the design a layer belongs to. Mirrors the keys in GEO, so a
+   dropped photograph knows it is meant for the photograph area. */
+const ROLE_WORDS=[[/^(sub|kicker|eyebrow|dek)/i,'sub'],[/head|title|display/i,'head'],[/body|copy|paragraph|deck/i,'body'],[/cta|button|action/i,'cta'],[/foot|legal|fine|credit/i,'foot'],[/logo|mark|wordmark|icon/i,'logo'],[/photo|image|picture|hero|shot/i,'photo']];
+const ROLE_LABEL={photo:'photograph',logo:'logo',head:'headline',sub:'sub-headline',body:'body',cta:'call to action',foot:'footer'};
+const SLOTS=new Map();
+function roleOf(l){
+ if(!l)return '';
+ if(l.type==='logo')return 'logo';
+ if(l.type==='image')return /logo|mark|icon|badge|wordmark/i.test(l.name||'')?'logo':'photo';
+ if(l.type!=='text')return '';
+ const hit=ROLE_WORDS.find(([re])=>re.test(l.name||''));
+ return hit?hit[1]:'';
+}
+/* A removed layer leaves its rectangle behind so the next asset of the same kind
+   can drop straight back into it. */
+function rememberSlot(l){
+ const role=roleOf(l);if(!role)return;
+ SLOTS.set(role,{x:l.x,y:l.y,w:l.w,h:l.h,fit:l.fit,label:`${ROLE_LABEL[role]} area`});
+}
+
+/* The area this layer is supposed to occupy: the rectangle the design reserves
+   for it (GEO), the rectangle a removed sibling left behind, or — failing both —
+   the largest same-kind layer on the stage, then the safe margins. */
+function areaFor(l){
+ const role=roleOf(l);
+ const memo=role&&SLOTS.get(role);
+ if(memo)return {...memo};
+ const g=FMT&&(GEO[FMT.id]||GEO.a4),slot=g&&role&&g[role];
+ if(slot)return {x:slot[0],y:slot[1],w:slot[2],h:slot[3],label:`${ROLE_LABEL[role]} area`};
+ const peer=role&&scene.find(q=>q!==l&&!q.hidden&&roleOf(q)===role);
+ if(peer)return {x:peer.x,y:peer.y,w:peer.w,h:peer.h,fit:peer.fit,label:`${ROLE_LABEL[role]} area`};
+ return {x:SAFE_INSET,y:SAFE_INSET,w:100-SAFE_INSET*2,h:100-SAFE_INSET*2,label:'safe area'};
+}
+
+function remapKf(l,from,to){
+ if(!Array.isArray(l.kf)||!l.kf.length)return;
+ const sx=(to.w||1)/(from.w||1),sy=(to.h||1)/(from.h||1);
+ l.kf=l.kf.map(k=>({...k,
+  x:+(to.x+(k.x-from.x)*sx).toFixed(2),y:+(to.y+(k.y-from.y)*sy).toFixed(2),
+  w:+(k.w*sx).toFixed(2),h:+(k.h*sy).toFixed(2)}));
+}
+
+/* Text boxes hold no intrinsic size, so shrink the type until it fits again. */
+function fitTextInBox(l){
+ try{const[fitted]=fitScene([clone(l)]);if(fitted&&fitted.font)l.font.sizePct=fitted.font.sizePct}catch{}
+}
+
+function resizeLayer(ev,l,dir,el){
+ if(ev.button)return;ev.preventDefault();ev.stopPropagation();
+ if(sel!==l.id){sel=l.id;render()}
+ const box=stage.getBoundingClientRect();
+ const sx=ev.clientX,sy=ev.clientY,o={x:l.x,y:l.y,w:l.w,h:l.h};
+ const asp=(o.w*FMT.w)/(o.h*FMT.h)||1;
+ const kf0=Array.isArray(l.kf)?clone(l.kf):null,f0=l.font?l.font.sizePct:0;
+ let moved=false;
+ const mv=m=>{
+  if(!moved){hist.push(clone(scene));moved=true}
+  const dx=(m.clientX-sx)/box.width*100,dy=(m.clientY-sy)/box.height*100;
+  let x=o.x,y=o.y,w=o.w,h=o.h;
+  if(dir.includes('w')){x=o.x+dx;w=o.w-dx}
+  if(dir.includes('e'))w=o.w+dx;
+  if(dir.includes('n')){y=o.y+dy;h=o.h-dy}
+  if(dir.includes('s'))h=o.h+dy;
+  if(m.shiftKey&&dir.length===2){h=w*FMT.w/(asp*FMT.h);if(dir.includes('n'))y=o.y+o.h-h}
+  if(w<MIN_SIDE){w=MIN_SIDE;if(dir.includes('w'))x=o.x+o.w-MIN_SIDE}
+  if(h<MIN_SIDE){h=MIN_SIDE;if(dir.includes('n'))y=o.y+o.h-MIN_SIDE}
+  if(f0&&dir!=='e'&&dir!=='w')l.font.sizePct=+clamp(f0*(h/o.h),.4,24).toFixed(2);
+  if(kf0){
+   const kx=(w||1)/(o.w||1),ky=(h||1)/(o.h||1);
+   l.kf=kf0.map(k=>({...k,
+    x:+(x+(k.x-o.x)*kx).toFixed(2),y:+(y+(k.y-o.y)*ky).toFixed(2),
+    w:+(k.w*kx).toFixed(2),h:+(k.h*ky).toFixed(2)}));
+  }
+  l.x=+x.toFixed(2);l.y=+y.toFixed(2);l.w=+w.toFixed(2);l.h=+h.toFixed(2);
+  Object.assign(el.style,{left:l.x+'%',top:l.y+'%',width:l.w+'%',height:l.h+'%'});
+  if(f0)el.style.fontSize=l.font.sizePct+'cqh';
+  $('#status').textContent=`${l.name} · ${l.w} × ${l.h}%`;
+ };
+ const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);if(!moved)return;if(f0)fitTextInBox(l);render();layers();say('agent',`Resized <b>${esc(l.name)}</b> to ${l.w} × ${l.h}%.`)};
+ addEventListener('pointermove',mv);addEventListener('pointerup',up);
+}
+
+/* Right-clicking a layer offers the layout actions that are hard to do by hand. */
+let cxMenu=null,cxId=null;
+function closeLayerMenu(){if(cxMenu)cxMenu.hidden=true;cxId=null}
+function layerMenuEl(){
+ if(cxMenu)return cxMenu;
+ cxMenu=document.createElement('div');
+ cxMenu.className='cxmenu';cxMenu.id='cxMenu';cxMenu.setAttribute('role','menu');cxMenu.setAttribute('aria-label','Layer actions');
+ cxMenu.hidden=true;
+ document.body.appendChild(cxMenu);
+ return cxMenu;
+}
+function openLayerMenu(ev,id){
+ const l=scene.find(q=>q.id===id);if(!l)return;
+ ev.preventDefault();
+ if(sel!==id)select(id);
+ cxId=id;
+ const area=areaFor(l),menu=layerMenuEl();
+ const near=(v)=>Math.round(v*10)/10;
+ const items=[
+  {a:'area',b:`Distribute in its ${area.label}`,s:`Fills ${near(area.w)} × ${near(area.h)}% — the space this design reserves for it.`},
+  {a:'width',b:'Snap to full width',s:`Spans the ${100-SAFE_INSET*2}% content width, keeping the height.`},
+  {a:'bleed',b:'Full-bleed',s:'Covers the whole page.'},
+  {hr:true},
+  {a:'front',b:'Bring to front',s:'Raises it above every other layer.'},
+  {a:'back',b:'Send to back',s:'Sinks it behind every other layer.'},
+  {hr:true},
+  {a:'remove',b:'Remove layer',s:'Deletes it from the scene (undoable).'},
+ ];
+ menu.innerHTML=items.map(it=>it.hr?'<hr>':`<button type="button" role="menuitem" data-a="${it.a}"><b>${esc(it.b)}</b><small>${esc(it.s)}</small></button>`).join('');
+ menu.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>runLayerAction(b.dataset.a));
+ menu.hidden=false;
+ const r=menu.getBoundingClientRect();
+ const x=clamp(ev.clientX,6,innerWidth-r.width-6),y=clamp(ev.clientY,6,innerHeight-r.height-6);
+ menu.style.left=x+'px';menu.style.top=y+'px';
+ menu.querySelector('button').focus({preventScroll:true});
+}
+function runLayerAction(action){
+ const l=scene.find(q=>q.id===cxId)||scene.find(q=>q.id===sel);
+ closeLayerMenu();
+ if(!l)return;
+ if(action==='remove'){
+  hist.push(clone(scene));rememberSlot(l);
+  scene=scene.filter(q=>q!==l);if(sel===l.id)sel=null;
+  render();layers();say('agent',`Removed <b>${esc(l.name)}</b>.`);
+  return;
+ }
+ if(action==='front'||action==='back'){
+  hist.push(clone(scene));
+  const zs=scene.filter(q=>q!==l&&q.type!=='fill').map(q=>q.z);
+  l.z=action==='front'?(zs.length?Math.max(...zs):0)+1:Math.max(0,(zs.length?Math.min(...zs):1)-1);
+  render();layers();$('#status').textContent=`${l.name} moved ${action==='front'?'to the front':'to the back'}.`;
+  return;
+ }
+ const from={x:l.x,y:l.y,w:l.w,h:l.h};
+ const area=action==='area'?areaFor(l):action==='bleed'?{x:0,y:0,w:100,h:100,label:'full page'}:{x:SAFE_INSET,y:l.y,w:100-SAFE_INSET*2,h:l.h,label:'content width'};
+ hist.push(clone(scene));
+ if(action==='area')SLOTS.delete(roleOf(l));
+ l.x=area.x;l.y=area.y;l.w=area.w;l.h=area.h;
+ if(l.type==='image'&&(area.fit||action==='bleed'))l.fit=action==='bleed'?'cover':area.fit;
+ if(l.type==='logo'&&!l.fit)l.fit='contain';
+ remapKf(l,from,{x:l.x,y:l.y,w:l.w,h:l.h});
+ if(l.type==='text')fitTextInBox(l);
+ render();layers();
+ say('agent',action==='area'?`Distributed <b>${esc(l.name)}</b> across the ${area.label}.`
+  :action==='bleed'?`Made <b>${esc(l.name)}</b> full-bleed.`
+  :`Snapped <b>${esc(l.name)}</b> to the content width.`);
+}
 
 /* ---------- stage sizing ---------- */
 function fitStage(){const cs=getComputedStyle(wrapEl),pw=wrapEl.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight),ph=wrapEl.clientHeight-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom);
@@ -2313,16 +2514,12 @@ function ask(t){say('user',esc(t));const l=scene.find(q=>q.id===sel);setTimeout(
   else cards=preferred.slice(0,3);
   say('agent',isExperimental?'Here are a wider set of experimental directions. Each still respects the brand palette and guardrails:':isClip?'Here are motion treatments using clip-path reveals and geometric wipes:':lm.includes('hier')?'One structural issue I can see:':lm.includes('anim')?'A motion-led treatment for the whole design. Drag the bars in the timeline to retime it:':'Three directions for the whole design, built from this brand’s palette and type. Hover to preview each on the canvas:',cards)
  }else{const c=suggest(l,t);say('agent',c.length?`For <b>${esc(l.name)}</b>:`:`I can’t do that to <b>${esc(l.name)}</b> yet. Try “bigger”, “accent colour”, “animate it” or “move up”.`,c)}} ,300)}
-function deleteSelection(){if(!sel)return;const l=scene.find(q=>q.id===sel);if(!l)return;hist.push(clone(scene));scene=scene.filter(q=>q.id!==sel);sel=null;render();layers();$('#status').textContent=l.name?`Deleted ${l.name}.`:'Deleted layer.';closeContextMenu()}
-function closeContextMenu(){const menu=$('#ctxMenu');if(menu){menu.innerHTML='';menu.classList.remove('visible');menu.setAttribute('hidden','hidden')}}
-function showContextMenu(event, layerId){const menu=$('#ctxMenu');if(!menu)return;event.preventDefault();const item=scene.find(q=>q.id===layerId);if(!item)return;menu.innerHTML='';const btn=document.createElement('button');btn.type='button';btn.setAttribute('role','menuitem');btn.textContent='Delete layer';btn.onclick=()=>{deleteSelection()};menu.appendChild(btn);menu.classList.add('visible');menu.removeAttribute('hidden');const left=Math.min(event.clientX+10,window.innerWidth-180);const top=Math.min(event.clientY+10,window.innerHeight-80);menu.style.left=left+'px';menu.style.top=top+'px'}
+function deleteSelection(){if(!sel)return;const l=scene.find(q=>q.id===sel);if(!l)return;hist.push(clone(scene));rememberSlot(l);scene=scene.filter(q=>q.id!==sel);sel=null;render();layers();$('#status').textContent=l.name?`Deleted ${l.name}.`:'Deleted layer.';closeLayerMenu()}
 $('#f').onsubmit=e=>{e.preventDefault();const v=$('#in').value.trim();if(v){$('#in').value='';ask(v)}};
 $('#clearChat').onclick=()=>{chat.innerHTML='';$('#status').textContent='Chat cleared.'};
 document.addEventListener('keydown',(event)=>{const target=event.target;const editable=target&&((target.isContentEditable)||(target.tagName==='INPUT')||(target.tagName==='TEXTAREA')||(target.tagName==='SELECT'));if(editable)return;if((event.key==='Delete'||event.key==='Backspace')&&sel){event.preventDefault();deleteSelection()}});
-document.addEventListener('click',e=>{if(!e.target.closest('#ctxMenu'))closeContextMenu()});
-document.addEventListener('contextmenu',e=>{if(!e.defaultPrevented&&!e.target.closest('#ctxMenu'))closeContextMenu()});
-stage.addEventListener('contextmenu',e=>{const layer=e.target.closest('.L');if(!layer)return;const id=layer.dataset.id;select(id);showContextMenu(e,id)});
-$('#layers').addEventListener('contextmenu',e=>{const row=e.target.closest('.lrow');if(!row)return;const id=row.dataset.id;if(!id)return;select(id);showContextMenu(e,id)});
+stage.addEventListener('contextmenu',e=>{const layer=e.target.closest('.L');if(!layer||!layer.dataset.id)return;openLayerMenu(e,layer.dataset.id)});
+$('#layers').addEventListener('contextmenu',e=>{const row=e.target.closest('.lrow');if(!row||!row.dataset.id)return;openLayerMenu(e,row.dataset.id)});
 function greet(){chat.innerHTML='';say('agent',`Hi, I’m the Studio agent. I can see the <b>${esc(B.name)}</b> ${esc(FMT.n.toLowerCase())}, built from its palette (${Object.keys(PAL).length} colours), type and imagery. <b>Select a layer</b> or <b>drag an asset onto the canvas</b> and I’ll propose options for that exact element. With nothing selected, here are directions for the whole design:`,concepts().slice(0,3))}
 
 /* ---------- guardrails ---------- */
@@ -2408,6 +2605,11 @@ $('#reset').onclick=()=>{hist.push(clone(scene));LS.del(sceneKey());scene=fitSce
 $('#play').onclick=()=>play(0);
 $('#sz').onchange=e=>$('#app').classList.toggle('safe',e.target.checked);
 wrapEl.onclick=e=>{if(e.target.id==='wrap')select(null)};
+addEventListener('pointerdown',e=>{if(cxMenu&&!cxMenu.hidden&&!cxMenu.contains(e.target))closeLayerMenu()},true);
+addEventListener('keydown',e=>{if(e.key==='Escape'&&cxMenu&&!cxMenu.hidden)closeLayerMenu()});
+addEventListener('scroll',closeLayerMenu,true);
+addEventListener('resize',closeLayerMenu);
+addEventListener('blur',closeLayerMenu);
 $('#grp').onchange=e=>selectPack(e.target.value);
 bindFormatSelectors();
 
