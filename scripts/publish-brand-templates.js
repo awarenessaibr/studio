@@ -103,6 +103,7 @@ async function publishPack(packId, stats) {
                 const composition = Brand.createTemplateComposition({
                     packId: pack.id,
                     packName: pack.name,
+                    portfolio: pack.portfolio,
                     brand,
                     templateId: template.id,
                     name,

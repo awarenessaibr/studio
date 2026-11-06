@@ -38,6 +38,96 @@ test.after(async () => {
     ]);
 });
 
+test('DeepSeek director status requires server-side credentials and never exposes the API key', () => {
+    const keys = ['STUDIO_DEEPSEEK_API_KEY', 'STUDIO_DEEPSEEK_MODEL', 'STUDIO_DEEPSEEK_BASE_URL'];
+    const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+    try {
+        delete process.env.STUDIO_DEEPSEEK_API_KEY;
+        process.env.STUDIO_DEEPSEEK_MODEL = 'deepseek-flash';
+        const missingKey = server.getDeepSeekDirectorStatus();
+        assert.equal(missingKey.available, false);
+        assert.match(missingKey.error, /STUDIO_DEEPSEEK_API_KEY/);
+        assert.equal(Object.hasOwn(missingKey, 'apiKey'), false);
+
+        process.env.STUDIO_DEEPSEEK_API_KEY = 'test-secret';
+        const configured = server.getDeepSeekDirectorStatus();
+        assert.deepEqual(configured, { available: true, model: 'deepseek-flash', error: null });
+        assert.equal(JSON.stringify(configured).includes('test-secret'), false);
+
+        delete process.env.STUDIO_DEEPSEEK_MODEL;
+        const missingModel = server.getDeepSeekDirectorStatus();
+        assert.equal(missingModel.available, false);
+        assert.match(missingModel.error, /STUDIO_DEEPSEEK_MODEL/);
+    } finally {
+        keys.forEach((key) => {
+            if (previous[key] === undefined) delete process.env[key];
+            else process.env[key] = previous[key];
+        });
+    }
+});
+
+test('Ollama vision detection uses explicit capabilities and keeps legacy name fallback', () => {
+    assert.equal(server.isVisionModel({
+        name: 'ornith-1.5:9b',
+        details: { families: ['qwen35'] },
+        capabilities: ['tools', 'thinking', 'completion', 'vision'],
+    }), true);
+    assert.equal(server.isVisionModel({
+        name: 'bonsai-2:9b',
+        details: { families: ['qwen35'] },
+        capabilities: ['completion', 'tools'],
+    }), false);
+    assert.equal(server.isVisionModel({ name: 'granite3.2-vision:2b' }), true);
+});
+
+test('Ollama thinking detection supports custom model names from capability metadata', () => {
+    assert.equal(server.supportsThinking({
+        name: 'bonsai-2:9b',
+        capabilities: ['completion', 'vision', 'thinking'],
+    }), true);
+    assert.equal(server.supportsThinking({
+        name: 'custom-text:7b',
+        capabilities: ['completion'],
+    }), false);
+    assert.equal(server.supportsThinking({ name: 'qwen3.5:9b' }), true);
+});
+
+test('Ollama animation prompt stays compact while retaining scene and layer guidance', () => {
+    const composition = {
+        name: 'Coastal scene',
+        width: 736,
+        height: 1308,
+        duration: 9000,
+        characters: [],
+    };
+    const catalog = Array.from({ length: 27 }, (_, index) => ({
+        alias: `L${String(index + 1).padStart(2, '0')}`,
+        name: `Layer ${index + 1}`,
+        role: 'background',
+        type: 'image',
+        z: index,
+        x: 0,
+        y: 0,
+        w: 100,
+        h: 100,
+    }));
+    const prompt = server.buildWriterPrompt({
+        composition,
+        context: '',
+        analysis: { subject: 'lighthouse', mood: 'calm' },
+        catalog,
+        count: 4,
+        retry: false,
+        concise: true,
+    });
+    assert.ok(prompt.length < 2200);
+    assert.match(prompt, /exactly 4 distinct ideas/);
+    assert.match(prompt, /exactly 6 commands/);
+    assert.match(prompt, /L27\|Layer 27\|background/);
+    assert.match(prompt, /ANALYSIS:.*lighthouse/);
+    assert.doesNotMatch(prompt, /box=/);
+});
+
 const baseComposition = () => ({
     version: 3,
     id: 'test-project',
@@ -87,6 +177,21 @@ test('importPublicFile exposes import media only', () => {
     assert.strictEqual(server.importPublicFile('/data/imports/demo/../../.env'), null);
     assert.strictEqual(server.importPublicFile('/data/assets/demo/original.png'), null);
     assert.strictEqual(server.importPublicFile('/data/imports/demo/assets/page.html'), null);
+});
+
+test('projectPublicFile exposes generated project images only', () => {
+    const projects = path.join(__dirname, '..', 'data', 'projects');
+    assert.strictEqual(
+        server.projectPublicFile('/data/projects/demo/images/Book/cover.png'),
+        path.join(projects, 'demo', 'images', 'Book', 'cover.png'),
+    );
+    assert.strictEqual(
+        server.projectPublicFile('/data/projects/demo/assets/segments/01.webp'),
+        path.join(projects, 'demo', 'assets', 'segments', '01.webp'),
+    );
+    assert.strictEqual(server.projectPublicFile('/data/projects/demo/compositions/demo.composition.json'), null);
+    assert.strictEqual(server.projectPublicFile('/data/projects/demo/images/../../.env'), null);
+    assert.strictEqual(server.projectPublicFile('/data/projects/demo/images/page.html'), null);
 });
 
 test('transcodeVideoToMp4 yields an H.264 MP4 when ffmpeg is installed', async (t) => {
@@ -467,6 +572,43 @@ test('brand kits round-trip through the store', async () => {
     assert.strictEqual(updated.kit.name, 'Acme v2');
     const after = await server.readBrandKit(id);
     assert.strictEqual(after.kit.name, 'Acme v2');
+});
+
+test('Studio animation library persists reusable tracks and validates presets', async () => {
+    const id = `test-animation-${Date.now().toString(36)}`;
+    const payload = {
+        id,
+        name: 'Reusable motion',
+        tracks: [{
+            layerId: 'layer-one',
+            layerName: 'Headline',
+            event: {
+                id: 'event-one',
+                preset: 'fadeIn',
+                start: 250,
+                duration: 900,
+                keyframes: [{ time: 250, x: 10, y: 20, w: 30, h: 40, opacity: 0.5 }],
+            },
+        }],
+    };
+    try {
+        const saved = await server.saveStudioAnimation(payload);
+        assert.strictEqual(saved.animation.id, id);
+        assert.strictEqual(saved.animation.tracks[0].event.preset, 'fadeIn');
+        const library = await server.readStudioAnimationLibrary();
+        assert.ok(library.animations.some((animation) => animation.id === id));
+        assert.strictEqual(library.animations.find((animation) => animation.id === id).tracks[0].event.keyframes[0].opacity, 0.5);
+        await assert.rejects(() => server.saveStudioAnimation({
+            id: `${id}-invalid`,
+            name: 'Invalid motion',
+            tracks: [{ layerId: 'layer-one', layerName: 'Headline', event: { preset: 'not-a-preset' } }],
+        }), /unsupported animation preset/i);
+        await server.deleteStudioAnimation(id);
+        await assert.rejects(() => server.deleteStudioAnimation(id), /not found/i);
+    } finally {
+        const library = await server.readStudioAnimationLibrary();
+        if (library.animations.some((animation) => animation.id === id)) await server.deleteStudioAnimation(id);
+    }
 });
 
 test('deleting a brand kit removes it and 404s afterwards', async () => {

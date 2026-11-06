@@ -1691,6 +1691,880 @@
         return { layers, variables };
     }
 
+    // ─── Cawley / Boardwalk social templates ──────────────────────────
+    // Ten designs from the Boardwalk social pack (01.pdf) rebuilt as real v3
+    // compositions: every word is a bindable text layer, every photo slot is an
+    // image variable, and the waves, scallops, sun, glow and gull are compact
+    // inline SVG art. Nothing is a screenshot, so variables, formats, guardrails
+    // and the export path all apply.
+    //
+    // The art direction uses the venue's brighter site palette rather than the
+    // pack's darker teal, so the colours are declared on each template and
+    // merged into the composition kit (see createTemplateComposition). The
+    // ground and orange are a touch deeper than the reference so white type
+    // clears the contrast rule the studio enforces.
+
+    const BW = Object.freeze({
+        blue: '#0890ce',
+        blueDeep: '#0b5f86',
+        teal: '#00969e',
+        mint: '#bee2de',
+        mintLine: '#a6d5ce',
+        ink: '#24424a',
+        inkDeep: '#123f4c',
+        yellow: '#feef00',
+        orange: '#e8641a',
+        white: '#ffffff',
+    });
+
+    const BOARDWALK_BRAND = (brand) => /boardwalk/i.test(`${brand?.id || ''} ${brand?.name || ''}`);
+
+    // The reference art runs close to the edges. The studio's social default
+    // (12 % top, 16 % bottom) would pull every footer into the middle, so these
+    // cards declare their own 4 % margin — still a margin, just the one the
+    // design was drawn with.
+    const BW_SAFE_ZONE = Object.freeze({ top: 0.04, right: 0.04, bottom: 0.04, left: 0.04 });
+
+    const BW_KIT_COLORS = Object.freeze([
+        { name: 'Boardwalk Blue', hex: BW.blue },
+        { name: 'Coast Teal', hex: BW.teal },
+        { name: 'Sea Glass', hex: BW.mint },
+        { name: 'Deep Ink', hex: BW.ink },
+        { name: 'Sun Yellow', hex: BW.yellow },
+        { name: 'Sunset Orange', hex: BW.orange },
+    ]);
+
+    function bwRound(value) {
+        return Math.round(Number(value) * 100) / 100;
+    }
+
+    /** SVG art travels as a base64 data URL: compact, and immune to URL escaping. */
+    function bwSvg(svg) {
+        const base64 = typeof btoa === 'function'
+            ? btoa(svg)
+            : Buffer.from(svg, 'utf8').toString('base64');
+        return `data:image/svg+xml;base64,${base64}`;
+    }
+
+    /**
+     * A three-line wave band, generated as a repeating SVG pattern so even a
+     * 1600 px header stays well under the 2 KB asset-URL cap.
+     */
+    function bwWaveUrl(options) {
+        const spec = options || {};
+        const widthPx = Math.max(1, finite(spec.width, 1080));
+        const heightPx = Math.max(1, finite(spec.height, 54));
+        const color = normalizeHex(spec.color) || BW.white;
+        const W = 1000;
+        const H = Math.max(24, Math.round((W * heightPx) / widthPx));
+        const L = Math.max(70, Math.round(W * (finite(spec.wavelength, 0.21))));
+        const A = H * (finite(spec.amplitude, 0.22));
+        const base = H * (finite(spec.thickness, 0.09));
+        const count = clamp(Math.round(finite(spec.rows, 3)), 2, 5);
+        const rows = Array.from({ length: count }, (_, index) => {
+            const f = count === 3
+                ? [0.3, 0.52, 0.76][index]
+                : 0.18 + (0.66 * index) / Math.max(1, count - 1);
+            return { y: f, a: index % 2 ? 0.8 : 1, w: index === 1 ? 0.55 : 1 };
+        });
+        const paths = rows.map((row) => {
+            const y = bwRound(H * row.y);
+            const a = bwRound(A * row.a);
+            const sw = bwRound(base * row.w);
+            return `<path d="M0 ${bwRound(y - a)} C${bwRound(L * 0.25)} ${bwRound(y - a)} ${bwRound(L * 0.25)} ${bwRound(y + a)} ${bwRound(L / 2)} ${bwRound(y + a)} C${bwRound(L * 0.75)} ${bwRound(y + a)} ${bwRound(L * 0.75)} ${bwRound(y - a)} ${L} ${bwRound(y - a)}" fill="none" stroke="${color}" stroke-width="${sw}"/>`;
+        }).join('');
+        return bwSvg(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><defs><pattern id="w" width="${L}" height="${H}" patternUnits="userSpaceOnUse">${paths}</pattern></defs><rect width="${W}" height="${H}" fill="url(#w)"/></svg>`);
+    }
+
+    /**
+     * The venue's scallop-shingle footer: overlapping shell arcs with a three
+     * tick fan, tiled in two staggered rows.
+     */
+    function bwScallopUrl(options) {
+        const spec = options || {};
+        const widthPx = Math.max(1, finite(spec.width, 1080));
+        const heightPx = Math.max(1, finite(spec.height, 150));
+        const ground = normalizeHex(spec.ground) || BW.mint;
+        const line = normalizeHex(spec.line) || BW.mintLine;
+        const W = 1000;
+        const H = Math.max(60, Math.round((W * heightPx) / widthPx));
+        // Keep the shell roughly 120 px wide on every canvas, so a wide banner
+        // gets more scallops rather than bigger ones.
+        const T = Math.max(48, Math.round((105 * W) / widthPx));
+        const S = Math.round(T * 0.56);
+        const sw = bwRound((4 * W) / widthPx);
+        const arcs = [0.5, 0.36, 0.22].map((f) => {
+            const r = bwRound(T * f);
+            const lift = bwRound(r * 1.3);
+            return `<path d="M${bwRound(-r)} 0 C${bwRound(-r)} ${bwRound(-lift)} ${bwRound(r)} ${bwRound(-lift)} ${bwRound(r)} 0"/>`;
+        }).join('');
+        const ticks = `<path d="M0 ${bwRound(-T * 0.22)} L${bwRound(-T * 0.13)} ${bwRound(-T * 0.4)} M0 ${bwRound(-T * 0.22)} L${bwRound(T * 0.13)} ${bwRound(-T * 0.4)} M0 ${bwRound(-T * 0.22)} L0 ${bwRound(-T * 0.36)}"/>`;
+        const motif = `<g id="m" fill="none" stroke="${line}" stroke-width="${sw}" stroke-linecap="round">${arcs}${ticks}</g>`;
+        const tileH = 2 * S;
+        return bwSvg(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><defs>${motif}<pattern id="p" width="${T}" height="${tileH}" patternUnits="userSpaceOnUse"><rect width="${T}" height="${tileH}" fill="${ground}"/><g opacity="0.62"><use xlink:href="#m" x="0" y="${tileH}"/><use xlink:href="#m" x="${T}" y="${tileH}"/><use xlink:href="#m" x="${T / 2}" y="${S}"/></g></pattern></defs><rect width="${W}" height="${H}" fill="url(#p)"/></svg>`);
+    }
+
+    function bwSunUrl(color) {
+        const fill = normalizeHex(color) || BW.yellow;
+        return bwSvg(`<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="${fill}"/></svg>`);
+    }
+
+    /**
+     * Warm glow. The layer paints the ground it sits on and then a radial
+     * gradient, so it is a soft halo while the contrast pass still samples the
+     * teal ground rather than a photograph stand-in.
+     */
+    function bwGlowUrl(color, base) {
+        const fill = normalizeHex(color) || BW.orange;
+        const ground = normalizeHex(base) || BW.teal;
+        return bwSvg(`<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 100 100"><defs><radialGradient id="g"><stop offset="0" stop-color="${fill}"/><stop offset="0.5" stop-color="${fill}" stop-opacity="0.92"/><stop offset="0.8" stop-color="${fill}" stop-opacity="0.45"/><stop offset="1" stop-color="${fill}" stop-opacity="0"/></radialGradient></defs><rect width="100" height="100" fill="${ground}"/><circle cx="50" cy="50" r="50" fill="url(#g)"/></svg>`);
+    }
+
+    function bwGullUrl(color) {
+        const fill = normalizeHex(color) || BW.white;
+        return bwSvg(`<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="580" viewBox="0 0 100 58"><path d="M1 27C15 18 28 17 38 26C46 19 58 17 69 21C80 25 92 30 99 33C88 35 77 36 66 38C55 40 45 45 38 51C35 43 22 31 1 27Z" fill="${fill}"/></svg>`);
+    }
+
+    /**
+     * A photo slot. The dashed frame and the "Add …" hint are baked into the
+     * placeholder, so swapping the bound image variable removes the whole cue
+     * without leaving orphaned type behind.
+     */
+    function bwPhotoUrl(options) {
+        const spec = options || {};
+        const fill = normalizeHex(spec.fill) || 'none';
+        const stroke = normalizeHex(spec.stroke) || BW.white;
+        const textColor = normalizeHex(spec.textColor) || BW.white;
+        const label = text(spec.label, 48) || 'Add photo';
+        const aspect = clamp(finite(spec.aspect, 1), 0.2, 5);
+        const dash = clamp(finite(spec.dash, 1.8), 0.4, 4);
+        const labelSize = clamp(finite(spec.font, 5), 1.5, 8);
+        const h = bwRound(100 * aspect);
+        const shape = spec.shape === 'rect'
+            ? `<rect x="1.6" y="1.6" width="96.8" height="${bwRound(h - 3.2)}" rx="0"/>`
+            : `<circle cx="50" cy="${bwRound(h / 2)}" r="${bwRound(Math.min(48, h / 2 - 2))}"/>`;
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="${bwRound(1000 * aspect)}" viewBox="0 0 100 ${h}"><g fill="${fill}" stroke="${stroke}" stroke-width="1.2" stroke-dasharray="${dash} ${bwRound(dash * 0.78)}">${shape}</g><text x="50" y="${bwRound(h / 2)}" text-anchor="middle" dominant-baseline="middle" font-family="Helvetica Neue, Arial, sans-serif" font-size="${labelSize}" fill="${textColor}">${label}</text></svg>`;
+        return bwSvg(svg);
+    }
+
+    function bwImageVariable(id, name, url) {
+        return {
+            id,
+            name,
+            kind: 'image',
+            defaultValue: String(url || '').slice(0, 2048),
+            locked: false,
+        };
+    }
+
+    function bwLogo(brand, variant) {
+        const logos = (brand?.logos || []).filter((logo) => !logo.presentation);
+        const words = logos.filter((logo) => String(logo.kind || '').toLowerCase() === 'wordmark');
+        return words.find((logo) => logo.variant === variant)
+            || words.find((logo) => logo.variant === 'color')
+            || words[0]
+            || null;
+    }
+
+    /** The group endorsement lockup, from the pack's portfolio assets when present. */
+    function bwGroupLockup(ctx) {
+        const assets = ctx?.portfolio?.assets || [];
+        const usable = assets.filter((asset) => /\.(png|svg|webp)$/i.test(asset.url || ''));
+        const named = usable.filter((asset) => /cawley/i.test(`${asset.name || ''} ${asset.path || ''}`));
+        return named.find((asset) => /white|light/i.test(`${asset.name || ''} ${asset.path || ''}`))
+            || named.find((asset) => /wordmark|lockup/i.test(`${asset.name || ''} ${asset.path || ''}`))
+            || named[0]
+            || null;
+    }
+
+    function bwWordmarkLayer(brand, spec) {
+        const logo = bwLogo(brand, spec.variant || 'light');
+        if (!logo) return null;
+        const layer = imageLayer({
+            id: spec.id, name: spec.name || 'Boardwalk wordmark', url: logo.url, fit: 'contain',
+            x: spec.x, y: spec.y, w: spec.w, h: spec.h, z: spec.z ?? 20, bleed: true,
+        });
+        if (spec.recolor) {
+            layer.recolorEnabled = true;
+            layer.recolorColor = spec.recolor;
+        }
+        return layer;
+    }
+
+    function bwLockupLayer(ctx, spec) {
+        const asset = bwGroupLockup(ctx);
+        if (!asset) return null;
+        return imageLayer({
+            id: spec.id, name: spec.name || 'Cawley lockup', url: asset.url, fit: 'contain',
+            x: spec.x, y: spec.y, w: spec.w, h: spec.h, z: spec.z ?? 20, bleed: true,
+        });
+    }
+
+    function bwDashedCircle(spec) {
+        return imageLayer({
+            id: spec.id, name: spec.name || 'Photo slot', url: spec.url, fit: 'cover',
+            x: spec.x, y: spec.y, w: spec.w, h: spec.h, z: spec.z ?? 6, bleed: false,
+        });
+    }
+
+    /** The site handle every reference card carries. */
+    const BW_SITE = 'www.cawleyhotels.com';
+    const BW_GROUP_SITE = 'CAWLEYHOTELS.COM';
+
+    function bwText(spec) {
+        return textLayer({
+            ...spec,
+            family: spec.family || 'Helvetica Neue',
+            weight: spec.weight ?? 300,
+        });
+    }
+
+    // ── 1. Dessert of the day ─────────────────────────────────────────
+    function buildDessertCard(ctx) {
+        const { brand } = ctx;
+        const layers = [];
+        const variables = [];
+        layers.push(imageLayer({ id: 'bw-dessert-ground', name: 'Blue ground', color: BW.blue, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
+        layers.push(imageLayer({
+            id: 'bw-dessert-pattern', name: 'Sea-glass scallops', url: bwScallopUrl({ width: 1080, height: 147, ground: BW.mint, line: BW.mintLine }),
+            x: 0, y: 86.4, w: 100, h: 13.6, z: 1, bleed: true,
+        }));
+        const wordmark = bwWordmarkLayer(brand, { id: 'bw-dessert-wordmark', variant: 'light', x: 12, y: 5.4, w: 76, h: 8.45, z: 20 });
+        if (wordmark) layers.push(wordmark);
+        layers.push(bwText({
+            id: 'bw-dessert-kicker', name: 'Kicker', binding: 'bw_dessert_kicker', text: 'Dessert of the day',
+            sizePct: 2.7, letterSpacingEm: 0.26, transform: 'uppercase', color: BW.white,
+            align: 'center', x: 5, y: 16.8, w: 90, h: 3.6, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_dessert_kicker', name: 'Kicker', value: 'Dessert of the day' }));
+        const photo = bwPhotoUrl({ label: 'Add dish photo', stroke: BW.white, textColor: BW.white, fill: 'none', dash: 1.8, font: 5.2 });
+        const photoLayer = bwDashedCircle({ id: 'bw-dessert-photo', name: 'Dish photo', url: photo, x: 29, y: 26, w: 42, h: 42, z: 8 });
+        photoLayer.bindings = { url: 'bw_dessert_photo' };
+        layers.push(photoLayer);
+        variables.push(bwImageVariable('bw_dessert_photo', 'Dish photo', photo));
+        layers.push(bwText({
+            id: 'bw-dessert-dish', name: 'Dish', binding: 'bw_dessert_dish', text: 'Sticky Toffee Pudding',
+            family: 'Georgia', weight: 700, sizePct: 6.2, lineHeight: 1.05, color: BW.white,
+            align: 'center', x: 5, y: 70.2, w: 90, h: 7, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_dessert_dish', name: 'Dish', value: 'Sticky Toffee Pudding' }));
+        layers.push(bwText({
+            id: 'bw-dessert-detail', name: 'Description', binding: 'bw_dessert_detail',
+            text: 'butterscotch sauce, vanilla ice cream · 8.95',
+            family: 'Georgia', weight: 400, style: 'italic', sizePct: 2.7, color: BW.white,
+            align: 'center', x: 5, y: 77.4, w: 90, h: 4.6, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_dessert_detail', name: 'Description and price', value: 'butterscotch sauce, vanilla ice cream · 8.95' }));
+        layers.push(imageLayer({
+            id: 'bw-dessert-waves', name: 'Waves', url: bwWaveUrl({ width: 1080, height: 56, color: BW.white }),
+            x: 0, y: 81.8, w: 100, h: 4.8, z: 12, bleed: true,
+        }));
+        layers.push(bwText({
+            id: 'bw-dessert-footer', name: 'Website', binding: 'bw_dessert_footer', text: BW_SITE,
+            sizePct: 2.5, weight: 500, letterSpacingEm: 0.01, color: BW.blueDeep,
+            align: 'center', x: 5, y: 88.6, w: 90, h: 3.2, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_dessert_footer', name: 'Website', value: BW_SITE }));
+        return { layers, variables };
+    }
+
+    // ── 2. Sweets menu ────────────────────────────────────────────────
+    function buildSweetsMenu(ctx) {
+        const { brand } = ctx;
+        const layers = [];
+        const variables = [];
+        layers.push(imageLayer({ id: 'bw-sweets-ground', name: 'Blue ground', color: BW.blue, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
+        layers.push(imageLayer({ id: 'bw-sweets-mint', name: 'Mint ground', color: BW.mint, x: 0, y: 35.4, w: 100, h: 64.6, z: 1, bleed: true }));
+        const wordmark = bwWordmarkLayer(brand, { id: 'bw-sweets-wordmark', variant: 'light', x: 12.5, y: 7.8, w: 75, h: 8.33, z: 20 });
+        if (wordmark) layers.push(wordmark);
+        layers.push(bwText({
+            id: 'bw-sweets-kicker', name: 'Kicker', binding: 'bw_sweets_kicker', text: 'Sweets',
+            sizePct: 2.7, letterSpacingEm: 0.34, transform: 'uppercase', color: BW.white,
+            align: 'center', x: 5, y: 17.6, w: 90, h: 3.6, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_sweets_kicker', name: 'Kicker', value: 'Sweets' }));
+        layers.push(imageLayer({
+            id: 'bw-sweets-waves', name: 'Waves', url: bwWaveUrl({ width: 1080, height: 74, color: BW.white }),
+            x: 0, y: 30, w: 100, h: 5.6, z: 12, bleed: true,
+        }));
+        layers.push(imageLayer({ id: 'bw-sweets-card', name: 'Menu card', color: BW.white, x: 9, y: 39, w: 82, h: 27, z: 4, bleed: false }));
+        const dishNames = ['Sticky Toffee Pudding', 'Caramel Churros', 'Homemade Tiramisu', 'Sicilian Lemon Sundae'];
+        const prices = ['8.95', '8.95', '9.95', '9.95'];
+        dishNames.forEach((name, index) => {
+            const y = 43.2 + index * 5;
+            layers.push(bwText({
+                id: `bw-sweets-item-${index + 1}-name`, name: `Dish ${index + 1}`, binding: `bw_sweets_item_${index + 1}_name`, text: name,
+                family: 'Georgia', weight: 700, sizePct: 3.3, color: BW.ink,
+                align: 'left', x: 12.5, y, w: 55, h: 4.4, z: 30,
+            }));
+            variables.push(variable({ id: `bw_sweets_item_${index + 1}_name`, name: `Dish ${index + 1}`, value: name }));
+            layers.push(bwText({
+                id: `bw-sweets-item-${index + 1}-price`, name: `Price ${index + 1}`, binding: `bw_sweets_item_${index + 1}_price`, text: prices[index],
+                family: 'Georgia', weight: 400, style: 'italic', sizePct: 3.1, color: BW.inkDeep,
+                align: 'right', x: 70, y, w: 18, h: 4.4, z: 30,
+            }));
+            variables.push(variable({ id: `bw_sweets_item_${index + 1}_price`, name: `Price ${index + 1}`, value: prices[index] }));
+        });
+        layers.push(bwText({
+            id: 'bw-sweets-tagline', name: 'Tagline', binding: 'bw_sweets_tagline', text: 'Save room for something sweet.',
+            family: 'Georgia', weight: 400, style: 'italic', sizePct: 2.8, color: BW.inkDeep,
+            align: 'center', x: 5, y: 68.4, w: 90, h: 4.2, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_sweets_tagline', name: 'Tagline', value: 'Save room for something sweet.' }));
+        layers.push(bwText({
+            id: 'bw-sweets-footer', name: 'Website', binding: 'bw_sweets_footer', text: BW_SITE,
+            sizePct: 2.4, weight: 500, color: BW.blueDeep,
+            align: 'center', x: 5, y: 91.6, w: 90, h: 3.2, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_sweets_footer', name: 'Website', value: BW_SITE }));
+        return { layers, variables };
+    }
+
+    // ── 3. À la carte — pizza ─────────────────────────────────────────
+    function buildALaCarte(ctx) {
+        const { brand } = ctx;
+        const layers = [];
+        const variables = [];
+        layers.push(imageLayer({ id: 'bw-alc-ground', name: 'Blue ground', color: BW.blue, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
+        const wordmark = bwWordmarkLayer(brand, { id: 'bw-alc-wordmark', variant: 'light', x: 12, y: 5.2, w: 76, h: 6.6, z: 20 });
+        if (wordmark) layers.push(wordmark);
+        layers.push(bwText({
+            id: 'bw-alc-kicker', name: 'Kicker', binding: 'bw_alc_kicker', text: 'À la carte menu',
+            sizePct: 2.5, letterSpacingEm: 0.3, transform: 'uppercase', color: BW.white,
+            align: 'center', x: 5, y: 14, w: 90, h: 3.4, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_alc_kicker', name: 'Kicker', value: 'À la carte menu' }));
+        const photo = bwPhotoUrl({ shape: 'rect', aspect: 0.706, label: 'Add pizza photo', fill: '#8fd2ee', stroke: BW.white, textColor: BW.white, dash: 0.9, font: 2.8 });
+        const photoLayer = bwDashedCircle({ id: 'bw-alc-photo', name: 'Pizza photo', url: photo, x: 7.5, y: 18.5, w: 85, h: 40, z: 8 });
+        photoLayer.bindings = { url: 'bw_alc_photo' };
+        layers.push(photoLayer);
+        variables.push(bwImageVariable('bw_alc_photo', 'Pizza photo', photo));
+        layers.push(bwText({
+            id: 'bw-alc-eyebrow', name: 'Eyebrow', binding: 'bw_alc_eyebrow', text: 'Sea-salt stone baked',
+            sizePct: 2.5, letterSpacingEm: 0.22, transform: 'uppercase', color: BW.white,
+            align: 'center', x: 5, y: 63.2, w: 90, h: 3.2, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_alc_eyebrow', name: 'Eyebrow', value: 'Sea-salt stone baked' }));
+        layers.push(bwText({
+            id: 'bw-alc-title', name: 'Dish title', binding: 'bw_alc_title', text: 'Pizza',
+            family: 'Georgia', weight: 700, sizePct: 8.4, lineHeight: 1.02, color: BW.white,
+            align: 'center', x: 5, y: 67.6, w: 90, h: 9.2, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_alc_title', name: 'Dish title', value: 'Pizza' }));
+        layers.push(bwText({
+            id: 'bw-alc-flavours', name: 'Flavours', binding: 'bw_alc_flavours', text: 'Pepperoni & Hot Honey · Margherita · Vegana',
+            family: 'Georgia', weight: 400, style: 'italic', sizePct: 2.6, lineHeight: 1.25, color: BW.white,
+            align: 'center', x: 5, y: 75.4, w: 90, h: 6.4, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_alc_flavours', name: 'Flavours', value: 'Pepperoni & Hot Honey · Margherita · Vegana' }));
+        layers.push(bwText({
+            id: 'bw-alc-price', name: 'Price line', binding: 'bw_alc_price', text: 'from 12.95',
+            family: 'Georgia', weight: 400, style: 'italic', sizePct: 2.6, color: BW.white,
+            align: 'center', x: 5, y: 80.4, w: 90, h: 4, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_alc_price', name: 'Price line', value: 'from 12.95' }));
+        layers.push(imageLayer({
+            id: 'bw-alc-waves', name: 'Waves', url: bwWaveUrl({ width: 1000, height: 52, color: BW.white }),
+            x: 0, y: 85.4, w: 100, h: 5, z: 12, bleed: true,
+        }));
+        layers.push(imageLayer({
+            id: 'bw-alc-pattern', name: 'Sea-glass scallops', url: bwScallopUrl({ width: 1000, height: 150, ground: BW.mint, line: BW.mintLine }),
+            x: 0, y: 90, w: 100, h: 10, z: 10, bleed: true,
+        }));
+        layers.push(bwText({
+            id: 'bw-alc-footer', name: 'Website', binding: 'bw_alc_footer', text: BW_SITE,
+            sizePct: 2.4, weight: 500, color: BW.blueDeep,
+            align: 'center', x: 5, y: 92.4, w: 90, h: 3.2, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_alc_footer', name: 'Website', value: BW_SITE }));
+        return { layers, variables };
+    }
+
+    // ── 4. Good morning — breakfast story ─────────────────────────────
+    function buildGoodMorning(ctx) {
+        const layers = [];
+        const variables = [];
+        layers.push(imageLayer({ id: 'bw-gm-ground', name: 'Blue ground', color: BW.blue, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
+        const lockup = bwLockupLayer(ctx, { id: 'bw-gm-lockup', x: 33, y: 12.8, w: 34, h: 6.6, z: 20 });
+        if (lockup) layers.push(lockup);
+        layers.push(bwText({
+            id: 'bw-gm-headline', name: 'Headline', binding: 'bw_gm_headline', text: 'Good morning',
+            sizePct: 10.3, weight: 300, lineHeight: 1, letterSpacingEm: 0.01, transform: 'uppercase', color: BW.white,
+            align: 'center', x: 5, y: 26.6, w: 90, h: 21.4, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_gm_headline', name: 'Headline', value: 'Good morning' }));
+        layers.push(bwText({
+            id: 'bw-gm-kicker', name: 'Kicker', binding: 'bw_gm_kicker', text: 'Now serving breakfast',
+            sizePct: 2.2, letterSpacingEm: 0.16, transform: 'uppercase', color: BW.white,
+            align: 'center', x: 5, y: 50.4, w: 90, h: 3.4, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_gm_kicker', name: 'Kicker', value: 'Now serving breakfast' }));
+        layers.push(bwText({
+            id: 'bw-gm-dish', name: 'Dish', binding: 'bw_gm_dish', text: 'Full Scottish',
+            family: 'Georgia', weight: 700, sizePct: 4.8, lineHeight: 1.05, color: BW.white,
+            align: 'center', x: 5, y: 54, w: 90, h: 5.8, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_gm_dish', name: 'Dish', value: 'Full Scottish' }));
+        layers.push(bwText({
+            id: 'bw-gm-detail', name: 'Description', binding: 'bw_gm_detail',
+            text: 'your choice of eggs, dry-cured bacon, pork sausage, potato scone & black pudding · 14.95',
+            family: 'Georgia', weight: 400, style: 'italic', sizePct: 2.2, lineHeight: 1.35, color: BW.white,
+            align: 'center', x: 8, y: 60.4, w: 84, h: 8.4, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_gm_detail', name: 'Description and price', value: 'your choice of eggs, dry-cured bacon, pork sausage, potato scone & black pudding · 14.95' }));
+        layers.push(imageLayer({ id: 'bw-gm-gull', name: 'Gull', url: bwGullUrl(BW.white), x: 82, y: 68.4, w: 11, h: 5.8, z: 14, bleed: false }));
+        layers.push(imageLayer({ id: 'bw-gm-sun', name: 'Sun', url: bwSunUrl(BW.yellow), x: 13, y: 78.5, w: 74, h: 41.6, z: 6, bleed: true }));
+        layers.push(imageLayer({
+            id: 'bw-gm-waves', name: 'Waves', url: bwWaveUrl({ width: 1080, height: 104, color: BW.white }),
+            x: 0, y: 85.8, w: 100, h: 5.4, z: 12, bleed: true,
+        }));
+        layers.push(bwText({
+            id: 'bw-gm-footer', name: 'Website', binding: 'bw_gm_footer', text: BW_SITE,
+            sizePct: 2.4, weight: 500, color: BW.inkDeep,
+            align: 'center', x: 5, y: 92, w: 90, h: 3.4, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_gm_footer', name: 'Website', value: BW_SITE }));
+        return { layers, variables };
+    }
+
+    // ── 5. Seasons — set-menu story ───────────────────────────────────
+    function buildSeasonsStory(ctx) {
+        const layers = [];
+        const variables = [];
+        layers.push(imageLayer({ id: 'bw-seasons-ground', name: 'Teal ground', color: BW.teal, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
+        layers.push(imageLayer({ id: 'bw-seasons-glow', name: 'Sunset glow', url: bwGlowUrl(BW.orange, BW.teal), x: 14, y: 21, w: 72, h: 40.5, z: 2, bleed: true }));
+        const lockup = bwLockupLayer(ctx, { id: 'bw-seasons-lockup', x: 34, y: 12.2, w: 32, h: 6.6, z: 20 });
+        if (lockup) layers.push(lockup);
+        layers.push(imageLayer({ id: 'bw-seasons-gull', name: 'Gull', url: bwGullUrl(BW.white), x: 49, y: 27.2, w: 14, h: 7, z: 14, bleed: false }));
+        layers.push(bwText({
+            id: 'bw-seasons-title', name: 'Title', binding: 'bw_seasons_title', text: 'Seasons',
+            sizePct: 8.2, weight: 300, lineHeight: 1.05, letterSpacingEm: 0.12, transform: 'uppercase', color: BW.white,
+            align: 'center', x: 5, y: 38, w: 90, h: 9.2, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_seasons_title', name: 'Title', value: 'Seasons' }));
+        layers.push(bwText({
+            id: 'bw-seasons-kicker', name: 'Kicker', binding: 'bw_seasons_kicker', text: 'Scottish set menu',
+            sizePct: 2.2, letterSpacingEm: 0.24, transform: 'uppercase', color: BW.white,
+            align: 'center', x: 5, y: 47.2, w: 90, h: 3.4, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_seasons_kicker', name: 'Kicker', value: 'Scottish set menu' }));
+        layers.push(bwText({
+            id: 'bw-seasons-price-2', name: 'Two courses', binding: 'bw_seasons_price_2', text: '2 Courses · 25.95',
+            family: 'Georgia', weight: 400, sizePct: 4.7, lineHeight: 1.02, color: BW.white,
+            align: 'center', x: 5, y: 51.4, w: 90, h: 5.4, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_seasons_price_2', name: 'Two courses', value: '2 Courses · 25.95' }));
+        layers.push(bwText({
+            id: 'bw-seasons-price-3', name: 'Three courses', binding: 'bw_seasons_price_3', text: '3 Courses · 29.95',
+            family: 'Georgia', weight: 400, sizePct: 4.7, lineHeight: 1.02, color: BW.white,
+            align: 'center', x: 5, y: 56.6, w: 90, h: 5.4, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_seasons_price_3', name: 'Three courses', value: '3 Courses · 29.95' }));
+        layers.push(bwText({
+            id: 'bw-seasons-detail', name: 'Desserts', binding: 'bw_seasons_detail',
+            text: 'Cullen Skink · Haggis, Neeps & Tatties',
+            family: 'Georgia', weight: 400, style: 'italic', sizePct: 2.2, color: BW.white,
+            align: 'center', x: 5, y: 63, w: 90, h: 4, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_seasons_detail', name: 'Desserts', value: 'Cullen Skink · Haggis, Neeps & Tatties' }));
+        layers.push(bwText({
+            id: 'bw-seasons-detail-2', name: 'Desserts, second line', binding: 'bw_seasons_detail_2',
+            text: 'Cranachan Mini Mess',
+            family: 'Georgia', weight: 400, style: 'italic', sizePct: 2.2, color: BW.white,
+            align: 'center', x: 5, y: 65.8, w: 90, h: 4, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_seasons_detail_2', name: 'Desserts, second line', value: 'Cranachan Mini Mess' }));
+        layers.push(imageLayer({
+            id: 'bw-seasons-waves', name: 'Waves', url: bwWaveUrl({ width: 1080, height: 116, color: BW.white }),
+            x: 0, y: 83.4, w: 100, h: 6.4, z: 12, bleed: true,
+        }));
+        layers.push(bwText({
+            id: 'bw-seasons-footer', name: 'Website', binding: 'bw_seasons_footer', text: BW_GROUP_SITE,
+            sizePct: 2.5, weight: 500, letterSpacingEm: 0.18, color: BW.white,
+            align: 'center', x: 5, y: 91.8, w: 90, h: 3.4, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_seasons_footer', name: 'Website', value: BW_GROUP_SITE }));
+        return { layers, variables };
+    }
+
+    // ── 6. Event post ─────────────────────────────────────────────────
+    function buildEventPost(ctx) {
+        const { brand } = ctx;
+        const layers = [];
+        const variables = [];
+        layers.push(imageLayer({ id: 'bw-event-ground', name: 'Blue ground', color: BW.blue, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
+        const wordmark = bwWordmarkLayer(brand, { id: 'bw-event-wordmark', variant: 'light', x: 8, y: 12.5, w: 48, h: 15.4, z: 20 });
+        if (wordmark) layers.push(wordmark);
+        layers.push(bwText({
+            id: 'bw-event-type', name: 'Event type', binding: 'bw_event_type', text: '[Event type]',
+            sizePct: 3.1, letterSpacingEm: 0.14, transform: 'uppercase', color: BW.white,
+            align: 'left', x: 8, y: 32.4, w: 48, h: 4.6, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_event_type', name: 'Event type', value: '[Event type]' }));
+        layers.push(bwText({
+            id: 'bw-event-headline', name: 'Headline', binding: 'bw_event_headline', text: '[Headline goes here]',
+            family: 'Georgia', weight: 700, sizePct: 7.2, lineHeight: 1.04, color: BW.white,
+            align: 'left', x: 8, y: 43.2, w: 48, h: 12.5, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_event_headline', name: 'Headline', value: '[Headline goes here]' }));
+        layers.push(bwText({
+            id: 'bw-event-detail', name: 'Date and CTA', binding: 'bw_event_detail', text: '[Date] · [Time] · Book now',
+            family: 'Georgia', weight: 400, style: 'italic', sizePct: 3, color: BW.white,
+            align: 'left', x: 8, y: 57.2, w: 50, h: 5.2, z: 30,
+        }));
+        variables.push(variable({ id: 'bw-event_detail', name: 'Date and CTA', value: '[Date] · [Time] · Book now' }));
+        const photo = bwPhotoUrl({ label: 'Add photo', fill: '#2f9fd6', stroke: BW.white, textColor: BW.white, dash: 1.9, font: 5.6 });
+        const photoLayer = bwDashedCircle({ id: 'bw-event-photo', name: 'Event photo', url: photo, x: 59, y: 10, w: 35, h: 66.7, z: 8 });
+        photoLayer.bindings = { url: 'bw_event_photo' };
+        layers.push(photoLayer);
+        variables.push(bwImageVariable('bw_event_photo', 'Event photo', photo));
+        layers.push(imageLayer({
+            id: 'bw-event-waves', name: 'Waves', url: bwWaveUrl({ width: 1200, height: 52, color: BW.white }),
+            x: 0, y: 81.4, w: 100, h: 8.4, z: 12, bleed: true,
+        }));
+        layers.push(imageLayer({
+            id: 'bw-event-pattern', name: 'Sea-glass scallops', url: bwScallopUrl({ width: 1200, height: 66, ground: BW.mint, line: BW.mintLine }),
+            x: 0, y: 89.4, w: 100, h: 10.6, z: 10, bleed: true,
+        }));
+        layers.push(bwText({
+            id: 'bw-event-footer', name: 'Website', binding: 'bw_event_footer', text: BW_SITE,
+            sizePct: 2.6, weight: 500, color: BW.blueDeep,
+            align: 'center', x: 5, y: 92.6, w: 90, h: 3.4, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_event_footer', name: 'Website', value: BW_SITE }));
+        return { layers, variables };
+    }
+
+    // ── 7. Announcement banner ────────────────────────────────────────
+    function buildAnnouncement(ctx) {
+        const layers = [];
+        const variables = [];
+        layers.push(imageLayer({ id: 'bw-ann-ground', name: 'Blue ground', color: BW.blue, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
+        const lockup = bwLockupLayer(ctx, { id: 'bw-ann-lockup', x: 6, y: 13.4, w: 26, h: 15.4, z: 20 });
+        if (lockup) layers.push(lockup);
+        layers.push(imageLayer({ id: 'bw-ann-gull', name: 'Gull', url: bwGullUrl(BW.white), x: 72.5, y: 16.6, w: 14, h: 7.4, z: 14, bleed: false }));
+        layers.push(bwText({
+            id: 'bw-ann-topic', name: 'Topic', binding: 'bw_ann_topic', text: "[Topic · e.g. we're hiring]",
+            sizePct: 2.9, letterSpacingEm: 0.12, transform: 'uppercase', color: BW.white,
+            align: 'left', x: 6, y: 33.6, w: 52, h: 4.4, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_ann_topic', name: 'Topic', value: "[Topic · e.g. we're hiring]" }));
+        layers.push(bwText({
+            id: 'bw-ann-headline', name: 'Headline', binding: 'bw_ann_headline', text: '[Headline goes here]',
+            family: 'Georgia', weight: 700, sizePct: 7.2, lineHeight: 1.04, color: BW.white,
+            align: 'left', x: 6, y: 42.8, w: 52, h: 12.5, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_ann_headline', name: 'Headline', value: '[Headline goes here]' }));
+        layers.push(bwText({
+            id: 'bw-ann-detail', name: 'Supporting line', binding: 'bw_ann_detail', text: '[One supporting line]',
+            family: 'Georgia', weight: 400, style: 'italic', sizePct: 3, color: BW.white,
+            align: 'left', x: 6, y: 56.8, w: 52, h: 5.2, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_ann_detail', name: 'Supporting line', value: '[One supporting line]' }));
+        layers.push(imageLayer({ id: 'bw-ann-sun', name: 'Sun', url: bwSunUrl(BW.yellow), x: 58, y: 51, w: 42, h: 80, z: 6, bleed: true }));
+        layers.push(imageLayer({
+            id: 'bw-ann-waves', name: 'Waves', url: bwWaveUrl({ width: 1200, height: 52, color: BW.white }),
+            x: 0, y: 77.4, w: 100, h: 9.4, z: 12, bleed: true,
+        }));
+        layers.push(bwText({
+            id: 'bw-ann-footer', name: 'Website', binding: 'bw_ann_footer', text: BW_SITE,
+            sizePct: 2.8, weight: 500, color: BW.white,
+            align: 'left', x: 6, y: 88.6, w: 40, h: 3.8, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_ann_footer', name: 'Website', value: BW_SITE }));
+        return { layers, variables };
+    }
+
+    // ── 8. From the sea — dish post ───────────────────────────────────
+    function buildFromTheSea(ctx) {
+        const { brand } = ctx;
+        const layers = [];
+        const variables = [];
+        layers.push(imageLayer({ id: 'bw-sea-ground', name: 'Paper ground', color: BW.white, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
+        layers.push(imageLayer({
+            id: 'bw-sea-pattern', name: 'Sea-glass scallops', url: bwScallopUrl({ width: 1600, height: 187, ground: BW.mint, line: BW.mintLine }),
+            x: 0, y: 79.2, w: 100, h: 20.8, z: 1, bleed: true,
+        }));
+        const wordmark = bwWordmarkLayer(brand, { id: 'bw-sea-wordmark', variant: 'light', x: 8, y: 9.2, w: 51, h: 10.4, z: 20, recolor: BW.blue });
+        if (wordmark) layers.push(wordmark);
+        layers.push(bwText({
+            id: 'bw-sea-kicker', name: 'Kicker', binding: 'bw_sea_kicker', text: 'From the sea',
+            sizePct: 2.7, letterSpacingEm: 0.26, transform: 'uppercase', color: '#0a7f76',
+            align: 'left', x: 8, y: 30.2, w: 45, h: 3.6, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_sea_kicker', name: 'Kicker', value: 'From the sea' }));
+        layers.push(bwText({
+            id: 'bw-sea-dish', name: 'Dish', binding: 'bw_sea_dish', text: 'Classic Fish & Chips',
+            family: 'Georgia', weight: 700, sizePct: 7.8, lineHeight: 1.02, color: BW.ink,
+            align: 'left', x: 8, y: 34, w: 52, h: 18, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_sea_dish', name: 'Dish', value: 'Classic Fish & Chips' }));
+        layers.push(bwText({
+            id: 'bw-sea-detail', name: 'Description', binding: 'bw_sea_detail',
+            text: 'battered haddock, minted mushy peas, lemon wedge · 19.95',
+            family: 'Georgia', weight: 400, style: 'italic', sizePct: 2.8, lineHeight: 1.35, color: BW.ink,
+            align: 'left', x: 8, y: 54.4, w: 45, h: 8, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_sea_detail', name: 'Description and price', value: 'battered haddock, minted mushy peas, lemon wedge · 19.95' }));
+        const photo = bwPhotoUrl({ label: 'Add dish photo', fill: '#eaf5f9', stroke: BW.blue, textColor: '#1b4c5a', dash: 1.4, font: 4.2 });
+        const photoLayer = bwDashedCircle({ id: 'bw-sea-photo', name: 'Dish photo', url: photo, x: 59, y: 8.5, w: 35, h: 62.2, z: 8 });
+        photoLayer.bindings = { url: 'bw_sea_photo' };
+        layers.push(photoLayer);
+        variables.push(bwImageVariable('bw_sea_photo', 'Dish photo', photo));
+        layers.push(imageLayer({
+            id: 'bw-sea-waves', name: 'Waves', url: bwWaveUrl({ width: 1600, height: 76, color: BW.blue }),
+            x: 0, y: 71, w: 100, h: 8.4, z: 12, bleed: true,
+        }));
+        layers.push(bwText({
+            id: 'bw-sea-footer', name: 'Website', binding: 'bw_sea_footer', text: BW_SITE,
+            sizePct: 2.7, weight: 500, color: BW.blueDeep,
+            align: 'center', x: 5, y: 85, w: 90, h: 3.4, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_sea_footer', name: 'Website', value: BW_SITE }));
+        return { layers, variables };
+    }
+
+    // ── 9. Boardwalk banner ───────────────────────────────────────────
+    function buildBoardwalkBanner(ctx) {
+        const { brand } = ctx;
+        const layers = [];
+        const variables = [];
+        layers.push(imageLayer({ id: 'bw-banner-ground', name: 'Blue ground', color: BW.blue, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
+        const wordmark = bwWordmarkLayer(brand, { id: 'bw-banner-wordmark', variant: 'light', x: 8, y: 11, w: 70, h: 20.5, z: 20 });
+        if (wordmark) layers.push(wordmark);
+        layers.push(imageLayer({ id: 'bw-banner-gull', name: 'Gull', url: bwGullUrl('#bfe3dc'), x: 76.5, y: 14.5, w: 13, h: 6.5, z: 21, bleed: false }));
+        layers.push(bwText({
+            id: 'bw-banner-caption', name: 'Caption', binding: 'bw_banner_caption', text: 'Cawley Hotels & Restaurants',
+            sizePct: 4.2, letterSpacingEm: 0.34, transform: 'uppercase', color: BW.white,
+            align: 'center', x: 5, y: 38.4, w: 90, h: 6, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_banner_caption', name: 'Caption', value: 'Cawley Hotels & Restaurants' }));
+        layers.push(imageLayer({
+            id: 'bw-banner-waves', name: 'Waves', url: bwWaveUrl({ width: 1600, height: 90, rows: 4, color: BW.white }),
+            x: 0, y: 69.5, w: 100, h: 15, z: 12, bleed: true,
+        }));
+        layers.push(imageLayer({
+            id: 'bw-banner-pattern', name: 'Sea-glass scallops', url: bwScallopUrl({ width: 1600, height: 96, ground: BW.mint, line: BW.mintLine }),
+            x: 0, y: 84, w: 100, h: 16, z: 10, bleed: true,
+        }));
+        return { layers, variables };
+    }
+
+    // ── 10. Group banner ──────────────────────────────────────────────
+    function buildGroupBanner(ctx) {
+        const layers = [];
+        const variables = [];
+        layers.push(imageLayer({ id: 'bw-group-ground', name: 'Teal ground', color: BW.teal, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
+        layers.push(imageLayer({ id: 'bw-group-glow', name: 'Sunset glow', url: bwGlowUrl(BW.orange, BW.teal), x: 57, y: -34, w: 42, h: 168, z: 2, bleed: true }));
+        const lockup = bwLockupLayer(ctx, { id: 'bw-group-lockup', x: 56, y: 17, w: 28, h: 40, z: 20 });
+        if (lockup) layers.push(lockup);
+        layers.push(bwText({
+            id: 'bw-group-venues', name: 'Venues', binding: 'bw_group_venues',
+            text: 'Duck Bay · Boat Yard · Coast · Boardwalk · River House',
+            sizePct: 3.4, letterSpacingEm: 0.14, transform: 'uppercase', color: BW.white,
+            align: 'center', x: 42, y: 65.4, w: 56, h: 7.6, z: 30,
+        }));
+        variables.push(variable({ id: 'bw_group_venues', name: 'Venues', value: 'Duck Bay · Boat Yard · Coast · Boardwalk · River House' }));
+        layers.push(imageLayer({
+            id: 'bw-group-waves', name: 'Waves', url: bwWaveUrl({ width: 1600, height: 108, rows: 4, thickness: 0.05, color: BW.white }),
+            x: 0, y: 74.5, w: 100, h: 25.5, z: 12, bleed: true,
+        }));
+        return { layers, variables };
+    }
+
+    const BW_TEMPLATES = [
+        {
+            id: 'bw-dessert',
+            label: 'Dessert of the day',
+            category: 'Social',
+            description: 'A blue dessert card with the wordmark, a circular dish-photo slot, the dish and price, and the sea-glass footer.',
+            channel: 'social',
+            width: 1080,
+            height: 1080,
+            widthMm: null,
+            heightMm: null,
+            paper: '1:1',
+            dpi: 72,
+            formats: [],
+            appliesTo: BOARDWALK_BRAND,
+            safeZone: BW_SAFE_ZONE,
+            kitColors: BW_KIT_COLORS,
+            palette: { ground: BW.blue, ink: BW.ink, accent: BW.mint },
+            build: buildDessertCard,
+        },
+        {
+            id: 'bw-sweets-menu',
+            label: 'Sweets menu',
+            category: 'Social',
+            description: 'A 4:5 sweets menu: a white card with four dishes and prices over the mint ground, wordmark and waves above.',
+            channel: 'social',
+            width: 1080,
+            height: 1350,
+            widthMm: null,
+            heightMm: null,
+            paper: '4:5',
+            dpi: 72,
+            formats: [],
+            appliesTo: BOARDWALK_BRAND,
+            safeZone: BW_SAFE_ZONE,
+            kitColors: BW_KIT_COLORS,
+            palette: { ground: BW.mint, ink: BW.ink, accent: BW.blue },
+            build: buildSweetsMenu,
+        },
+        {
+            id: 'bw-a-la-carte',
+            label: 'À la carte — pizza',
+            category: 'Social',
+            description: 'A 2:3 à la carte card with a dashed pizza-photo frame, the sea-salt eyebrow, dish, flavours and price.',
+            channel: 'social',
+            width: 1000,
+            height: 1500,
+            widthMm: null,
+            heightMm: null,
+            paper: '2:3',
+            dpi: 72,
+            formats: [],
+            appliesTo: BOARDWALK_BRAND,
+            safeZone: BW_SAFE_ZONE,
+            kitColors: BW_KIT_COLORS,
+            palette: { ground: BW.blue, ink: BW.ink, accent: BW.white },
+            build: buildALaCarte,
+        },
+        {
+            id: 'bw-good-morning',
+            label: 'Good morning story',
+            category: 'Social',
+            description: 'A 9:16 breakfast story: the Cawley lockup, a big GOOD MORNING, the Full Scottish line, a gull and the sun and waves.',
+            channel: 'social',
+            width: 1080,
+            height: 1920,
+            widthMm: null,
+            heightMm: null,
+            paper: '9:16',
+            dpi: 72,
+            formats: [],
+            appliesTo: BOARDWALK_BRAND,
+            safeZone: BW_SAFE_ZONE,
+            kitColors: BW_KIT_COLORS,
+            palette: { ground: BW.blue, ink: BW.ink, accent: BW.yellow },
+            build: buildGoodMorning,
+        },
+        {
+            id: 'bw-seasons',
+            label: 'Seasons story',
+            category: 'Social',
+            description: 'A 9:16 set-menu story on teal with the orange glow, SEASONS, two price lines and the dessert list.',
+            channel: 'social',
+            width: 1080,
+            height: 1920,
+            widthMm: null,
+            heightMm: null,
+            paper: '9:16',
+            dpi: 72,
+            formats: [],
+            appliesTo: BOARDWALK_BRAND,
+            safeZone: BW_SAFE_ZONE,
+            kitColors: BW_KIT_COLORS,
+            palette: { ground: BW.teal, ink: BW.ink, accent: BW.orange },
+            build: buildSeasonsStory,
+        },
+        {
+            id: 'bw-event-post',
+            label: 'Event post',
+            category: 'Social',
+            description: 'A 1.91:1 event card with the wordmark, event type, headline and date, plus a circular photo slot.',
+            channel: 'social',
+            width: 1200,
+            height: 630,
+            widthMm: null,
+            heightMm: null,
+            paper: '1.91:1',
+            dpi: 72,
+            formats: [],
+            appliesTo: BOARDWALK_BRAND,
+            safeZone: BW_SAFE_ZONE,
+            kitColors: BW_KIT_COLORS,
+            palette: { ground: BW.blue, ink: BW.ink, accent: BW.mint },
+            build: buildEventPost,
+        },
+        {
+            id: 'bw-announcement',
+            label: 'Announcement banner',
+            category: 'Social',
+            description: 'A 1.91:1 announcement card: the Cawley lockup, topic, headline and supporting line over the sun and waves.',
+            channel: 'social',
+            width: 1200,
+            height: 630,
+            widthMm: null,
+            heightMm: null,
+            paper: '1.91:1',
+            dpi: 72,
+            formats: [],
+            appliesTo: BOARDWALK_BRAND,
+            safeZone: BW_SAFE_ZONE,
+            kitColors: BW_KIT_COLORS,
+            palette: { ground: BW.blue, ink: BW.ink, accent: BW.yellow },
+            build: buildAnnouncement,
+        },
+        {
+            id: 'bw-from-the-sea',
+            label: 'From the sea — dish post',
+            category: 'Social',
+            description: 'A 16:9 light dish card with the blue wordmark, FROM THE SEA, the fish dish and a circular photo slot.',
+            channel: 'social',
+            width: 1600,
+            height: 900,
+            widthMm: null,
+            heightMm: null,
+            paper: '16:9',
+            dpi: 72,
+            formats: [],
+            appliesTo: BOARDWALK_BRAND,
+            safeZone: BW_SAFE_ZONE,
+            kitColors: BW_KIT_COLORS,
+            palette: { ground: BW.white, ink: BW.ink, accent: BW.mint },
+            build: buildFromTheSea,
+        },
+        {
+            id: 'bw-banner',
+            label: 'Boardwalk banner',
+            category: 'Social',
+            description: 'A wide 8:3 boardwalk header with the full wordmark, the gull, the Cawley endorsement and the sea-glass footer.',
+            channel: 'social',
+            width: 1600,
+            height: 600,
+            widthMm: null,
+            heightMm: null,
+            paper: '8:3',
+            dpi: 72,
+            formats: [],
+            appliesTo: BOARDWALK_BRAND,
+            safeZone: BW_SAFE_ZONE,
+            kitColors: BW_KIT_COLORS,
+            palette: { ground: BW.blue, ink: BW.ink, accent: BW.mint },
+            build: buildBoardwalkBanner,
+        },
+        {
+            id: 'bw-group-banner',
+            label: 'Group banner',
+            category: 'Social',
+            description: 'A 4:1 group header on teal with the Cawley lockup, the sunset glow and the five venue names.',
+            channel: 'social',
+            width: 1600,
+            height: 400,
+            widthMm: null,
+            heightMm: null,
+            paper: '4:1',
+            dpi: 72,
+            formats: [],
+            appliesTo: BOARDWALK_BRAND,
+            safeZone: BW_SAFE_ZONE,
+            kitColors: BW_KIT_COLORS,
+            palette: { ground: BW.teal, ink: BW.ink, accent: BW.orange },
+            build: buildGroupBanner,
+        },
+    ];
+
     const TEMPLATES = [
         {
             id: 'menu',
@@ -2001,6 +2875,10 @@
             build: buildPremiumStory,
         },
     ];
+
+    // The Boardwalk social set is appended so the shared initial list stays in
+    // its published order for every other brand.
+    TEMPLATES.push(...BW_TEMPLATES);
 
     function templateById(id) {
         return TEMPLATES.find((template) => template.id === id) || null;
@@ -3327,6 +4205,17 @@
     }
 
     function formatFor(template) {
+        // A template can carry its own safe margin (as fractions of the
+        // format). The studio reads it from the format, so the guardrail and
+        // the build-time type fit agree.
+        const safeZone = template.safeZone && typeof template.safeZone === 'object'
+            ? {
+                top: clamp(finite(template.safeZone.top, 0), 0, 0.45),
+                right: clamp(finite(template.safeZone.right, 0), 0, 0.45),
+                bottom: clamp(finite(template.safeZone.bottom, 0), 0, 0.45),
+                left: clamp(finite(template.safeZone.left, 0), 0, 0.45),
+            }
+            : null;
         const master = {
             id: 'master',
             isMaster: true,
@@ -3337,16 +4226,21 @@
             layerOverrides: {},
             variableValues: {},
         };
-        const extras = (template.formats || []).map((format) => ({
-            id: format.id,
-            isMaster: false,
-            channel: template.channel,
-            label: format.label || format.id,
-            width: format.width,
-            height: format.height,
-            layerOverrides: {},
-            variableValues: {},
-        }));
+        if (safeZone) master.safeZone = safeZone;
+        const extras = (template.formats || []).map((format) => {
+            const entry = {
+                id: format.id,
+                isMaster: false,
+                channel: template.channel,
+                label: format.label || format.id,
+                width: format.width,
+                height: format.height,
+                layerOverrides: {},
+                variableValues: {},
+            };
+            if (safeZone) entry.safeZone = safeZone;
+            return entry;
+        });
         return [master, ...extras];
     }
 
@@ -3363,6 +4257,9 @@
         if (!template) throw new Error(`Unknown template “${source.templateId}”.`);
         layerCounter = 0;
         const ctx = makeContext(brand, template);
+        // Group identity (the Cawley endorsement lockup) lives on the pack's
+        // portfolio rather than on a single brand, so pass it through.
+        ctx.portfolio = normalizePortfolio(source.portfolio);
         const built = template.build(ctx);
         if (!built || !Array.isArray(built.layers) || !built.layers.length) {
             throw new Error(`The “${template.label}” template produced no layers.`);
@@ -3390,7 +4287,14 @@
             layer.id = id;
             if (layer.type === 'image') layer.bleed = layer.bleed === true;
         });
-        const zone = safeZoneForChannel(template.channel);
+        const zone = template.safeZone && typeof template.safeZone === 'object'
+            ? {
+                top: clamp(finite(template.safeZone.top, 0), 0, 0.45) * 100,
+                right: clamp(finite(template.safeZone.right, 0), 0, 0.45) * 100,
+                bottom: clamp(finite(template.safeZone.bottom, 0), 0, 0.45) * 100,
+                left: clamp(finite(template.safeZone.left, 0), 0, 0.45) * 100,
+            }
+            : safeZoneForChannel(template.channel);
         const layout = { width: template.width, height: template.height };
         built.layers.forEach((layer) => fitTextToSafeArea(layer, zone));
         built.layers.forEach((layer) => fitTextHeight(layer, layout, built.layers, zone));
@@ -3402,6 +4306,18 @@
             ? String(source.projectId)
             : slugId(`${brand.id}-${template.id}`, 'brand-template');
         const kit = brandKitFor(brand);
+        // Templates drawn in a wider art direction than the guide's palette
+        // declare those colours here. Merging them into the composition kit
+        // keeps the off-palette guardrail honest for a scene the user edits.
+        if (kit && Array.isArray(template.kitColors) && template.kitColors.length) {
+            const seenHex = new Set(kit.palette.map((entry) => entry.hex.toLowerCase()));
+            template.kitColors.forEach((entry) => {
+                const hex = normalizeHex(entry?.hex);
+                if (!hex || seenHex.has(hex) || kit.palette.length >= 40) return;
+                seenHex.add(hex);
+                kit.palette.push({ name: text(entry.name, 80) || hex.toUpperCase(), hex });
+            });
+        }
         const name = text(source.name, 120) || `${brand.name} — ${template.label}`;
         return {
             version: 3,
@@ -3438,12 +4354,19 @@
                         scope: ctx.roles.application.scope,
                     }
                     : null,
-                palette: {
-                    ground: ctx.roles.ground.hex,
-                    accent: ctx.roles.accent.hex,
-                    ink: ctx.roles.ink.hex,
-                    contrast: ctx.roles.contrast,
-                },
+                palette: template.palette && normalizeHex(template.palette.ground)
+                    ? {
+                        ground: normalizeHex(template.palette.ground),
+                        accent: normalizeHex(template.palette.accent) || ctx.roles.accent.hex,
+                        ink: normalizeHex(template.palette.ink) || ctx.roles.ink.hex,
+                        contrast: ctx.roles.contrast,
+                    }
+                    : {
+                        ground: ctx.roles.ground.hex,
+                        accent: ctx.roles.accent.hex,
+                        ink: ctx.roles.ink.hex,
+                        contrast: ctx.roles.contrast,
+                    },
                 fontSubstitutions,
                 createdAt: now,
                 updatedAt: now,

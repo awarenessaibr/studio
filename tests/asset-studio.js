@@ -117,6 +117,71 @@ async function main() {
         if (tabs === 11) ok('eleven asset categories are available');
         else fail(`expected 11 categories, found ${tabs}`);
 
+        console.log('\nBrand templates');
+        await page.locator('#brandTemplatesBtn').click();
+        await page.waitForSelector('.asset-brand-template', { timeout: 10000 });
+        const catalogCount = await page.evaluate(async () => {
+            const active = [...document.querySelectorAll('#brandSwitch button')]
+                .find((button) => button.getAttribute('aria-pressed') === 'true');
+            const brandName = active?.textContent.trim();
+            const { packs } = await fetch('/api/brand-packs').then((response) => response.json());
+            for (const summary of packs || []) {
+                const { pack } = await fetch(`/api/brand-packs/${encodeURIComponent(summary.id)}`).then((response) => response.json());
+                const brand = pack?.brands?.find((entry) => entry.name === brandName);
+                if (brand) return window.StudioBrand.templateCatalog(brand).length;
+            }
+            return 0;
+        });
+        const templateCards = await page.locator('.asset-brand-template').count();
+        if (catalogCount > 0 && templateCards === catalogCount) {
+            ok(`all ${catalogCount} brand catalog templates are available`);
+        } else {
+            fail(`expected ${catalogCount} brand catalog templates, found ${templateCards}`);
+        }
+        const previewCount = await page.locator('.template-preview-canvas').count();
+        if (previewCount === catalogCount) ok('every brand template has a rendered preview');
+        else fail(`expected ${catalogCount} template previews, found ${previewCount}`);
+        const createHref = await page.locator('.asset-brand-template a').last().getAttribute('href');
+        if (createHref?.includes('brandPackId=') && createHref.includes('brandId=') && createHref.includes('brandTemplateId=')) {
+            ok('each template links to its matching Studio V2 creation flow');
+        } else {
+            fail(`brand template creation link is incomplete: ${createHref}`);
+        }
+        const firstTemplateName = await page.locator('.asset-brand-template h3').first().textContent();
+        await page.locator('.asset-brand-template button').first().click();
+        await page.waitForFunction((name) => document.getElementById('previewTitle').textContent.trim() === name, firstTemplateName);
+        const selectedTemplateCategory = await page.locator('.category-tab[aria-selected="true"] b').textContent();
+        if (selectedTemplateCategory) ok(`brand template opens under ${selectedTemplateCategory}`);
+        else fail('brand template did not select an asset category');
+        await page.getByRole('tab', { name: 'Text' }).click();
+        const firstTextInput = page.locator('#controlBody input[type="text"], #controlBody textarea').first();
+        const editableFieldCount = await page.locator('#controlBody input[type="text"], #controlBody textarea').count();
+        if (editableFieldCount > 0) ok(`brand template exposes ${editableFieldCount} editable text fields in Asset Studio`);
+        else fail('brand template has no editable text fields in Asset Studio');
+        if (editableFieldCount > 0) {
+            const beforeEdit = await page.locator('#previewCanvas').evaluate((canvas) => canvas.toDataURL());
+            await firstTextInput.fill('Asset Studio edited copy');
+            await page.waitForTimeout(200);
+            const afterEdit = await page.locator('#previewCanvas').evaluate((canvas) => canvas.toDataURL());
+            if (beforeEdit !== afterEdit) ok('editing brand-template copy repaints the Asset Studio preview');
+            else fail('editing brand-template copy did not repaint the Asset Studio preview');
+        }
+        const [brandTemplateDownload] = await Promise.all([
+            page.waitForEvent('download'),
+            page.locator('#downloadBtn').click(),
+        ]);
+        if (brandTemplateDownload.suggestedFilename().endsWith('.png')) {
+            ok('brand template exports as a full-resolution PNG from Asset Studio');
+        } else {
+            fail(`unexpected brand-template export: ${brandTemplateDownload.suggestedFilename()}`);
+        }
+        if (await page.locator('#printPackBtn').isVisible()) {
+            await page.locator('#printPackBtn').click();
+            if (!(await page.locator('#printDialog').isHidden())) ok('print brand templates are wired to the print-pack workflow');
+            else fail('print brand template did not open the print-pack workflow');
+            await page.locator('#printCancel').click();
+        }
+
         console.log('\nEvery category and design');
         const categoryCount = await page.locator('.category-tab').count();
         let totalDesigns = 0;
@@ -141,8 +206,9 @@ async function main() {
             totalDesigns += designCount;
             if (categoryOk === designCount) ok(`${label}: all ${designCount} designs render`);
         }
-        if (totalDesigns === 50) ok('fifty designs across eleven categories');
-        else fail(`expected 50 designs, walked ${totalDesigns}`);
+        const expectedDesigns = 50 + catalogCount;
+        if (totalDesigns === expectedDesigns) ok(`${totalDesigns} designs are available across eleven categories (${catalogCount} brand templates)`);
+        else fail(`expected ${expectedDesigns} total designs including ${catalogCount} brand templates, walked ${totalDesigns}`);
 
         // Back to the first flyer for the control checks.
         await page.locator('.category-tab').nth(0).click();

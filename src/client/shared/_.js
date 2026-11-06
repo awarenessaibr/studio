@@ -1644,6 +1644,7 @@
             this.activeProposalId = null;
             this._proposalError = null;
             this.llm = null;
+            this._animationProviderUserChoice = false;
             this._llmPromise = null;
             this._llmLoadedAt = 0;
             this.directorBusy = false;
@@ -1707,6 +1708,9 @@
                 proposalList: root.querySelector('#layerProposalList'),
                 proposeButton: root.querySelector('#layerProposeButton'),
                 resetAnimations: root.querySelector('#layerResetAnimations'),
+                animationProvider: root.querySelector('#layerAnimationProvider'),
+                ollamaModelControls: root.querySelector('#layerOllamaModelControls'),
+                animationProviderStatus: root.querySelector('#layerAnimationProviderStatus'),
                 directorDialog: root.querySelector('#layerDirectorDialog'),
                 projectContext: root.querySelector('#layerProjectContext'),
                 visionModel: root.querySelector('#layerVisionModel'),
@@ -1763,6 +1767,7 @@
             this.updateProposalContext();
             this.loadProjectCatalog();
             this.loadBrandKits().catch(() => {});
+            this.loadLlmModels().catch(() => {});
         }
 
         bind() {
@@ -4792,6 +4797,12 @@
                 return;
             }
             if (event.target === this.el.visionModel || event.target === this.el.textModel) {
+                this.saveDirectorContext({ silent: true });
+                return;
+            }
+            if (event.target === this.el.animationProvider) {
+                this._animationProviderUserChoice = true;
+                this.populateModelSelects();
                 this.saveDirectorContext({ silent: true });
                 return;
             }
@@ -8777,13 +8788,15 @@
             const context = String(this.projectMeta?.context || '').trim();
             this.el.proposalContext.textContent = context
                 || (this.projectId
-                    ? 'No story context yet. Open the director to add tone, story, or audience.'
+                    ? 'Choose an AI provider above, then suggest animations for this scene.'
                     : 'Import a project to generate animation ideas.');
             this.el.proposalContext.title = context;
         }
 
         async loadDirectorState() {
             const projectId = this.projectId;
+            this._animationProviderUserChoice = false;
+            if (this.el.animationProvider) this.el.animationProvider.value = '';
             if (!projectId) {
                 this.proposals = [];
                 this.proposalMeta = null;
@@ -8835,9 +8848,16 @@
             if (this._llmPromise) return this._llmPromise;
             this._llmPromise = (async () => {
                 try {
-                    this.llm = await this.requestBackend('api/llm/models');
+                    this.llm = await this.requestBackend('api/llm/animation-director');
                 } catch (error) {
-                    this.llm = { available: false, error: error.message, models: [], defaults: {} };
+                    this.llm = {
+                        available: false,
+                        error: error.message,
+                        models: [],
+                        defaults: {},
+                        providers: [],
+                        defaultProvider: '',
+                    };
                 }
                 this._llmLoadedAt = Date.now();
                 this.populateModelSelects();
@@ -8852,43 +8872,84 @@
         populateModelSelects() {
             const visionSelect = this.el.visionModel;
             const textSelect = this.el.textModel;
-            if (!visionSelect || !textSelect) return;
-            const models = this.llm?.models || [];
+            const providerSelect = this.el.animationProvider;
+            const providers = this.llm?.providers || [];
             const saved = this.projectMeta?.director || {};
-            const fill = (select, list, emptyLabel, preferred) => {
-                select.replaceChildren();
-                if (!list.length) {
-                    const option = document.createElement('option');
-                    option.value = '';
-                    option.textContent = emptyLabel;
-                    select.appendChild(option);
-                    select.disabled = true;
-                    return;
+            const ollama = providers.find((provider) => provider.id === 'ollama');
+            const currentProvider = providerSelect?.value || '';
+            const preferredProvider = this._animationProviderUserChoice
+                ? currentProvider
+                : (saved.provider || currentProvider || this.llm?.defaultProvider);
+            if (providerSelect) {
+                providerSelect.replaceChildren(...providers.map((provider) => {
+                    const option = new Option(
+                        `${provider.label}${provider.available ? '' : ' · unavailable'}`,
+                        provider.id,
+                    );
+                    option.disabled = !provider.available;
+                    return option;
+                }));
+                const chosen = providers.find((provider) => provider.id === preferredProvider && provider.available)
+                    || providers.find((provider) => provider.id === this.llm?.defaultProvider && provider.available)
+                    || providers.find((provider) => provider.available);
+                providerSelect.value = chosen?.id || '';
+                providerSelect.disabled = this.directorBusy || !providers.some((provider) => provider.available);
+            }
+            const chosenProvider = providers.find((provider) => provider.id === providerSelect?.value);
+            const unavailableSummary = providers
+                .filter((provider) => !provider.available)
+                .map((provider) => `${provider.label}: ${provider.error}`)
+                .join(' ');
+            if (this.el.ollamaModelControls) {
+                this.el.ollamaModelControls.hidden = chosenProvider?.id !== 'ollama';
+            }
+            if (!visionSelect || !textSelect) {
+                if (this.el.animationProviderStatus) {
+                    this.el.animationProviderStatus.textContent = chosenProvider?.available
+                        ? (chosenProvider.id === 'deepseek'
+                            ? `Using ${chosenProvider.model} through the server-configured API.`
+                            : 'Choose the local image-analysis and writing models below.')
+                            : (chosenProvider?.error || unavailableSummary || this.llm?.error || 'Configure DeepSeek API access or start Ollama with a vision model.');
                 }
-                select.disabled = false;
-                list.forEach((model) => {
+                return;
+            }
+            const fill = (select, list, emptyLabel, preferred, available) => {
+                select.replaceChildren();
+                const options = list.map((model) => {
                     const option = document.createElement('option');
                     option.value = model.id;
                     option.textContent = `${model.id}${model.vision ? ' · vision' : ''}${model.parameterSize ? ` · ${model.parameterSize}` : ''}`;
-                    select.appendChild(option);
+                    return option;
                 });
-                const desired = preferred && list.some((model) => model.id === preferred)
-                    ? preferred
-                    : list[0].id;
-                select.value = desired;
+                if (!options.length) options.push(new Option(emptyLabel, ''));
+                select.replaceChildren(...options);
+                select.disabled = !available || this.directorBusy || !list.length;
+                list.forEach((model) => {
+                    if (model.id === preferred) select.value = model.id;
+                });
+                if (!select.value && list.length) select.value = list[0].id;
             };
             fill(
                 visionSelect,
-                models.filter((model) => model.vision),
+                (ollama?.models || []).filter((model) => model.vision),
                 'No vision model found',
-                saved.vision || this.llm?.defaults?.vision,
+                saved.vision || ollama?.defaults?.vision,
+                ollama?.available,
             );
             fill(
                 textSelect,
-                [...models].sort((a, b) => Number(a.vision) - Number(b.vision) || a.id.localeCompare(b.id)),
+                [...(ollama?.models || [])].sort((a, b) => Number(a.vision) - Number(b.vision) || a.id.localeCompare(b.id)),
                 'No local model found',
-                saved.text || this.llm?.defaults?.text,
+                saved.text || ollama?.defaults?.text,
+                ollama?.available,
             );
+            if (this.el.animationProviderStatus) {
+                this.el.animationProviderStatus.textContent = chosenProvider?.available
+                    ? (chosenProvider.id === 'deepseek'
+                        ? `Using ${chosenProvider.model} through the server-configured API.`
+                        : 'Ollama analyzes the reference image and writes the animation ideas locally.')
+                    : (chosenProvider?.error || unavailableSummary || this.llm?.error || 'Configure DeepSeek API access or start Ollama with a vision model.');
+            }
         }
 
         async openDirectorDialog() {
@@ -8899,23 +8960,17 @@
                 else dialog.setAttribute('open', '');
             }
             if (this.el.projectContext) this.el.projectContext.value = this.projectMeta?.context || '';
-            this.setDirectorStatus('Checking local models…', { busy: true });
+            this.setDirectorStatus('Checking animation-ideas providers…', { busy: true });
             await this.loadLlmModels(true);
             this.populateModelSelects();
             if (!this.projectId) {
                 this.setDirectorStatus('Import or open a saved project first.', { error: true });
                 return;
             }
-            if (!this.llm?.available) {
+            const selectedProvider = this.llm?.providers?.find((provider) => provider.id === this.el.animationProvider?.value);
+            if (!selectedProvider?.available) {
                 this.setDirectorStatus(
-                    this.llm?.error || 'Local LLM unavailable. Start Ollama with "ollama serve".',
-                    { error: true },
-                );
-                return;
-            }
-            if (!(this.llm.models || []).some((model) => model.vision)) {
-                this.setDirectorStatus(
-                    'No vision model installed. Run: ollama pull granite3.2-vision:2b',
+                    selectedProvider?.error || 'No animation-ideas provider is available.',
                     { error: true },
                 );
                 return;
@@ -8939,6 +8994,7 @@
                 ?? '',
             ).slice(0, 8000);
             const director = {
+                provider: this.el.animationProvider?.value || this.projectMeta?.director?.provider || '',
                 vision: this.el.visionModel?.value || this.projectMeta?.director?.vision || '',
                 text: this.el.textModel?.value || this.projectMeta?.director?.text || '',
             };
@@ -8980,7 +9036,7 @@
             if (!reference?.url) return null;
             const image = await loadImage(reference.url);
             if (!image.naturalWidth || !image.naturalHeight) return null;
-            const scale = Math.min(1, 768 / Math.max(image.naturalWidth, image.naturalHeight));
+            const scale = Math.min(1, 512 / Math.max(image.naturalWidth, image.naturalHeight));
             const canvas = document.createElement('canvas');
             canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
             canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
@@ -9015,23 +9071,15 @@
             progress();
             this._proposalTimer = window.setInterval(progress, 15000);
             try {
-                if (!this.llm?.available) await this.loadLlmModels(true);
-                if (!this.llm?.available) {
-                    throw new Error(this.llm?.error || 'Local LLM unavailable. Start Ollama with "ollama serve".');
-                }
-                const models = this.llm.models || [];
+                if (!this.llm?.providers) await this.loadLlmModels(true);
                 const dialogOpen = Boolean(this.el.directorDialog?.open);
-                const visionModel = (dialogOpen ? this.el.visionModel?.value : null)
-                    || this.projectMeta?.director?.vision
-                    || this.llm.defaults?.vision;
-                const textModel = (dialogOpen ? this.el.textModel?.value : null)
-                    || this.projectMeta?.director?.text
-                    || this.llm.defaults?.text;
-                if (!visionModel || !models.some((model) => model.id === visionModel && model.vision)) {
-                    throw new Error('Choose an installed vision model. Example: ollama pull granite3.2-vision:2b');
-                }
-                if (!textModel || !models.some((model) => model.id === textModel)) {
-                    throw new Error('Choose an installed writing model. Example: ollama pull qwen3.5:9b');
+                const provider = this.el.animationProvider?.value
+                    || this.projectMeta?.director?.provider
+                    || this.llm?.defaultProvider
+                    || 'ollama';
+                const providerConfig = this.llm?.providers?.find((entry) => entry.id === provider);
+                if (!providerConfig?.available) {
+                    throw new Error(providerConfig?.error || 'The selected animation-ideas provider is not available.');
                 }
                 const context = String(
                     (dialogOpen ? this.el.projectContext?.value : null)
@@ -9040,7 +9088,20 @@
                 ).trim().slice(0, 8000);
                 const image = await this.createVisionImage().catch(() => null);
                 this.setDirectorStatus('Analyzing the image, then writing ideas…', { busy: true });
-                const body = { context, visionModel, textModel, count: 4 };
+                const body = { context, provider, count: 4 };
+                if (provider === 'ollama') {
+                    const ollama = this.llm.providers.find((entry) => entry.id === 'ollama');
+                    const visionModel = this.el.visionModel?.value || ollama?.defaults?.vision;
+                    const textModel = this.el.textModel?.value || ollama?.defaults?.text;
+                    if (!visionModel || !ollama.models.some((model) => model.id === visionModel && model.vision)) {
+                        throw new Error('Choose an installed vision model. Example: ollama pull granite3.2-vision:2b');
+                    }
+                    if (!textModel || !ollama.models.some((model) => model.id === textModel)) {
+                        throw new Error('Choose an installed writing model. Example: ollama pull qwen3.5:9b');
+                    }
+                    body.visionModel = visionModel;
+                    body.textModel = textModel;
+                }
                 if (image) body.image = image;
                 const data = await this.requestBackend(
                     `api/imports/${encodeURIComponent(projectId)}/proposals`,
@@ -9099,11 +9160,16 @@
             } else if (this.directorBusy) {
                 meta = 'Analyzing image…';
             } else if (this.proposals.length) {
-                const modelLabel = models?.vision ? String(models.vision).split(':')[0] : '';
+                const model = models?.provider === 'deepseek'
+                    ? (models.text || models.vision)
+                    : models?.vision;
+                const modelLabel = model
+                    ? `${String(model).split(':')[0]}${models?.provider === 'deepseek' ? ' · API' : ''}`
+                    : '';
                 meta = `${this.proposals.length} idea${this.proposals.length === 1 ? '' : 's'}${modelLabel ? ` · ${modelLabel}` : ''}`;
-            } else if (this.llm && !this.llm.available) {
-                meta = 'LLM offline';
-            } else if (this.llm?.available) {
+            } else if (this.llm && !this.llm.providers?.some((provider) => provider.available)) {
+                meta = 'AI unavailable';
+            } else if (this.llm?.providers?.some((provider) => provider.available)) {
                 meta = 'Ready';
             }
             this.el.proposalMeta.textContent = meta;
@@ -9121,8 +9187,8 @@
                 empty.textContent = this.directorBusy
                     ? 'Analyzing the final image and writing ideas…'
                     : (this._proposalError
-                        || (this.llm && !this.llm.available
-                            ? (this.llm.error || 'Local LLM offline. Start Ollama with "ollama serve".')
+                        || (this.llm && !this.llm.providers?.some((provider) => provider.available)
+                            ? 'Configure the DeepSeek API or start Ollama with an installed vision model.'
                             : 'No ideas yet. Press Suggest animations to analyze the final image.'));
                 this.el.proposalList.appendChild(empty);
                 return;

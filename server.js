@@ -12,7 +12,7 @@
  *
  * Usage:
  *   node server.js
- *   PORT=8008 HOST=127.0.0.1 node server.js
+ *   PORT=8008 HOST=0.0.0.0 node server.js
  */
 'use strict';
 
@@ -50,11 +50,12 @@ const BRAND_KITS_DIR = path.join(DATA_DIR, 'brand-kits');
 const BRAND_PACKS_DIR = path.join(DATA_DIR, 'brand-packs');
 const SETTINGS_DIR = path.join(DATA_DIR, 'settings');
 const GROUP_SETTINGS_FILE = path.join(SETTINGS_DIR, 'groups.json');
+const STUDIO_ANIMATION_LIBRARY_FILE = path.join(SETTINGS_DIR, 'studio-animation-library.json');
 // The management UI is a developer surface. With a key configured, every
 // admin call must present it; without one, only loopback callers are allowed.
 const ADMIN_KEY = String(process.env.STUDIO_ADMIN_KEY || '').trim();
 const PORT = Number(process.env.PORT) || 8008;
-const HOST = process.env.HOST || '127.0.0.1';
+const HOST = process.env.HOST || '0.0.0.0';
 
 const MAX_BODY = 320 * 1024 * 1024;
 const MAX_ZIP = 220 * 1024 * 1024;
@@ -123,7 +124,7 @@ const MAX_CONTEXT_CHARS = 8000;
 const MAX_VISION_IMAGE_BYTES = 12 * 1024 * 1024;
 const MAX_ORGANIZER_BODY = 32 * 1024 * 1024;
 const MAX_ORGANIZER_IMAGE_BYTES = 220 * 1024;
-const PROPOSAL_TIMEOUT = 300000;
+const PROPOSAL_TIMEOUT = 600000;
 const LLM_DETECT_TIMEOUT = 5000;
 let ollamaCache = { at: 0, value: null };
 
@@ -536,6 +537,69 @@ function extractZipEntry(buffer, entry) {
     throw httpError(400, `Unsupported ZIP compression method ${entry.method} for ${entry.name}.`);
 }
 
+function readSegmentMetadata(zipBuffer, zipEntries, imageEntries) {
+    const manifests = zipEntries.filter((entry) => entry.name === 'image-to-layers.json');
+    if (!manifests.length) return new Map();
+    if (manifests.length > 1) throw httpError(400, 'The ZIP contains multiple segmentation manifests.');
+
+    const manifestEntry = manifests[0];
+    if (manifestEntry.uncompressedSize > 2 * 1024 * 1024) {
+        throw httpError(400, 'The segmentation manifest is too large.');
+    }
+
+    let manifest;
+    try {
+        manifest = JSON.parse(extractZipEntry(zipBuffer, manifestEntry).toString('utf8'));
+    } catch (error) {
+        if (error.status) throw error;
+        throw httpError(400, 'The segmentation manifest is not valid JSON.');
+    }
+    if (manifest?.schema !== 'image-to-layers/segments-v1' || !Array.isArray(manifest.layers)) {
+        throw httpError(400, 'The ZIP contains an unsupported segmentation manifest.');
+    }
+    if (manifest.layers.length > MAX_SEGMENTS) {
+        throw httpError(400, `The segmentation manifest contains more than ${MAX_SEGMENTS} layers.`);
+    }
+
+    const imagePaths = new Set(imageEntries
+        .map((entry) => safeRelativePath(entry.name))
+        .filter(Boolean));
+    const roleNames = new Set([
+        'background', 'midground', 'ground', 'foreground',
+        'character', 'character-part', 'prop', 'effect',
+    ]);
+    const metadata = new Map();
+    for (const layer of manifest.layers) {
+        if (!layer || typeof layer !== 'object' || Array.isArray(layer)
+            || typeof layer.file !== 'string' || typeof layer.name !== 'string') {
+            throw httpError(400, 'The segmentation manifest contains an invalid layer.');
+        }
+        const file = safeRelativePath(layer.file);
+        if (!file || !imagePaths.has(file)) {
+            throw httpError(400, `The segmentation manifest references a missing image: ${layer.file}`);
+        }
+        if (metadata.has(file)) {
+            throw httpError(400, `The segmentation manifest references an image more than once: ${file}`);
+        }
+        if (typeof layer.role !== 'string' || !roleNames.has(layer.role)) {
+            throw httpError(400, `The segmentation manifest has an invalid role for ${file}.`);
+        }
+        for (const field of ['group', 'label', 'description']) {
+            if (layer[field] !== undefined && typeof layer[field] !== 'string') {
+                throw httpError(400, `The segmentation manifest has an invalid ${field} for ${file}.`);
+            }
+        }
+        metadata.set(file, {
+            name: sanitizeLabel(layer.name, path.basename(file).replace(/\.[^.]+$/, '')),
+            role: layer.role,
+            segmentGroup: sanitizeLabel(layer.group, '').slice(0, 80),
+            label: sanitizeLabel(layer.label, '').slice(0, 80),
+            description: sanitizeLabel(layer.description, '').slice(0, 300),
+        });
+    }
+    return metadata;
+}
+
 // ─── Composition generation ───────────────────────────────────────────
 
 function roleFor(name) {
@@ -842,14 +906,15 @@ function buildComposition({ id, name, reference, segments, meta }) {
     const ordered = [...segments].sort((a, b) => a.relative.localeCompare(b.relative, 'en', { numeric: true }));
     ordered.forEach((segment, index) => {
         const stem = path.basename(segment.relative).replace(/\.[^.]+$/, '');
+        const layerName = segment.name || stem;
         const width = Math.max(1, Math.min(300, segment.width / reference.width * 100));
         const height = Math.max(1, Math.min(300, segment.height / reference.height * 100));
-        const box = initialPlacement(stem, width, height);
-        const depth = depthFor(stem);
-        layers.push({
+        const box = initialPlacement(layerName, width, height);
+        const depth = depthFor(layerName);
+        const layer = {
             id: layerIdFor(segment.relative, index),
-            name: stem,
-            role: roleFor(stem),
+            name: layerName,
+            role: segment.role || roleFor(layerName),
             url: segment.url,
             frames: [segment.url],
             spriteFps: 1,
@@ -866,7 +931,11 @@ function buildComposition({ id, name, reference, segments, meta }) {
             locked: false,
             positionConfirmed: false,
             keyframes: [],
-        });
+        };
+        if (segment.segmentGroup) layer.segmentGroup = segment.segmentGroup;
+        if (segment.label) layer.label = segment.label;
+        if (segment.description) layer.description = segment.description;
+        layers.push(layer);
     });
 
     layers.sort((a, b) => a.z - b.z);
@@ -945,6 +1014,7 @@ async function createImport(payload) {
     if (imageEntries.length > MAX_SEGMENTS) {
         throw httpError(400, `The ZIP contains more than ${MAX_SEGMENTS} segment images.`);
     }
+    const segmentMetadata = readSegmentMetadata(zipBuffer, zipEntries, imageEntries);
 
     const name = sanitizeLabel(payload.name, 'Imported scene');
     const base = slugify(name) || 'imported-scene';
@@ -988,6 +1058,7 @@ async function createImport(payload) {
                 url: urlPath('data', 'imports', id, 'segments', relative),
                 width: size.width,
                 height: size.height,
+                ...(segmentMetadata.get(relative) || {}),
             });
         }
 
@@ -1601,6 +1672,95 @@ async function saveAnimations(id, payload) {
     return { ok: true, animations };
 }
 
+function normalizeStudioAnimation(entry, index) {
+    const source = entry && typeof entry === 'object' ? entry : {};
+    const tracks = Array.isArray(source.tracks) ? source.tracks.slice(0, MAX_LAYERS) : [];
+    if (!tracks.length) throw httpError(400, 'An animation must include at least one layer track.');
+    return {
+        id: typeof source.id === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(source.id)
+            ? source.id
+            : `studio-animation-${index + 1}`,
+        name: sanitizeLabel(source.name, `Animation ${index + 1}`),
+        createdAt: typeof source.createdAt === 'string' ? source.createdAt : new Date().toISOString(),
+        tracks: tracks.map((track) => {
+            const event = track && track.event && typeof track.event === 'object' ? track.event : {};
+            const preset = String(event.preset || '');
+            if (!PRESET_NAMES.includes(preset) && !(preset === 'keyframes' && Array.isArray(event.keyframes) && event.keyframes.length > 0)) {
+                throw httpError(400, `Unsupported animation preset: ${preset || '(empty)'}.`);
+            }
+            const start = Number(event.start);
+            const duration = Number(event.duration);
+            const numeric = (value, fallback, min, max) => {
+                const parsed = Number(value);
+                return clamp(Number.isFinite(parsed) ? parsed : fallback, min, max);
+            };
+            const keyframes = Array.isArray(event.keyframes) ? event.keyframes.slice(0, 400).map((frame) => ({
+                time: numeric(frame.time, 0, 0, 60000),
+                x: numeric(frame.x, 0, 0, 100),
+                y: numeric(frame.y, 0, 0, 100),
+                w: numeric(frame.w, 0, 0, 100),
+                h: numeric(frame.h, 0, 0, 100),
+                opacity: numeric(frame.opacity, 1, 0, 1),
+            })) : undefined;
+            return {
+                layerId: String(track && track.layerId || '').slice(0, 120),
+                layerName: sanitizeLabel(track && track.layerName, 'Layer'),
+                event: {
+                    id: typeof event.id === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(event.id)
+                        ? event.id
+                        : `event-${index + 1}`,
+                    preset,
+                    start: clamp(Number.isFinite(start) ? start : 0, 0, 60000),
+                    duration: clamp(Number.isFinite(duration) ? duration : 900, 100, 60000),
+                    ...(keyframes && keyframes.length ? { keyframes } : {}),
+                },
+            };
+        }),
+    };
+}
+
+async function readStudioAnimationLibrary() {
+    try {
+        const data = JSON.parse(await fsp.readFile(STUDIO_ANIMATION_LIBRARY_FILE, 'utf8'));
+        const animations = Array.isArray(data.animations)
+            ? data.animations.slice(0, 200).map(normalizeStudioAnimation)
+            : [];
+        return { schema: 'agent-studio/animation-library/1', animations };
+    } catch (error) {
+        if (error.code === 'ENOENT') return { schema: 'agent-studio/animation-library/1', animations: [] };
+        throw httpError(500, `Could not read the Studio animation library: ${error.message}`);
+    }
+}
+
+async function saveStudioAnimation(payload) {
+    const library = await readStudioAnimationLibrary();
+    const incoming = normalizeStudioAnimation({
+        ...payload,
+        id: payload && payload.id || crypto.randomUUID(),
+        createdAt: payload && payload.createdAt || new Date().toISOString(),
+    }, library.animations.length);
+    const animations = [incoming, ...library.animations.filter((item) => item.id !== incoming.id)].slice(0, 200);
+    await fsp.mkdir(SETTINGS_DIR, { recursive: true });
+    await writeFileAtomic(STUDIO_ANIMATION_LIBRARY_FILE, JSON.stringify({
+        schema: 'agent-studio/animation-library/1',
+        updatedAt: new Date().toISOString(),
+        animations,
+    }, null, 2));
+    return { ok: true, animation: incoming, animations };
+}
+
+async function deleteStudioAnimation(id) {
+    const library = await readStudioAnimationLibrary();
+    const animations = library.animations.filter((item) => item.id !== id);
+    if (animations.length === library.animations.length) throw httpError(404, 'Animation not found.');
+    await writeFileAtomic(STUDIO_ANIMATION_LIBRARY_FILE, JSON.stringify({
+        schema: 'agent-studio/animation-library/1',
+        updatedAt: new Date().toISOString(),
+        animations,
+    }, null, 2));
+    return { ok: true, animations };
+}
+
 // ─── Local LLM animation director ─────────────────────────────────────
 
 const PARAM_RULES = {
@@ -1637,11 +1797,23 @@ function normalizeOllamaUrl(value) {
 
 function isVisionModel(model) {
     const name = String(model?.name || '').toLowerCase();
+    const capabilities = Array.isArray(model?.capabilities)
+        ? model.capabilities.map((capability) => String(capability).toLowerCase())
+        : [];
+    if (capabilities.length) return capabilities.includes('vision');
     const families = Array.isArray(model?.details?.families)
         ? model.details.families.map((family) => String(family).toLowerCase())
         : [];
     return families.includes('clip')
         || /(vision|llava|moondream|minicpm-v|qwen[^ ]*vl|gemma3)/i.test(name);
+}
+
+function supportsThinking(model) {
+    const name = String(model?.name || '').toLowerCase();
+    const capabilities = Array.isArray(model?.capabilities)
+        ? model.capabilities.map((capability) => String(capability).toLowerCase())
+        : [];
+    return capabilities.includes('thinking') || /qwen3|deepseek-r1|gpt-oss/i.test(name);
 }
 
 async function fetchJsonWithTimeout(url, options, timeout) {
@@ -1661,7 +1833,7 @@ async function fetchJsonWithTimeout(url, options, timeout) {
         }
         return data;
     } catch (error) {
-        if (error.name === 'AbortError') throw new Error('The local LLM took too long to respond.');
+        if (error.name === 'AbortError') throw new Error('The AI provider took too long to respond.');
         throw error;
     } finally {
         clearTimeout(timer);
@@ -1725,6 +1897,60 @@ async function getLlmCatalog() {
     };
 }
 
+function getDeepSeekDirectorConfig() {
+    const apiKey = process.env.STUDIO_DEEPSEEK_API_KEY?.trim() || '';
+    const model = process.env.STUDIO_DEEPSEEK_MODEL?.trim() || '';
+    const baseUrl = process.env.STUDIO_DEEPSEEK_BASE_URL?.trim() || 'https://api.deepseek.com/v1';
+    return {
+        apiKey,
+        model,
+        baseUrl,
+        available: Boolean(apiKey && model),
+        error: !apiKey
+            ? 'Set STUDIO_DEEPSEEK_API_KEY to enable the DeepSeek API.'
+            : (!model ? 'Set STUDIO_DEEPSEEK_MODEL to the DeepSeek model available to your API key.' : null),
+    };
+}
+
+function getDeepSeekDirectorStatus() {
+    const { available, model, error } = getDeepSeekDirectorConfig();
+    return { available, model: model || null, error };
+}
+
+async function getAnimationDirectorCatalog() {
+    const ollama = await getLlmCatalog();
+    const deepseek = getDeepSeekDirectorStatus();
+    const ollamaReady = ollama.available && ollama.models.some((model) => model.vision);
+    const providers = [
+        {
+            id: 'ollama',
+            label: 'Ollama · local',
+            available: ollamaReady,
+            models: ollama.models,
+            defaults: ollama.defaults,
+            error: ollamaReady
+                ? null
+                : (ollama.error || 'Install an Ollama vision model to use the local director.'),
+        },
+        {
+            id: 'deepseek',
+            label: 'DeepSeek Flash · API',
+            available: deepseek.available,
+            model: deepseek.model || null,
+            error: deepseek.error,
+        },
+    ];
+    const defaultProvider = providers.find((provider) => provider.id === 'ollama' && provider.available)
+        ? 'ollama'
+        : (deepseek.available ? 'deepseek' : 'ollama');
+    return {
+        ...ollama,
+        providers,
+        defaultProvider,
+        available: providers.some((provider) => provider.available),
+    };
+}
+
 async function getOrganizerModelCatalog() {
     const catalog = await getLlmCatalog();
     const models = catalog.models.map((model) => ({ ...model, provider: 'ollama' }));
@@ -1770,7 +1996,8 @@ async function callOllama(model, messages, {
         format: 'json',
         options: { temperature, num_predict: numPredict, num_ctx: numCtx },
     };
-    if (think !== null && /qwen3|deepseek-r1|gpt-oss/i.test(model)) body.think = think;
+    const modelInfo = status.models.find((entry) => entry.name === model);
+    if (think !== null && supportsThinking(modelInfo || { name: model })) body.think = think;
     try {
         return await fetchJsonWithTimeout(`${status.url}/api/chat`, {
             method: 'POST',
@@ -1782,21 +2009,22 @@ async function callOllama(model, messages, {
     }
 }
 
-async function callOpenAICompatible(model, messages) {
-    const apiKey = process.env.STUDIO_OPENAI_API_KEY?.trim();
-    const configuredModel = process.env.STUDIO_OPENAI_MODEL?.trim();
+async function callOpenAICompatible(model, messages, config = {}) {
+    const apiKey = config.apiKey ?? process.env.STUDIO_OPENAI_API_KEY?.trim();
+    const configuredModel = config.model ?? process.env.STUDIO_OPENAI_MODEL?.trim();
     if (!apiKey || !configuredModel || configuredModel !== model) {
         throw httpError(400, 'The selected remote model is not configured on the studio server.');
     }
-    const baseUrl = (process.env.STUDIO_OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
+    const baseUrl = (config.baseUrl || process.env.STUDIO_OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
+    const baseUrlSetting = config.baseUrl ? 'STUDIO_DEEPSEEK_BASE_URL' : 'STUDIO_OPENAI_BASE_URL';
     let endpoint;
     try {
         endpoint = new URL(`${baseUrl}/chat/completions`);
     } catch {
-        throw httpError(500, 'STUDIO_OPENAI_BASE_URL must be a valid URL.');
+        throw httpError(500, `${baseUrlSetting} must be a valid URL.`);
     }
     if (!['http:', 'https:'].includes(endpoint.protocol)) {
-        throw httpError(500, 'STUDIO_OPENAI_BASE_URL must use HTTP or HTTPS.');
+        throw httpError(500, `${baseUrlSetting} must use HTTP or HTTPS.`);
     }
     const loopbackHttp = endpoint.protocol === 'http:'
         && ['localhost', '127.0.0.1', '[::1]'].includes(endpoint.hostname);
@@ -1825,6 +2053,15 @@ async function callOpenAICompatible(model, messages) {
     } catch (error) {
         throw httpError(502, `The remote LLM request failed: ${error.message}`);
     }
+}
+
+async function callDeepSeek(model, messages) {
+    const config = getDeepSeekDirectorConfig();
+    if (!config.available) throw httpError(503, config.error);
+    if (model !== config.model) {
+        throw httpError(400, 'The selected DeepSeek model is not configured on the studio server.');
+    }
+    return callOpenAICompatible(model, messages, config);
 }
 
 function extractJsonObject(text) {
@@ -2049,12 +2286,35 @@ Layer names: ${layerNames || '(none)'}
 Keep every value short. Do not invent elements that are not in the image.`;
 }
 
-function buildWriterPrompt({ composition, context, analysis, catalog, count, retry }) {
+function buildWriterPrompt({ composition, context, analysis, catalog, count, retry, concise = false }) {
+    const compactInventory = catalog
+        .map((layer) => `${layer.alias}|${layer.name}|${layer.role}${layer.type === 'text' ? '|text' : ''}`)
+        .join('\n');
+    const characters = Array.isArray(composition.characters) ? composition.characters : [];
+    const compactCharacterInventory = characters.map((character) => {
+        const parts = CHARACTER_PART_KEYS
+            .filter((key) => Array.isArray(character.parts?.[key]) && character.parts[key].length)
+            .join(',');
+        return `${character.id}|${character.name}|${parts || 'none'}`;
+    }).join('\n');
+    if (concise) {
+        return `You direct subtle motion for a layered 2D scene. Return strict JSON only:
+{"proposals":[{"title":"up to 4 words","description":"up to 12 words","commands":[{"layerId":"L01","preset":"drift","params":{"distance":2}}]}]}
+Create exactly ${count} distinct ideas. Each needs exactly 6 commands on different listed layer aliases. Never animate the reference image. Use only these presets: drift, parallax, float, sway, swing, pulse, flicker, breathe, idle, fadeIn, fadeOut, zoom. Params: drift/parallax/float distance 1-4; sway amplitude 0.5-3 and tilt 1-5; swing amplitude 4-15; pulse scale 1.02-1.08; other presets use {}. Keep params minimal; omit easing.
+Choose motions that fit each layer role and scene. Do not animate readable text with sway, spin, shake, or hop. If using character settings, use only listed character ids and valid settings; do not also animate their rig layers.
+${retry ? 'Previous output was invalid; follow the JSON shape exactly.' : ''}
+PROJECT: ${composition.name} (${composition.width}x${composition.height}, ${composition.duration}ms)
+STORY: ${context || '(none)'}
+ANALYSIS: ${JSON.stringify(analysis)}
+LAYERS (alias|name|role):
+${compactInventory}
+CHARACTERS (id|name|parts):
+${compactCharacterInventory || '(none)'}`;
+    }
     const inventory = catalog
         .map((layer) => `${layer.alias} | ${layer.name}${layer.type === 'text' ? ' (text)' : ''} | ${layer.role} | z=${layer.z} | box=${layer.x.toFixed(1)},${layer.y.toFixed(1)},${layer.w.toFixed(1)},${layer.h.toFixed(1)}`)
         .join('\n');
-    const characters = Array.isArray(composition.characters) ? composition.characters : [];
-    const characterInventory = characters.map((character) => {
+    const detailedCharacterInventory = characters.map((character) => {
         const available = CHARACTER_PART_KEYS
             .filter((key) => Array.isArray(character.parts?.[key]) && character.parts[key].length)
             .join(', ') || 'none';
@@ -2080,7 +2340,7 @@ function buildWriterPrompt({ composition, context, analysis, catalog, count, ret
 `
         : '';
     const characterSection = characters.length
-        ? `\nCHARACTERS (id | name | available parts | current expression):\n${characterInventory}\n`
+        ? `\nCHARACTERS (id | name | available parts | current expression):\n${detailedCharacterInventory}\n`
         : '';
     return `You are a senior animation director for layered 2D storybook scenes.
 Given the visual analysis, story context, and layer inventory, propose ${count} distinct animation schemes a user can apply with one click.
@@ -2342,6 +2602,9 @@ async function updateProjectContext(id, context, director = null) {
         meta.director = {
             vision: typeof director.vision === 'string' ? director.vision.slice(0, 120) : '',
             text: typeof director.text === 'string' ? director.text.slice(0, 120) : '',
+            provider: ['ollama', 'deepseek'].includes(director.provider)
+                ? director.provider
+                : (composition.meta?.director?.provider || ''),
         };
     }
     composition.meta = meta;
@@ -2369,20 +2632,52 @@ async function generateDirectorIdeas(id, payload = {}) {
         await updateProjectContext(id, context);
     }
     const count = Math.min(6, Math.max(1, Number(payload.count) || 4));
-    const llm = await getLlmCatalog();
-    if (!llm.available) throw httpError(503, llm.error || 'The local LLM is unavailable.');
-    const visionModel = resolveModelId(payload.visionModel, llm.defaults.vision, llm.models, { vision: true });
-    const textModel = resolveModelId(payload.textModel, llm.defaults.text, llm.models);
+    const provider = payload.provider === undefined ? 'ollama' : payload.provider;
+    if (!['ollama', 'deepseek'].includes(provider)) {
+        throw httpError(400, 'Choose either the Ollama or DeepSeek animation-ideas provider.');
+    }
+    let visionModel = null;
+    let textModel = null;
+    let deepseekModel = null;
+    if (provider === 'ollama') {
+        const llm = await getLlmCatalog();
+        if (!llm.available) throw httpError(503, llm.error || 'The local LLM is unavailable.');
+        visionModel = resolveModelId(payload.visionModel, llm.defaults.vision, llm.models, { vision: true });
+        textModel = resolveModelId(payload.textModel, llm.defaults.text, llm.models);
+    } else {
+        const config = getDeepSeekDirectorConfig();
+        if (!config.available) throw httpError(503, config.error);
+        deepseekModel = config.model;
+    }
     const image = payload.image
         ? decodeBase64(payload.image, 'Reference image').toString('base64')
         : await readReferenceBase64(composition);
 
     const visionPrompt = buildVisionPrompt(composition, context, catalog);
-    const visionResult = await callOllama(visionModel, [{
-        role: 'user',
-        content: visionPrompt,
-        images: [image],
-    }], { temperature: 0.2, numPredict: 600, numCtx: 8192 });
+    const reference = composition.layers.find((layer) => layer.id === composition.referenceLayerId)
+        || composition.layers[0];
+    const imageMime = payload.image
+        ? 'image/jpeg'
+        : (reference?.url?.match(/^data:(image\/[a-z0-9.+-]+);/i)?.[1]
+            || ({ '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif' }[path.extname(reference?.url || '').toLowerCase()])
+            || 'image/jpeg');
+    const visionMessage = provider === 'deepseek'
+        ? {
+            role: 'user',
+            content: [
+                { type: 'text', text: visionPrompt },
+                { type: 'image_url', image_url: { url: `data:${imageMime};base64,${image}` } },
+            ],
+        }
+        : { role: 'user', content: visionPrompt, images: [image] };
+    const visionResult = provider === 'deepseek'
+        ? await callDeepSeek(deepseekModel, [visionMessage])
+        : await callOllama(visionModel, [visionMessage], {
+            temperature: 0.2,
+            numPredict: 300,
+            numCtx: 4096,
+            think: false,
+        });
     const analysis = extractJsonObject(visionResult?.message?.content);
     if (!analysis) throw httpError(502, 'The vision model did not return a readable scene analysis.');
 
@@ -2396,16 +2691,17 @@ async function generateDirectorIdeas(id, payload = {}) {
             catalog,
             count,
             retry: attempt > 0,
+            concise: provider === 'ollama',
         });
-        const writerResult = await callOllama(textModel, [{
-            role: 'user',
-            content: writerPrompt,
-        }], {
-            temperature: attempt ? 0.2 : 0.45,
-            numPredict: 2400,
-            numCtx: 16384,
-            think: false,
-        });
+        const writerMessage = [{ role: 'user', content: writerPrompt }];
+        const writerResult = provider === 'deepseek'
+            ? await callDeepSeek(deepseekModel, writerMessage)
+            : await callOllama(textModel, writerMessage, {
+                temperature: attempt ? 0.2 : 0.45,
+                numPredict: 800,
+                numCtx: 4096,
+                think: false,
+            });
         raw = writerResult?.message?.content || '';
         proposals = normalizeDirectorProposals(
             extractJsonObject(raw),
@@ -2423,7 +2719,9 @@ async function generateDirectorIdeas(id, payload = {}) {
         projectId: id,
         context,
         generatedAt: new Date().toISOString(),
-        models: { vision: visionModel, text: textModel },
+        models: provider === 'deepseek'
+            ? { provider, vision: deepseekModel, text: deepseekModel }
+            : { provider, vision: visionModel, text: textModel },
         analysis,
         proposals,
     };
@@ -3598,6 +3896,7 @@ async function createBrandTemplateProject(packId, payload) {
         composition = StudioBrand.createTemplateComposition({
             packId: pack.id,
             packName: pack.name,
+            portfolio: pack.portfolio,
             brand,
             templateId: template.id,
             projectId: id,
@@ -4319,6 +4618,11 @@ async function handleApi(req, res, pathname) {
 
     if (pathname === '/api/llm/models' && req.method === 'GET') {
         sendJson(res, 200, await getLlmCatalog());
+        return;
+    }
+
+    if (pathname === '/api/llm/animation-director' && req.method === 'GET') {
+        sendJson(res, 200, await getAnimationDirectorCatalog());
         return;
     }
 
@@ -5206,6 +5510,29 @@ async function handleApi(req, res, pathname) {
         return;
     }
 
+    if (pathname === '/api/animation-library' && req.method === 'GET') {
+        sendJson(res, 200, await readStudioAnimationLibrary());
+        return;
+    }
+
+    if (pathname === '/api/animation-library' && req.method === 'POST') {
+        const body = await readBody(req);
+        let payload;
+        try {
+            payload = JSON.parse(body.toString('utf8'));
+        } catch {
+            throw httpError(400, 'The animation must be valid JSON.');
+        }
+        sendJson(res, 201, await saveStudioAnimation(payload || {}));
+        return;
+    }
+
+    const studioAnimationMatch = pathname.match(/^\/api\/animation-library\/([A-Za-z0-9_-]{1,80})$/);
+    if (studioAnimationMatch && req.method === 'DELETE') {
+        sendJson(res, 200, await deleteStudioAnimation(studioAnimationMatch[1]));
+        return;
+    }
+
     if (pathname === '/api/projects' && req.method === 'GET') {
         sendJson(res, 200, { projects: await listStudioProjects() });
         return;
@@ -5399,6 +5726,16 @@ function importPublicFile(pathname) {
     return path.resolve(target).startsWith(root) ? target : null;
 }
 
+function projectPublicFile(pathname) {
+    const match = pathname.match(/^\/data\/projects\/([A-Za-z0-9_-]{1,80})\/(assets|images)\/(.+)$/);
+    if (!match || !IMPORT_PUBLIC_FILE.test(match[3])) return null;
+    const relative = safeRelativePath(match[3]);
+    if (!relative) return null;
+    const projectRoot = path.join(PROJECTS_DIR, match[1]);
+    const target = path.resolve(projectRoot, match[2], ...relative.split('/'));
+    return target.startsWith(path.resolve(projectRoot) + path.sep) ? target : null;
+}
+
 function serveStatic(req, res, pathname) {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
         sendText(res, 405, 'Method not allowed.');
@@ -5408,6 +5745,11 @@ function serveStatic(req, res, pathname) {
     const importFile = importPublicFile(pathname);
     if (importFile) {
         sendFile(req, res, importFile);
+        return;
+    }
+    const projectFile = projectPublicFile(pathname);
+    if (projectFile) {
+        sendFile(req, res, projectFile);
         return;
     }
     // Never serve local state, secrets or test/dev material as static files.
@@ -5564,9 +5906,18 @@ module.exports = {
     readSavedComposition,
     saveComposition,
     importPublicFile,
+    projectPublicFile,
     readAnimations,
     saveAnimations,
+    readStudioAnimationLibrary,
+    saveStudioAnimation,
+    deleteStudioAnimation,
     getLlmCatalog,
+    getAnimationDirectorCatalog,
+    getDeepSeekDirectorStatus,
+    isVisionModel,
+    supportsThinking,
+    buildWriterPrompt,
     buildDirectorCatalog,
     detectFontFormat,
     transcodeVideoToMp4,

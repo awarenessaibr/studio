@@ -214,6 +214,36 @@ batch export, guardrails and agent protocol all apply to it. The digital
 templates are loop-safe (first and last keyframe match), so the same scene
 exports as a still PNG, an animated GIF or an MP4.
 
+### Venue social set (Boardwalk)
+
+A pack can add its own designs to the set for one brand. The Cawley pack's
+Boardwalk tab carries ten more compositions rebuilt from the venue's social
+pack (`01.pdf`), filtered with `appliesTo` so only Boardwalk sees them:
+
+| Template | Size | Variables | What is already built |
+|---|---:|---:|---|
+| `bw-dessert` | 1080 × 1080 | 5 | Wordmark, kicker, circular dish-photo slot, dish, description and price, waves, scallop footer |
+| `bw-sweets-menu` | 1080 × 1350 | 11 | Wordmark, SWEETS, waves, white menu card with four dishes and prices, tagline, footer |
+| `bw-a-la-carte` | 1000 × 1500 | 7 | Wordmark, à la carte kicker, dashed pizza-photo frame, sea-salt eyebrow, dish, flavours, price |
+| `bw-good-morning` | 1080 × 1920 | 5 | Cawley lockup, GOOD MORNING, breakfast line, Full Scottish, gull, sun and waves |
+| `bw-seasons` | 1080 × 1920 | 7 | Cawley lockup, sunset glow, gull, SEASONS, Scottish set menu, two price lines, dessert list |
+| `bw-event-post` | 1200 × 630 | 5 | Wordmark, event type, headline, date/CTA, circular photo slot, scallop footer |
+| `bw-announcement` | 1200 × 630 | 4 | Cawley lockup, topic, headline, supporting line, gull, sun and waves |
+| `bw-from-the-sea` | 1600 × 900 | 5 | Blue-tinted wordmark, FROM THE SEA, dish, description and price, circular photo slot |
+| `bw-banner` | 1600 × 600 | 1 | Full wordmark, gull, Cawley endorsement, waves, scallop footer |
+| `bw-group-banner` | 1600 × 400 | 1 | Cawley lockup, sunset glow, five venue names, waves |
+
+The waves, scallop shingles, sun, glow and gull are generated as small inline
+SVG images with an explicit intrinsic size (without one, a canvas export
+rasterises them at 300 × 150 and the pattern breaks). Photo slots are `image`
+variables whose default is the dashed placeholder, so swapping the variable
+removes the cue in one step. The ten cards declare a 4 % safe margin — the
+margin the artwork was drawn with — instead of the social channel default, and
+merge their brighter site palette into the composition kit so the off-palette
+guardrail stays honest. The group lockup comes from the pack's portfolio
+assets; without a portfolio the template still builds, just without the group
+mark.
+
 A menu arrives with 17 variables (`menu_title`, five × `item_N_name`,
 `item_N_desc`, `item_N_price`, `menu_footer`); a business-card back carries
 the canonical contact block; a voucher has value, terms and code. Row-based

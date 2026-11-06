@@ -506,6 +506,8 @@ Chocolate hazelnut spread | Deez Nuts`,
         pack: null,
         brands: [],
         brand: null,
+        brandTemplates: {},
+        brandTemplateImages: new Map(),
         categoryId: 'flyer',
         templateIndex: 0,
         sizeIndex: 0,
@@ -535,6 +537,7 @@ Chocolate hazelnut spread | Deez Nuts`,
         qr: '',
         text: {},
         photoIndex: 0,
+        activeBrandImageVariable: '',
         photos: [],
         photoSources: [],
         logoWordmark: null,
@@ -639,12 +642,38 @@ Chocolate hazelnut spread | Deez Nuts`,
 
     // ─── category + template helpers ─────────────────────────────────
 
-    const currentCategory = () => window.AssetCategories[state.categoryId];
+    const categoryDesigns = (id) => [
+        ...(window.AssetCategories[id]?.tpls || []),
+        ...(state.brandTemplates[id] || []),
+    ];
+    const currentCategory = () => {
+        const category = window.AssetCategories[state.categoryId];
+        return category ? { ...category, tpls: categoryDesigns(state.categoryId) } : null;
+    };
     const currentTemplate = () => currentCategory()?.tpls[state.templateIndex] || null;
     // A template may list the size presets it supports (`sizes: ['A4 portrait',
     // …]`). Categories with mixed print/screen work (signage, packaging) need
     // this; categories where every design shares the list need nothing.
     const sizesForTemplate = (template = currentTemplate(), category = currentCategory()) => {
+        if (template?.brandComposition) {
+            return (template.composition.formats || [template.composition])
+                .map((format, index) => ({
+                    n: format.label || format.name || (index ? `Format ${index + 1}` : 'Master'),
+                    d: `${format.channel || template.channel} · ${format.width}×${format.height}`,
+                    w: Number(format.width) || template.composition.width,
+                    h: Number(format.height) || template.composition.height,
+                    format,
+                    formatIndex: index,
+                    dpi: format.dpi || template.composition.dpi,
+                    mm: template.widthMm && template.heightMm
+                        ? [
+                            template.widthMm * ((Number(format.width) || template.composition.width) / template.composition.width),
+                            template.heightMm * ((Number(format.height) || template.composition.height) / template.composition.height),
+                        ]
+                        : undefined,
+                    print: template.profile === 'print',
+                }));
+        }
         const all = category?.sizes || [];
         if (!template || !Array.isArray(template.sizes) || !template.sizes.length) return all;
         const allowed = new Set(template.sizes);
@@ -659,6 +688,99 @@ Chocolate hazelnut spread | Deez Nuts`,
 
     // print | screen | thermal — drives which exports are offered.
     const currentProfile = () => currentTemplate()?.profile || currentCategory()?.profile || 'print';
+
+    const assetCategoryForBrandTemplate = (template) => {
+        const id = template.id.toLowerCase();
+        if (id === 'menu') return 'menu';
+        if (id === 'flyer') return 'flyer';
+        if (id === 'voucher') return 'voucher';
+        if (id.startsWith('business-card')) return 'bizcard';
+        if (id === 'table-card') return 'tablecard';
+        if (id === 'display-screen' || id === 'digital-menu-board') return 'signage';
+        if (template.channel === 'print') return 'flyer';
+        if (template.channel === 'instore') return 'tablecard';
+        return 'social';
+    };
+
+    const brandTemplateTextFields = (template) => {
+        if (!template?.brandComposition) return [];
+        const composition = template.composition;
+        const fields = new Map((composition.variables || [])
+            .filter((variable) => variable.kind === 'text')
+            .map((variable) => [variable.id, {
+                key: variable.id,
+                label: variable.name || humanizeField(variable.id),
+                value: variable.defaultValue ?? '',
+            }]));
+        (composition.layers || []).forEach((layer) => {
+            if (layer.type !== 'text' || layer.bindings?.text || !String(layer.text || '').trim()) return;
+            const key = `layer:${layer.id}`;
+            fields.set(key, { key, label: layer.name || 'Text', value: layer.text });
+        });
+        return [...fields.values()];
+    };
+
+    const brandTemplateDefaults = (template) => Object.fromEntries(
+        [
+            ...(template.composition.variables || []).map((variable) => [variable.id, variable.defaultValue ?? '']),
+            ...brandTemplateTextFields(template)
+                .filter((field) => field.key.startsWith('layer:'))
+                .map((field) => [field.key, field.value]),
+        ],
+    );
+
+    const loadBrandTemplates = async (brand) => {
+        const grouped = Object.fromEntries(Object.keys(window.AssetCategories).map((id) => [id, []]));
+        const catalog = window.StudioBrand.templateCatalog(brand);
+        const templates = catalog.map((entry) => {
+            const composition = window.StudioBrand.createTemplateComposition({
+                packId: state.pack.id,
+                packName: state.pack.name,
+                portfolio: state.pack.portfolio,
+                brand,
+                templateId: entry.id,
+            });
+            const categoryId = assetCategoryForBrandTemplate(entry);
+            const formats = composition.formats?.length ? composition.formats : [composition];
+            const template = {
+                id: entry.id,
+                n: entry.label,
+                t: brandTemplateDefaults({ brandComposition: true, composition }),
+                brandComposition: true,
+                composition,
+                brandTemplateCategoryId: categoryId,
+                profile: ['social', 'digital', 'display', 'video'].includes(entry.channel) ? 'screen' : 'print',
+                ph: composition.layers.some((layer) => layer.type !== 'text' && (layer.bindings?.url
+                    || /photo|image/i.test(layer.name || ''))),
+                spec: entry.spec,
+                description: entry.description,
+                widthMm: entry.widthMm,
+                heightMm: entry.heightMm,
+                dpi: entry.dpi,
+                formats,
+                motion: entry.motion,
+                duration: entry.duration,
+            };
+            if (grouped[categoryId]) grouped[categoryId].push(template);
+            return template;
+        });
+        const imageUrls = new Set(templates.flatMap((template) => template.composition.layers
+            .filter((layer) => layer.type !== 'text' && layer.url)
+            .map((layer) => layer.url)));
+        const loaded = await Promise.all([...imageUrls].map(async (url) => {
+            try {
+                return [url, await loadImage(url)];
+            } catch {
+                return [url, null];
+            }
+        }));
+        state.brandTemplateImages = new Map(loaded.filter(([, image]) => image));
+        state.brandTemplates = grouped;
+        const failures = loaded.filter(([, image]) => !image).length;
+        if (failures) {
+            toast(`${failures} brand-template image${failures === 1 ? '' : 's'} could not be loaded; affected designs may look incomplete.`, true);
+        }
+    };
 
     const slidePoints = () => String(state.text?.points || '')
         .split('\n')
@@ -754,6 +876,7 @@ Chocolate hazelnut spread | Deez Nuts`,
 
     const categoryDefaultText = (template, index) => {
         if (!template) return {};
+        if (template.brandComposition) return brandTemplateDefaults(template);
         const key = `${state.brand?.id || 'none'}|${state.categoryId}|${index}`;
         if (defaultTextCache.has(key)) return { ...defaultTextCache.get(key) };
         const text = {};
@@ -1227,7 +1350,9 @@ Chocolate hazelnut spread | Deez Nuts`,
             'previewBrand', 'previewTitle', 'previewFormat', 'previewSize', 'previewCanvas',
             'downloadBtn', 'printBtn', 'saveBtn', 'exportNote', 'brandGate', 'gateClose',
             'gateGrid', 'gateError', 'gatePortfolio', 'gateGroups', 'brandDrawer', 'drawerBackdrop',
-            'drawerBody', 'drawerTitle', 'drawerClose', 'toast', 'photoInput', 'fontInput',
+            'drawerBody', 'drawerTitle', 'drawerClose', 'brandTemplatesBtn', 'brandTemplatesDialog',
+            'brandTemplatesBackdrop', 'brandTemplatesClose', 'brandTemplatesTitle', 'brandTemplatesHint',
+            'brandTemplateGrid', 'toast', 'photoInput', 'fontInput',
             'printPackBtn', 'printDialog', 'printBackdrop', 'printClose', 'printBleed',
             'printSafe', 'printMarks', 'printDpi', 'printMeta', 'printPageCount',
             'printPreview', 'printReport', 'printDownload', 'printCancel', 'printStatus',
@@ -1245,6 +1370,9 @@ Chocolate hazelnut spread | Deez Nuts`,
         el.saveBtn.addEventListener('click', saveAsset);
         el.groupSelect.addEventListener('change', () => activatePack(el.groupSelect.value, { autoSelect: true }));
         el.brandInfoBtn.addEventListener('click', openDrawer);
+        el.brandTemplatesBtn.addEventListener('click', renderBrandTemplateLibrary);
+        el.brandTemplatesClose.addEventListener('click', closeBrandTemplates);
+        el.brandTemplatesBackdrop.addEventListener('click', closeBrandTemplates);
         el.drawerClose.addEventListener('click', closeDrawer);
         el.drawerBackdrop.addEventListener('click', closeDrawer);
         el.gateClose.addEventListener('click', () => { if (state.brand) hideGate(); });
@@ -1265,6 +1393,10 @@ Chocolate hazelnut spread | Deez Nuts`,
             if (event.key !== 'Escape') return;
             if (!el.printDialog.hidden) {
                 closePrintDialog();
+                return;
+            }
+            if (!el.brandTemplatesDialog.hidden) {
+                closeBrandTemplates();
                 return;
             }
             if (!el.brandDrawer.hidden) {
@@ -1653,6 +1785,7 @@ Chocolate hazelnut spread | Deez Nuts`,
         loadLibraryForBrand(brand);
         state.fonts = defaultFontsForBrand(brand);
         applyBrandPalette();
+        await loadBrandTemplates(brand);
 
         const category = currentCategory();
         let templateIndex = 0;
@@ -1673,6 +1806,9 @@ Chocolate hazelnut spread | Deez Nuts`,
         state.motif = defaultMotifForBrand(brand, category.tpls[templateIndex]);
         resetMotifPlacement();
         state.text = categoryDefaultText(category.tpls[templateIndex], templateIndex);
+        state.activeBrandImageVariable = category.tpls[templateIndex].brandComposition
+            ? category.tpls[templateIndex].composition.variables?.find((variable) => variable.kind === 'image')?.id || ''
+            : '';
         if (restore) applySessionOverrides(session);
         writeLastBrand(state.pack?.id, brand.id);
         clearZoom();
@@ -1727,6 +1863,7 @@ Chocolate hazelnut spread | Deez Nuts`,
         resetMotifPlacement();
         resetLogoPlacement();
         state.text = categoryDefaultText(category.tpls[0], 0);
+        state.activeBrandImageVariable = '';
         clearZoom();
         renderWorkspace();
     };
@@ -1734,13 +1871,26 @@ Chocolate hazelnut spread | Deez Nuts`,
     const selectTemplate = (index) => {
         const category = currentCategory();
         if (!category?.tpls[index]) return;
+        const template = category.tpls[index];
         state.templateIndex = index;
         state.sizeIndex = 0;
         state.slideIndex = 0;
-        state.motif = defaultMotifForBrand(state.brand, category.tpls[index]);
+        state.motif = defaultMotifForBrand(state.brand, template);
         resetMotifPlacement();
         resetLogoPlacement();
-        state.text = categoryDefaultText(category.tpls[index], index);
+        state.text = categoryDefaultText(template, index);
+        state.activeBrandImageVariable = template.brandComposition
+            ? template.composition.variables?.find((variable) => variable.kind === 'image')?.id || ''
+            : '';
+        if (template.brandComposition) {
+            const palette = template.composition.meta?.palette || {};
+            state.pal = {
+                paper: palette.ground || state.pal.paper,
+                ink: palette.ink || state.pal.ink,
+                accent: palette.accent || state.pal.accent,
+            };
+            applyTheme();
+        }
         clearZoom();
         renderWorkspace();
     };
@@ -1778,7 +1928,7 @@ Chocolate hazelnut spread | Deez Nuts`,
             const category = window.AssetCategories[id];
             const tab = button(null, 'category-tab', () => selectCategory(id));
             tab.setAttribute('aria-selected', String(id === state.categoryId));
-            tab.append(make('b', null, categoryLabel(id)), make('small', null, `${category.tpls.length} designs`));
+            tab.append(make('b', null, categoryLabel(id)), make('small', null, `${categoryDesigns(id).length} designs`));
             el.categoryNav.append(tab);
         });
     };
@@ -1794,9 +1944,141 @@ Chocolate hazelnut spread | Deez Nuts`,
             thumb.append(document.createElement('canvas'));
             const label = make('span', null, template.n);
             tile.append(thumb, label);
+            if (template.brandComposition) {
+                tile.append(make('small', 'design-origin', 'Brand template'));
+            }
             el.designGrid.append(tile);
         });
         renderDesignThumbnails();
+    };
+
+    const resolveBrandComposition = (template, text = state.text) => {
+        const source = template.composition;
+        const variables = (source.variables || []).map((variable) => (
+            Object.prototype.hasOwnProperty.call(text || {}, variable.id)
+                ? { ...variable, defaultValue: text[variable.id] }
+                : variable
+        ));
+        const composition = { ...source, variables };
+        const size = sizesForTemplate(template)[state.sizeIndex] || sizesForTemplate(template)[0];
+        const format = size?.format || null;
+        const original = source.meta?.palette || {};
+        const colors = new Map([
+            [String(original.ground || '').toLowerCase(), state.pal.paper],
+            [String(original.ink || '').toLowerCase(), state.pal.ink],
+            [String(original.accent || '').toLowerCase(), state.pal.accent],
+        ].filter(([from]) => from));
+        const layers = (source.layers || []).map((layer) => {
+            let resolved = window.StudioCore.resolveLayer(layer, { composition, format });
+            if (layer.type === 'text' && !layer.bindings?.text && text?.[`layer:${layer.id}`] !== undefined) {
+                resolved = { ...resolved, text: text[`layer:${layer.id}`] };
+            }
+            if (resolved.color && colors.has(String(resolved.color).toLowerCase())) {
+                resolved = { ...resolved, color: colors.get(String(resolved.color).toLowerCase()) };
+            }
+            if (resolved.recolorEnabled) {
+                const color = colors.get(String(resolved.recolorColor || '').toLowerCase());
+                if (color) resolved = { ...resolved, recolorColor: color };
+            }
+            if (resolved.type === 'text') {
+                const family = String(resolved.font?.family || '');
+                const role = /georgia|times|serif|didot|palatino|baskerville/i.test(family)
+                    ? 'serif'
+                    : (Number(resolved.font?.weight || 400) >= 600 ? 'display' : 'sans');
+                resolved = { ...resolved, font: { ...resolved.font, family: state.fonts[role] || family } };
+            }
+            return resolved;
+        });
+        return { composition, format, size, layers };
+    };
+
+    const renderBrandComposition = (canvas, template, text = state.text, targetWidth = null) => {
+        const { composition, size, layers } = resolveBrandComposition(template, text);
+        const width = Math.max(1, Math.round(targetWidth || size.w));
+        const height = Math.max(1, Math.round(width * size.h / size.w));
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext('2d');
+        const scaleX = width / size.w;
+        const scaleY = height / size.h;
+        context.save();
+        context.scale(scaleX, scaleY);
+        context.fillStyle = state.pal.paper || composition.meta?.palette?.ground || '#ffffff';
+        context.fillRect(0, 0, size.w, size.h);
+        layers.filter((layer) => layer.visible !== false).sort((a, b) => a.z - b.z).forEach((layer) => {
+            const x = Number(layer.x || 0) / 100 * size.w;
+            const y = Number(layer.y || 0) / 100 * size.h;
+            const layerWidth = Number(layer.w || 0) / 100 * size.w;
+            const layerHeight = Number(layer.h || 0) / 100 * size.h;
+            if (!(layerWidth > 0 && layerHeight > 0)) return;
+            context.save();
+            context.globalAlpha = Math.max(0, Math.min(1, Number(layer.opacity ?? 1)));
+            if (layer.rotation) {
+                context.translate(x + layerWidth / 2, y + layerHeight / 2);
+                context.rotate(Number(layer.rotation) * Math.PI / 180);
+                context.translate(-layerWidth / 2, -layerHeight / 2);
+            } else {
+                context.translate(x, y);
+            }
+            if (layer.type === 'text') {
+                const font = layer.font || {};
+                const layout = window.StudioCore.layoutText({
+                    text: layer.text || '',
+                    font,
+                    boxWidthPx: layerWidth,
+                    boxHeightPx: layerHeight,
+                    formatHeightPx: size.h,
+                    align: layer.align,
+                    verticalAlign: layer.verticalAlign,
+                    overflow: layer.overflow,
+                    measureFactory: (options) => window.StudioCore.buildTextMetrics(context, options),
+                });
+                context.fillStyle = layer.color || state.pal.ink;
+                context.textAlign = 'left';
+                context.textBaseline = 'alphabetic';
+                layout.lines.forEach((line) => context.fillText(
+                    line.text,
+                    line.x,
+                    line.baselineY,
+                    Math.max(1, layerWidth - line.x),
+                ));
+            } else {
+                const image = state.brandTemplateImages.get(layer.url);
+                if (image) {
+                    context.beginPath();
+                    context.rect(0, 0, layerWidth, layerHeight);
+                    context.clip();
+                    const imageWidth = image.naturalWidth || image.width;
+                    const imageHeight = image.naturalHeight || image.height;
+                    const fit = layer.fit === 'contain' ? 'contain' : 'cover';
+                    const scale = fit === 'contain'
+                        ? Math.min(layerWidth / imageWidth, layerHeight / imageHeight)
+                        : Math.max(layerWidth / imageWidth, layerHeight / imageHeight);
+                    const drawWidth = imageWidth * scale;
+                    const drawHeight = imageHeight * scale;
+                    if (layer.recolorEnabled) {
+                        const imageCanvas = document.createElement('canvas');
+                        const drawContext = imageCanvas.getContext('2d');
+                        imageCanvas.width = imageWidth;
+                        imageCanvas.height = imageHeight;
+                        drawContext.drawImage(image, 0, 0, imageWidth, imageHeight);
+                        drawContext.globalCompositeOperation = 'source-in';
+                        drawContext.fillStyle = layer.recolorColor || '#ffffff';
+                        drawContext.fillRect(0, 0, imageWidth, imageHeight);
+                        context.drawImage(imageCanvas, (layerWidth - drawWidth) / 2, (layerHeight - drawHeight) / 2, drawWidth, drawHeight);
+                    } else {
+                        context.drawImage(image,
+                            (layerWidth - drawWidth) / 2,
+                            (layerHeight - drawHeight) / 2,
+                            drawWidth,
+                            drawHeight);
+                    }
+                }
+            }
+            context.restore();
+        });
+        context.restore();
+        return { width, height };
     };
 
     const renderDesignThumbnails = () => {
@@ -1810,9 +2092,12 @@ Chocolate hazelnut spread | Deez Nuts`,
             const text = index === state.templateIndex ? state.text : categoryDefaultText(template, index);
             const targetWidth = Math.min(THUMB_WIDTH * 2, Math.round(292 * (thumbSize.w / thumbSize.h)));
             try {
-                const thumbState = buildRenderState(text);
-                thumbState.slideIndex = 0;
-                window.AssetEngine.render(canvas, thumbSize, template, thumbState, targetWidth);
+                if (template.brandComposition) renderBrandComposition(canvas, template, text, targetWidth);
+                else {
+                    const thumbState = buildRenderState(text);
+                    thumbState.slideIndex = 0;
+                    window.AssetEngine.render(canvas, thumbSize, template, thumbState, targetWidth);
+                }
             } catch {
                 /* a broken preview must not stop the editor */
             }
@@ -1821,7 +2106,10 @@ Chocolate hazelnut spread | Deez Nuts`,
 
     const renderControlTabs = () => {
         clear(el.controlTabs);
-        CONTROLS.forEach(([id, label]) => {
+        const controls = currentTemplate()?.brandComposition
+            ? CONTROLS.filter(([id]) => ['colours', 'type', 'image', 'text', 'size', 'saved'].includes(id))
+            : CONTROLS;
+        controls.forEach(([id, label]) => {
             const count = id === 'saved' && state.saved.length ? ` (${state.saved.length})` : '';
             const tab = button(`${label}${count}`, 'control-tab', () => setActiveTab(id));
             tab.id = `control-tab-${id}`;
@@ -1935,7 +2223,15 @@ Chocolate hazelnut spread | Deez Nuts`,
 
         const actions = make('div', 'button-row');
         actions.append(button('Reset to brand palette', 'btn wide', () => {
-            applyBrandPalette();
+            if (currentTemplate()?.brandComposition) {
+                const palette = currentTemplate().composition.meta?.palette || {};
+                state.pal = {
+                    paper: palette.ground || state.pal.paper,
+                    ink: palette.ink || state.pal.ink,
+                    accent: palette.accent || state.pal.accent,
+                };
+                applyTheme();
+            } else applyBrandPalette();
             state.fonts = defaultFontsForBrand(state.brand);
             renderControlBody();
             schedulePreviewAndThumbs();
@@ -2141,6 +2437,10 @@ Chocolate hazelnut spread | Deez Nuts`,
                 verified: ['verified', 'approved'].includes(asset.review.state),
             });
             state.photoIndex = state.photos.length - 1;
+            if (currentTemplate()?.brandComposition && state.activeBrandImageVariable) {
+                state.text[state.activeBrandImageVariable] = src;
+                state.brandTemplateImages.set(src, image);
+            }
             renderControlBody();
             schedulePreviewAndThumbs();
             queueSession();
@@ -2219,6 +2519,10 @@ Chocolate hazelnut spread | Deez Nuts`,
 
     const renderImagePanel = () => {
         const template = currentTemplate();
+        if (template?.brandComposition) {
+            renderBrandImagePanel(template);
+            return;
+        }
         if (!templateHasPhoto(template)) {
             el.controlBody.append(make('p', 'control-note',
                 'This design has no photo slot. Choose a design with a photograph — the gallery marks designs that use brand photography.'));
@@ -2266,6 +2570,64 @@ Chocolate hazelnut spread | Deez Nuts`,
             }),
         );
         el.controlBody.append(actions);
+    };
+
+    const renderBrandImagePanel = (template) => {
+        const variables = (template.composition.variables || []).filter((variable) => variable.kind === 'image');
+        if (!variables.length) {
+            el.controlBody.append(make('p', 'control-note',
+                'This brand template has no replaceable image slots. Its brand artwork and logos remain in place.'));
+            return;
+        }
+        if (!variables.some((variable) => variable.id === state.activeBrandImageVariable)) {
+            state.activeBrandImageVariable = variables[0].id;
+        }
+        const field = make('label', 'field');
+        field.append(make('span', null, 'Image slot'));
+        const select = document.createElement('select');
+        select.setAttribute('aria-label', 'Brand template image slot');
+        variables.forEach((variable) => {
+            const option = document.createElement('option');
+            option.value = variable.id;
+            option.textContent = variable.name || humanizeField(variable.id);
+            select.append(option);
+        });
+        select.value = state.activeBrandImageVariable;
+        select.addEventListener('change', () => {
+            state.activeBrandImageVariable = select.value;
+            renderControlBody();
+        });
+        field.append(select);
+        el.controlBody.append(field);
+        renderLibrarySection();
+        el.controlBody.append(make('p', 'control-note',
+            'Choose a brand photograph for this image slot. The original logo and decorative artwork are preserved.'));
+
+        const grid = make('div', 'photo-grid');
+        state.photoSources.forEach((source, index) => {
+            const tile = button(null, 'photo-tile', () => {
+                state.text[state.activeBrandImageVariable] = source.src;
+                state.photoIndex = index;
+                const image = state.photos[index];
+                if (image) state.brandTemplateImages.set(source.src, image);
+                renderControlBody();
+                schedulePreviewAndThumbs();
+                queueSession();
+            });
+            tile.setAttribute('aria-pressed', String(state.text[state.activeBrandImageVariable] === source.src));
+            const image = document.createElement('img');
+            image.src = source.src;
+            image.alt = source.name;
+            image.loading = 'lazy';
+            tile.append(image, make('span', null, source.name));
+            if (source.uploaded) tile.append(make('span', 'uploaded', 'up'));
+            grid.append(tile);
+        });
+        el.controlBody.append(grid);
+        if (!state.photoSources.length) {
+            el.controlBody.append(make('p', 'hint', 'No photography is attached to this brand yet. Upload an image to use the slot.'));
+        }
+        el.controlBody.append(button('Upload image', 'btn', () => el.photoInput.click()));
     };
 
     const templateHasAnyMotif = (template) => templateHasMotif(template)
@@ -2644,6 +3006,30 @@ Chocolate hazelnut spread | Deez Nuts`,
     const renderTextPanel = () => {
         const template = currentTemplate();
         const category = currentCategory();
+        if (template?.brandComposition) {
+            el.controlBody.append(make('p', 'control-note',
+                'Edit the brand template’s text fields. Your changes stay with the asset when you save or export it.'));
+            const fields = brandTemplateTextFields(template);
+            fields.forEach(({ key, label, value }) => {
+                const field = make('label', 'field');
+                field.append(make('span', null, label));
+                const rows = typeof (state.text[key] ?? value) === 'string'
+                    && String(state.text[key] ?? value).length > 80;
+                const control = rows ? document.createElement('textarea') : document.createElement('input');
+                if (!rows) control.type = 'text';
+                else control.rows = 3;
+                control.value = state.text[key] ?? value;
+                control.addEventListener('input', () => {
+                    state.text[key] = control.value;
+                    schedulePreviewAndThumbs();
+                    queueSession();
+                });
+                field.append(control);
+                el.controlBody.append(field);
+            });
+            if (!fields.length) el.controlBody.append(make('p', 'hint', 'This design has no editable text fields.'));
+            return;
+        }
         el.controlBody.append(make('p', 'control-note',
             'Leave a field empty and it disappears from the design. The copy is brandified when you switch brands.'));
 
@@ -3026,8 +3412,10 @@ Chocolate hazelnut spread | Deez Nuts`,
         // Upscale the render while inspecting so the zoom shows real detail.
         const targetWidth = Math.min(ZOOM_RENDER_MAX, Math.round(baseTarget * Math.max(1, state.zoom)));
         try {
-            const rendered = window.AssetEngine.render(el.previewCanvas, size, template,
-                buildRenderState(state.text), targetWidth);
+            const rendered = template.brandComposition
+                ? renderBrandComposition(el.previewCanvas, template, state.text, targetWidth)
+                : window.AssetEngine.render(el.previewCanvas, size, template,
+                    buildRenderState(state.text), targetWidth);
             // Rendered anchors power click-and-drag placement.
             state.motifAnchor = rendered?.motif || null;
             state.logoAnchor = rendered?.logo || null;
@@ -3081,8 +3469,12 @@ Chocolate hazelnut spread | Deez Nuts`,
 
     const fullSizeCanvas = (options = {}) => {
         const canvas = document.createElement('canvas');
-        window.AssetEngine.render(canvas, currentSize(), currentTemplate(), buildRenderState(state.text), null,
-            { backdrop: false, ...options });
+        if (currentTemplate()?.brandComposition) {
+            renderBrandComposition(canvas, currentTemplate(), state.text, currentSize().w);
+        } else {
+            window.AssetEngine.render(canvas, currentSize(), currentTemplate(), buildRenderState(state.text), null,
+                { backdrop: false, ...options });
+        }
         return canvas;
     };
 
@@ -3228,7 +3620,8 @@ Chocolate hazelnut spread | Deez Nuts`,
         const canvas = document.createElement('canvas');
         // Print uses the unclipped artwork plus a vector cut line, so the
         // bleed can extend past a die-cut edge.
-        window.AssetEngine.render(canvas, printSideSize(side), template, renderState, width, { clipShape: false });
+        if (template.brandComposition) renderBrandComposition(canvas, template, state.text, width);
+        else window.AssetEngine.render(canvas, printSideSize(side), template, renderState, width, { clipShape: false });
         return { canvas, renderState };
     };
 
@@ -3546,7 +3939,8 @@ Chocolate hazelnut spread | Deez Nuts`,
 
     const makeThumb = () => {
         const canvas = document.createElement('canvas');
-        window.AssetEngine.render(canvas, currentSize(), currentTemplate(), buildRenderState(state.text), 420);
+        if (currentTemplate()?.brandComposition) renderBrandComposition(canvas, currentTemplate(), state.text, 420);
+        else window.AssetEngine.render(canvas, currentSize(), currentTemplate(), buildRenderState(state.text), 420);
         return canvas.toDataURL('image/jpeg', 0.82);
     };
 
@@ -3736,6 +4130,10 @@ Chocolate hazelnut spread | Deez Nuts`,
         state.photos.push(image);
         state.photoSources.push(source);
         state.photoIndex = state.photos.length - 1;
+        if (currentTemplate()?.brandComposition && state.activeBrandImageVariable) {
+            state.text[state.activeBrandImageVariable] = source.src;
+            state.brandTemplateImages.set(source.src, image);
+        }
         renderControlBody();
         schedulePreviewAndThumbs();
         queueSession();
@@ -3789,10 +4187,155 @@ Chocolate hazelnut spread | Deez Nuts`,
         el.drawerClose.focus();
     };
 
+    const renderBrandTemplatePreview = (composition) => {
+        const preview = make('div', 'template-preview');
+        if (!composition?.layers?.length || !window.StudioCore) {
+            preview.append(make('p', 'template-preview-error', 'Preview unavailable'));
+            return preview;
+        }
+        const maxWidth = 240;
+        const maxHeight = 178;
+        const scale = Math.min(maxWidth / composition.width, maxHeight / composition.height);
+        const width = Math.max(20, Math.round(composition.width * scale));
+        const height = Math.max(20, Math.round(composition.height * scale));
+        const canvas = make('div', 'template-preview-canvas');
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${height}px`;
+        const format = window.StudioCore.getActiveFormat?.(composition) || null;
+        canvas.style.background = composition.meta?.palette?.ground
+            || composition.brandKit?.palette?.[0]?.hex
+            || '#ffffff';
+        composition.layers.map((layer) => {
+            try {
+                return window.StudioCore.resolveLayer(layer, { composition, format });
+            } catch {
+                return layer;
+            }
+        }).filter((layer) => layer.visible !== false).sort((a, b) => a.z - b.z).forEach((layer) => {
+            const node = make('div', `template-preview-layer${layer.type === 'text' ? ' template-preview-text' : ''}`);
+            Object.assign(node.style, {
+                left: `${layer.x}%`,
+                top: `${layer.y}%`,
+                width: `${layer.w}%`,
+                height: `${layer.h}%`,
+                zIndex: String(layer.z),
+                opacity: String(layer.opacity ?? 1),
+            });
+            if (layer.type === 'text') {
+                Object.assign(node.style, {
+                    color: layer.color || '#111111',
+                    fontFamily: `"${String(layer.font?.family || 'Arial').replace(/"/g, '')}", sans-serif`,
+                    fontWeight: String(layer.font?.weight || 400),
+                    fontStyle: layer.font?.style || 'normal',
+                    fontSize: `${Math.max(1, (height * Number(layer.font?.sizePct || 3)) / 100)}px`,
+                    lineHeight: String(layer.font?.lineHeight || 1.2),
+                    letterSpacing: `${Number(layer.font?.letterSpacingEm || 0)}em`,
+                    textTransform: layer.font?.transform || 'none',
+                    textAlign: layer.align || 'left',
+                    alignItems: layer.verticalAlign === 'top'
+                        ? 'flex-start'
+                        : (layer.verticalAlign === 'bottom' ? 'flex-end' : 'center'),
+                });
+                node.append(make('span', null, layer.text || ''));
+            } else if (layer.url) {
+                const url = String(layer.url).replace(/"/g, '%22');
+                const fit = layer.fit === 'contain' ? 'contain' : 'cover';
+                if (layer.recolorEnabled) {
+                    node.style.backgroundColor = layer.recolorColor || '#ffffff';
+                    node.style.maskImage = `url("${url}")`;
+                    node.style.webkitMaskImage = `url("${url}")`;
+                    node.style.maskSize = fit;
+                    node.style.webkitMaskSize = fit;
+                    node.style.maskRepeat = 'no-repeat';
+                    node.style.webkitMaskRepeat = 'no-repeat';
+                    node.style.maskPosition = 'center';
+                    node.style.webkitMaskPosition = 'center';
+                } else {
+                    node.style.backgroundImage = `url("${url}")`;
+                    node.style.backgroundSize = fit;
+                    node.style.backgroundPosition = 'center';
+                    node.style.backgroundRepeat = 'no-repeat';
+                }
+            }
+            canvas.append(node);
+        });
+        preview.append(canvas);
+        return preview;
+    };
+
+    const renderBrandTemplateLibrary = () => {
+        const brand = state.brand;
+        if (!brand || !state.pack) return;
+        const templates = window.StudioBrand.templateCatalog(brand);
+        el.brandTemplatesTitle.textContent = `${brand.name} templates`;
+        el.brandTemplatesHint.textContent = `${state.pack.name} · ${templates.length} brand templates`;
+        clear(el.brandTemplateGrid);
+        templates.forEach((template) => {
+            let preview;
+            try {
+                const composition = window.StudioBrand.createTemplateComposition({
+                    packId: state.pack.id,
+                    packName: state.pack.name,
+                    portfolio: state.pack.portfolio,
+                    brand,
+                    templateId: template.id,
+                });
+                preview = renderBrandTemplatePreview(composition);
+            } catch (error) {
+                preview = make('div', 'template-preview');
+                preview.append(make('p', 'template-preview-error', `Preview unavailable: ${error.message}`));
+            }
+            const card = make('article', 'asset-brand-template');
+            card.append(
+                preview,
+                make('h3', null, template.label),
+                make('p', 'template-spec', `${template.spec} · ${template.channel}`),
+                make('p', 'template-description', template.description),
+            );
+            const actions = make('div', 'template-actions');
+            const openDesign = button('Open in Designs', 'btn primary', () => {
+                closeBrandTemplates();
+                const assetTemplate = (state.brandTemplates[assetCategoryForBrandTemplate(template)] || [])
+                    .find((entry) => entry.id === template.id);
+                if (!assetTemplate) {
+                    toast(`“${template.label}” is not available in the active brand’s design list.`, true);
+                    return;
+                }
+                if (state.categoryId !== assetTemplate.brandTemplateCategoryId) {
+                    selectCategory(assetTemplate.brandTemplateCategoryId);
+                }
+                const index = categoryDesigns(assetTemplate.brandTemplateCategoryId).indexOf(assetTemplate);
+                selectTemplate(index);
+            });
+            const create = document.createElement('a');
+            create.className = 'btn primary';
+            create.target = '_blank';
+            create.rel = 'noopener';
+            create.href = `studio-v2.html?brandPackId=${encodeURIComponent(state.pack.id)}`
+                + `&brandId=${encodeURIComponent(brand.id)}`
+                + `&brandTemplateId=${encodeURIComponent(template.id)}`;
+            create.textContent = 'Edit layers in Studio V2';
+            actions.append(openDesign, create);
+            card.append(actions);
+            el.brandTemplateGrid.append(card);
+        });
+        el.brandTemplatesDialog.hidden = false;
+        document.body.style.overflow = 'hidden';
+        el.brandTemplatesClose.focus();
+    };
+
+    const closeBrandTemplates = () => {
+        el.brandTemplatesDialog.hidden = true;
+        if (el.brandGate.hidden && el.brandDrawer.hidden && el.printDialog.hidden) {
+            document.body.style.overflow = '';
+        }
+        el.brandTemplatesBtn.focus();
+    };
+
     const closeDrawer = () => {
         el.brandDrawer.hidden = true;
         el.drawerBackdrop.hidden = true;
-        if (el.brandGate.hidden) document.body.style.overflow = '';
+        if (el.brandGate.hidden && el.brandTemplatesDialog.hidden && el.printDialog.hidden) document.body.style.overflow = '';
         el.brandInfoBtn.focus();
     };
 

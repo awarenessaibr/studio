@@ -1,0 +1,21 @@
+# Findings
+
+- User requests all six control categories from `asset-studio.html` in `studio-agent.html`.
+- The current `studio-agent.html` may have a modified worktree version; inspect before edits.
+- Preserve Agent-specific preview, selection, animation, and agent interactions.
+- `studio-agent.html` owns an independent `buildControls()` renderer and Agent state (`S`, `TAB`, `ROLE`); Asset Studio controls are private closures in `src/client/asset-studio/app.js`, not directly reusable.
+- The Agent already has partial controls, so implementation should extend/adapt them rather than copy Asset Studio's entire app controller.
+- Agent tabs are currently Content / Style / Layout: content edits template copy; style offers palette roles, presets, motif and logo controls; layout selects design category and size.
+- Asset Studio's six requested tabs are Colours / Type / Image / Text / Size / Saved; its renderers are substantial and tied to a separate state model, so parity requires Agent-specific adapters.
+- Agent `resolveBrandComposition()` already applies `S.pal`, `S.fonts`, and `S.t`; its engine renderer receives `engState(S)`; `size` changes already go through `commit([{t:'size', i}])`.
+- The Agent's current category navigation remains separate from control tabs, so the new Size tab should choose among the active design's sizes without duplicating design-category navigation.
+- Image controls need two paths: Asset Engine photo sources and replaceable brand-composition image variables. Saved assets currently save a state snapshot to localStorage but lack an in-Agent browser for restore/delete.
+- Asset Studio image uploads use `/api/assets/ingest`; font uploads use `/api/fonts` with `{name, dataUrl}`. Agent already fetches available fonts on boot and has the `UF` list for uploaded/server fonts.
+- Agent saves up to 40 raw `S` snapshots at `assetStudioAgent.saved.v1`, so Saved can be implemented without a new persistence format.
+- Brand-composition image variables resolve through `S.t`; their images are painted from `BRAND_TEMPLATE_IMAGES` keyed by resolved URL. Preload replacements with `loadImg()` and populate that cache.
+- Asset Engine photo choices can be persisted as an `S.photoUrl` string and supplied as the cached image through `engState().photos`, avoiding non-serializable `HTMLImageElement` values inside `S`.
+- Saved restore should reload the owning brand when needed, then restore a validated `S` snapshot and rebuild the workspace; deletion can be keyed by saved record id/index for legacy entries.
+- Asset Studio Saved lists all brands and automatically activates the saved entry's pack/brand before restore. Agent's Saved panel should match this, storing packId on new snapshots and resolving it for legacy records.
+- `drawBrandLayer()` paints brand-composition images from `BRAND_TEMPLATE_IMAGES.get(layer.url)` after `StudioCore.resolveLayer()`, confirming URL-keyed image caching is sufficient for selected/uploaded template images.
+- `studio-agent.html` currently has no hidden photo/font file inputs; add Agent-owned inputs and wire to existing upload APIs. `loadFonts()` and `stackFor()` already support server-provided font families.
+- The Agent keeps category navigation separate from control tabs; use the six requested control labels and retain category selection only in the existing category navigation.

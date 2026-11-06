@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Asset Studio Agent — final brand assets with an agent that edits copy, colour, motif, logo, design and size.">
+    <meta name="description" content="Asset Studio Agent — brand templates and final assets with an agent that edits copy, colour, design and size.">
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231a1a2e'/%3E%3Ctext x='16' y='23' font-family='Georgia,serif' font-size='19' fill='%23f2eee7' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E">
     <title>Asset Studio · Agent</title>
     <link rel="stylesheet" href="/src/client/asset-studio/app.css">
@@ -44,6 +44,31 @@
         .field-list label { display:grid; gap:3px; font-size:12px; color:var(--ag-mu); }
         .field-list input, .field-list textarea { font:inherit; padding:7px 9px; border:1px solid var(--ag-line); border-radius:8px; background:#fff; color:var(--ag-ink); resize:vertical; }
         .field-list label.is-focus input, .field-list label.is-focus textarea { border-color:var(--ag-ac); box-shadow:0 0 0 1px var(--ag-ac); }
+        .layer-inspector { padding:12px; border-bottom:1px solid var(--ag-line); background:#fbfaf7; }
+        .layer-inspector[hidden] { display:none; }
+        .layer-inspector-head { display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:8px; }
+        .layer-inspector-head h3 { margin:0; font:400 16px/1.2 Georgia,serif; color:var(--ag-ink); }
+        .layer-inspector-head small { color:var(--ag-mu); font-size:10px; }
+        .layer-inspector .field-list { gap:8px; }
+        .layer-inspector .field-list label { color:var(--ag-ink); }
+        .layer-inspector .layer-position { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; }
+        .layer-inspector .layer-actions { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+        .layer-inspector .layer-actions button, .layer-inspector .layer-actions select { min-width:0; border:1px solid var(--ag-line); border-radius:8px; background:#fff; color:var(--ag-ink); padding:6px 8px; font:inherit; font-size:12px; }
+        .layer-inspector .layer-actions button { cursor:pointer; }
+        .control-actions { display:flex; flex-wrap:wrap; gap:6px; padding:8px 2px; }
+        .control-actions button, .control-select { border:1px solid var(--ag-line); border-radius:8px; background:#fff; color:var(--ag-ink); padding:6px 8px; font:inherit; }
+        .control-select { width:100%; margin:4px 0 10px; }
+        .control-color-row { display:grid; grid-template-columns:42px minmax(0,1fr); gap:7px; align-items:center; margin:4px 0 10px; }
+        .control-color-row input[type=color] { width:42px; height:34px; padding:3px; border:1px solid var(--ag-line); border-radius:6px; background:#fff; }
+        .photo-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; padding:5px 0 10px; }
+        .photo-tile { min-width:0; border:1px solid var(--ag-line); border-radius:8px; padding:5px; background:#fff; color:var(--ag-ink); cursor:pointer; text-align:left; }
+        .photo-tile[aria-pressed="true"] { border-color:var(--ag-ac); box-shadow:inset 0 0 0 1px var(--ag-ac); }
+        .photo-tile img { display:block; width:100%; height:72px; object-fit:cover; border-radius:5px; background:#eee; }
+        .photo-tile span { display:block; overflow:hidden; padding:4px 2px 0; font-size:10px; text-overflow:ellipsis; white-space:nowrap; }
+        .size-options, .saved-options { display:grid; gap:6px; padding:5px 0; }
+        .size-option, .saved-option { display:flex; justify-content:space-between; align-items:center; gap:8px; width:100%; border:1px solid var(--ag-line); border-radius:8px; padding:8px; background:#fff; color:var(--ag-ink); text-align:left; cursor:pointer; }
+        .size-option[aria-pressed="true"] { border-color:var(--ag-ac); box-shadow:inset 0 0 0 1px var(--ag-ac); }
+        .size-option small, .saved-option small { display:block; color:var(--ag-mu); font-size:10px; }
         .sw-row { display:flex; flex-wrap:wrap; gap:6px; padding:4px 2px 8px; }
         .sw-row button { width:26px; height:26px; border-radius:50%; border:1px solid var(--ag-line); cursor:pointer; padding:0; }
         .role-row { display:flex; gap:6px; padding:0 2px 6px; }
@@ -59,10 +84,19 @@
         .sel-card.is-selected { border-color:var(--ag-ac); box-shadow:inset 0 0 0 1px var(--ag-ac); }
         .sel-card canvas { display:block; width:100%; height:auto; max-height:130px; object-fit:contain; border-radius:4px; background:#0001; margin-bottom:4px; }
         .sel-card span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .sel-card.is-brand-template::after { content:"Brand template"; display:block; margin-top:3px; color:var(--ag-mu); font-size:10px; }
         .mini-select { width:100%; margin:4px 0 10px; font:inherit; padding:6px 8px; border:1px solid var(--ag-line); border-radius:8px; background:#fff; color:var(--ag-ink); }
         /* Canvas selection overlay */
         .preview-panel .stage { position:relative; }
+        .zoom-bar { position:absolute; right:12px; bottom:12px; z-index:7; display:flex; align-items:center; gap:2px; padding:3px; border:1px solid var(--ag-line); border-radius:999px; background:rgb(255 255 255 / 92%); box-shadow:0 4px 16px #0002; color:var(--ag-mu); font-size:11px; backdrop-filter:blur(6px); }
+        .zoom-value { min-width:44px; color:var(--ag-ink); font-variant-numeric:tabular-nums; text-align:center; }
+        .zoom-btn { min-height:26px; padding:2px 9px; border:0; border-radius:999px; background:transparent; color:var(--ag-ink); font:inherit; font-size:13px; line-height:1; cursor:pointer; }
+        .zoom-btn:hover { background:#f2eee7; }
+        .zoom-btn.zoom-reset { color:var(--ag-ac); font-size:10px; text-transform:uppercase; }
+        .zoom-btn.zoom-reset[hidden] { display:none; }
         #selLayer { position:absolute; z-index:5; cursor:pointer; touch-action:none; }
+        #selLayer.is-movable { cursor:grab; }
+        #selLayer.is-dragging { cursor:grabbing; }
         .sel-box { position:absolute; box-sizing:border-box; border:1px solid transparent; border-radius:3px; pointer-events:none; }
         .sel-box.hover { border-color:rgba(235,91,60,.65); background:rgba(235,91,60,.08); }
         .sel-box.on { border:2px solid var(--ag-ac); box-shadow:0 0 0 1px #ffffff99; }
@@ -82,11 +116,13 @@
         .tl-head output { font-variant-numeric:tabular-nums; color:var(--ag-mu); font-size:12px; min-width:92px; text-align:right; }
         .tl-body { max-height:230px; overflow:auto; }
         .tl-inner { position:relative; }
-        .tl-row { display:grid; grid-template-columns:120px 1fr; height:26px; align-items:center; border-bottom:1px solid #0000000d; }
+        .tl-row { position:relative; display:grid; grid-template-columns:120px 1fr; height:26px; min-height:26px; align-items:center; border-bottom:1px solid #0000000d; }
         .tl-row .n { padding:0 10px; font-size:11px; color:var(--ag-mu); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
         .tl-row[data-on="1"] { background:#f2eee7; }
         .tl-row[data-on="1"] .n { color:var(--ag-ink); font-weight:600; }
         .tl-track { position:relative; height:100%; background:repeating-linear-gradient(90deg,var(--ag-line) 0 1px,transparent 1px 12.5%); }
+        .tl-row-resize { position:absolute; z-index:4; left:120px; right:0; bottom:-3px; height:6px; padding:0; border:0; background:transparent; cursor:row-resize; touch-action:none; }
+        .tl-row-resize:hover, .tl-row-resize:focus-visible, .tl-row-resize.drag { background:color-mix(in srgb,var(--ag-ac) 45%,transparent); outline:none; }
         .tl-ruler .tl-track small { position:absolute; top:6px; font-size:9px; color:var(--ag-mu); padding-left:3px; }
         .tl-bar { position:absolute; top:4px; height:18px; border-radius:5px; background:var(--ag-ac); cursor:grab; min-width:8px; touch-action:none; }
         .tl-bar::after { content:""; position:absolute; right:0; top:0; bottom:0; width:8px; cursor:ew-resize; background:#0004; border-radius:0 5px 5px 0; }
@@ -95,6 +131,104 @@
         .tl-hint { padding:8px 12px; font-size:11px; color:var(--ag-mu); border-top:1px solid var(--ag-line); }
         @media (max-width:1180px) { .workspace.has-agent { grid-template-columns:minmax(260px,320px) minmax(0,1fr); } .agent-panel { grid-column:1/-1; position:static; height:520px; } }
         @media (max-width:760px) { .workspace.has-agent { grid-template-columns:1fr; } }
+
+        /* ---- Collapsible side panels ---- */
+        .workspace.has-agent.hide-rail { grid-template-columns:minmax(0,1fr) minmax(300px,380px); }
+        .workspace.has-agent.hide-agent { grid-template-columns:minmax(280px,340px) minmax(0,1fr); }
+        .workspace.has-agent.hide-rail.hide-agent { grid-template-columns:minmax(0,1fr); }
+        .workspace.hide-rail .rail, .workspace.hide-agent .agent-panel { display:none; }
+        .preview-head { display:flex; align-items:center; gap:10px; }
+        .preview-head > div:first-of-type { flex:1; min-width:0; }
+        .view-toggle { font:inherit; font-size:12px; white-space:nowrap; border:1px solid var(--ag-line); background:transparent; color:var(--ag-mu); border-radius:8px; padding:5px 10px; cursor:pointer; }
+        .view-toggle:hover { border-color:var(--ag-ac); color:var(--ag-ink); }
+        .view-toggle[aria-pressed="true"] { background:#f2eee7; color:var(--ag-ink); }
+        .preview-replay { flex:none; border-color:var(--ag-ink); background:var(--ag-ink); color:#f2eee7; font-weight:700; }
+        .preview-replay:hover { border-color:var(--ag-ac); background:var(--ag-ac); color:#fff; }
+        .view-toggle kbd { font:10px/1 ui-monospace,Menlo,monospace; border:1px solid var(--ag-line); border-radius:4px; padding:1px 4px; margin-left:4px; color:var(--ag-mu); }
+
+        /* ---- Preview fills the viewport; the canvas is fitted to whatever room is left ---- */
+        .workspace.has-agent .preview-panel { display:flex; flex-direction:column; gap:10px; height:var(--preview-panel-h,calc(100vh - 150px)); max-height:none; min-height:460px; position:sticky; top:12px; }
+        .workspace.has-agent .preview-panel > * { flex:none; margin-top:0; margin-bottom:0; }
+        .preview-panel .stage { flex:1 1 auto; min-height:160px; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+        .workspace.has-agent .preview-panel > .stage { flex:1 1 auto; }
+        .preview-panel .stage canvas { flex:none; display:block; }
+        .template-preview > canvas { position:absolute; top:50%; left:50%; max-width:calc(100% - 12px); max-height:calc(100% - 12px); transform:translate(-50%,-50%); }
+        .stage-resize-grip { position:absolute; z-index:6; left:50%; bottom:0; width:64px; height:12px; transform:translateX(-50%); border:0; border-radius:8px 8px 0 0; padding:0; background:linear-gradient(var(--ag-line),var(--ag-line)) center 6px/36px 3px no-repeat; cursor:row-resize; touch-action:none; }
+        .stage-resize-grip:hover, .stage-resize-grip:focus-visible, .stage-resize-grip.drag { background-color:#fff9; background-image:linear-gradient(var(--ag-ac),var(--ag-ac)); outline:2px solid color-mix(in srgb,var(--ag-ac) 45%,transparent); outline-offset:-2px; }
+        .preview-panel > .hint { font-size:11px; line-height:1.35; }
+
+        /* ---- Focus mode: one design, everything about it ---- */
+        .panel[hidden], .category-nav[hidden] { display:none !important; }
+        .workspace:not(.is-focus) .controls-panel { display:none; }
+        .workspace.is-focus .design-panel { display:none; }
+        .workspace.is-focus #enterFocus { display:none; }
+        #enterFocus { flex:none; white-space:nowrap; font-weight:700; }
+        .focus-head { display:grid; gap:8px; }
+        .focus-head .focus-back { justify-self:start; }
+        .focus-crumb { margin:0; font-size:12px; color:var(--ag-mu); }
+        .focus-crumb b { color:var(--ag-ink); font-family:Georgia,serif; font-size:16px; font-weight:400; display:block; margin-top:2px; }
+        .focus-switch { display:grid; gap:2px; font-size:11px; color:var(--ag-mu); }
+        .focus-switch .mini-select { margin:0; }
+        .var-row { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; padding:4px 2px 10px; }
+        .var-chips { display:grid; gap:5px; padding:4px 2px 8px; }
+        .var-chip { text-align:left; font:inherit; font-size:12px; line-height:1.3; border:1px solid var(--ag-line); border-radius:8px; padding:6px 8px; background:#fff; color:var(--ag-ink); cursor:pointer; }
+        .var-chip:hover { border-color:var(--ag-ac); }
+        .var-chip.is-on { border-color:var(--ag-ac); box-shadow:inset 0 0 0 1px var(--ag-ac); }
+        .var-tabs { display:flex; gap:4px; padding:0 2px 8px; }
+        .var-tabs button { flex:1; min-width:0; font:inherit; font-size:12px; padding:5px 4px; border:1px solid var(--ag-line); background:transparent; color:inherit; border-radius:8px; cursor:pointer; }
+        .var-tabs button:hover { border-color:var(--ag-ac); }
+        .var-tabs button[aria-pressed="true"] { border-color:var(--ag-ac); background:#f2eee7; font-weight:600; }
+        .sel-card small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:10px; color:var(--ag-mu); }
+        .var-note { margin:0 2px 8px; font-size:11px; line-height:1.35; color:var(--ag-mu); }
+        .var-clear { margin:0 2px 8px; font:inherit; font-size:12px; border:1px solid var(--ag-line); background:transparent; color:inherit; border-radius:8px; padding:4px 9px; cursor:pointer; }
+        .var-clear:hover { border-color:var(--ag-ac); }
+        .mo-list { display:grid; gap:6px; padding:4px 2px 8px; }
+        .mo-card { display:grid; gap:6px; text-align:left; font:inherit; border:1px solid var(--ag-line); border-radius:10px; padding:8px 10px; background:#fff; color:var(--ag-ink); cursor:pointer; }
+        .mo-card:hover { border-color:var(--ag-ac); }
+        .mo-card.is-on { border-color:var(--ag-ac); box-shadow:inset 0 0 0 1px var(--ag-ac); }
+        .mo-head { display:block; }
+        .mo-head b { display:block; font-size:13px; }
+        .mo-head small { display:block; margin-top:1px; color:var(--ag-mu); font-size:11px; line-height:1.3; }
+        .mo-bars { display:grid; gap:2px; }
+        .mo-bars.empty { display:none; }
+        .mo-row { position:relative; display:block; height:5px; border-radius:3px; background:#0000000a; }
+        .mo-row i { position:absolute; top:0; bottom:0; border-radius:3px; background:var(--ag-ac); }
+        .mo-row i.g-out { background:#8a5a9e; } .mo-row i.g-emph { background:var(--ag-ok); } .mo-row i.g-loop { background:#4a6fa5; }
+        .more-menu { position:relative; }
+        .more-menu > summary { list-style:none; cursor:pointer; }
+        .more-menu > summary::-webkit-details-marker { display:none; }
+        .more-menu .more-pop { position:absolute; right:0; top:calc(100% + 6px); z-index:30; display:grid; gap:2px; min-width:190px; padding:6px; background:#fff; border:1px solid var(--ag-line); border-radius:10px; box-shadow:0 10px 30px #0002; }
+        .more-menu .more-pop a { display:block; padding:7px 10px; border-radius:7px; color:var(--ag-ink); text-decoration:none; font-size:13px; }
+        .more-menu .more-pop a:hover { background:#f2eee7; }
+
+        /* ---- Timeline ---- */
+        .timeline { display:flex; flex-direction:column; height:var(--tl-h,230px); min-height:150px; margin-top:0; flex:none; }
+        .tl-grip { flex:none; height:10px; cursor:row-resize; touch-action:none; background:linear-gradient(var(--ag-line),var(--ag-line)) center/36px 3px no-repeat; border-radius:3px; }
+        .tl-grip:hover, .tl-grip:focus-visible, .tl-grip.drag { background-color:#f2eee7; background-image:linear-gradient(var(--ag-ac),var(--ag-ac)); outline:none; }
+        .tl-head { flex:none; flex-wrap:wrap; gap:6px 10px; padding:6px 10px; }
+        .tl-head input[type=range] { flex:1 1 140px; }
+        .tl-group { display:flex; align-items:center; gap:6px; flex:none; }
+        .tl-head .tl-replay { background:var(--ag-ink); color:#f2eee7; border-color:var(--ag-ink); font-weight:700; }
+        .tl-head .tl-replay:hover:not(:disabled) { background:var(--ag-ac); border-color:var(--ag-ac); }
+        .tl-loop { display:flex; align-items:center; gap:4px; font-size:12px; color:var(--ag-mu); cursor:pointer; user-select:none; }
+        .tl-head output { min-width:86px; }
+        .tl-head select { max-width:150px; }
+        .tl-head .tl-close { padding:4px 8px; color:var(--ag-mu); }
+        .tl-sep { display:none; }
+        .tl-body { flex:1 1 auto; min-height:0; max-height:none; }
+        .tl-inner { min-height:100%; }
+        .tl-bar.g-out { background:#8a5a9e; }
+        .tl-bar.g-emph { background:var(--ag-ok); }
+        .tl-bar.g-loop { background:#4a6fa5; }
+        .tl-hint { flex:none; padding:5px 12px; }
+        @media (max-width:1180px) {
+            .workspace.has-agent.hide-rail { grid-template-columns:minmax(0,1fr); }
+            .workspace.has-agent .preview-panel { height:auto; position:static; }
+            .preview-panel .stage { flex:none; height:var(--stage-h,min(62vh,640px)); }
+        }
+        @media (max-width:760px) {
+            .workspace.has-agent, .workspace.has-agent.hide-rail, .workspace.has-agent.hide-agent { grid-template-columns:1fr; }
+        }
     </style>
 </head>
 
@@ -113,19 +247,40 @@
             </div>
             <div class="brand-switch" id="brandSwitch" aria-label="Active brand"></div>
             <div class="topbar-actions">
-                <a class="ghost" href="crawler.html" title="Search and crawl a new business">Brand intake</a>
-                <a class="ghost" href="library.html" id="lnkLib" title="Browse the business asset library">Library</a>
-                <a class="ghost" href="voice.html" title="Speak brand copy or design a voice">Voice</a>
-                <a class="ghost" href="social.html" title="Read the business social profile">Social</a>
-                <a class="ghost" href="asset-studio.html" id="lnkClassic" title="Open the classic Asset Studio">Classic</a>
-                <a class="ghost" href="studio-v2.html" title="Open the full layer studio">Studio V2</a>
+                <button type="button" class="ghost" id="brandTemplatesBtn" aria-haspopup="dialog">Brand templates</button>
+                <details class="more-menu" id="moreMenu">
+                    <summary class="ghost" aria-label="More tools">More ▾</summary>
+                    <div class="more-pop">
+                        <a href="crawler.html" title="Search and crawl a new business">Brand intake</a>
+                        <a href="library.html" id="lnkLib" title="Browse the business asset library">Library</a>
+                        <a href="voice.html" title="Speak brand copy or design a voice">Voice</a>
+                        <a href="social.html" title="Read the business social profile">Social</a>
+                        <a href="asset-studio.html" id="lnkClassic" title="Open the classic Asset Studio">Classic Asset Studio</a>
+                        <a href="studio-v2.html" title="Open the full layer studio">Studio V2</a>
+                    </div>
+                </details>
             </div>
         </header>
 
         <nav class="category-nav" id="categoryNav" aria-label="Asset categories"></nav>
 
         <main class="workspace has-agent">
-            <aside class="rail" aria-label="Design and controls">
+            <aside class="rail" id="railPanel" aria-label="Design and controls">
+                <section class="panel focus-head" id="focusHead" hidden aria-label="Focused design">
+                    <button type="button" class="view-toggle focus-back" id="focusBack">← All designs</button>
+                    <p class="focus-crumb" id="focusCrumb"></p>
+                    <label class="focus-switch">Switch design
+                        <select id="focusSwitch" class="mini-select" aria-label="Switch design"></select>
+                    </label>
+                </section>
+                <section class="panel variations-panel" id="variationsPanel" hidden aria-label="Variations of this design">
+                    <header class="panel-head">
+                        <h2>Variations</h2>
+                        <span class="panel-meta">of this design</span>
+                    </header>
+                    <div id="variationsBody"></div>
+                </section>
+
                 <section class="panel design-panel">
                     <header class="panel-head">
                         <h2>Designs</h2>
@@ -135,6 +290,7 @@
                 </section>
 
                 <section class="panel controls-panel" aria-label="Asset controls">
+                    <section class="layer-inspector" id="layerInspector" aria-label="Selected layer properties" hidden></section>
                     <div id="controlTabs" class="control-tabs" role="tablist" aria-label="Asset controls"></div>
                     <div id="controlBody" class="control-body" role="tabpanel"></div>
                 </section>
@@ -142,6 +298,8 @@
 
             <section class="preview-panel" aria-label="Asset preview">
                 <header class="preview-head">
+                    <button type="button" class="view-toggle" id="toggleRail" aria-pressed="true" aria-controls="railPanel" title="Show or hide designs and controls">◧<kbd>[</kbd></button>
+                    <button type="button" class="view-toggle preview-replay" id="previewReplay" title="Replay animation from the start">↺</button>
                     <div>
                         <p id="previewBrand" class="eyebrow"></p>
                         <h2 id="previewTitle">Design</h2>
@@ -150,11 +308,14 @@
                         <span id="previewFormat" class="pill"></span>
                         <span id="previewSize" class="pill subtle"></span>
                     </div>
+                    <button type="button" class="btn primary" id="enterFocus" title="Open this design for editing (or click the selected design again)">Edit this design →</button>
+                    <button type="button" class="view-toggle" id="toggleAgent" aria-pressed="true" aria-controls="agentPanel" title="Show or hide the Studio agent">◨<kbd>]</kbd></button>
                 </header>
 
                 <div class="stage">
                     <canvas id="previewCanvas" aria-label="Live asset preview"></canvas>
-                    <div id="selLayer" aria-label="Click an element to select it"></div>
+                    <div id="selLayer" aria-label="Click an element to select it; drag a layer to move it"></div>
+                    <div class="stage-resize-grip" id="stageGrip" role="separator" aria-orientation="horizontal" aria-label="Resize canvas area (drag or use arrow keys; double-click to reset)" aria-valuemin="160" tabindex="0" title="Drag to resize canvas area · double-click to reset"></div>
                 </div>
 
                 <div class="export-bar">
@@ -166,28 +327,36 @@
                     <button type="button" class="btn" id="timelineBtn" aria-pressed="false" aria-controls="timeline" title="Show or hide the animation timeline">Timeline</button>
                     <span id="exportNote" class="hint"></span>
                 </div>
-                <p class="hint">
-                    The active brand’s palette, type, logo and photography are applied by default.
-                    Click any element on the canvas to select it, then ask the agent to change or animate it — or edit directly on the left.
-                    Downloads are rendered at full print resolution.
-                </p>
+                <p class="hint">Click an element on the canvas to select it, then ask the agent to change or animate it, or edit on the left. Drag a selected brand-template layer to reposition it. Downloads render at full print resolution.</p>
 
                 <section id="timeline" class="timeline" hidden aria-label="Animation timeline">
+                    <div class="tl-grip" id="tlGrip" role="separator" aria-orientation="horizontal" aria-label="Resize timeline (drag, or use the arrow keys)" tabindex="0" title="Drag to resize · double-click to reset"></div>
                     <div class="tl-head">
-                        <button type="button" id="tlPlay">▶ Play</button>
+                        <div class="tl-group">
+                            <button type="button" id="tlReplay" class="tl-replay" title="Replay from the start (R)">↺ Replay</button>
+                            <button type="button" id="tlPlay" title="Play or pause (Space)">▶ Play</button>
+                            <label class="tl-loop" title="Loop the preview"><input type="checkbox" id="tlLoop"> Loop</label>
+                        </div>
                         <input type="range" id="tlScrub" min="0" max="8000" step="20" value="8000" aria-label="Playhead">
                         <output id="tlTime">8.00 / 8.00 s</output>
-                        <select id="tlPreset" aria-label="Animation preset"></select>
-                        <button type="button" id="tlAdd" title="Add the chosen animation to the selected element" disabled>Animate selected</button>
-                        <button type="button" id="tlClear" title="Clear the selected element's animation, or all animation when nothing is selected">Clear</button>
-                        <button type="button" id="tlRec" title="Record the animation as a WebM video">Record WebM</button>
+                        <span class="tl-sep"></span>
+                        <div class="tl-group">
+                            <select id="tlPreset" aria-label="Animation preset"></select>
+                            <button type="button" id="tlAdd" title="Add the chosen animation to the selected element" disabled>+ Animate selected</button>
+                            <button type="button" id="tlClear" title="Clear the selected element's animation, or all animation when nothing is selected">Clear</button>
+                        </div>
+                        <span class="tl-sep"></span>
+                        <div class="tl-group">
+                            <button type="button" id="tlRec" title="Record the animation as a WebM video">Record WebM</button>
+                            <button type="button" id="tlClose" class="tl-close" aria-label="Hide timeline" title="Hide timeline">✕</button>
+                        </div>
                     </div>
                     <div class="tl-body" id="tlBody"></div>
-                    <p class="tl-hint">Click an element on the canvas or a row to select it. Double-click a track to add the chosen animation there; drag a bar to retime it, drag its right edge to change its length.</p>
+                    <p class="tl-hint">Add several animations per track; they are placed in free time and cannot overlap. Double-click to choose a start time · drag a bar to retime it · drag its right edge to resize it.</p>
                 </section>
             </section>
 
-            <section class="agent-panel" aria-label="Studio agent">
+            <section class="agent-panel" id="agentPanel" aria-label="Studio agent">
                 <header class="agent-head">
                     <h2><span class="dot"></span>Studio agent<small>edits this asset with you</small></h2>
                     <button type="button" id="agClear">Clear chat</button>
@@ -203,13 +372,32 @@
         </main>
     </div>
 
+    <div id="brandTemplatesDialog" class="modal" hidden>
+        <div class="modal-backdrop" id="brandTemplatesBackdrop"></div>
+        <section class="modal-panel template-library-panel" role="dialog" aria-modal="true" aria-labelledby="brandTemplatesTitle">
+            <header class="gate-head">
+                <div>
+                    <p class="eyebrow">Brand identity</p>
+                    <h2 id="brandTemplatesTitle">Brand templates</h2>
+                    <p id="brandTemplatesHint" class="hint"></p>
+                </div>
+                <button type="button" class="icon-btn" id="brandTemplatesClose" aria-label="Close brand templates">×</button>
+            </header>
+            <div id="brandTemplateGrid" class="brand-template-grid"></div>
+        </section>
+    </div>
+
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+    <input type="file" id="agentPhotoInput" accept="image/*" hidden>
+    <input type="file" id="agentFontInput" accept=".woff2,.woff,.ttf,.otf,font/woff2,font/woff,font/ttf,font/otf" hidden>
 
     <script src="/src/client/asset-studio/vendor/qrcode.min.js"></script>
     <script src="/src/shared/asset-intel.js"></script>
+    <script src="/src/shared/studio-core.js"></script>
     <script src="/src/shared/brand-pack.js"></script>
     <script src="/src/client/asset-studio/engine.js"></script>
     <script src="/src/client/asset-studio/categories.js"></script>
+    <script src="/src/client/asset-studio/animation.js"></script>
     <script>
     (function () {
         'use strict';
@@ -221,9 +409,9 @@
             get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
             set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } }
         };
-        const jget = async p => { const r = await fetch(p, { cache: 'no-store' }); const j = await r.json().catch(() => null); if (!r.ok) throw new Error((j && j.error) || r.status + ' ' + r.statusText); return j; };
+        const jget = async (p, options = {}) => { const r = await fetch(p, { cache: 'no-store', ...options }); const j = await r.json().catch(() => null); if (!r.ok) throw new Error((j && j.error) || r.status + ' ' + r.statusText); return j; };
         let toastT = 0;
-        const toast = (m, err) => { const t = $('#toast'); t.textContent = m; t.className = 'toast' + (err ? ' error' : ''); t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 3200); };
+        const toast = (message, error) => { const element = $('#toast'); element.textContent = message; element.className = 'toast' + (error ? ' error' : ''); element.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => element.hidden = true, 3200); };
 
         /* ---------- colour helpers ---------- */
         const hx = s => { s = String(s || '').trim(); const m = /^#([0-9a-f]{3})$/i.exec(s); if (m) return '#' + [...m[1]].map(c => c + c).join('').toLowerCase(); return /^#[0-9a-f]{6}$/i.test(s) ? s.toLowerCase() : null; };
@@ -235,22 +423,73 @@
         /* ---------- state ---------- */
         let PACKS = [], P = null, B = null, TH = { ink: '#17162e', bone: '#f2eee7', accent: '#eb5b3c' }, PAL = {}, BF = { display: 'Georgia', body: 'Helvetica Neue' };
         const UF = [], packCache = new Map(), IMG = new Map();
-        const blank = () => ({ cat: Object.keys(window.AssetCategories)[0], tpl: 0, size: 0, t: {}, anim: {}, pal: null, motif: 'auto', motifOn: true, motifScale: 1, motifX: 0, motifY: 0, logoOn: true, logoScale: 1 });
+        let BRAND_TEMPLATES = {}, BRAND_TEMPLATE_IMAGES = new Map();
+        const BRAND_TEMPLATE_IMAGE_PENDING = new WeakMap();
+        let IMAGE_LIB = { status: 'idle', brandId: null, items: [], error: '' };
+        const blank = () => ({ cat: Object.keys(window.AssetCategories)[0], tpl: 0, size: 0, t: {}, layout: {}, layerStyles: {}, layerImages: {}, anim: {}, pal: null, fonts: { display: BF.display, body: BF.body, serif: BF.body, sans: BF.body }, photoUrl: '', photoUploads: [], imageVariable: '', motif: 'auto', motifOn: true, motifScale: 1, motifX: 0, motifY: 0, logoOn: true, logoScale: 1, extraFormats: [], motion: '' });
         let S = null, hist = [], focusKey = null, selTok = 0, rt = 0;
+        let focusMode = false; /* true: only the chosen design is shown, with its variations and edit controls */
         const preview = $('#previewCanvas');
+        const ZOOM_MAX = 5, ZOOM_RENDER_MAX = 3500;
+        let zoom = 1, zoomX = 0, zoomY = 0, zoomBase = null, zoomBar = null, zoomRenderTimer = 0;
         /* animation + selection state */
-        const DUR = 8000;
+        const DUR = window.AssetStudioAnimation.DURATION;
         const TL = { open: false, T: DUR, playing: false, raf: 0, art: null, artKey: '', els: [], target: 0, shown: 'f', onEnd: null };
-        let SEL = null, HOV = null;
+        let SEL = null, HOV = null, pendingImageTarget = null, imageLayerTarget = null;
         const ART = { id: 'art', name: 'Background & motif', kind: 'art' };
-        const PRESETS = [['fadeIn', 'Fade in', 900], ['slideUp', 'Slide up', 900], ['slideLeft', 'Slide in', 900], ['zoomIn', 'Zoom in', 900], ['pulse', 'Pulse', 2400], ['zoom', 'Slow zoom', DUR], ['drift', 'Drift', DUR]];
-        const presetDur = p => (PRESETS.find(x => x[0] === p) || [0, 0, 900])[2];
+        const PRESETS = window.AssetStudioAnimation.PRESETS;
+        const presetDur = window.AssetStudioAnimation.durationFor;
         const presetLabel = p => (PRESETS.find(x => x[0] === p) || [0, p])[1];
+        const groupOf = window.AssetStudioAnimation.groupOf;
 
-        const cat = (s = S) => window.AssetCategories[s.cat] || window.AssetCategories[Object.keys(window.AssetCategories)[0]];
+        const categoryDesigns = id => [
+            ...(window.AssetCategories[id]?.tpls || []),
+            ...(BRAND_TEMPLATES[id] || [])
+        ];
+        const cat = (s = S) => {
+            const base = window.AssetCategories[s.cat] || window.AssetCategories[Object.keys(window.AssetCategories)[0]];
+            return { ...base, tpls: categoryDesigns(s.cat) };
+        };
         const catLabel = id => String((window.AssetCategories[id] && window.AssetCategories[id].title) || id).replace(/ Maker$/, '');
         const tplOf = (s = S) => cat(s).tpls[s.tpl] || cat(s).tpls[0];
-        const sizesOf = (s = S) => { const c = cat(s), t = tplOf(s), all = c.sizes || []; if (!t || !Array.isArray(t.sizes) || !t.sizes.length) return all; const ok = new Set(t.sizes), f = all.filter(x => ok.has(x.n)); return f.length ? f : all; };
+        const brandTemplateSizes = template => (template.composition.formats?.length ? template.composition.formats : [template.composition]).map((format, index) => ({
+            n: format.label || format.name || (index ? `Format ${index + 1}` : 'Master'),
+            d: `${format.channel || template.channel} · ${format.width}×${format.height}`,
+            w: Number(format.width) || template.composition.width,
+            h: Number(format.height) || template.composition.height,
+            format,
+            dpi: format.dpi || template.composition.dpi,
+            mm: template.widthMm && template.heightMm ? [
+                template.widthMm * ((Number(format.width) || template.composition.width) / template.composition.width),
+                template.heightMm * ((Number(format.height) || template.composition.height) / template.composition.height)
+            ] : undefined
+        }));
+        /* Formats the design is not authored for. They reuse the layout, scaled to the new shape ("auto-fit"). */
+        const FORMAT_PRESETS = [
+            { id: 'story', n: 'Story / Reel', group: 'Social', w: 1080, h: 1920, words: ['story', 'reel', 'tiktok', 'shorts'] },
+            { id: 'portrait', n: 'Portrait post', group: 'Social', w: 1080, h: 1350, words: ['portrait post', '4:5'] },
+            { id: 'square', n: 'Square post', group: 'Social', w: 1080, h: 1080, words: ['square'] },
+            { id: 'link', n: 'Link share', group: 'Social', w: 1200, h: 630, words: ['link share', 'link preview', 'open graph'] },
+            { id: 'cover', n: 'Cover banner', group: 'Social', w: 1640, h: 624, words: ['cover banner', 'facebook cover'] },
+            { id: 'emailHeader', n: 'Email header', group: 'Email', w: 1200, h: 480, words: ['email header'] },
+            { id: 'emailFooter', n: 'Email footer', group: 'Email', w: 1200, h: 300, words: ['email footer', 'email signature'] },
+            { id: 'video', n: 'Video 16:9', group: 'Web & video', w: 1920, h: 1080, words: ['video', 'youtube', '16:9', 'widescreen'] },
+            { id: 'webBanner', n: 'Web banner', group: 'Web & video', w: 1500, h: 500, words: ['web banner', 'website banner', 'hero banner'] },
+            { id: 'leaderboard', n: 'Leaderboard ad', group: 'Web & video', w: 1456, h: 180, words: ['leaderboard'] }
+        ];
+        const nativeSizesOf = (s = S) => {
+            const c = cat(s), t = tplOf(s), all = c.sizes || [];
+            if (t?.brandComposition) return brandTemplateSizes(t);
+            if (!t || !Array.isArray(t.sizes) || !t.sizes.length) return all;
+            const ok = new Set(t.sizes), f = all.filter(x => ok.has(x.n)); return f.length ? f : all;
+        };
+        const sizesOf = (s = S) => {
+            const native = nativeSizesOf(s);
+            const extra = (s.extraFormats || []).map(id => FORMAT_PRESETS.find(p => p.id === id)).filter(Boolean)
+                .filter(p => !native.some(z => z.w === p.w && z.h === p.h))
+                .map(p => ({ n: p.n, d: `${p.group} · ${p.w}×${p.h} · auto-fit`, w: p.w, h: p.h, presetId: p.id, auto: true }));
+            return [...native, ...extra];
+        };
         const sizeOf = (s = S) => { const z = sizesOf(s); return z[s.size] || z[0] || { n: 'Square', w: 1080, h: 1080 }; };
 
         /* ---------- brand → theme / fonts / logos / photos ---------- */
@@ -310,6 +549,121 @@
             b._photos = (await Promise.all(urls.map(u => loadImg(u).catch(() => null)))).filter(Boolean); return b._photos;
         }
 
+        function brandTemplateCategory(template) {
+            const id = template.id.toLowerCase();
+            if (id === 'menu') return 'menu';
+            if (id === 'flyer') return 'flyer';
+            if (id === 'voucher') return 'voucher';
+            if (id.startsWith('business-card')) return 'bizcard';
+            if (id === 'table-card') return 'tablecard';
+            if (id === 'display-screen' || id === 'digital-menu-board') return 'signage';
+            if (template.channel === 'print') return 'flyer';
+            if (template.channel === 'instore') return 'tablecard';
+            return 'social';
+        }
+        function brandTemplateDefaults(composition) {
+            const values = Object.fromEntries((composition.variables || [])
+                .filter(variable => variable.kind === 'text')
+                .map(variable => [variable.id, variable.defaultValue ?? '']));
+            (composition.layers || []).forEach(layer => {
+                if (layer.type === 'text' && !layer.bindings?.text && String(layer.text || '').trim()) {
+                    values[`layer:${layer.id}`] = layer.text;
+                }
+            });
+            return values;
+        }
+        function brandTemplateSvgPalette(url, colors) {
+            if (typeof url !== 'string' || !url.startsWith('data:image/svg+xml')) return url;
+            const separator = url.indexOf(',');
+            if (separator < 0) return url;
+            const header = url.slice(0, separator), payload = url.slice(separator + 1);
+            let svg;
+            try {
+                svg = /;base64/i.test(header)
+                    ? new TextDecoder().decode(Uint8Array.from(atob(payload), character => character.charCodeAt(0)))
+                    : decodeURIComponent(payload);
+            } catch {
+                return url;
+            }
+            let changed = false;
+            colors.forEach((to, from) => {
+                if (!from || !to || from === to) return;
+                svg = svg.replace(new RegExp(from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), () => {
+                    changed = true;
+                    return to;
+                });
+            });
+            return changed ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}` : url;
+        }
+        function queueBrandTemplateImage(url, template) {
+            const images = BRAND_TEMPLATE_IMAGES;
+            if (images.has(url)) return;
+            let pending = BRAND_TEMPLATE_IMAGE_PENDING.get(images);
+            if (!pending) {
+                pending = new Set();
+                BRAND_TEMPLATE_IMAGE_PENDING.set(images, pending);
+            }
+            if (pending.has(url)) return;
+            pending.add(url);
+            loadImg(url).then(image => {
+                if (images !== BRAND_TEMPLATE_IMAGES) return;
+                images.set(url, image);
+                if (tplOf() === template) {
+                    renderPreview();
+                    if (focusMode) buildVariations();
+                }
+            }).catch(error => {
+                if (images === BRAND_TEMPLATE_IMAGES) toast(`A recoloured template image could not be loaded: ${error.message}`, true);
+            }).finally(() => pending.delete(url));
+        }
+        async function loadBrandTemplates(brand) {
+            const grouped = Object.fromEntries(Object.keys(window.AssetCategories).map(id => [id, []]));
+            const entries = window.StudioBrand.templateCatalog(brand);
+            const templates = entries.map(entry => {
+                const composition = window.StudioBrand.createTemplateComposition({
+                    packId: P.id,
+                    packName: P.name,
+                    portfolio: P.portfolio,
+                    brand,
+                    templateId: entry.id
+                });
+                const category = brandTemplateCategory(entry);
+                const template = {
+                    id: entry.id,
+                    n: entry.label,
+                    t: brandTemplateDefaults(composition),
+                    brandComposition: true,
+                    composition,
+                    channel: entry.channel,
+                    category,
+                    profile: ['social', 'digital', 'display', 'video'].includes(entry.channel) ? 'screen' : 'print',
+                    spec: entry.spec,
+                    description: entry.description,
+                    widthMm: entry.widthMm,
+                    heightMm: entry.heightMm,
+                    dpi: entry.dpi
+                };
+                if (grouped[category]) grouped[category].push(template);
+                return template;
+            });
+            const urls = new Set(templates.flatMap(template => [
+                ...(template.composition.variables || [])
+                    .filter(variable => variable.kind === 'image' && variable.defaultValue)
+                    .map(variable => variable.defaultValue),
+                ...(template.composition.layers || [])
+                    .filter(layer => layer.type !== 'text' && layer.url)
+                    .map(layer => layer.url)
+            ]));
+            const loaded = await Promise.all([...urls].map(async url => {
+                try { return [url, await loadImg(url)]; }
+                catch { return [url, null]; }
+            }));
+            BRAND_TEMPLATES = grouped;
+            BRAND_TEMPLATE_IMAGES = new Map(loaded.filter(([, image]) => image));
+            const failures = loaded.filter(([, image]) => !image).length;
+            if (failures) toast(`${failures} brand-template image${failures === 1 ? '' : 's'} could not be loaded; affected designs may look incomplete.`, true);
+        }
+
         /* ---------- brand copy ---------- */
         const contact = f => { const e = ((B.guidelines && B.guidelines.contact) || []).find(c => String(c.field || '').toLowerCase() === f.toLowerCase()); return e && e.value || ''; };
         const siteOf = () => String(contact('Website') || B.url || '').replace(/^https?:\/\//i, '').replace(/\/+$/, '');
@@ -335,21 +689,228 @@
         const roleOf = k => { k = k.toLowerCase(); return /head|title|name|h1/.test(k) ? 'head' : /sub|tag|line|kicker|eyebrow/.test(k) ? 'sub' : /cta|button|action|book|url|web/.test(k) ? 'cta' : /body|desc|copy|text|detail|note/.test(k) ? 'body' : 'other'; };
 
         /* ---------- engine bridge ---------- */
+        function templateBrandPalette(template) {
+            const original = template?.brandComposition ? template.composition?.meta?.palette : null;
+            if (original?.ground && original?.ink && original?.accent) {
+                return { paper: original.ground, ink: original.ink, accent: original.accent };
+            }
+            return null;
+        }
         function palOf(s = S) {
             if (s.pal) return s.pal;
-            try { const r = window.StudioBrand.paletteRoles(B, s.cat === 'bizcard' ? 'business-card-front' : s.cat === 'tablecard' ? 'table-card' : s.cat === 'social' ? 'social-post' : (['flyer', 'menu', 'voucher'].includes(s.cat) ? s.cat : 'flyer')); if (r && r.ground && r.ink && r.accent && r.ground.hex) return { paper: r.ground.hex, ink: r.ink.hex, accent: r.accent.hex }; } catch { }
+            try {
+                const template = tplOf(s);
+                const authored = templateBrandPalette(template);
+                if (authored) return authored;
+                const id = template?.brandComposition ? template.id
+                    : s.cat === 'bizcard' ? 'business-card-front'
+                        : s.cat === 'tablecard' ? 'table-card'
+                            : s.cat === 'social' ? 'social-post'
+                                : (['flyer', 'menu', 'voucher'].includes(s.cat) ? s.cat : 'flyer');
+                const r = window.StudioBrand.paletteRoles(B, id);
+                if (r && r.ground && r.ink && r.accent && r.ground.hex) return { paper: r.ground.hex, ink: r.ink.hex, accent: r.accent.hex };
+            } catch { }
             return { paper: TH.bone, ink: TH.ink, accent: TH.accent };
         }
         function engState(s) {
             const L = (B && B._logos) || {};
             return {
-                t: textOf(s), slideIndex: 0, slideCount: 1, pal: palOf(s), fonts: { display: BF.display, serif: BF.body, sans: BF.body }, photos: (B && B._photos) || [], sel: 0, qr: '', boxes: [],
+                t: textOf(s), slideIndex: 0, slideCount: 1, pal: palOf(s), fonts: { display: s.fonts?.display || BF.display, serif: s.fonts?.serif || s.fonts?.body || BF.body, sans: s.fonts?.sans || s.fonts?.body || BF.body }, photos: (s.photoUrl && IMG.get(s.photoUrl) ? [IMG.get(s.photoUrl)] : (B && B._photos) || []), sel: 0, qr: '', boxes: [],
                 motif: s.motif || 'auto', motifOn: s.motifOn !== false, motifScale: s.motifScale || 1, motifX: s.motifX || 0, motifY: s.motifY || 0,
                 logoWordmark: L.wordmark ? L.wordmark.canvas : null, logoMark: L.mark ? L.mark.canvas : null, logoScale: s.logoScale || 1, logoOn: s.logoOn !== false, logoX: 0, logoY: 0,
                 brandWordmark: (B && (B.wordmark || B.name)) || 'Brand', typeProfile: null, titleWeight: 700, defaultQr: (B && (B.url || (siteOf() ? 'https://' + siteOf() : ''))) || ''
             };
         }
-        function draw(canvas, s, target) { window.AssetEngine.render(canvas, sizeOf(s), tplOf(s), engState(s), target); }
+        function resolveBrandComposition(template, s = S) {
+            const source = template.composition;
+            const text = textOf(s);
+            const variables = (source.variables || []).map(variable => (
+                Object.prototype.hasOwnProperty.call(text, variable.id)
+                    ? { ...variable, defaultValue: text[variable.id] }
+                    : variable
+            ));
+            const composition = { ...source, variables };
+            const size = sizeOf(s);
+            const format = size.format || null;
+            const original = source.meta?.palette || {};
+            const palette = palOf(s);
+            const colors = new Map([
+                [String(original.ground || '').toLowerCase(), palette.paper],
+                [String(original.ink || '').toLowerCase(), palette.ink],
+                [String(original.accent || '').toLowerCase(), palette.accent]
+            ].filter(([from]) => from));
+            const layers = (source.layers || []).map(layer => {
+                let resolved = window.StudioCore.resolveLayer(layer, { composition, format });
+                const position = s.layout && s.layout[layer.id];
+                if (position) {
+                    resolved = {
+                        ...resolved,
+                        x: clamp(Number(position.x ?? resolved.x), 0, Math.max(0, 100 - Number(position.w ?? resolved.w ?? 0))),
+                        y: clamp(Number(position.y ?? resolved.y), 0, Math.max(0, 100 - Number(position.h ?? resolved.h ?? 0))),
+                        w: clamp(Number(position.w ?? resolved.w), 1, 100),
+                        h: clamp(Number(position.h ?? resolved.h), 1, 100)
+                    };
+                }
+                if (layer.type === 'text' && !layer.bindings?.text && text[`layer:${layer.id}`] !== undefined) {
+                    resolved = { ...resolved, text: text[`layer:${layer.id}`] };
+                }
+                if (resolved.color && colors.has(String(resolved.color).toLowerCase())) {
+                    resolved = { ...resolved, color: colors.get(String(resolved.color).toLowerCase()) };
+                }
+                if (resolved.recolorEnabled) {
+                    const color = colors.get(String(resolved.recolorColor || '').toLowerCase());
+                    if (color) resolved = { ...resolved, recolorColor: color };
+                }
+                if (!layer.bindings?.url && resolved.url) {
+                    const url = brandTemplateSvgPalette(resolved.url, colors);
+                    if (url !== resolved.url) {
+                        resolved = { ...resolved, url };
+                        queueBrandTemplateImage(url, template);
+                    }
+                }
+                const imageOverride = s.layerImages && s.layerImages[layer.id];
+                if (imageOverride) {
+                    resolved = { ...resolved, url: imageOverride };
+                    queueBrandTemplateImage(resolved.url, template);
+                }
+                if (resolved.type === 'text') {
+                    const family = String(resolved.font?.family || '');
+                    const role = Number(resolved.font?.weight || 400) >= 600 ? 'display' : 'body';
+                    resolved = { ...resolved, font: { ...resolved.font, family: s.fonts?.[role] || BF[role] || family } };
+                }
+                const layerStyle = s.layerStyles && s.layerStyles[layer.id];
+                if (layerStyle) {
+                    resolved = {
+                        ...resolved,
+                        ...(layerStyle.color ? { color: layerStyle.color } : {}),
+                        ...(layerStyle.opacity != null ? { opacity: layerStyle.opacity } : {}),
+                        ...(layerStyle.align ? { align: layerStyle.align } : {}),
+                        ...(layerStyle.verticalAlign ? { verticalAlign: layerStyle.verticalAlign } : {}),
+                        ...(layerStyle.overflow ? { overflow: layerStyle.overflow } : {}),
+                        ...(layerStyle.rotation != null ? { rotation: layerStyle.rotation } : {}),
+                        ...(layerStyle.fit ? { fit: layerStyle.fit } : {}),
+                        ...(layerStyle.fontFamily || layerStyle.fontSizePct != null || layerStyle.fontWeight != null || layerStyle.lineHeight != null || layerStyle.letterSpacingEm != null
+                            ? { font: {
+                                ...resolved.font,
+                                ...(layerStyle.fontFamily ? { family: layerStyle.fontFamily } : {}),
+                                ...(layerStyle.fontSizePct != null ? { sizePct: layerStyle.fontSizePct } : {}),
+                                ...(layerStyle.fontWeight != null ? { weight: layerStyle.fontWeight } : {}),
+                                ...(layerStyle.lineHeight != null ? { lineHeight: layerStyle.lineHeight } : {}),
+                                ...(layerStyle.letterSpacingEm != null ? { letterSpacingEm: layerStyle.letterSpacingEm } : {})
+                            } }
+                            : {})
+                    };
+                }
+                return resolved;
+            });
+            return { composition, size, layers, palette };
+        }
+        function drawBrandLayer(context, layer, size, scaleX, scaleY, palette) {
+            const x = Number(layer.x || 0) / 100 * size.w;
+            const y = Number(layer.y || 0) / 100 * size.h;
+            const width = Number(layer.w || 0) / 100 * size.w;
+            const height = Number(layer.h || 0) / 100 * size.h;
+            if (!(width > 0 && height > 0)) return;
+            context.save();
+            context.scale(scaleX, scaleY);
+            context.globalAlpha = Math.max(0, Math.min(1, Number(layer.opacity ?? 1)));
+            if (layer.rotation) {
+                context.translate(x + width / 2, y + height / 2);
+                context.rotate(Number(layer.rotation) * Math.PI / 180);
+                context.translate(-width / 2, -height / 2);
+            } else {
+                context.translate(x, y);
+            }
+            if (layer.type === 'text') {
+                const layout = window.StudioCore.layoutText({
+                    text: layer.text || '',
+                    font: layer.font || {},
+                    boxWidthPx: width,
+                    boxHeightPx: height,
+                    formatHeightPx: size.h,
+                    align: layer.align,
+                    verticalAlign: layer.verticalAlign,
+                    overflow: layer.overflow,
+                    measureFactory: options => window.StudioCore.buildTextMetrics(context, options)
+                });
+                context.fillStyle = layer.color || palette.ink;
+                context.textAlign = 'left';
+                context.textBaseline = 'alphabetic';
+                layout.lines.forEach(line => context.fillText(line.text, line.x, line.baselineY, Math.max(1, width - line.x)));
+            } else {
+                const image = BRAND_TEMPLATE_IMAGES.get(layer.url);
+                if (image) {
+                    context.beginPath();
+                    context.rect(0, 0, width, height);
+                    context.clip();
+                    const imageWidth = image.naturalWidth || image.width;
+                    const imageHeight = image.naturalHeight || image.height;
+                    const fit = layer.fit === 'contain' ? 'contain' : 'cover';
+                    const scale = fit === 'contain'
+                        ? Math.min(width / imageWidth, height / imageHeight)
+                        : Math.max(width / imageWidth, height / imageHeight);
+                    const drawWidth = imageWidth * scale;
+                    const drawHeight = imageHeight * scale;
+                    if (layer.recolorEnabled) {
+                        const tinted = document.createElement('canvas');
+                        tinted.width = imageWidth;
+                        tinted.height = imageHeight;
+                        const tintedContext = tinted.getContext('2d');
+                        tintedContext.drawImage(image, 0, 0, imageWidth, imageHeight);
+                        tintedContext.globalCompositeOperation = 'source-in';
+                        tintedContext.fillStyle = layer.recolorColor || '#ffffff';
+                        tintedContext.fillRect(0, 0, imageWidth, imageHeight);
+                        context.drawImage(tinted, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
+                    } else {
+                        context.drawImage(image, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
+                    }
+                }
+            }
+            context.restore();
+        }
+        function renderBrandComposition(canvas, template, s = S, targetWidth = null, capture = false, backgroundOnly = false) {
+            const { composition, size, layers, palette } = resolveBrandComposition(template, s);
+            const width = Math.max(1, Math.round(targetWidth || size.w));
+            const height = Math.max(1, Math.round(width * size.h / size.w));
+            canvas.width = width;
+            canvas.height = height;
+            const context = canvas.getContext('2d');
+            context.fillStyle = palette.paper || composition.meta?.palette?.ground || '#ffffff';
+            context.fillRect(0, 0, width, height);
+            const scaleX = width / size.w;
+            const scaleY = height / size.h;
+            const elements = [];
+            if (!backgroundOnly) layers.filter(layer => layer.visible !== false).sort((a, b) => a.z - b.z).forEach(layer => {
+                if (layer.type !== 'text' && !layer.url) return;
+                drawBrandLayer(context, layer, size, scaleX, scaleY, palette);
+                if (!capture) return;
+                const layerCanvas = document.createElement('canvas');
+                layerCanvas.width = width;
+                layerCanvas.height = height;
+                drawBrandLayer(layerCanvas.getContext('2d'), layer, size, scaleX, scaleY, palette);
+                const key = layer.type === 'text'
+                    ? (layer.bindings?.text || (!layer.bindings?.text ? `layer:${layer.id}` : null))
+                    : null;
+                elements.push({
+                    id: layer.id,
+                    kind: layer.type === 'text' ? 'text' : 'image',
+                    name: layer.name || (layer.type === 'text' ? 'Text' : 'Image'),
+                    x: Number(layer.x || 0) / 100,
+                    y: Number(layer.y || 0) / 100,
+                    w: Number(layer.w || 0) / 100,
+                    h: Number(layer.h || 0) / 100,
+                    key: key || null,
+                    layer,
+                    canvas: layerCanvas
+                });
+            });
+            return { width, height, elements };
+        }
+        function draw(canvas, s, target) {
+            const template = tplOf(s);
+            if (template?.brandComposition) renderBrandComposition(canvas, template, s, target);
+            else window.AssetEngine.render(canvas, sizeOf(s), template, engState(s), target);
+        }
         /* ----- element capture: the visible render doubles as the capture pass ----- */
         function hookBoxes(st, ctx2, runs, logos) {
             const hook = arr => {
@@ -392,22 +953,132 @@
             return els;
         }
         const findEl = id => id === 'art' ? ART : (TL.els.find(e => e.id === id) || null);
-        const hasAnim = () => Object.keys(S.anim || {}).some(id => id === 'art' || TL.els.some(e => e.id === id));
+        const hasAnim = () => Object.keys(S.anim || {}).some(id => (id === 'art' || TL.els.some(e => e.id === id)) && Animation.events(S.anim[id]).length);
         const useComposite = () => TL.open && hasAnim() && (TL.playing || TL.T < DUR);
+
+        function updateZoomBar() {
+            if (!zoomBar) return;
+            zoomBar.querySelector('.zoom-value').textContent = `${Math.round(zoom * 100)}%`;
+            zoomBar.querySelector('.zoom-reset').hidden = zoom <= 1.001;
+        }
+        function clampZoomPan() {
+            const stage = preview.parentElement;
+            if (!stage || !zoomBase) { zoomX = 0; zoomY = 0; return; }
+            const style = getComputedStyle(stage);
+            const viewW = Math.max(1, stage.clientWidth - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0));
+            const viewH = Math.max(1, stage.clientHeight - (parseFloat(style.paddingTop) || 0) - (parseFloat(style.paddingBottom) || 0));
+            zoomX = clamp(zoomX, -Math.max(0, (zoomBase.w * zoom - viewW) / 2), Math.max(0, (zoomBase.w * zoom - viewW) / 2));
+            zoomY = clamp(zoomY, -Math.max(0, (zoomBase.h * zoom - viewH) / 2), Math.max(0, (zoomBase.h * zoom - viewH) / 2));
+        }
+        function applyZoom() {
+            if (zoom <= 1.001) {
+                zoom = 1; zoomX = 0; zoomY = 0; zoomBase = null;
+                preview.style.width = ''; preview.style.height = ''; preview.style.transform = ''; preview.style.transformOrigin = '';
+            } else {
+                preview.style.transformOrigin = 'center center';
+                preview.style.transform = `translate(${zoomX}px, ${zoomY}px) scale(${zoom})`;
+            }
+            updateZoomBar();
+        }
+        function clearZoom() {
+            zoom = 1; zoomX = 0; zoomY = 0; zoomBase = null;
+            clearTimeout(zoomRenderTimer);
+            applyZoom();
+        }
+        function resetZoom() {
+            if (zoom === 1 && !zoomBase) return;
+            clearZoom();
+            renderPreview();
+        }
+        function zoomTo(next, clientX, clientY) {
+            const target = clamp(next, 1, ZOOM_MAX);
+            if (Math.abs(target - zoom) < 0.0005) return;
+            const rect = preview.getBoundingClientRect();
+            if (!zoomBase) {
+                zoomBase = { w: rect.width, h: rect.height };
+                preview.style.width = `${rect.width}px`;
+                preview.style.height = `${rect.height}px`;
+            }
+            const ratio = target / zoom;
+            zoomX += (clientX - (rect.left + rect.width / 2)) * (1 - ratio);
+            zoomY += (clientY - (rect.top + rect.height / 2)) * (1 - ratio);
+            zoom = target;
+            if (target === 1) { resetZoom(); return; }
+            clampZoomPan();
+            applyZoom();
+            clearTimeout(zoomRenderTimer);
+            zoomRenderTimer = setTimeout(() => renderPreview(), 140);
+        }
+        function bindZoom() {
+            const stage = preview.parentElement;
+            const bar = document.createElement('div');
+            bar.className = 'zoom-bar';
+            bar.setAttribute('aria-label', 'Canvas zoom');
+            const addButton = (text, title, action, reset = false) => {
+                const button = document.createElement('button');
+                button.type = 'button'; button.className = `zoom-btn${reset ? ' zoom-reset' : ''}`;
+                button.textContent = text; button.title = title; button.setAttribute('aria-label', title); button.onclick = action;
+                return button;
+            };
+            const value = document.createElement('span'); value.className = 'zoom-value'; value.textContent = '100%';
+            bar.append(addButton('−', 'Zoom out', () => zoomAtCenter(1 / 1.35)), value,
+                addButton('+', 'Zoom in', () => zoomAtCenter(1.35)),
+                addButton('Reset', 'Reset zoom', resetZoom, true));
+            stage.append(bar); zoomBar = bar;
+            stage.addEventListener('wheel', event => {
+                if (bar.contains(event.target) || (!event.deltaY && !event.deltaX)) return;
+                event.preventDefault();
+                zoomTo(zoom * Math.exp(-event.deltaY * 0.0016), event.clientX, event.clientY);
+            }, { passive: false });
+            stage.addEventListener('dblclick', event => { if (zoom > 1) { event.preventDefault(); resetZoom(); } });
+            window.addEventListener('resize', resetZoom);
+        }
+        function zoomAtCenter(factor) {
+            const rect = preview.getBoundingClientRect();
+            zoomTo(zoom * factor, rect.left + rect.width / 2, rect.top + rect.height / 2);
+        }
 
         function renderPreview(s = S) {
             if (!B || !s) return;
-            const size = sizeOf(s), target = Math.min(size.w, 1100);
+            const size = sizeOf(s);
+            if (zoomBase && Math.abs(zoomBase.w / zoomBase.h - size.w / size.h) > 0.01) clearZoom();
+            const target = Math.min(ZOOM_RENDER_MAX, Math.round(Math.min(size.w, 1100) * zoom));
             try {
-                const c2 = preview.getContext('2d'), runs = [], logos = [], st = engState(s);
-                hookBoxes(st, c2, runs, logos);
-                window.AssetEngine.render(preview, size, tplOf(s), st, target);
-                preview.style.maxWidth = '100%'; preview.style.height = 'auto';
-                TL.els = extractEls(s, preview, runs, logos); TL.target = target; TL.shown = 'f';
+                const template = tplOf(s);
+                if (template.brandComposition) {
+                    TL.els = renderBrandComposition(preview, template, s, target, true).elements;
+                } else {
+                    const c2 = preview.getContext('2d'), runs = [], logos = [], st = engState(s);
+                    hookBoxes(st, c2, runs, logos);
+                    window.AssetEngine.render(preview, size, template, st, target);
+                    TL.els = extractEls(s, preview, runs, logos);
+                }
+                fitCanvas(true);
+                TL.target = target; TL.shown = 'f';
                 if (SEL && SEL !== 'art' && !TL.els.some(e => e.id === SEL)) SEL = null;
             } catch (e) { console.error(e); toast('Could not render this design: ' + e.message, true); }
             placeOverlay(); drawOverlay();
             if (s === S) { if (useComposite()) drawFrame(TL.T); tlBuild(); }
+        }
+
+        /* ----- fit the canvas into whatever room the stage has (panels and timeline can change it) ----- */
+        function fitCanvas(quiet) {
+            const st = preview.parentElement, cs = getComputedStyle(st);
+            const aw = st.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0) - 8;
+            const ah = st.clientHeight - (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0) - 8;
+            if (preview.width && preview.height && aw > 40 && ah > 40) {
+                preview.style.maxWidth = 'none';
+                if (zoom > 1 && zoomBase) {
+                    preview.style.width = `${zoomBase.w}px`;
+                    preview.style.height = `${zoomBase.h}px`;
+                    clampZoomPan(); applyZoom();
+                } else {
+                    const k = Math.min(aw / preview.width, ah / preview.height, 2);
+                    preview.style.width = Math.floor(preview.width * k) + 'px';
+                    preview.style.height = Math.floor(preview.height * k) + 'px';
+                }
+            }
+            if (!quiet) placeOverlay();
         }
 
         /* ----- selection overlay ----- */
@@ -417,6 +1088,7 @@
         }
         function drawOverlay() {
             const o = $('#selLayer'); o.innerHTML = '';
+            o.classList.toggle('is-movable', !!tplOf()?.brandComposition);
             const mk = (e, cls) => {
                 const d = document.createElement('div'); d.className = 'sel-box ' + cls + (e.kind === 'art' ? ' art' : '');
                 if (e.kind === 'art') Object.assign(d.style, { left: '0', top: '0', width: '100%', height: '100%' });
@@ -432,16 +1104,19 @@
             TL.els.forEach(e => { if (fx >= e.x - pad && fx <= e.x + e.w + pad && fy >= e.y - pad && fy <= e.y + e.h + pad) { const a = e.w * e.h; if (a < ba) { ba = a; best = e; } } });
             return best ? best.id : 'art';
         }
-        function animCard(e, p, start) { return { title: `${presetLabel(p)} · ${e.name}`, why: p === 'pulse' ? 'Draws the eye; loops gently.' : `Starts at ${(start / 1000).toFixed(1)}s.`, cmds: [{ t: 'anim', id: e.id, preset: p, start, duration: presetDur(p) }] }; }
+        function animCard(e, p, start) {
+            const g = groupOf(p), why = g === 'loop' ? 'Keeps moving until the end of the timeline.' : g === 'emph' ? `Attention beat at ${(start / 1000).toFixed(1)}s.` : g === 'out' ? `Leaves at ${(start / 1000).toFixed(1)}s.` : `Starts at ${(start / 1000).toFixed(1)}s.`;
+            return { title: `${presetLabel(p)} · ${e.name}`, why, cmds: [{ t: 'anim', id: e.id, preset: p, start, duration: presetDur(p) }] };
+        }
         function elCards(e) {
-            if (e.kind === 'text') return [...(e.key ? [{ title: 'Rewrite it', why: 'Show copy options for this text.', cmds: [], ask: 'Rewrite it' }] : []), animCard(e, 'fadeIn', 300), animCard(e, 'slideUp', 300)];
-            if (e.kind === 'logo') return [animCard(e, 'fadeIn', 300), animCard(e, 'zoomIn', 300), animCard(e, 'pulse', 2400)];
-            return [animCard(e, 'zoom', 0), animCard(e, 'drift', 0)];
+            if (e.kind === 'text') return [...(e.key ? [{ title: 'Rewrite it', why: 'Show copy options for this text.', cmds: [], ask: 'Rewrite it' }] : []), animCard(e, 'riseSettle', 300), animCard(e, 'wipeRight', 300), animCard(e, 'popIn', 300), animCard(e, 'fadeIn', 300)];
+            if (e.kind === 'logo') return [animCard(e, 'popIn', 300), animCard(e, 'spinIn', 300), animCard(e, 'fadeIn', 300), animCard(e, 'heartbeat', 2800)];
+            return [animCard(e, 'zoom', 0), animCard(e, 'drift', 0), animCard(e, 'panLeft', 0), animCard(e, 'breathe', 0)];
         }
         function selectEl(id, quiet) {
             SEL = id; const e = id && findEl(id);
             focusKey = e && e.kind === 'text' && e.key ? e.key : null;
-            if (e) TAB = e.kind === 'text' ? 'content' : 'style';
+            if (e) TAB = e.kind === 'text' ? 'text' : 'colours';
             drawOverlay(); tlBuild(); buildControls(); ctx();
             if (focusKey) { const lab = document.querySelector('#controlBody label[data-k="' + CSS.escape(focusKey) + '"]'); if (lab) lab.scrollIntoView({ block: 'nearest' }); }
             if (e && !quiet) say('agent', `Selected <b>${esc(e.name)}</b>. Here’s what I’d try:`, elCards(e));
@@ -450,32 +1125,22 @@
             const e = findEl(SEL), box = $('#agCtx');
             box.innerHTML = `Selected: <b>${esc(e.name)}</b> <button id="agCx" aria-label="Clear selection">✕</button>`;
             $('#agCx').onclick = () => selectEl(null, true);
-            const q = e.kind === 'text' ? ['Rewrite it', 'Shorter', 'Fade in', 'Slide up'] : e.kind === 'logo' ? ['Logo bigger', 'Logo smaller', 'Animate it', 'Hide logo'] : ['Slow zoom', 'Drift', 'Dark version', 'No motif'];
+            const q = e.kind === 'text' ? ['Rewrite it', 'Shorter', 'Wipe in', 'Rise & settle'] : e.kind === 'logo' ? ['Logo bigger', 'Logo smaller', 'Pop in', 'Hide logo'] : ['Slow zoom', 'Pan left', 'Dark version', 'No motif'];
             const w = $('#agQp'); w.innerHTML = ''; q.forEach(t => { const b = document.createElement('button'); b.type = 'button'; b.textContent = t; b.onclick = () => ask(t); w.appendChild(b); });
         }
 
         /* ----- animation engine ----- */
-        const ease = t => 1 - Math.pow(1 - t, 3);
-        function animAt(a, t) {
-            const id = { a: 1, dx: 0, dy: 0, s: 1 }; if (!a) return id;
-            const p = clamp((t - a.start) / a.duration, 0, 1), e = ease(p);
-            switch (a.preset) {
-                case 'fadeIn': return { a: e, dx: 0, dy: 0, s: 1 };
-                case 'slideUp': return { a: e, dx: 0, dy: (1 - e) * .04, s: 1 };
-                case 'slideLeft': return { a: e, dx: (1 - e) * .06, dy: 0, s: 1 };
-                case 'zoomIn': return { a: e, dx: 0, dy: 0, s: .85 + .15 * e };
-                case 'pulse': { if (t < a.start) return id; const ph = ((t - a.start) / a.duration) * Math.PI * 2; return { a: 1, dx: 0, dy: 0, s: 1 + .06 * (.5 - .5 * Math.cos(ph)) }; }
-                case 'zoom': return { a: 1, dx: 0, dy: 0, s: 1 + .08 * p };
-                case 'drift': return { a: 1, dx: -.02 * p, dy: -.012 * p, s: 1.06 };
-                default: return id;
-            }
-        }
+        const Animation = window.AssetStudioAnimation;
         function buildArt() {
             const s = S, size = sizeOf(s), target = TL.target || Math.min(size.w, 1100);
-            const key = JSON.stringify([B.id, s.cat, s.tpl, s.size, s.t, s.pal, s.motif, s.motifOn, s.motifScale, s.motifX, s.motifY, s.logoScale, target]);
+            const key = JSON.stringify([B.id, s.cat, s.tpl, s.size, size.w, size.h, s.t, s.pal, s.motif, s.motifOn, s.motifScale, s.motifX, s.motifY, s.logoScale, target]);
             if (TL.art && TL.artKey === key) return TL.art;
-            const cv = document.createElement('canvas'); cv.getContext('2d').fillText = () => { };
-            window.AssetEngine.render(cv, size, tplOf(s), engState({ ...s, logoOn: false }), target);
+            const cv = document.createElement('canvas'), template = tplOf(s);
+            if (template.brandComposition) renderBrandComposition(cv, template, s, target, false, true);
+            else {
+                cv.getContext('2d').fillText = () => { };
+                window.AssetEngine.render(cv, size, template, engState({ ...s, logoOn: false }), target);
+            }
             TL.art = cv; TL.artKey = key; return cv;
         }
         function drawText(c, e) {
@@ -492,15 +1157,31 @@
         }
         function drawFrame(t) {
             const art = buildArt(), W = art.width, H = art.height;
-            if (preview.width !== W || preview.height !== H) { preview.width = W; preview.height = H; }
+            if (preview.width !== W || preview.height !== H) { preview.width = W; preview.height = H; fitCanvas(); }
             const c = preview.getContext('2d'); c.clearRect(0, 0, W, H);
             const withAnim = (id, box, fn) => {
-                const f = animAt((S.anim || {})[id], t); if (f.a <= 0) return;
+                const f = Animation.atTrack((S.anim || {})[id], t); if (f.a <= 0) return;
+                const wp = f.wipe; if (wp && wp.p <= 0) return;
                 c.save(); c.globalAlpha = f.a; const cx = (box.x + box.w / 2) * W, cy = (box.y + box.h / 2) * H;
-                c.translate(cx + f.dx * W, cy + f.dy * H); c.scale(f.s, f.s); c.translate(-cx, -cy); fn(); c.restore();
+                c.translate(cx + f.dx * W, cy + f.dy * H); if (f.r) c.rotate(f.r); c.scale(f.s * (f.sx == null ? 1 : f.sx), f.s * (f.sy == null ? 1 : f.sy)); c.translate(-cx, -cy);
+                if (wp && wp.p < 1) {
+                    /* reveal rectangle over the element's box (padded a little so glyph overhang is not cut) */
+                    const bx = box.x * W, by = box.y * H, bw = box.w * W, bh = box.h * H, pad = Math.max(W, H) * .01, k = wp.p;
+                    let rx = bx - pad, ry = by - pad, rw = bw + pad * 2, rh = bh + pad * 2;
+                    if (wp.d === 'r') rw = pad + bw * k;
+                    else if (wp.d === 'l') { rx = bx + bw * (1 - k); rw = bw * k + pad; }
+                    else if (wp.d === 'd') rh = pad + bh * k;
+                    else if (wp.d === 'u') { ry = by + bh * (1 - k); rh = bh * k + pad; }
+                    c.beginPath(); c.rect(rx, ry, rw, rh); c.clip();
+                }
+                fn(); c.restore();
             };
             withAnim('art', { x: 0, y: 0, w: 1, h: 1 }, () => c.drawImage(art, 0, 0));
-            TL.els.forEach(e => withAnim(e.id, e, () => { if (e.kind === 'text') drawText(c, e); else if (e.kind === 'logo') drawLogo(c, e, W, H); }));
+            TL.els.forEach(e => withAnim(e.id, e, () => {
+                if (tplOf().brandComposition) c.drawImage(e.canvas, 0, 0);
+                else if (e.kind === 'text') drawText(c, e);
+                else if (e.kind === 'logo') drawLogo(c, e, W, H);
+            }));
             TL.shown = 'c';
         }
         function tlSync() {
@@ -512,30 +1193,55 @@
             if (useComposite()) drawFrame(TL.T); else if (TL.shown === 'c') renderPreview();
         }
         function stopP() { TL.playing = false; cancelAnimationFrame(TL.raf); const b = $('#tlPlay'); if (b) b.textContent = '▶ Play'; }
+        function replay() {
+            if (!hasAnim()) { toast('Add an animation first: select an element, then use “Animate selected”.'); return; }
+            stopP(); play(0);
+        }
         function play(from = TL.T) {
             if (!hasAnim()) { toast('Add an animation first: select an element, then use “Animate selected”.'); return; }
             stopP(); if (from >= DUR) from = 0; TL.playing = true; $('#tlPlay').textContent = '❚❚ Pause';
             const s0 = performance.now() - from;
-            const f = n => { seek(n - s0); if (TL.T < DUR && TL.playing) TL.raf = requestAnimationFrame(f); else { stopP(); seek(TL.T); const cb = TL.onEnd; TL.onEnd = null; if (cb) cb(); } };
+            const f = n => {
+                seek(n - s0);
+                if (TL.T < DUR && TL.playing) TL.raf = requestAnimationFrame(f);
+                else {
+                    stopP(); seek(TL.T); const cb = TL.onEnd; TL.onEnd = null;
+                    if (cb) cb(); else if ($('#tlLoop').checked && TL.open) setTimeout(() => { if (!TL.playing) play(0); }, 250);
+                }
+            };
             TL.raf = requestAnimationFrame(f);
         }
         function openTimeline(on) {
             TL.open = on; $('#timeline').hidden = !on;
             const b = $('#timelineBtn'); b.setAttribute('aria-pressed', String(on)); b.classList.toggle('is-active', on);
             if (on) tlBuild(); else { stopP(); TL.T = DUR; renderPreview(); }
-            placeOverlay();
+            requestAnimationFrame(fitCanvas);
         }
         const posBar = (a, bar) => { bar.style.left = a.start / DUR * 100 + '%'; bar.style.width = Math.max(.8, a.duration / DUR * 100) + '%'; };
-        function barDown(ev, e, bar) {
+        function barDown(ev, e, bar, eventId) {
             ev.stopPropagation(); ev.preventDefault();
-            const a = S.anim[e.id], tr = bar.parentNode.getBoundingClientRect(), edge = ev.clientX > bar.getBoundingClientRect().right - 9, sx = ev.clientX, s0 = a.start, d0 = a.duration; let moved = false;
+            const list = Animation.events(S.anim[e.id]), a = list.find(event => event.id === eventId);
+            if (!a) return;
+            S.anim[e.id] = list;
+            const tr = bar.parentNode.getBoundingClientRect(), edge = ev.clientX > bar.getBoundingClientRect().right - 9, sx = ev.clientX, s0 = a.start, d0 = a.duration; let moved = false;
             const mv = m => {
                 if (!moved) { hist.push(clone(S)); moved = true; }
                 const dt = Math.round((m.clientX - sx) / tr.width * DUR / 100) * 100;
-                if (edge) a.duration = clamp(d0 + dt, 100, DUR - s0); else a.start = clamp(s0 + dt, 0, DUR - a.duration);
+                const others = list.filter(event => event.id !== eventId);
+                if (edge) {
+                    const nextStart = Math.min(DUR, ...others.filter(event => event.start >= s0).map(event => event.start));
+                    a.duration = clamp(d0 + dt, 100, nextStart - s0);
+                } else {
+                    const previousEnd = Math.max(0, ...others.filter(event => event.start + event.duration <= s0).map(event => event.start + event.duration));
+                    const nextStart = Math.min(DUR, ...others.filter(event => event.start > s0).map(event => event.start));
+                    a.start = clamp(s0 + dt, previousEnd, nextStart - a.duration);
+                }
                 posBar(a, bar); seek(TL.T);
             };
-            const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); if (moved) saveState(); };
+            const up = () => {
+                removeEventListener('pointermove', mv); removeEventListener('pointerup', up);
+                if (moved) { S.anim[e.id] = Animation.events(list); saveState(); tlBuild(); }
+            };
             addEventListener('pointermove', mv); addEventListener('pointerup', up);
         }
         function tlBuild() {
@@ -549,11 +1255,47 @@
             [ART, ...[...TL.els].sort((a, b) => a.y - b.y)].forEach(e => {
                 const row = document.createElement('div'); row.className = 'tl-row'; row.dataset.on = e.id === SEL ? 1 : 0;
                 row.innerHTML = `<div class="n" title="${esc(e.name)}">${esc(e.name)}</div><div class="tl-track"></div>`;
+                const rowHeightKey = `assetStudioAgent.timelineRowHeight.v1:${B.id}:${S.cat}:${S.tpl}:${e.id}`;
+                const rowHeight = () => clamp(+LS.get(rowHeightKey, 26) || 26, 26, 96);
+                const grip = document.createElement('div');
+                grip.className = 'tl-row-resize'; grip.setAttribute('role', 'separator'); grip.setAttribute('aria-orientation', 'horizontal');
+                grip.setAttribute('aria-label', `Resize ${e.name} timeline layer`); grip.setAttribute('aria-valuemin', '26'); grip.setAttribute('aria-valuemax', '96'); grip.tabIndex = 0;
+                const setRowHeight = value => {
+                    const height = clamp(Math.round(value), 26, 96);
+                    row.style.height = `${height}px`; grip.setAttribute('aria-valuenow', String(height)); LS.set(rowHeightKey, height);
+                };
+                setRowHeight(rowHeight());
+                grip.addEventListener('pointerdown', ev => {
+                    ev.preventDefault(); ev.stopPropagation(); grip.setPointerCapture(ev.pointerId); grip.classList.add('drag');
+                    const startY = ev.clientY, startHeight = rowHeight();
+                    const move = event => setRowHeight(startHeight + event.clientY - startY);
+                    const finish = () => { grip.classList.remove('drag'); grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', finish); grip.removeEventListener('pointercancel', finish); };
+                    grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', finish); grip.addEventListener('pointercancel', finish);
+                });
+                grip.addEventListener('keydown', ev => {
+                    const current = rowHeight();
+                    if (ev.key === 'ArrowUp' || ev.key === 'ArrowDown') { ev.preventDefault(); setRowHeight(current + (ev.key === 'ArrowUp' ? 4 : -4)); }
+                    else if (ev.key === 'Home') { ev.preventDefault(); setRowHeight(26); }
+                    else if (ev.key === 'End') { ev.preventDefault(); setRowHeight(96); }
+                });
+                row.appendChild(grip);
                 row.querySelector('.n').onclick = () => selectEl(e.id === SEL ? null : e.id, true);
                 const tr = row.querySelector('.tl-track');
                 tr.ondblclick = ev => { if (ev.target !== tr) return; const r = tr.getBoundingClientRect(), p = $('#tlPreset').value, t = Math.round((ev.clientX - r.left) / r.width * DUR / 100) * 100; commit([{ t: 'anim', id: e.id, preset: p, start: t, duration: presetDur(p) }]); };
-                const a = S.anim && S.anim[e.id];
-                if (a) { const bar = document.createElement('div'); bar.className = 'tl-bar'; bar.innerHTML = `<span>${esc(presetLabel(a.preset))}</span>`; posBar(a, bar); bar.onpointerdown = ev => barDown(ev, e, bar); tr.appendChild(bar); }
+                Animation.events(S.anim && S.anim[e.id]).forEach(a => {
+                    const bar = document.createElement('div'); bar.className = 'tl-bar g-' + groupOf(a.preset); bar.dataset.animationId = a.id;
+                    bar.tabIndex = 0; bar.setAttribute('role', 'button');
+                    bar.setAttribute('aria-label', `${presetLabel(a.preset)}, ${(a.start / 1000).toFixed(1)} to ${((a.start + a.duration) / 1000).toFixed(1)} seconds. Press Delete to remove this event.`);
+                    bar.title = `${presetLabel(a.preset)} · ${(a.start / 1000).toFixed(1)}–${((a.start + a.duration) / 1000).toFixed(1)}s · Delete removes`;
+                    bar.innerHTML = `<span>${esc(presetLabel(a.preset))}</span>`; posBar(a, bar); bar.onpointerdown = ev => barDown(ev, e, bar, a.id); tr.appendChild(bar);
+                    bar.addEventListener('keydown', ev => {
+                        if (ev.key === 'Delete' || ev.key === 'Backspace') {
+                            ev.preventDefault(); ev.stopPropagation(); commit([{ t: 'removeAnim', id: e.id, eventId: a.id }]);
+                        } else if (ev.key === 'Enter' || ev.key === ' ') {
+                            ev.preventDefault(); ev.stopPropagation(); selectEl(e.id, true); seek(a.start);
+                        }
+                    });
+                });
                 inner.appendChild(row);
             });
             const ph = document.createElement('div'); ph.className = 'tl-ph'; inner.appendChild(ph);
@@ -581,20 +1323,69 @@
                 else if (c.t === 'motifScale') { s.motifScale = clamp(c.v, .3, 2.5); }
                 else if (c.t === 'motifPos') { s.motifX = clamp(c.x ?? s.motifX, -.45, .45); s.motifY = clamp(c.y ?? s.motifY, -.45, .45); }
                 else if (c.t === 'logo') { if (c.on != null) s.logoOn = c.on; if (c.scale != null) s.logoScale = clamp(c.scale, .3, 2.5); }
-                else if (c.t === 'cat') { s.cat = c.id; s.tpl = 0; s.size = 0; s.t = {}; s.anim = {}; }
-                else if (c.t === 'tpl') { s.tpl = clamp(c.i, 0, cat(s).tpls.length - 1); s.size = Math.min(s.size, sizesOf(s).length - 1); s.t = {}; s.anim = {}; }
-                else if (c.t === 'anim') { s.anim = s.anim || {}; const st = clamp(c.start ?? 0, 0, DUR - 100); s.anim[c.id] = { preset: c.preset, start: st, duration: clamp(c.duration ?? presetDur(c.preset), 100, DUR - st) }; }
-                else if (c.t === 'clearAnim') { if (c.id === 'all') s.anim = {}; else if (s.anim) delete s.anim[c.id]; }
+                else if (c.t === 'cat') { s.cat = c.id; s.tpl = 0; s.size = 0; s.t = {}; s.layout = {}; s.layerStyles = {}; s.layerImages = {}; s.anim = {}; s.motion = ''; }
+                else if (c.t === 'tpl') { s.tpl = clamp(c.i, 0, cat(s).tpls.length - 1); s.size = Math.min(s.size, sizesOf(s).length - 1); s.t = {}; s.layout = {}; s.layerStyles = {}; s.layerImages = {}; s.anim = {}; s.motion = ''; }
+                else if (c.t === 'anim') {
+                    s.anim = s.anim || {};
+                    if (!c.fromLook) s.motion = '';
+                    const duration = clamp(c.duration ?? presetDur(c.preset), 100, DUR);
+                    const requested = c.start ?? (groupOf(c.preset) === 'out' ? DUR - duration : c.id === 'art' ? 0 : 300);
+                    const start = Animation.findSlot(
+                        s.anim[c.id],
+                        clamp(requested, 0, DUR - duration),
+                        duration,
+                        DUR,
+                        c.start == null && groupOf(c.preset) === 'out' ? 'backward' : 'forward',
+                    );
+                    if (start == null) toast('No non-overlapping space remains on this layer for that animation.', true);
+                    else {
+                        const list = Animation.events(s.anim[c.id]);
+                        list.push({ id: `anim-${Date.now().toString(36)}-${++animSeq}`, preset: c.preset, start, duration });
+                        s.anim[c.id] = Animation.events(list);
+                    }
+                }
+                else if (c.t === 'clearAnim') { s.motion = ''; if (c.id === 'all') s.anim = {}; else if (s.anim) delete s.anim[c.id]; }
+                else if (c.t === 'motion') { s.motion = c.id === 'none' ? '' : c.id; if (c.id === 'none') s.anim = {}; }
+                else if (c.t === 'addFormat') {
+                    const preset = FORMAT_PRESETS.find(p => p.id === c.id);
+                    if (preset) {
+                        const native = nativeSizesOf(s).findIndex(z => z.w === preset.w && z.h === preset.h);
+                        if (native >= 0) s.size = native;
+                        else {
+                            s.extraFormats = s.extraFormats || [];
+                            if (!s.extraFormats.includes(preset.id)) s.extraFormats.push(preset.id);
+                            s.size = Math.max(0, sizesOf(s).findIndex(z => z.presetId === preset.id));
+                        }
+                    }
+                }
+                else if (c.t === 'clearFormats') { s.extraFormats = []; s.size = Math.min(s.size, nativeSizesOf(s).length - 1); }
+                else if (c.t === 'removeAnim') {
+                    s.motion = '';
+                    if (s.anim && s.anim[c.id]) {
+                        const remaining = Animation.withoutEvent(s.anim[c.id], c.eventId);
+                        if (remaining.length) s.anim[c.id] = remaining;
+                        else delete s.anim[c.id];
+                    }
+                }
                 else if (c.t === 'size') { s.size = clamp(c.i, 0, sizesOf(s).length - 1); }
-                else if (c.t === 'reset') { Object.assign(s, { t: {}, pal: null, motif: 'auto', motifOn: true, motifScale: 1, motifX: 0, motifY: 0, logoOn: true, logoScale: 1, anim: {} }); }
+                else if (c.t === 'reset') { Object.assign(s, { t: {}, layout: {}, layerStyles: {}, layerImages: {}, pal: null, motif: 'auto', motifOn: true, motifScale: 1, motifX: 0, motifY: 0, logoOn: true, logoScale: 1, anim: {}, motion: '' }); }
             }
             return s;
         }
-        function commit(cmds) {
-            hist.push(clone(S)); run(S, cmds); afterChange(true);
+        let animSeq = 0;
+        function commit(cmds, opts = {}) {
+            hist.push(clone(S)); run(S, cmds);
+            /* switching category leaves focus unless the caller opens a design on purpose */
+            if (cmds.some(c => c.t === 'cat')) focusMode = !!opts.focus; else if (opts.focus) focusMode = true;
+            afterChange(true);
             if (cmds.some(c => c.t === 'anim')) { openTimeline(true); setTimeout(() => play(0), 60); }
         }
-        function afterChange(full) { if (full) { buildAll(); } renderPreview(); saveState(); }
+        function afterChange(full) {
+            if (full) { buildAll(); }
+            renderPreview(); saveState();
+            if (full) renderLayerInspector();
+            if (full && focusMode && VARTAB === 'motion') buildVariations(); /* needs the elements captured by the render above */
+        }
 
         /* ---------- UI: topbar, category nav, designs ---------- */
         function buildGroupSelect() { const g = $('#groupSelect'); g.innerHTML = ''; PACKS.forEach(p => g.append(new Option(p.name || p.id, p.id))); g.value = P ? P.id : ''; g.disabled = !PACKS.length; }
@@ -603,7 +1394,7 @@
             (P.brands || []).forEach(b => {
                 const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'brand-chip'; btn.dataset.id = b.id; btn.title = b.tagline || b.name; btn.setAttribute('aria-pressed', String(B && b.id === B.id));
                 const dot = document.createElement('i'); dot.style.cssText = 'display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;background:' + ((b.palette && ((b.palette[1] && b.palette[1].hex) || (b.palette[0] && b.palette[0].hex))) || '#999');
-                btn.append(dot, document.createTextNode(b.name)); btn.onclick = () => { if (!B || b.id !== B.id) selectBrand(b.id); }; w.appendChild(btn);
+                btn.append(dot, document.createTextNode(b.name)); btn.onclick = () => { if (!B || b.id !== B.id) selectBrand(b.id).catch(error => toast('Could not load that brand: ' + error.message, true)); }; w.appendChild(btn);
             });
         }
         function buildCategoryNav() {
@@ -618,11 +1409,92 @@
             const g = $('#designGrid'), c = cat(); g.innerHTML = '';
             $('#designMeta').textContent = `${c.tpls.length} for ${catLabel(S.cat)}`;
             c.tpls.forEach((t, i) => {
-                const b = document.createElement('button'); b.type = 'button'; b.className = 'design-card sel-card' + (i === S.tpl ? ' is-selected' : ''); b.title = t.n;
+                const b = document.createElement('button'); b.type = 'button'; b.className = 'design-card sel-card' + (i === S.tpl ? ' is-selected' : '') + (t.brandComposition ? ' is-brand-template' : ''); b.title = t.n;
                 const cv = document.createElement('canvas'), sp = document.createElement('span'); sp.textContent = t.n; b.append(cv, sp);
-                try { window.AssetEngine.renderThumb(cv, (c.sizes || []).find(z => !t.sizes || t.sizes.includes(z.n)) || sizeOf(), t, engState({ ...S, tpl: i, t: {} }), 160); } catch { cv.width = 160; cv.height = 160; }
-                b.onclick = () => { if (i !== S.tpl) commit([{ t: 'tpl', i }]); }; g.appendChild(b);
+                try {
+                    if (t.brandComposition) renderBrandComposition(cv, t, { ...S, tpl: i, t: {} }, 160);
+                    else window.AssetEngine.renderThumb(cv, (c.sizes || []).find(z => !t.sizes || t.sizes.includes(z.n)) || sizeOf(), t, engState({ ...S, tpl: i, t: {} }), 160);
+                } catch { cv.width = 160; cv.height = 160; }
+                b.onclick = () => { if (i !== S.tpl) switchDesign(i); else setFocus(true); };
+                b.ondblclick = () => { if (i === S.tpl) setFocus(true); };
+                b.title = i === S.tpl ? `${t.n} · click again to edit` : t.n;
+                g.appendChild(b);
             });
+        }
+        function renderBrandTemplateLibrary() {
+            const templates = Object.values(BRAND_TEMPLATES).flat();
+            $('#brandTemplatesTitle').textContent = `${B.name} templates`;
+            $('#brandTemplatesHint').textContent = `${P.name} · ${templates.length} brand templates`;
+            const grid = $('#brandTemplateGrid');
+            grid.innerHTML = '';
+            if (!templates.length) {
+                grid.append(Object.assign(document.createElement('p'), {
+                    className: 'hint',
+                    textContent: 'No brand templates are available for this brand.'
+                }));
+            }
+            templates.forEach(template => {
+                const card = document.createElement('article');
+                card.className = 'asset-brand-template';
+                const preview = document.createElement('div');
+                preview.className = 'template-preview';
+                const canvas = document.createElement('canvas');
+                canvas.setAttribute('aria-label', `${template.n} preview`);
+                preview.append(canvas);
+                const category = template.category;
+                const templateIndex = categoryDesigns(category).findIndex(entry => entry.id === template.id && entry.brandComposition);
+                const templateState = { ...S, cat: category, tpl: templateIndex, size: 0, t: {}, anim: {} };
+                try {
+                    renderBrandComposition(canvas, template, templateState, 240);
+                } catch (error) {
+                    preview.replaceChildren(Object.assign(document.createElement('p'), {
+                        className: 'template-preview-error',
+                        textContent: `Preview unavailable: ${error.message}`
+                    }));
+                }
+                const size = sizeOf(templateState);
+                const spec = `${template.spec || `${size.w}×${size.h}px`} · ${template.channel}`;
+                const description = document.createElement('p');
+                description.className = 'template-description';
+                description.textContent = template.description || '';
+                const actions = document.createElement('div');
+                actions.className = 'template-actions';
+                const openDesign = document.createElement('button');
+                openDesign.type = 'button';
+                openDesign.className = 'btn primary agent-template-open';
+                openDesign.textContent = 'Edit this template';
+                openDesign.onclick = () => {
+                    if (templateIndex < 0) {
+                        toast(`“${template.n}” is not available in the active brand’s design list.`, true);
+                        return;
+                    }
+                    closeBrandTemplates();
+                    commit(S.cat === category
+                        ? [{ t: 'tpl', i: templateIndex }]
+                        : [{ t: 'cat', id: category }, { t: 'tpl', i: templateIndex }], { focus: true });
+                };
+                const editLayers = document.createElement('a');
+                editLayers.className = 'btn';
+                editLayers.target = '_blank';
+                editLayers.rel = 'noopener';
+                editLayers.href = `studio-v2.html?brandPackId=${encodeURIComponent(P.id)}`
+                    + `&brandId=${encodeURIComponent(B.id)}`
+                    + `&brandTemplateId=${encodeURIComponent(template.id)}`;
+                editLayers.textContent = 'Edit layers in Studio V2';
+                actions.append(openDesign, editLayers);
+                card.append(preview, Object.assign(document.createElement('h3'), { textContent: template.n }),
+                    Object.assign(document.createElement('p'), { className: 'template-spec', textContent: spec }),
+                    description, actions);
+                grid.append(card);
+            });
+            $('#brandTemplatesDialog').hidden = false;
+            document.body.style.overflow = 'hidden';
+            $('#brandTemplatesClose').focus();
+        }
+        function closeBrandTemplates() {
+            $('#brandTemplatesDialog').hidden = true;
+            document.body.style.overflow = '';
+            $('#brandTemplatesBtn').focus();
         }
         function buildHeader() {
             const size = sizeOf(), t = tplOf();
@@ -635,16 +1507,162 @@
             $('#groupSelect').value = P ? P.id : '';
         }
 
-        /* ---------- UI: controls (Content / Style / Layout) ---------- */
-        let TAB = 'content';
+        /* ---------- UI: controls ---------- */
+        let TAB = 'text';
         function buildControls() {
+            renderLayerInspector();
             const tabs = $('#controlTabs'); tabs.innerHTML = '';
-            [['content', 'Content'], ['style', 'Style'], ['layout', 'Layout']].forEach(([k, t]) => {
+            [['text', 'Copy'], ['colours', 'Colours'], ['image', 'Image'], ['type', 'Type'], ['size', 'Size'], ['saved', 'Saved']].forEach(([k, t]) => {
                 const b = document.createElement('button'); b.type = 'button'; b.className = 'control-tab'; b.textContent = t; b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', String(TAB === k)); if (TAB === k) b.classList.add('is-active');
-                b.onclick = () => { TAB = k; buildControls(); }; tabs.appendChild(b);
+                b.onclick = () => { TAB = k; buildControls(); if (k === 'image') loadImageLibrary(); }; tabs.appendChild(b);
             });
             const body = $('#controlBody'); body.innerHTML = '';
-            if (TAB === 'content') controlContent(body); else if (TAB === 'style') controlStyle(body); else controlLayout(body);
+            if (TAB === 'colours') controlStyle(body);
+            else if (TAB === 'type') controlType(body);
+            else if (TAB === 'image') controlImage(body);
+            else if (TAB === 'text') controlContent(body);
+            else if (TAB === 'size') controlSize(body);
+            else controlSaved(body);
+        }
+        function renderLayerInspector() {
+            const panel = $('#layerInspector');
+            const element = SEL && findEl(SEL);
+            panel.hidden = !focusMode || !tplOf()?.brandComposition || !element?.layer;
+            panel.replaceChildren();
+            if (panel.hidden) return;
+            panel.dataset.layerId = element.id;
+
+            const layer = element.layer;
+            const heading = document.createElement('div'); heading.className = 'layer-inspector-head';
+            heading.append(
+                Object.assign(document.createElement('h3'), { textContent: element.name || 'Selected layer' }),
+                Object.assign(document.createElement('small'), { textContent: element.kind === 'text' ? 'Text layer' : 'Image layer' })
+            );
+            panel.appendChild(heading);
+            const fields = document.createElement('div'); fields.className = 'field-list';
+            const field = (labelText, property, type, value, options = {}) => {
+                const label = document.createElement('label');
+                label.appendChild(Object.assign(document.createElement('span'), { textContent: labelText }));
+                const input = type === 'textarea'
+                    ? document.createElement('textarea')
+                    : type === 'select'
+                        ? document.createElement('select')
+                        : Object.assign(document.createElement('input'), { type });
+                input.dataset.layerProp = property;
+                if (type === 'textarea') input.rows = 3;
+                if (type === 'select') {
+                    (options.values || []).forEach(([name, optionValue]) => input.add(new Option(name, optionValue)));
+                    input.value = String(value ?? '');
+                } else {
+                    input.value = value == null ? '' : String(value);
+                    if (options.min != null) input.min = String(options.min);
+                    if (options.max != null) input.max = String(options.max);
+                    if (options.step != null) input.step = String(options.step);
+                }
+                const update = () => {
+                    if (!input.dataset.historyPushed) {
+                        hist.push(clone(S));
+                        input.dataset.historyPushed = 'true';
+                    }
+                    const raw = type === 'number' ? Number(input.value) : input.value;
+                    if (property === 'text') {
+                        S.t[element.key] = raw;
+                    } else if (['x', 'y', 'w', 'h'].includes(property)) {
+                        S.layout = S.layout || {};
+                        const layout = { ...(S.layout[element.id] || {}) };
+                        layout[property] = raw;
+                        if (property === 'w') layout.x = Math.min(Number(layout.x ?? element.layer.x), 100 - raw);
+                        if (property === 'h') layout.y = Math.min(Number(layout.y ?? element.layer.y), 100 - raw);
+                        S.layout[element.id] = layout;
+                    } else {
+                        S.layerStyles = S.layerStyles || {};
+                        S.layerStyles[element.id] = { ...(S.layerStyles[element.id] || {}), [property]: raw };
+                    }
+                    schedule();
+                };
+                input.addEventListener(type === 'select' ? 'change' : 'input', update);
+                input.addEventListener('change', () => {
+                    if (!input.dataset.historyPushed) update();
+                    delete input.dataset.historyPushed;
+                    saveState();
+                });
+                label.appendChild(input);
+                fields.appendChild(label);
+            };
+
+            if (element.kind === 'text') {
+                field('Text', 'text', 'textarea', layer.text || '');
+                const color = /^#[\da-f]{6}$/i.test(layer.color || '') ? layer.color : '#000000';
+                field('Colour', 'color', 'color', color);
+                const fontFamilies = [...new Set([
+                    ...(B.typography?.families || []),
+                    ...(B.typography?.scale || []).map(item => item.family),
+                    ...UF.map(font => font.family),
+                    'Georgia', 'Helvetica Neue', 'Arial', 'Times New Roman'
+                ].filter(Boolean))];
+                const currentFamily = layer.font?.family || '';
+                const fontOptions = fontFamilies.map(family => [family.split(',')[0].replace(/["']/g, ''), stackFor(family)]);
+                if (currentFamily && !fontOptions.some(([, value]) => value === currentFamily)) {
+                    fontOptions.unshift([currentFamily.split(',')[0].replace(/["']/g, ''), currentFamily]);
+                }
+                field('Font', 'fontFamily', 'select', currentFamily, { values: fontOptions });
+                field('Size (% of canvas height)', 'fontSizePct', 'number', layer.font?.sizePct ?? 5, { min: 0.5, max: 30, step: 0.1 });
+                field('Weight', 'fontWeight', 'select', layer.font?.weight ?? 400, {
+                    values: [['Regular', 400], ['Medium', 500], ['Semibold', 600], ['Bold', 700], ['Extra bold', 800]]
+                });
+                field('Horizontal alignment', 'align', 'select', layer.align || 'left', {
+                    values: [['Left', 'left'], ['Center', 'center'], ['Right', 'right']]
+                });
+                field('Vertical alignment', 'verticalAlign', 'select', layer.verticalAlign || 'top', {
+                    values: [['Top', 'top'], ['Middle', 'middle'], ['Bottom', 'bottom']]
+                });
+                field('Text overflow', 'overflow', 'select', layer.overflow || 'clip', {
+                    values: [['Clip to layer', 'clip'], ['Allow overflow', 'visible']]
+                });
+                field('Line height', 'lineHeight', 'number', layer.font?.lineHeight ?? 1.15, { min: 0.5, max: 3, step: 0.05 });
+                field('Letter spacing (em)', 'letterSpacingEm', 'number', layer.font?.letterSpacingEm ?? 0, { min: -0.2, max: 1, step: 0.01 });
+            } else {
+                field('Fit', 'fit', 'select', layer.fit === 'contain' ? 'contain' : 'cover', {
+                    values: [['Cover', 'cover'], ['Contain', 'contain']]
+                });
+            }
+            field('Opacity', 'opacity', 'number', layer.opacity ?? 1, { min: 0, max: 1, step: 0.05 });
+            field('Rotation (degrees)', 'rotation', 'number', layer.rotation ?? 0, { min: -180, max: 180, step: 1 });
+
+            const position = S.layout?.[element.id] || {};
+            const positionFields = document.createElement('div'); positionFields.className = 'layer-position';
+            fields.appendChild(positionFields);
+            const previousFields = fields.children.length;
+            field('X (%)', 'x', 'number', position.x ?? layer.x, { min: 0, max: 100, step: 0.1 });
+            field('Y (%)', 'y', 'number', position.y ?? layer.y, { min: 0, max: 100, step: 0.1 });
+            field('Width (%)', 'w', 'number', position.w ?? layer.w, { min: 1, max: 100, step: 0.1 });
+            field('Height (%)', 'h', 'number', position.h ?? layer.h, { min: 1, max: 100, step: 0.1 });
+            while (fields.children.length > previousFields) positionFields.appendChild(fields.children[previousFields]);
+            panel.appendChild(fields);
+
+            const animationControls = document.createElement('div'); animationControls.className = 'layer-actions';
+            const preset = document.createElement('select'); preset.setAttribute('aria-label', 'Selected layer animation');
+            window.AssetStudioAnimation.GROUPS.forEach(([groupId, groupName]) => {
+                const group = document.createElement('optgroup'); group.label = groupName;
+                PRESETS.filter(entry => entry[3] === groupId).forEach(entry => group.appendChild(new Option(entry[1], entry[0])));
+                preset.appendChild(group);
+            });
+            preset.value = $('#tlPreset').value || 'fadeIn';
+            preset.onchange = () => { $('#tlPreset').value = preset.value; };
+            const animate = document.createElement('button'); animate.type = 'button'; animate.textContent = 'Animate layer';
+            animate.onclick = () => commit([{ t: 'anim', id: element.id, preset: preset.value, duration: presetDur(preset.value) }]);
+            const clearAnimation = document.createElement('button'); clearAnimation.type = 'button'; clearAnimation.textContent = 'Clear animation';
+            clearAnimation.disabled = !Animation.events(S.anim?.[element.id]).length;
+            clearAnimation.onclick = () => commit([{ t: 'clearAnim', id: element.id }]);
+            animationControls.append(preset, animate, clearAnimation);
+            panel.append(animationControls);
+            const activeAnimations = Animation.events(S.anim?.[element.id]);
+            panel.appendChild(Object.assign(document.createElement('small'), {
+                className: 'hint',
+                textContent: activeAnimations.length
+                    ? `Animation: ${activeAnimations.map(event => presetLabel(event.preset)).join(', ')}`
+                    : 'No animation on this layer.'
+            }));
         }
         function controlContent(body) {
             const base = baseText(), keys = Object.keys(base);
@@ -662,6 +1680,10 @@
                 lab.appendChild(inp); wrap.appendChild(lab);
             });
             body.appendChild(wrap);
+            const actions = document.createElement('div'); actions.className = 'control-actions';
+            const reset = document.createElement('button'); reset.type = 'button'; reset.textContent = 'Reset copy';
+            reset.onclick = () => { hist.push(clone(S)); S.t = {}; focusKey = null; afterChange(true); };
+            actions.appendChild(reset); body.appendChild(actions);
         }
         let ROLE = 'accent';
         function controlStyle(body) {
@@ -672,9 +1694,29 @@
             body.appendChild(h);
             h.querySelectorAll('[data-r]').forEach(b => b.onclick = () => { ROLE = b.dataset.r; buildControls(); });
             h.querySelectorAll('[data-h]').forEach(b => b.onclick = () => commit([{ t: 'palRole', role: ROLE, hex: b.dataset.h }]));
+            const colorRow = document.createElement('div'); colorRow.className = 'control-color-row';
+            const picker = document.createElement('input'); picker.type = 'color'; picker.value = pal[ROLE]; picker.setAttribute('aria-label', `Custom ${ROLE} colour`);
+            const paletteSelect = document.createElement('select'); paletteSelect.className = 'control-select'; paletteSelect.setAttribute('aria-label', `Choose a brand colour for ${ROLE}`);
+            paletteSelect.add(new Option('Custom colour…', 'custom'));
+            const brandSwatches = (B.palette || []).map(entry => ({ name: entry && (entry.name || entry.role), hex: hx(entry && entry.hex) })).filter(entry => entry.hex);
+            brandSwatches.forEach(entry => paletteSelect.add(new Option(`${entry.name || 'Brand colour'} · ${entry.hex}`, entry.hex)));
+            const isBrandHex = hex => brandSwatches.some(entry => entry.hex === String(hex).toLowerCase());
+            paletteSelect.value = isBrandHex(pal[ROLE]) ? String(pal[ROLE]).toLowerCase() : 'custom';
+            const setColor = hex => { if (!S.pal) S.pal = { ...palOf() }; S.pal[ROLE] = hex; picker.value = hex; paletteSelect.value = isBrandHex(hex) ? String(hex).toLowerCase() : 'custom'; schedule(); };
+            picker.oninput = () => setColor(picker.value);
+            picker.onchange = () => { saveState(); buildControls(); };
+            paletteSelect.onchange = () => { if (paletteSelect.value !== 'custom') commit([{ t: 'palRole', role: ROLE, hex: paletteSelect.value }]); };
+            colorRow.append(picker, paletteSelect); h.appendChild(colorRow);
             h.querySelector('#palReset').onclick = () => commit([{ t: 'pal', pal: null }]);
             h.querySelector('#palNight').onclick = () => commit([variantCmd('night')]);
             h.querySelector('#palAcc').onclick = () => commit([variantCmd('accent')]);
+            if (tplOf().brandComposition) {
+                body.appendChild(Object.assign(document.createElement('p'), {
+                    className: 'hint',
+                    textContent: 'This brand template keeps its authored imagery and layout. Edit its copy and colours here, or select a layer to animate it.'
+                }));
+                return;
+            }
             const slot = window.AssetEngine.templateUsesMotif(tplOf()), cur = S.motifOn === false ? 'none' : (S.motif || 'auto');
             const mids = [...(slot ? ['auto'] : []), 'logo', ...window.AssetEngine.VECTORS.filter(i => i !== 'none'), 'none'];
             const m = document.createElement('div');
@@ -701,14 +1743,463 @@
             });
             s.querySelector('#logoOn').onchange = e => commit([{ t: 'logo', on: e.target.checked }]);
         }
-        function controlLayout(body) {
-            const cats = Object.keys(window.AssetCategories), sizes = sizesOf();
-            body.innerHTML = `<p class="hint">Design type</p><select class="mini-select" id="lyCat">${cats.map(id => `<option value="${esc(id)}"${id === S.cat ? ' selected' : ''}>${esc(catLabel(id))}</option>`).join('')}</select>
-            <p class="hint">Size</p><select class="mini-select" id="lySize">${sizes.map((z, i) => `<option value="${i}"${i === S.size ? ' selected' : ''}>${esc(z.n)}${z.d ? ' · ' + esc(z.d) : ''}</option>`).join('')}</select>`;
-            body.querySelector('#lyCat').onchange = e => commit([{ t: 'cat', id: e.target.value }]);
-            body.querySelector('#lySize').onchange = e => commit([{ t: 'size', i: +e.target.value }]);
+        function controlType(body) {
+            S.fonts = { ...blank().fonts, ...(S.fonts || {}) };
+            const brandFamilies = [...(B.typography?.families || []), ...(B.typography?.scale || []).map(item => item.family)].filter(Boolean);
+            const families = [...new Set([...brandFamilies, ...UF.map(font => font.family), 'Georgia', 'Helvetica Neue', 'Arial', 'Times New Roman'])];
+            body.appendChild(Object.assign(document.createElement('p'), { className: 'hint', textContent: 'Brand typefaces are listed first; uploaded fonts are available across designs.' }));
+            [['display', 'Display', 'Headlines and large type'], ['serif', 'Editorial', 'Serif text, prices and captions'], ['sans', 'Text', 'Sans-serif labels and body copy']].forEach(([role, label, hint]) => {
+                const field = document.createElement('label'); field.className = 'field-list';
+                field.appendChild(Object.assign(document.createElement('span'), { textContent: label }));
+                const select = document.createElement('select'); select.className = 'control-select'; select.setAttribute('aria-label', `${label} font`);
+                const current = role === 'display' ? S.fonts.display : role === 'serif' ? (S.fonts.serif || S.fonts.body) : (S.fonts.sans || S.fonts.body);
+                const options = new Map(families.map(family => [stackFor(family), family]));
+                if (!options.has(current)) options.set(current, `${current.split(',')[0].replace(/["']/g, '')} (current)`);
+                options.forEach((name, value) => select.add(new Option(name, value)));
+                select.value = current;
+                select.onchange = () => {
+                    hist.push(clone(S));
+                    if (role === 'display') S.fonts.display = select.value;
+                    else if (role === 'serif') { S.fonts.serif = select.value; S.fonts.body = select.value; }
+                    else { S.fonts.sans = select.value; S.fonts.body = select.value; }
+                    schedule();
+                };
+                field.append(select, Object.assign(document.createElement('small'), { className: 'hint', textContent: hint })); body.appendChild(field);
+            });
+            const actions = document.createElement('div'); actions.className = 'control-actions';
+            const upload = document.createElement('button'); upload.type = 'button'; upload.textContent = 'Upload font'; upload.onclick = () => $('#agentFontInput').click();
+            const reset = document.createElement('button'); reset.type = 'button'; reset.textContent = 'Reset to brand type'; reset.onclick = () => { hist.push(clone(S)); S.fonts = blank().fonts; afterChange(true); };
+            actions.append(upload, reset); body.appendChild(actions);
+            body.appendChild(Object.assign(document.createElement('p'), { className: 'hint', textContent: 'WOFF2, WOFF, TTF or OTF · max 2 MB.' }));
         }
-        function buildAll() { buildCategoryNav(); buildDesigns(); buildHeader(); buildControls(); ctx(); }
+        function controlImage(body) {
+            const template = tplOf(), variables = template?.brandComposition
+                ? (template.composition.variables || []).filter(variable => variable.kind === 'image') : [];
+            const imageLayers = template?.brandComposition
+                ? (template.composition.layers || []).filter(layer => layer.type === 'image') : [];
+            let selectedVariable = null;
+            let selectedLayer = null;
+            if (imageLayers.length) {
+                selectedLayer = imageLayers.find(layer => layer.id === SEL) || imageLayers.find(layer => layer.id === imageLayerTarget) || imageLayers[0];
+                imageLayerTarget = selectedLayer.id;
+                const label = document.createElement('label'); label.className = 'field-list';
+                label.appendChild(Object.assign(document.createElement('span'), { textContent: 'Template image layer' }));
+                const select = document.createElement('select'); select.className = 'control-select'; select.setAttribute('aria-label', 'Template image layer');
+                imageLayers.forEach(layer => select.add(new Option(layer.name || 'Image', layer.id)));
+                select.value = selectedLayer.id;
+                select.onchange = () => { imageLayerTarget = select.value; buildControls(); };
+                label.appendChild(select); body.appendChild(label);
+            } else if (template?.brandComposition && variables.length) {
+                if (!variables.some(variable => variable.id === S.imageVariable)) S.imageVariable = variables[0].id;
+                selectedVariable = variables.find(variable => variable.id === S.imageVariable);
+                const label = document.createElement('label'); label.className = 'field-list';
+                label.appendChild(Object.assign(document.createElement('span'), { textContent: 'Image slot' }));
+                const select = document.createElement('select'); select.className = 'control-select'; select.setAttribute('aria-label', 'Brand template image slot');
+                variables.forEach(variable => select.add(new Option(variable.name || humanizeField(variable.id), variable.id)));
+                select.value = S.imageVariable; select.onchange = () => { S.imageVariable = select.value; buildControls(); };
+                label.appendChild(select); body.appendChild(label);
+            } else if (template?.brandComposition) {
+                body.appendChild(Object.assign(document.createElement('p'), { className: 'hint', textContent: 'This brand template has no image layers to replace.' }));
+            }
+            if (IMAGE_LIB.status === 'loading') body.appendChild(Object.assign(document.createElement('p'), { className: 'hint', textContent: 'Loading the image library…' }));
+            if (IMAGE_LIB.status === 'error') body.appendChild(Object.assign(document.createElement('p'), { className: 'hint', textContent: `Image library unavailable: ${IMAGE_LIB.error}` }));
+            const resolvedLayer = selectedLayer && resolveBrandComposition(template).layers.find(layer => layer.id === selectedLayer.id);
+            const currentUrl = resolvedLayer?.url || (selectedVariable ? (S.t[selectedVariable.id] || selectedVariable.defaultValue) : S.photoUrl);
+            const sources = [
+                ...(B.photography || []).filter(photo => photo?.url).map(photo => ({ name: photo.name || 'Brand photo', url: photo.url, kind: 'Brand photo' })),
+                ...(S.photoUploads || []).map(photo => ({ ...photo, kind: 'Uploaded' })),
+                ...IMAGE_LIB.items.filter(asset => asset.sourceUrl).map(asset => ({ name: asset.name || 'Library image', url: asset.sourceUrl, kind: asset.class || 'Library' }))
+            ];
+            if (!template?.brandComposition || selectedLayer || selectedVariable) {
+                const grid = document.createElement('div'); grid.className = 'photo-grid';
+                sources.forEach(source => {
+                    const button = document.createElement('button'); button.type = 'button'; button.className = 'photo-tile';
+                    button.setAttribute('aria-pressed', String(currentUrl === source.url)); button.title = `${source.name} · ${source.kind}`;
+                    const image = document.createElement('img'); image.src = source.url; image.alt = ''; image.loading = 'lazy';
+                    button.append(image, Object.assign(document.createElement('span'), { textContent: source.name }));
+                    button.onclick = () => selectControlImage(source, selectedVariable, selectedLayer?.id);
+                    grid.appendChild(button);
+                });
+                if (sources.length) body.appendChild(grid);
+                else body.appendChild(Object.assign(document.createElement('p'), { className: 'hint', textContent: 'No brand or library images are available yet. Upload an image to use it here.' }));
+            }
+            const actions = document.createElement('div'); actions.className = 'control-actions';
+            if (!template?.brandComposition || selectedLayer || selectedVariable) {
+                const upload = document.createElement('button'); upload.type = 'button'; upload.textContent = 'Upload image'; upload.onclick = () => {
+                    pendingImageTarget = { layerId: selectedLayer?.id || null, variableId: selectedVariable?.id || null };
+                    $('#agentPhotoInput').click();
+                };
+                actions.appendChild(upload);
+                const hasOverride = selectedLayer ? Object.prototype.hasOwnProperty.call(S.layerImages || {}, selectedLayer.id)
+                    : selectedVariable ? Object.prototype.hasOwnProperty.call(S.t, selectedVariable.id) : !!S.photoUrl;
+                if (hasOverride) {
+                    const reset = document.createElement('button'); reset.type = 'button'; reset.textContent = 'Reset image';
+                    reset.onclick = () => {
+                        hist.push(clone(S));
+                        if (selectedLayer) delete S.layerImages[selectedLayer.id];
+                        else if (selectedVariable) delete S.t[selectedVariable.id];
+                        else delete S.photoUrl;
+                        buildControls(); schedule();
+                    };
+                    actions.appendChild(reset);
+                }
+            }
+            if (actions.children.length) body.appendChild(actions);
+            const targetName = selectedLayer?.name || selectedVariable?.name || 'this design';
+            body.appendChild(Object.assign(document.createElement('p'), { className: 'hint', textContent: `Choose brand photography or a library image for ${targetName}, or upload a new image.` }));
+        }
+        function controlSize(body) {
+            body.appendChild(Object.assign(document.createElement('p'), { className: 'hint', textContent: 'Downloads render at the selected export size.' }));
+            const list = document.createElement('div'); list.className = 'size-options';
+            sizesOf().forEach((size, index) => {
+                const button = document.createElement('button'); button.type = 'button'; button.className = 'size-option';
+                button.setAttribute('aria-pressed', String(index === S.size));
+                const name = document.createElement('span'); name.append(Object.assign(document.createElement('b'), { textContent: size.n }), Object.assign(document.createElement('small'), { textContent: size.d || '' }));
+                button.append(name, Object.assign(document.createElement('span'), { textContent: `${size.w} × ${size.h}px` }));
+                button.onclick = () => commit([{ t: 'size', i: index }]); list.appendChild(button);
+            });
+            body.appendChild(list);
+        }
+        function controlSaved(body) {
+            body.appendChild(Object.assign(document.createElement('p'), { className: 'hint', textContent: 'Saved designs keep their size, colours, type, copy and selected images in this browser.' }));
+            const save = document.createElement('button'); save.type = 'button'; save.className = 'control-select'; save.textContent = 'Save current asset'; save.onclick = saveAsset; body.appendChild(save);
+            const records = LS.get('assetStudioAgent.saved.v1', []).map((entry, index) => ({ entry, index }));
+            if (!records.length) { body.appendChild(Object.assign(document.createElement('p'), { className: 'hint', textContent: 'Nothing saved yet.' })); return; }
+            const list = document.createElement('div'); list.className = 'saved-options';
+            records.forEach(({ entry, index }) => {
+                const row = document.createElement('div'); row.className = 'saved-option';
+                const detail = document.createElement('span'); detail.append(Object.assign(document.createElement('b'), { textContent: entry.name || 'Saved asset' }), Object.assign(document.createElement('small'), { textContent: `${entry.packName ? `${entry.packName} · ` : ''}${entry.brandName || entry.brand || 'Brand'} · ${new Date(entry.at || 0).toLocaleString()}` }));
+                const actions = document.createElement('div'); actions.className = 'control-actions';
+                const open = document.createElement('button'); open.type = 'button'; open.textContent = 'Open'; open.onclick = () => restoreSaved(entry);
+                const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Delete'; remove.onclick = () => deleteSaved(index);
+                actions.append(open, remove); row.append(detail, actions); list.appendChild(row);
+            });
+            body.appendChild(list);
+        }
+        const humanizeField = key => String(key).replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[-_]+/g, ' ').replace(/^./, char => char.toUpperCase());
+        async function loadImageLibrary() {
+            if (!B || (IMAGE_LIB.brandId === B.id && ['loading', 'ok'].includes(IMAGE_LIB.status))) return;
+            const brand = B;
+            IMAGE_LIB = { status: 'loading', brandId: brand.id, items: [], error: '' };
+            buildControls();
+            try {
+                const data = await jget(`${API}/assets?brandId=${encodeURIComponent(brand.id)}&limit=100`);
+                if (B !== brand) return;
+                IMAGE_LIB.items = ((data && data.assets) || []).filter(asset => asset?.sourceUrl
+                    && !['business-document', 'content'].includes(asset.class)
+                    && (!asset.format || /png|jpe?g|webp|gif|svg|avif/i.test(asset.format)));
+                IMAGE_LIB.status = 'ok';
+            } catch (error) {
+                if (B !== brand) return;
+                IMAGE_LIB.status = 'error'; IMAGE_LIB.error = error.message;
+            }
+            if (B === brand && TAB === 'image') buildControls();
+        }
+        async function selectControlImage(source, variable, layerId = null) {
+            const url = String(source?.url || '');
+            if (!url) return;
+            const image = await loadImg(url).catch(() => null);
+            if (!image) { toast('That image could not be loaded.', true); return; }
+            hist.push(clone(S));
+            if (layerId) {
+                S.layerImages = { ...(S.layerImages || {}), [layerId]: url };
+                imageLayerTarget = layerId;
+                BRAND_TEMPLATE_IMAGES.set(url, image);
+            } else if (variable) {
+                S.imageVariable = variable.id;
+                S.t[variable.id] = url;
+                BRAND_TEMPLATE_IMAGES.set(url, image);
+            } else S.photoUrl = url;
+            buildControls(); schedule();
+        }
+        const fileDataUrl = file => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(new Error('The file could not be read.'));
+            reader.readAsDataURL(file);
+        });
+        async function uploadAgentImage(file) {
+            $('#agentPhotoInput').value = '';
+            if (!file) return;
+            const imageTarget = pendingImageTarget;
+            pendingImageTarget = null;
+            if (!file.type.startsWith('image/') || file.size > 12 * 1024 * 1024) { toast('Choose an image up to 12 MB.', true); return; }
+            try {
+                const dataUrl = await fileDataUrl(file);
+                const result = await jget(`${API}/assets/ingest`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ packId: P?.id, brandId: B.id, files: [{ name: file.name || 'upload.jpg', dataUrl, rights: 'unknown' }] }) });
+                const asset = result?.created?.[0];
+                if (!asset?.sourceUrl) throw new Error('The image was uploaded but no image URL was returned.');
+                const source = { name: asset.name || file.name || 'Uploaded image', url: asset.sourceUrl, assetId: asset.id, kind: 'Uploaded' };
+                const image = await loadImg(source.url);
+                hist.push(clone(S)); S.photoUploads = [...(S.photoUploads || []), source];
+                IMAGE_LIB.items = [asset, ...IMAGE_LIB.items.filter(item => item.id !== asset.id)];
+                const template = tplOf();
+                const variable = imageTarget?.variableId
+                    ? (template?.composition?.variables || []).find(item => item.id === imageTarget.variableId && item.kind === 'image')
+                    : null;
+                if (imageTarget?.layerId) {
+                    S.layerImages = { ...(S.layerImages || {}), [imageTarget.layerId]: source.url };
+                    imageLayerTarget = imageTarget.layerId;
+                    BRAND_TEMPLATE_IMAGES.set(source.url, image);
+                } else if (variable) {
+                    S.imageVariable = variable.id;
+                    S.t[variable.id] = source.url;
+                    BRAND_TEMPLATE_IMAGES.set(source.url, image);
+                }
+                else S.photoUrl = source.url;
+                if (template?.brandComposition && !imageTarget?.layerId && !variable) BRAND_TEMPLATE_IMAGES.set(source.url, image);
+                buildControls(); schedule(); toast(`Added “${source.name}” to this design.`);
+            } catch (error) { toast(`Could not upload image: ${error.message}`, true); }
+        }
+        async function uploadAgentFont(file) {
+            $('#agentFontInput').value = '';
+            if (!file) return;
+            if (file.size > 2 * 1024 * 1024) { toast('Fonts are limited to 2 MB.', true); return; }
+            try {
+                const font = await jget(`${API}/fonts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: file.name, dataUrl: await fileDataUrl(file) }) });
+                const face = new FontFace(font.family, `url("${font.url}")`, { weight: '100 1000' });
+                await face.load(); document.fonts.add(face); UF.push(font);
+                hist.push(clone(S)); S.fonts.display = stackFor(font.family);
+                afterChange(true); toast(`${font.family} added and set as the display font.`);
+            } catch (error) { toast(error.message || 'The font could not be uploaded.', true); }
+        }
+        async function restoreSaved(entry) {
+            const saved = entry && entry.state;
+            if (!saved || !window.AssetCategories[saved.cat]) { toast('That saved asset is no longer available.', true); return; }
+            if (entry.brand && (B?.id !== entry.brand || (entry.packId && P?.id !== entry.packId))) {
+                let packId = entry.packId || null;
+                if (!packId) {
+                    for (const summary of PACKS) {
+                        const candidate = await packFull(summary.id).catch(() => null);
+                        if (candidate?.brands?.some(brand => brand.id === entry.brand)) { packId = candidate.id; break; }
+                    }
+                }
+                if (!packId) { toast('The brand group for this saved asset is not available.', true); return; }
+                if (P?.id === packId) await selectBrand(entry.brand);
+                else await selectPack(packId, entry.brand);
+                if (B?.id !== entry.brand) { toast('The brand for this saved asset is not available.', true); return; }
+            }
+            const restored = { ...blank(), ...clone(saved) };
+            restored.fonts = { ...blank().fonts, ...(saved.fonts || {}) };
+            restored.t = { ...(saved.t || {}) };
+            restored.layerImages = { ...(saved.layerImages || {}) };
+            restored.photoUploads = Array.isArray(saved.photoUploads) ? saved.photoUploads : [];
+            restored.tpl = clamp(+restored.tpl || 0, 0, Math.max(0, categoryDesigns(restored.cat).length - 1));
+            restored.size = clamp(+restored.size || 0, 0, Math.max(0, sizesOf(restored).length - 1));
+            hist.push(clone(S)); stopP(); S = restored; TL.T = DUR; TL.art = null; TL.artKey = ''; SEL = null; HOV = null; focusKey = null;
+            const template = tplOf(S), imageKeys = template?.brandComposition ? (template.composition.variables || []).filter(variable => variable.kind === 'image').map(variable => S.t[variable.id]) : [];
+            const urls = [...new Set([S.photoUrl, ...S.photoUploads.map(source => source.url), ...imageKeys, ...Object.values(S.layerImages)].filter(Boolean))];
+            await Promise.all(urls.map(async url => { const image = await loadImg(url).catch(() => null); if (image && template?.brandComposition) BRAND_TEMPLATE_IMAGES.set(url, image); }));
+            afterChange(true); toast(`Opened “${entry.name || tplOf().n}”.`);
+        }
+        function deleteSaved(index) {
+            const saved = LS.get('assetStudioAgent.saved.v1', []);
+            if (index < 0 || index >= saved.length) return;
+            saved.splice(index, 1); LS.set('assetStudioAgent.saved.v1', saved); buildControls(); toast('Saved asset deleted.');
+        }
+        function buildAll() { buildCategoryNav(); buildDesigns(); buildHeader(); buildFocus(); buildControls(); ctx(); }
+
+        /* ---------- focus mode ---------- */
+        function thumbInto(canvas, st, width) {
+            const template = tplOf(st);
+            try {
+                if (template.brandComposition) renderBrandComposition(canvas, template, st, width);
+                else window.AssetEngine.renderThumb(canvas, sizeOf(st), template, engState(st), width);
+            } catch { canvas.width = width; canvas.height = width; }
+        }
+        function buildFocus() {
+            const on = focusMode;
+            document.querySelector('.workspace').classList.toggle('is-focus', on);
+            $('#focusHead').hidden = !on; $('#variationsPanel').hidden = !on; $('#categoryNav').hidden = on;
+            if (!on) return;
+            $('#focusCrumb').innerHTML = `${esc(B.name)} › ${esc(catLabel(S.cat))}<b>${esc(tplOf().n)}</b>`;
+            const select = $('#focusSwitch'); select.innerHTML = '';
+            cat().tpls.forEach((template, index) => select.add(new Option(template.n, String(index))));
+            select.value = String(S.tpl);
+            buildVariations();
+        }
+        let VARTAB = 'looks';
+        const kindOfSize = size => { const r = size.w / size.h; return r < .65 ? 'Vertical' : r < .9 ? 'Portrait' : r <= 1.1 ? 'Square' : r < 2.2 ? 'Landscape' : 'Banner'; };
+
+        /* ----- motion: ready-made animation sets built from this design's own elements ----- */
+        const hasPreset = id => PRESETS.some(p => p[0] === id);
+        const stagger = (list, preset, start = 300, step = 350) => list.map((e, i) => ({ id: e.id, preset, start: start + i * step }));
+        const MOTION_LOOKS = [
+            { id: 'none', n: 'No animation', d: 'Static design. Clears all animation.', plan: () => [] },
+            { id: 'soft', n: 'Soft reveal', d: 'Background eases in, text rises line by line.', plan: c => [
+                { id: 'art', preset: 'zoom', start: 0, duration: DUR }, ...stagger(c.others, 'fadeIn', 0, 200), ...stagger(c.texts, 'riseSettle'), ...stagger(c.logos, 'fadeIn', 300, 0)] },
+            { id: 'slide', n: 'Slide stack', d: 'Elements slide up one after another.', plan: c => [
+                { id: 'art', preset: 'drift', start: 0, duration: DUR }, ...stagger(c.others, 'fadeIn', 0, 200), ...stagger(c.texts, 'slideUp', 300, 300), ...stagger(c.logos, 'popIn', 300 + c.texts.length * 300, 0)] },
+            { id: 'wipe', n: 'Wipe & punch', d: 'Lines wipe in; the call to action pulses.', plan: c => [
+                ...stagger(c.others, 'fadeIn', 0, 200), ...stagger(c.texts, 'wipeRight'), ...stagger(c.logos, 'fadeIn', 300, 0),
+                ...(c.cta ? [{ id: c.cta.id, preset: 'pulse', start: 3200, duration: 2400 }] : [])] },
+            { id: 'pop', n: 'Bold pop', d: 'Fast, springy pops with a spinning logo.', plan: c => [
+                ...stagger(c.others, 'fadeIn', 0, 150), ...stagger(c.texts, 'popIn', 200, 250), ...stagger(c.logos, 'spinIn', 200, 0)] },
+            { id: 'kenburns', n: 'Ken Burns', d: 'Slow pan across the image, text fades in late.', plan: c => [
+                { id: 'art', preset: 'panLeft', start: 0, duration: DUR }, ...c.others.map(e => ({ id: e.id, preset: 'zoom', start: 0, duration: DUR })),
+                ...stagger(c.texts, 'fadeIn', 1200, 400), ...stagger(c.logos, 'fadeIn', 600, 0)] },
+            { id: 'loop', n: 'Gentle loop', d: 'Subtle movement that repeats. Good for looping video.', plan: c => [
+                { id: 'art', preset: 'breathe', start: 0, duration: DUR }, ...c.logos.map(e => ({ id: e.id, preset: 'heartbeat', start: 0, duration: DUR })),
+                ...(c.cta ? [{ id: c.cta.id, preset: 'pulse', start: 0, duration: DUR }] : [])] },
+            { id: 'inout', n: 'In, hold, out', d: 'Rises in, holds, then fades away at the end.', plan: c => [
+                ...c.others.map(e => ({ id: e.id, preset: 'fadeIn', start: 0, duration: 600 })),
+                ...stagger(c.texts, 'riseSettle'), ...c.texts.map(e => ({ id: e.id, preset: 'fadeOut', start: DUR - 700, duration: 700 })),
+                ...stagger(c.logos, 'fadeIn', 300, 0), ...c.logos.map(e => ({ id: e.id, preset: 'fadeOut', start: DUR - 700, duration: 700 }))] }
+        ];
+        function motionContext() {
+            const els = [...TL.els].sort((a, b) => a.y - b.y), texts = els.filter(e => e.kind === 'text');
+            return { texts, logos: els.filter(e => e.kind === 'logo'), others: els.filter(e => e.kind !== 'text' && e.kind !== 'logo'), cta: texts.find(e => e.key && roleOf(e.key) === 'cta') || null };
+        }
+        function motionPlan(look) {
+            return look.plan(motionContext()).map(p => {
+                const preset = hasPreset(p.preset) ? p.preset : 'fadeIn', duration = clamp(p.duration ?? presetDur(preset), 100, DUR);
+                return { id: p.id, preset, duration, start: clamp(p.start ?? 300, 0, DUR - duration) };
+            });
+        }
+        function motionCmds(look) {
+            if (look.id === 'none') return [{ t: 'clearAnim', id: 'all' }, { t: 'motion', id: 'none' }];
+            return [{ t: 'clearAnim', id: 'all' }, ...motionPlan(look).map(p => ({ t: 'anim', ...p, fromLook: true })), { t: 'motion', id: look.id }];
+        }
+
+        /* ----- variations panel ----- */
+        function buildVariations() {
+            const body = $('#variationsBody'); body.innerHTML = '';
+            const tabs = document.createElement('div'); tabs.className = 'var-tabs'; tabs.setAttribute('role', 'tablist'); tabs.setAttribute('aria-label', 'Variation type');
+            [['looks', 'Looks'], ['formats', 'Formats'], ['motion', 'Motion'], ['copy', 'Copy']].forEach(([id, label]) => {
+                const button = document.createElement('button'); button.type = 'button'; button.textContent = label;
+                button.setAttribute('role', 'tab'); button.setAttribute('aria-pressed', String(VARTAB === id));
+                button.onclick = () => { VARTAB = id; buildVariations(); }; tabs.appendChild(button);
+            });
+            body.appendChild(tabs);
+            const pane = document.createElement('div'); body.appendChild(pane);
+            ({ looks: varLooks, formats: varFormats, motion: varMotion, copy: varCopy })[VARTAB](pane);
+        }
+        function varGroup(pane, title) {
+            pane.appendChild(Object.assign(document.createElement('p'), { className: 'hint', textContent: title }));
+            const row = document.createElement('div'); row.className = 'var-row'; pane.appendChild(row); return row;
+        }
+        function varCard(row, label, sub, state, on, action) {
+            const button = document.createElement('button'); button.type = 'button';
+            button.className = 'sel-card' + (on ? ' is-selected' : ''); button.title = sub ? `${label} · ${sub}` : label;
+            const canvas = document.createElement('canvas'); thumbInto(canvas, state, 140);
+            button.append(canvas, Object.assign(document.createElement('span'), { textContent: label }));
+            if (sub) button.appendChild(Object.assign(document.createElement('small'), { textContent: sub }));
+            button.onclick = action; row.appendChild(button);
+            return button;
+        }
+        function varLooks(pane) {
+            const brandPalette = templateBrandPalette(tplOf()) || palOf();
+            const schemes = [
+                ['Brand', brandPalette],
+                ['Inverted', { paper: brandPalette.ink, ink: brandPalette.paper, accent: brandPalette.accent }],
+                ['Light', { paper: '#ffffff', ink: brandPalette.ink, accent: brandPalette.accent }],
+                ['Dark', { paper: brandPalette.ink, ink: '#ffffff', accent: brandPalette.accent }],
+                ['Accent ground', {
+                    paper: brandPalette.accent,
+                    ink: cr(rgb('#ffffff'), rgb(brandPalette.accent)) >= cr(rgb(brandPalette.ink), rgb(brandPalette.accent)) ? '#ffffff' : brandPalette.ink,
+                    accent: cr(rgb('#ffffff'), rgb(brandPalette.accent)) >= cr(rgb(brandPalette.ink), rgb(brandPalette.accent)) ? '#ffffff' : brandPalette.ink
+                }]
+            ];
+            const seen = new Set(schemes.map(([, palette]) => JSON.stringify(palette)));
+            Object.values(BRAND_TEMPLATES).flat().forEach(template => {
+                const palette = templateBrandPalette(template);
+                if (!palette) return;
+                const key = JSON.stringify(palette);
+                if (seen.has(key)) return;
+                seen.add(key);
+                schemes.push([template.n, palette]);
+            });
+            const current = JSON.stringify(palOf());
+            const row = varGroup(pane, 'Colour looks');
+            schemes.forEach(([label, palette]) => {
+                const cmd = { t: 'pal', pal: palette };
+                const state = run(clone(S), [cmd]);
+                const card = varCard(row, label, '', state, JSON.stringify(palOf(state)) === current, () => commit([cmd]));
+                card.dataset.palette = JSON.stringify(palette);
+            });
+        }
+        function varFormats(pane) {
+            const native = nativeSizesOf();
+            const designed = varGroup(pane, 'Designed for this template');
+            native.forEach((size, index) => varCard(designed, size.n, `${kindOfSize(size)} · ${size.w}×${size.h}`, { ...clone(S), size: index }, index === S.size, () => commit([{ t: 'size', i: index }])));
+            pane.appendChild(Object.assign(document.createElement('p'), { className: 'var-note', textContent: 'Auto-fit reuses this layout at a new shape. Check text placement before you export.' }));
+            ['Social', 'Email', 'Web & video'].forEach(group => {
+                const list = FORMAT_PRESETS.filter(p => p.group === group && !native.some(z => z.w === p.w && z.h === p.h));
+                if (!list.length) return;
+                const row = varGroup(pane, `${group} · auto-fit`);
+                list.forEach(preset => {
+                    const state = { ...clone(S), extraFormats: [...new Set([...(S.extraFormats || []), preset.id])] };
+                    state.size = Math.max(0, sizesOf(state).findIndex(z => z.presetId === preset.id));
+                    varCard(row, preset.n, `${preset.w}×${preset.h}`, state, sizeOf().presetId === preset.id, () => commit([{ t: 'addFormat', id: preset.id }]));
+                });
+            });
+            if ((S.extraFormats || []).length) {
+                const clear = document.createElement('button'); clear.type = 'button'; clear.className = 'var-clear'; clear.textContent = 'Remove added formats';
+                clear.onclick = () => commit([{ t: 'clearFormats' }]); pane.appendChild(clear);
+            }
+        }
+        function varMotion(pane) {
+            pane.appendChild(Object.assign(document.createElement('p'), { className: 'var-note', textContent: 'Each set animates this design’s own elements and plays on the canvas. Fine-tune it in the timeline afterwards.' }));
+            const list = document.createElement('div'); list.className = 'mo-list'; pane.appendChild(list);
+            MOTION_LOOKS.forEach(look => {
+                const plan = motionPlan(look), button = document.createElement('button'); button.type = 'button';
+                button.className = 'mo-card' + (S.motion === look.id || (look.id === 'none' && !S.motion && !hasAnim()) ? ' is-on' : '');
+                const head = document.createElement('span'); head.className = 'mo-head';
+                head.append(Object.assign(document.createElement('b'), { textContent: look.n }), Object.assign(document.createElement('small'), { textContent: look.d }));
+                const bars = document.createElement('span'); bars.className = 'mo-bars';
+                const rows = [...new Set(plan.map(p => p.id))].slice(0, 6);
+                rows.forEach(id => {
+                    const row = document.createElement('span'); row.className = 'mo-row';
+                    plan.filter(p => p.id === id).forEach(p => {
+                        const bar = document.createElement('i'); bar.className = 'g-' + groupOf(p.preset);
+                        bar.style.left = p.start / DUR * 100 + '%'; bar.style.width = Math.max(2, p.duration / DUR * 100) + '%'; row.appendChild(bar);
+                    });
+                    bars.appendChild(row);
+                });
+                if (!rows.length) bars.classList.add('empty');
+                button.append(head, bars); button.onclick = () => commit(motionCmds(look)); list.appendChild(button);
+            });
+        }
+        function varCopy(pane) {
+            const headKey = Object.keys(baseText()).find(key => roleOf(key) === 'head');
+            if (!headKey) { pane.appendChild(Object.assign(document.createElement('p'), { className: 'var-note', textContent: 'This design has no headline field. Use the Copy tab below to edit its text.' })); return; }
+            const now = textOf()[headKey];
+            const options = [...new Set([now, ...copyOptions().head].filter(Boolean))].slice(0, 6);
+            pane.appendChild(Object.assign(document.createElement('p'), { className: 'hint', textContent: 'Headline options from the brand’s own copy' }));
+            const chips = document.createElement('div'); chips.className = 'var-chips'; pane.appendChild(chips);
+            options.forEach(value => {
+                const chip = document.createElement('button'); chip.type = 'button';
+                chip.className = 'var-chip' + (value === now ? ' is-on' : ''); chip.textContent = value.length > 70 ? value.slice(0, 69) + '…' : value;
+                chip.onclick = () => { if (value !== now) commit([{ t: 'text', key: headKey, value }]); };
+                chips.appendChild(chip);
+            });
+        }
+        function setFocus(on) {
+            if (focusMode === on) return;
+            focusMode = on; afterChange(true);
+            say('agent', on
+                ? `Focused on <b>${esc(tplOf().n)}</b>. Everything here edits this one design — pick a look under Variations, or tell me what to change.`
+                : 'Back to all designs.');
+        }
+        /* switching design keeps each design's earlier edits (copy, colours, images) */
+        async function switchDesign(index) {
+            if (index === S.tpl) return;
+            saveState();
+            const saved = LS.get(`assetStudioAgent.v1:${B.id}:${S.cat}:${index}`, null);
+            if (!saved || saved.cat !== S.cat) { commit([{ t: 'tpl', i: index }]); return; }
+            const next = { ...blank(), ...clone(saved), tpl: index };
+            next.fonts = { ...blank().fonts, ...(saved.fonts || {}) };
+            next.t = { ...(saved.t || {}) };
+            next.layerImages = { ...(saved.layerImages || {}) };
+            next.photoUploads = Array.isArray(saved.photoUploads) ? saved.photoUploads : [];
+            next.size = clamp(+next.size || 0, 0, Math.max(0, sizesOf(next).length - 1));
+            const template = tplOf(next);
+            const imageKeys = template?.brandComposition ? (template.composition.variables || []).filter(variable => variable.kind === 'image').map(variable => next.t[variable.id]) : [];
+            const urls = [...new Set([next.photoUrl, ...next.photoUploads.map(source => source.url), ...imageKeys, ...Object.values(next.layerImages)].filter(Boolean))];
+            await Promise.all(urls.map(async url => { const image = await loadImg(url).catch(() => null); if (image && template?.brandComposition) BRAND_TEMPLATE_IMAGES.set(url, image); }));
+            hist.push(clone(S)); stopP(); S = next; TL.T = DUR; TL.art = null; TL.artKey = ''; SEL = null; HOV = null; focusKey = null;
+            afterChange(true);
+        }
 
         /* ---------- agent ---------- */
         const chat = $('#agChat');
@@ -731,15 +2222,17 @@
         function ctx() {
             if (SEL && findEl(SEL)) { ctxSel(); return; }
             const k = focusKey && Object.prototype.hasOwnProperty.call(baseText(), focusKey) ? focusKey : null; if (!k) focusKey = null;
-            $('#agCtx').innerHTML = k ? `Focus: <b>${esc(k.replace(/[_-]/g, ' '))}</b> <button id="agCx" aria-label="Clear focus">✕</button>` : `Focus: <b>whole asset</b> · click a text field to focus me`;
+            $('#agCtx').innerHTML = k ? `Focus: <b>${esc(k.replace(/[_-]/g, ' '))}</b> <button id="agCx" aria-label="Clear focus">✕</button>` : `Focus: <b>${focusMode ? esc(tplOf().n) : 'whole asset'}</b> · click a text field to focus me`;
             if (k) $('#agCx').onclick = () => { focusKey = null; buildControls(); ctx(); };
-            const q = k ? ['Rewrite it', 'Shorter', 'Uppercase'] : ['Ideas', 'Dark version', 'Try another design', 'No motif'];
+            const q = k ? ['Rewrite it', 'Shorter', 'Uppercase']
+                : focusMode ? ['Dark version', 'Shorter headline', 'Make it a story', 'Soft reveal']
+                    : ['Ideas', 'Dark version', 'Try another design', 'No motif'];
             const w = $('#agQp'); w.innerHTML = ''; q.forEach(t => { const b = document.createElement('button'); b.type = 'button'; b.textContent = t; b.onclick = () => ask(t); w.appendChild(b); });
         }
         function variantCmd(v) {
-            const base = { paper: TH.bone, ink: TH.ink, accent: TH.accent };
-            if (v === 'night') return { t: 'pal', pal: { paper: TH.ink, ink: TH.bone, accent: TH.accent } };
-            if (v === 'accent') { const on = cr(rgb('#ffffff'), rgb(TH.accent)) >= cr(rgb(TH.ink), rgb(TH.accent)) ? '#ffffff' : TH.ink; return { t: 'pal', pal: { paper: TH.accent, ink: on, accent: on } }; }
+            const base = templateBrandPalette(tplOf()) || { paper: TH.bone, ink: TH.ink, accent: TH.accent };
+            if (v === 'night') return { t: 'pal', pal: { paper: base.ink, ink: '#ffffff', accent: base.accent } };
+            if (v === 'accent') { const on = cr(rgb('#ffffff'), rgb(base.accent)) >= cr(rgb(base.ink), rgb(base.accent)) ? '#ffffff' : base.ink; return { t: 'pal', pal: { paper: base.accent, ink: on, accent: on } }; }
             if (v === 'light') return { t: 'pal', pal: base };
             return { t: 'pal', pal: null };
         }
@@ -774,28 +2267,34 @@
             if (has('light version', 'bright', 'reset colo', 'brand colo', 'default colo')) add('Brand colours', 'Back to the brand’s own palette.', [variantCmd('reset')]);
             if (has('accent poster', 'accent background', 'accent ground', 'bold')) add('Accent ground', 'Accent-colour background with high-contrast type.', [variantCmd('accent')]);
             /* motif / logo */
-            if (has('no motif', 'remove motif', 'hide motif', 'without motif')) add('No motif', 'Removes the decorative motif.', [{ t: 'motif', id: 'none' }]);
-            if (has('motif') && has('bigger', 'larger', 'increase')) add('Motif +25%', 'More presence.', [{ t: 'motifScale', v: S.motifScale * 1.25 }]);
-            if (has('motif') && has('smaller', 'reduce')) add('Motif −20%', 'Gives text more room.', [{ t: 'motifScale', v: S.motifScale * .8 }]);
-            if (has('motif') && has('left')) add('Motif left', 'Shifts 10%.', [{ t: 'motifPos', x: S.motifX - .1 }]);
-            if (has('motif') && has('right')) add('Motif right', 'Shifts 10%.', [{ t: 'motifPos', x: S.motifX + .1 }]);
-            if (has('motif') && has('up', 'higher')) add('Motif up', 'Shifts 10%.', [{ t: 'motifPos', y: S.motifY - .1 }]);
-            if (has('motif') && has('down', 'lower')) add('Motif down', 'Shifts 10%.', [{ t: 'motifPos', y: S.motifY + .1 }]);
-            if (has('motif') && !out.length) window.AssetEngine.VECTORS.filter(i => i !== 'none').slice(0, 4).forEach(id => add(`Motif: ${id}`, 'Swap the decorative motif.', [{ t: 'motif', id }]));
-            if (has('hide logo', 'remove logo', 'no logo')) add('Hide logo', 'Removes the logo.', [{ t: 'logo', on: false }]);
-            if (has('show logo', 'add logo')) add('Show logo', 'Brings the logo back.', [{ t: 'logo', on: true }]);
-            if (has('logo') && has('bigger', 'larger', 'increase')) add('Logo +25%', 'More brand presence.', [{ t: 'logo', scale: S.logoScale * 1.25 }]);
-            if (has('logo') && has('smaller', 'reduce')) add('Logo −20%', 'Quieter signature.', [{ t: 'logo', scale: S.logoScale * .8 }]);
+            if (!tplOf().brandComposition) {
+                if (has('no motif', 'remove motif', 'hide motif', 'without motif')) add('No motif', 'Removes the decorative motif.', [{ t: 'motif', id: 'none' }]);
+                if (has('motif') && has('bigger', 'larger', 'increase')) add('Motif +25%', 'More presence.', [{ t: 'motifScale', v: S.motifScale * 1.25 }]);
+                if (has('motif') && has('smaller', 'reduce')) add('Motif −20%', 'Gives text more room.', [{ t: 'motifScale', v: S.motifScale * .8 }]);
+                if (has('motif') && has('left')) add('Motif left', 'Shifts 10%.', [{ t: 'motifPos', x: S.motifX - .1 }]);
+                if (has('motif') && has('right')) add('Motif right', 'Shifts 10%.', [{ t: 'motifPos', x: S.motifX + .1 }]);
+                if (has('motif') && has('up', 'higher')) add('Motif up', 'Shifts 10%.', [{ t: 'motifPos', y: S.motifY - .1 }]);
+                if (has('motif') && has('down', 'lower')) add('Motif down', 'Shifts 10%.', [{ t: 'motifPos', y: S.motifY + .1 }]);
+                if (has('motif') && !out.length) window.AssetEngine.VECTORS.filter(i => i !== 'none').slice(0, 4).forEach(id => add(`Motif: ${id}`, 'Swap the decorative motif.', [{ t: 'motif', id }]));
+                if (has('hide logo', 'remove logo', 'no logo')) add('Hide logo', 'Removes the logo.', [{ t: 'logo', on: false }]);
+                if (has('show logo', 'add logo')) add('Show logo', 'Brings the logo back.', [{ t: 'logo', on: true }]);
+                if (has('logo') && has('bigger', 'larger', 'increase')) add('Logo +25%', 'More brand presence.', [{ t: 'logo', scale: S.logoScale * 1.25 }]);
+                if (has('logo') && has('smaller', 'reduce')) add('Logo −20%', 'Quieter signature.', [{ t: 'logo', scale: S.logoScale * .8 }]);
+            }
             /* animation */
-            const animWords = ['animat', 'fade', 'slide', 'zoom', 'pulse', 'drift', 'stagger', 'entrance', 'appear', 'motion'], clearWords = ['clear anim', 'remove anim', 'no anim', 'stop anim'];
-            if (has(...animWords) || has(...clearWords)) {
+            const ml = MOTION_LOOKS.find(l => l.id !== 'none' && m.includes(l.n.toLowerCase()));
+            if (ml) add(`Motion: ${ml.n}`, ml.d, motionCmds(ml));
+            const animRe = /(animat|fade|slide|zoom|pulse|drift|stagger|entrance|appear|motion)|\b(wipe|reveal|pop in|pop up|pop|elastic|spring|drop in|rise|settle|spin|rotate|flip|swing|slam|heartbeat|shake|wobble|tada|flash|blink|rubber|squash|hop|jump|bounce|breathe|sway|orbit|pan left|pan right|ken burns|pull back)\b/, clearWords = ['clear anim', 'remove anim', 'no anim', 'stop anim'];
+            /* ordered: first match wins */
+            const PRE = [[/fade.?out|disappear/, 'fadeOut'], [/fade|appear/, 'fadeIn'], [/wipe out/, 'wipeOut'], [/wipe.*left/, 'wipeLeft'], [/wipe.*down/, 'wipeDown'], [/wipe.*up/, 'wipeUp'], [/wipe|reveal/, 'wipeRight'], [/slide out/, 'exitUp'], [/slide.*(left|in\b)/, 'slideLeft'], [/slide/, 'slideUp'], [/zoom in|scale in/, 'zoomIn'], [/pop out/, 'popOut'], [/pop in|pop up|\bpop\b/, 'popIn'], [/elastic|spring/, 'elasticIn'], [/drop/, 'dropIn'], [/rise|settle/, 'riseSettle'], [/spin in|rotate in/, 'spinIn'], [/spin out/, 'spinOut'], [/spin|rotate/, 'spin'], [/flip/, 'flipIn'], [/swing/, 'swingIn'], [/slam/, 'slam'], [/heart/, 'heartbeat'], [/shake/, 'shake'], [/wobble/, 'wobble'], [/tada/, 'tada'], [/flash|blink/, 'flash'], [/rubber|squash/, 'rubber'], [/\bhop\b|jump/, 'hop'], [/bounce/, 'bounce'], [/pulse/, 'pulse'], [/breathe/, 'breathe'], [/sway/, 'sway'], [/orbit/, 'orbit'], [/pan right/, 'panRight'], [/pan left|ken burns/, 'panLeft'], [/pull back/, 'pullBack'], [/drift|parallax/, 'drift'], [/zoom/, 'zoom']];
+            if (!ml && (animRe.test(m) || has(...clearWords))) {
                 const wholeWords = /everything|\ball\b|whole|stagger|entrance/.test(m);
                 const tgt = wholeWords ? null : /logo/.test(m) ? (TL.els.find(e => e.kind === 'logo') || null) : (/background|motif|artwork/.test(m) ? ART : ((() => { const fk = fieldFrom(m); const e = fk && TL.els.find(x => x.key === fk); return e || (SEL ? findEl(SEL) : null); })()));
-                const pre = /fade|appear/.test(m) ? 'fadeIn' : /slide.*(left|in\b)/.test(m) ? 'slideLeft' : /slide/.test(m) ? 'slideUp' : /zoom in|scale in/.test(m) ? 'zoomIn' : /pulse/.test(m) ? 'pulse' : /drift|parallax/.test(m) ? 'drift' : /zoom/.test(m) ? 'zoom' : null;
+                const pre = (PRE.find(([re]) => re.test(m)) || [])[1] || null;
                 const order = [...TL.els].sort((a, b) => a.y - b.y);
                 if (has(...clearWords)) add(tgt ? `Clear animation · ${tgt.name}` : 'Clear all animation', 'Removes the timeline bars.', [{ t: 'clearAnim', id: tgt ? tgt.id : 'all' }]);
                 else if (!tgt) {
-                    if (pre && pre !== 'zoom' && pre !== 'drift') add(`${presetLabel(pre)} · everything`, 'Staggered, top to bottom.', order.map((e, i) => ({ t: 'anim', id: e.id, preset: pre, start: 300 + i * 350, duration: presetDur(pre) })));
+                    if (pre && groupOf(pre) !== 'loop') add(`${presetLabel(pre)} · everything`, 'Staggered, top to bottom.', order.map((e, i) => ({ t: 'anim', id: e.id, preset: pre, start: 300 + i * 350, duration: presetDur(pre) })));
                     add('Staggered entrance', 'Background drifts in, elements slide up one after another.', [{ t: 'anim', id: 'art', preset: 'zoom', start: 0, duration: DUR }, ...order.map((e, i) => ({ t: 'anim', id: e.id, preset: e.kind === 'logo' ? 'fadeIn' : 'slideUp', start: 300 + i * 350, duration: 900 }))]);
                     const cta = TL.els.find(e => e.key && roleOf(e.key) === 'cta'); if (cta) add(`Pulse · ${cta.name}`, 'Draws the eye to the call to action.', [{ t: 'anim', id: cta.id, preset: 'pulse', start: 2800, duration: 2400 }]);
                 } else if (pre) { const c2 = animCard(tgt, pre, tgt.kind === 'art' ? 0 : 300); add(c2.title, c2.why, c2.cmds); }
@@ -807,13 +2306,15 @@
             if (has('previous design', 'prev design', 'last design')) add('Previous design', c.tpls[(S.tpl - 1 + c.tpls.length) % c.tpls.length].n, [{ t: 'tpl', i: (S.tpl - 1 + c.tpls.length) % c.tpls.length }]);
             const ti = c.tpls.findIndex(t => t.n && m.includes(t.n.toLowerCase())); if (ti > -1 && ti !== S.tpl) add(`Design: ${c.tpls[ti].n}`, 'Switches the template; text resets to the brand’s defaults.', [{ t: 'tpl', i: ti }]);
             const zi = sizesOf().findIndex(z => z.n && m.includes(z.n.toLowerCase())); if (zi > -1 && zi !== S.size) add(`Size: ${sizesOf()[zi].n}`, 'Re-lays out at the new size.', [{ t: 'size', i: zi }]);
+            const fp = FORMAT_PRESETS.find(p => p.words.some(w => m.includes(w)) && sizeOf().presetId !== p.id);
+            if (fp && !(zi > -1)) add(`Format: ${fp.n} (auto-fit)`, `${fp.w}×${fp.h}px. The layout is scaled to fit.`, [{ t: 'addFormat', id: fp.id }]);
             const ci = Object.keys(window.AssetCategories).find(id => id !== S.cat && (m.includes(catLabel(id).toLowerCase()) || m.includes(id.toLowerCase()))); if (ci && has('make', 'switch', 'change', 'turn', 'show', 'create', 'new')) add(`Switch to ${catLabel(ci)}`, 'Opens the first design in that category.', [{ t: 'cat', id: ci }]);
             if (has('reset', 'start over')) add('Reset design', 'Back to brand defaults for this design.', [{ t: 'reset' }]);
             /* generic ideas */
             if (!out.length) {
                 add('Dark version', 'Brand ink ground with light type.', [variantCmd('night')]);
                 add('Accent ground', 'Accent-colour background.', [variantCmd('accent')]);
-                if (c.tpls.length > 1) add('Try another design', c.tpls[(S.tpl + 1) % c.tpls.length].n, [{ t: 'tpl', i: (S.tpl + 1) % c.tpls.length }]);
+                if (c.tpls.length > 1 && !focusMode) add('Try another design', c.tpls[(S.tpl + 1) % c.tpls.length].n, [{ t: 'tpl', i: (S.tpl + 1) % c.tpls.length }]);
                 if (keys.length) { const h = keys.find(k => roleOf(k) === 'head'); if (h && CO.head[0] && CO.head[0] !== (S.t[h] != null ? S.t[h] : base[h])) add('Brand headline', `Sets “${CO.head[0].slice(0, 40)}”.`, [{ t: 'text', key: h, value: CO.head[0] }]); }
             }
             return out;
@@ -828,7 +2329,11 @@
         }
         function greet() {
             chat.innerHTML = '';
-            say('agent', `Hi, I’m the Studio agent. I can edit this <b>${esc(B.name)}</b> ${esc(catLabel(S.cat).toLowerCase())} — copy, colours, motif, logo, design and size. Click a text field to focus me on it, or just tell me what to change. Some starting points:`, suggest('ideas').slice(0, 3));
+            const capabilities = tplOf().brandComposition ? 'copy, colours, design and size' : 'copy, colours, motif, logo, design and size';
+            const intro = focusMode
+                ? `Hi, I’m the Studio agent. I’m focused on <b>${esc(tplOf().n)}</b> for <b>${esc(B.name)}</b> — I can change its ${capabilities}. Some starting points:`
+                : `Hi, I’m the Studio agent. I can edit this <b>${esc(B.name)}</b> ${esc(catLabel(S.cat).toLowerCase())} — ${capabilities}. Pick a design and choose “Edit this design” to focus on it, or just tell me what to change. Some starting points:`;
+            say('agent', intro, suggest('ideas').slice(0, 3));
         }
         function undo() { if (!hist.length) { toast('Nothing to undo.'); return; } S = hist.pop(); afterChange(true); }
 
@@ -841,60 +2346,249 @@
             } catch (e) { toast('Export failed: ' + e.message, true); }
         }
         const stateKey = () => `assetStudioAgent.v1:${B && B.id}:${S && S.cat}:${S && S.tpl}`;
-        function saveState() { if (!B || !S) return; LS.set(stateKey(), S); LS.set('assetStudioAgent.last.v1', { packId: P && P.id, brandId: B.id, cat: S.cat, tpl: S.tpl, size: S.size }); }
-        function saveAsset() { saveState(); const lib = LS.get('assetStudioAgent.saved.v1', []); lib.unshift({ at: Date.now(), brand: B.id, name: `${B.name} · ${tplOf().n}`, state: clone(S) }); LS.set('assetStudioAgent.saved.v1', lib.slice(0, 40)); toast('Saved this asset.'); }
+        function saveState() { if (!B || !S) return; LS.set(stateKey(), S); LS.set('assetStudioAgent.last.v1', { packId: P && P.id, brandId: B.id, cat: S.cat, tpl: S.tpl, size: S.size, focus: focusMode }); }
+        function saveAsset() { saveState(); const lib = LS.get('assetStudioAgent.saved.v1', []); lib.unshift({ id: `saved-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`, at: Date.now(), packId: P?.id, packName: P?.name, brand: B.id, brandName: B.name, name: `${B.name} · ${tplOf().n}`, state: clone(S) }); LS.set('assetStudioAgent.saved.v1', lib.slice(0, 40)); if (TAB === 'saved') buildControls(); toast('Saved this asset.'); }
 
         /* ---------- selection flow ---------- */
         async function selectBrand(id, restore) {
             const b = (P.brands || []).find(x => x.id === id); if (!b) return; const tok = ++selTok;
             document.querySelectorAll('#brandSwitch button').forEach(x => x.disabled = true);
-            B = b; deriveTheme(b); BF = brandFonts(b); hist = []; focusKey = null;
-            await Promise.all([brandLogos(b), brandPhotos(b), document.fonts && document.fonts.ready].filter(Boolean)).catch(() => { });
+            B = b; BRAND_TEMPLATES = {}; BRAND_TEMPLATE_IMAGES = new Map(); IMAGE_LIB = { status: 'idle', brandId: b.id, items: [], error: '' }; deriveTheme(b); BF = brandFonts(b); hist = []; focusKey = null;
+            try {
+                await Promise.all([brandLogos(b), brandPhotos(b), loadBrandTemplates(b), document.fonts && document.fonts.ready].filter(Boolean));
+            } catch (error) {
+                document.querySelectorAll('#brandSwitch button').forEach(x => x.disabled = false);
+                throw error;
+            }
             if (tok !== selTok) return;
-            S = blank(); if (restore) { const c = window.AssetCategories[restore.cat]; if (c) { S.cat = restore.cat; S.tpl = clamp(restore.tpl | 0, 0, c.tpls.length - 1); S.size = Math.max(0, restore.size | 0); const saved = LS.get(stateKey(), null); if (saved && saved.cat === S.cat) S = { ...S, ...saved }; } }
+            S = blank(); if (restore) { const c = window.AssetCategories[restore.cat]; if (c) { S.cat = restore.cat; S.tpl = clamp(restore.tpl | 0, 0, categoryDesigns(restore.cat).length - 1); S.size = clamp(Math.max(0, restore.size | 0), 0, sizesOf(S).length - 1); const saved = LS.get(stateKey(), null); if (saved && saved.cat === S.cat) S = { ...S, ...saved }; } }
             document.querySelectorAll('#brandSwitch button').forEach(x => x.disabled = false);
+            focusMode = !!(restore && restore.focus && S.cat === restore.cat);
             buildBrandPills(); buildAll(); renderPreview(); greet();
             LS.set('assetStudioAgent.lastBrands.v1', { ...LS.get('assetStudioAgent.lastBrands.v1', {}), [P.id]: B.id });
             try { const u = new URL(location.href); u.searchParams.set('pack', P.id); u.searchParams.set('brand', B.id); history.replaceState(null, '', u); } catch { }
         }
         const packFull = async id => { if (packCache.has(id)) return packCache.get(id); const d = await jget(`${API}/brand-packs/${encodeURIComponent(id)}`), p = d && d.pack; if (!p || !(p.brands || []).length) throw new Error('The brand group contains no brands.'); packCache.set(id, p); return p; };
-        async function selectPack(id) {
+        async function selectPack(id, preferredBrand) {
             if (!id) return; const g = $('#groupSelect'); g.disabled = true;
-            try { P = await packFull(id); buildGroupSelect(); B = null; const last = LS.get('assetStudioAgent.lastBrands.v1', {})[id]; await selectBrand(P.brands.some(b => b.id === last) ? last : P.brands[0].id); toast(`${P.name || id} · ${P.brands.length} brand${P.brands.length === 1 ? '' : 's'}`); }
+            try { P = await packFull(id); buildGroupSelect(); B = null; const last = LS.get('assetStudioAgent.lastBrands.v1', {})[id], pick = [preferredBrand, last].find(brandId => brandId && P.brands.some(brand => brand.id === brandId)) || P.brands[0].id; await selectBrand(pick); toast(`${P.name || id} · ${P.brands.length} brand${P.brands.length === 1 ? '' : 's'}`); }
             catch (e) { toast('Could not load that group: ' + e.message, true); g.value = P ? P.id : ''; }
             finally { g.disabled = false; }
         }
 
         /* ---------- wiring ---------- */
         $('#groupSelect').onchange = e => selectPack(e.target.value);
+        $('#brandTemplatesBtn').onclick = renderBrandTemplateLibrary;
+        $('#brandTemplatesClose').onclick = closeBrandTemplates;
+        $('#brandTemplatesBackdrop').onclick = closeBrandTemplates;
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape' && !$('#brandTemplatesDialog').hidden) closeBrandTemplates();
+        });
+        $('#agentPhotoInput').addEventListener('change', event => uploadAgentImage(event.target.files?.[0]));
+        $('#agentFontInput').addEventListener('change', event => uploadAgentFont(event.target.files?.[0]));
+        $('#focusBack').onclick = () => setFocus(false);
+        $('#enterFocus').onclick = () => setFocus(true);
+        $('#focusSwitch').onchange = event => switchDesign(+event.target.value);
+        document.addEventListener('click', event => { const menu = $('#moreMenu'); if (menu.open && !menu.contains(event.target)) menu.open = false; });
         $('#undoBtn').onclick = undo;
         $('#resetBtn').onclick = () => commit([{ t: 'reset' }]);
         $('#downloadBtn').onclick = () => download('image/png');
         $('#jpgBtn').onclick = () => download('image/jpeg');
         $('#saveBtn').onclick = saveAsset;
         $('#timelineBtn').onclick = () => openTimeline(!TL.open);
-        PRESETS.forEach(p => $('#tlPreset').append(new Option(p[1], p[0])));
+        window.AssetStudioAnimation.GROUPS.forEach(([gid, glabel]) => {
+            const og = document.createElement('optgroup'); og.label = glabel;
+            PRESETS.filter(p => p[3] === gid).forEach(p => og.appendChild(new Option(p[1], p[0])));
+            $('#tlPreset').appendChild(og);
+        });
+        $('#tlPreset').value = 'fadeIn';
         $('#tlPlay').onclick = () => { if (TL.playing) stopP(); else play(); };
+        $('#tlReplay').onclick = replay;
+        $('#previewReplay').onclick = replay;
+        $('#tlClose').onclick = () => openTimeline(false);
+
+        /* resizable timeline: drag the grip (or use the arrow keys) */
+        const TLH_KEY = 'assetStudioAgent.timelineH.v1';
+        const setTlH = (h, save) => {
+            const v = clamp(Math.round(h), 150, Math.max(200, Math.floor(innerHeight * .6)));
+            $('#timeline').style.setProperty('--tl-h', v + 'px'); if (save) LS.set(TLH_KEY, v); return v;
+        };
+        let tlH = setTlH(+LS.get(TLH_KEY, 230) || 230);
+        const grip = $('#tlGrip');
+        grip.addEventListener('pointerdown', ev => {
+            ev.preventDefault(); grip.setPointerCapture(ev.pointerId); grip.classList.add('drag');
+            const y0 = ev.clientY, h0 = tlH;
+            const mv = m => { tlH = setTlH(h0 + (y0 - m.clientY)); };
+            const up = () => { grip.classList.remove('drag'); grip.removeEventListener('pointermove', mv); grip.removeEventListener('pointerup', up); grip.removeEventListener('pointercancel', up); LS.set(TLH_KEY, tlH); };
+            grip.addEventListener('pointermove', mv); grip.addEventListener('pointerup', up); grip.addEventListener('pointercancel', up);
+        });
+        grip.addEventListener('dblclick', () => { tlH = setTlH(230, true); });
+        grip.addEventListener('keydown', ev => {
+            if (ev.key === 'ArrowUp' || ev.key === 'ArrowDown') { ev.preventDefault(); tlH = setTlH(tlH + (ev.key === 'ArrowUp' ? 24 : -24), true); }
+        });
+        addEventListener('resize', () => { tlH = setTlH(tlH); });
+
+        /* Resize the preview area on desktop, or the stage itself in the stacked layout. */
+        const STAGE_KEY = 'assetStudioAgent.stageSize.v1';
+        const stage = preview.parentElement, previewPanel = stage.parentElement, stageGrip = $('#stageGrip');
+        bindZoom();
+        const stageSizes = Object.assign({ panel: 0, stage: 0 }, LS.get(STAGE_KEY, {}));
+        const stackedLayout = () => matchMedia('(max-width:1180px)').matches;
+        const validSize = value => Number.isFinite(value) && value > 0;
+        const sizeForMode = () => {
+            if (stackedLayout()) return validSize(stageSizes.stage) ? stageSizes.stage : Math.min(innerHeight * .62, 640);
+            return validSize(stageSizes.panel) ? stageSizes.panel : previewPanel.getBoundingClientRect().height;
+        };
+        const updateStageGrip = value => {
+            stageGrip.setAttribute('aria-valuemin', stackedLayout() ? '160' : '460');
+            stageGrip.setAttribute('aria-valuemax', String(Math.floor(stackedLayout() ? innerHeight * .96 : innerHeight * 1.35)));
+            stageGrip.setAttribute('aria-valuenow', String(Math.round(value)));
+            stageGrip.setAttribute('aria-valuetext', `${Math.round(value)} pixels`);
+        };
+        const setStageSize = (value, save = false) => {
+            const stacked = stackedLayout();
+            const min = stacked ? 160 : 460;
+            const max = Math.max(min, Math.floor(innerHeight * (stacked ? .96 : 1.35)));
+            const next = clamp(Math.round(value), min, max);
+            if (stacked) {
+                stage.style.setProperty('--stage-h', `${next}px`);
+                stageSizes.stage = next;
+            } else {
+                previewPanel.style.setProperty('--preview-panel-h', `${next}px`);
+                stageSizes.panel = next;
+            }
+            updateStageGrip(next);
+            if (save) LS.set(STAGE_KEY, stageSizes);
+            requestAnimationFrame(() => { fitCanvas(); if (useComposite()) drawFrame(TL.T); });
+            return next;
+        };
+        const applyStageSize = () => {
+            const stacked = stackedLayout();
+            if (stacked) previewPanel.style.removeProperty('--preview-panel-h');
+            else stage.style.removeProperty('--stage-h');
+            const value = sizeForMode();
+            if ((stacked && validSize(stageSizes.stage)) || (!stacked && validSize(stageSizes.panel))) setStageSize(value);
+            else updateStageGrip(value);
+        };
+        applyStageSize();
+        stageGrip.addEventListener('pointerdown', ev => {
+            ev.preventDefault(); stageGrip.setPointerCapture(ev.pointerId); stageGrip.classList.add('drag');
+            const y0 = ev.clientY, size0 = sizeForMode();
+            const move = event => setStageSize(size0 + event.clientY - y0);
+            const end = () => {
+                stageGrip.classList.remove('drag');
+                stageGrip.removeEventListener('pointermove', move);
+                stageGrip.removeEventListener('pointerup', end);
+                stageGrip.removeEventListener('pointercancel', end);
+                LS.set(STAGE_KEY, stageSizes);
+            };
+            stageGrip.addEventListener('pointermove', move);
+            stageGrip.addEventListener('pointerup', end);
+            stageGrip.addEventListener('pointercancel', end);
+        });
+        stageGrip.addEventListener('dblclick', () => {
+            stageSizes.panel = 0; stageSizes.stage = 0;
+            previewPanel.style.removeProperty('--preview-panel-h');
+            stage.style.removeProperty('--stage-h');
+            LS.set(STAGE_KEY, stageSizes);
+            updateStageGrip(sizeForMode());
+            requestAnimationFrame(() => { fitCanvas(); if (useComposite()) drawFrame(TL.T); });
+        });
+        stageGrip.addEventListener('keydown', ev => {
+            if (ev.key === 'ArrowUp' || ev.key === 'ArrowDown') {
+                ev.preventDefault(); setStageSize(sizeForMode() + (ev.key === 'ArrowUp' ? 24 : -24), true);
+            } else if (ev.key === 'Home') {
+                ev.preventDefault(); stageGrip.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+            }
+        });
+        addEventListener('resize', applyStageSize);
+
+        /* collapsible side panels: [ toggles designs/controls, ] toggles the agent */
+        const VIEW_KEY = 'assetStudioAgent.view.v1', VIEW = Object.assign({ rail: true, agent: true }, LS.get(VIEW_KEY, {}));
+        const applyView = () => {
+            const w = document.querySelector('.workspace');
+            w.classList.toggle('hide-rail', !VIEW.rail); w.classList.toggle('hide-agent', !VIEW.agent);
+            $('#toggleRail').setAttribute('aria-pressed', String(VIEW.rail)); $('#toggleAgent').setAttribute('aria-pressed', String(VIEW.agent));
+            LS.set(VIEW_KEY, VIEW); requestAnimationFrame(() => { fitCanvas(); if (useComposite()) drawFrame(TL.T); });
+        };
+        $('#toggleRail').onclick = () => { VIEW.rail = !VIEW.rail; applyView(); };
+        $('#toggleAgent').onclick = () => { VIEW.agent = !VIEW.agent; applyView(); };
+        applyView();
+        document.addEventListener('keydown', e => {
+            if (e.metaKey || e.ctrlKey || e.altKey || /INPUT|TEXTAREA|SELECT/.test((e.target || {}).tagName || '')) return;
+            if (e.key === '[') { VIEW.rail = !VIEW.rail; applyView(); }
+            else if (e.key === ']') { VIEW.agent = !VIEW.agent; applyView(); }
+            else if (TL.open && e.key.toLowerCase() === 'r') { e.preventDefault(); $('#tlReplay').click(); }
+            else if (TL.open && e.key === ' ' && !/BUTTON/.test((e.target || {}).tagName || '')) { e.preventDefault(); $('#tlPlay').click(); }
+        });
         $('#tlScrub').oninput = e => { stopP(); seek(+e.target.value); };
         $('#tlAdd').onclick = () => {
             if (!SEL) { toast('Select an element on the canvas first.'); return; }
-            const p = $('#tlPreset').value; commit([{ t: 'anim', id: SEL, preset: p, start: SEL === 'art' ? 0 : 300, duration: presetDur(p) }]);
+            const p = $('#tlPreset').value; commit([{ t: 'anim', id: SEL, preset: p, duration: presetDur(p) }]);
         };
         $('#tlClear').onclick = () => { if (!hasAnim() && !(S.anim && Object.keys(S.anim).length)) { toast('No animation to clear.'); return; } commit([{ t: 'clearAnim', id: SEL || 'all' }]); };
         $('#tlRec').onclick = record;
         const ov = $('#selLayer'), frac = ev => { const r = ov.getBoundingClientRect(); return [(ev.clientX - r.left) / r.width, (ev.clientY - r.top) / r.height]; };
-        ov.addEventListener('pointermove', ev => { const id = hit(...frac(ev)); if (id !== HOV) { HOV = id; drawOverlay(); } });
-        ov.addEventListener('pointerleave', () => { HOV = null; drawOverlay(); });
-        ov.addEventListener('click', ev => { const id = hit(...frac(ev)); selectEl(id === SEL ? null : id); });
+        let layerDrag = null, suppressOverlayClick = false;
+        ov.addEventListener('pointerdown', event => {
+            if (event.button !== 0 || !tplOf()?.brandComposition) return;
+            const [x, y] = frac(event), id = hit(x, y), element = id !== 'art' && findEl(id);
+            if (!element) return;
+            layerDrag = { id, x: event.clientX, y: event.clientY, startX: element.x, startY: element.y, moved: false };
+            ov.setPointerCapture(event.pointerId);
+        });
+        ov.addEventListener('pointermove', event => {
+            if (layerDrag) {
+                const dx = event.clientX - layerDrag.x, dy = event.clientY - layerDrag.y;
+                if (!layerDrag.moved && Math.hypot(dx, dy) < 3) return;
+                if (!layerDrag.moved) {
+                    layerDrag.moved = true;
+                    hist.push(clone(S));
+                    ov.classList.add('is-dragging');
+                    selectEl(layerDrag.id, true);
+                }
+                const r = ov.getBoundingClientRect(), element = findEl(layerDrag.id);
+                if (!element) return;
+                S.layout = S.layout || {};
+                S.layout[layerDrag.id] = {
+                    ...(S.layout[layerDrag.id] || {}),
+                    x: clamp(layerDrag.startX + dx / r.width, 0, Math.max(0, 1 - element.w)) * 100,
+                    y: clamp(layerDrag.startY + dy / r.height, 0, Math.max(0, 1 - element.h)) * 100
+                };
+                renderPreview();
+                return;
+            }
+            const id = hit(...frac(event)); if (id !== HOV) { HOV = id; drawOverlay(); }
+        });
+        const finishLayerDrag = event => {
+            if (!layerDrag) return;
+            const moved = layerDrag.moved;
+            layerDrag = null;
+            ov.classList.remove('is-dragging');
+            if (moved) {
+                suppressOverlayClick = true;
+                setTimeout(() => { suppressOverlayClick = false; }, 0);
+                saveState();
+                tlBuild();
+            }
+        };
+        ov.addEventListener('pointerup', finishLayerDrag);
+        ov.addEventListener('pointercancel', finishLayerDrag);
+        ov.addEventListener('pointerleave', () => { if (!layerDrag) { HOV = null; drawOverlay(); } });
+        ov.addEventListener('click', event => {
+            if (suppressOverlayClick) { event.preventDefault(); return; }
+            const id = hit(...frac(event)); selectEl(id === SEL ? null : id);
+        });
         document.addEventListener('keydown', e => { if (e.key === 'Escape' && SEL && !/INPUT|TEXTAREA|SELECT/.test((e.target || {}).tagName || '')) selectEl(null, true); });
-        if (window.ResizeObserver) new ResizeObserver(() => placeOverlay()).observe(preview);
+        /* refit the canvas whenever the stage changes size (panel toggles, timeline resize, window resize) */
+        if (window.ResizeObserver) new ResizeObserver(() => { fitCanvas(); updateStageGrip(sizeForMode()); if (useComposite()) drawFrame(TL.T); }).observe(preview.parentElement);
         $('#agClear').onclick = () => { chat.innerHTML = ''; };
         $('#agForm').onsubmit = e => { e.preventDefault(); const v = $('#agIn').value.trim(); if (v) { $('#agIn').value = ''; ask(v); } };
         document.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !/INPUT|TEXTAREA|SELECT/.test((e.target || {}).tagName || '')) { e.preventDefault(); undo(); } });
 
         async function boot() {
             try {
-                if (!window.AssetEngine || !window.AssetCategories) throw new Error('The Asset Studio engine did not load.');
+                if (!window.AssetEngine || !window.AssetCategories || !window.StudioCore || !window.StudioBrand) throw new Error('The Asset Studio template engine did not load.');
                 const [d] = await Promise.all([jget(API + '/brand-packs'), loadFonts()]);
                 PACKS = (d && d.packs) || []; if (!PACKS.length) throw new Error('No brand packs are available.');
                 const q = new URLSearchParams(location.search), last = LS.get('assetStudioAgent.last.v1', {}), rb = q.get('brand') || q.get('brandId'), rp = q.get('pack') || q.get('packId');

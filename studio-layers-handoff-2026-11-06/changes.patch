@@ -1,0 +1,3051 @@
+diff --git a/docs/asset-studio.md b/docs/asset-studio.md
+index 0d8c32d..7d0b452 100644
+--- a/docs/asset-studio.md
++++ b/docs/asset-studio.md
+@@ -6,6 +6,10 @@ no keyframes.
+ 
+ `/asset-studio.html`
+ 
++The companion [Studio Agent](../pages/studio-agent.html) uses the same brand
++template catalog in its category design lists, with editable copy and palette,
++layer selection, animation, and PNG/JPG export.
++
+ ---
+ 
+ ## 1. When to use it
+@@ -98,11 +102,20 @@ typography, logos, photography, applications matrix, voice and a link to the
+ Word guide. **Apply this palette & type** restores the pack defaults after
+ experimenting.
+ 
++The Designs panel includes both the original layouts and the active brand's
++catalog templates in the relevant category tabs. Brand templates are marked in
++the grid, and can be edited in Asset Studio with the *Colours, Type, Image,
++Text,* and *Size* controls, then saved or exported like other designs.
++**Brand templates** is a catalog browser with previews; **Open in Designs**
++jumps to that template in the category grid. **Edit layers in Studio V2**
++remains available for advanced composition editing.
++
+ ---
+ 
+ ## 4. Categories and designs
+ 
+-50 layouts across eleven categories. Sizes are the presets offered in *Size*;
++50 built-in layouts across eleven categories, plus the active brand's
++category-matched templates. Sizes are the presets offered in *Size*;
+ a design exposes only the presets that suit it (a roll-up does not offer a
+ story crop).
+ 
+diff --git a/docs/brand-packs.md b/docs/brand-packs.md
+index 4059853..4c257cd 100644
+--- a/docs/brand-packs.md
++++ b/docs/brand-packs.md
+@@ -214,6 +214,36 @@ batch export, guardrails and agent protocol all apply to it. The digital
+ templates are loop-safe (first and last keyframe match), so the same scene
+ exports as a still PNG, an animated GIF or an MP4.
+ 
++### Venue social set (Boardwalk)
++
++A pack can add its own designs to the set for one brand. The Cawley pack's
++Boardwalk tab carries ten more compositions rebuilt from the venue's social
++pack (`01.pdf`), filtered with `appliesTo` so only Boardwalk sees them:
++
++| Template | Size | Variables | What is already built |
++|---|---:|---:|---|
++| `bw-dessert` | 1080 × 1080 | 5 | Wordmark, kicker, circular dish-photo slot, dish, description and price, waves, scallop footer |
++| `bw-sweets-menu` | 1080 × 1350 | 11 | Wordmark, SWEETS, waves, white menu card with four dishes and prices, tagline, footer |
++| `bw-a-la-carte` | 1000 × 1500 | 7 | Wordmark, à la carte kicker, dashed pizza-photo frame, sea-salt eyebrow, dish, flavours, price |
++| `bw-good-morning` | 1080 × 1920 | 5 | Cawley lockup, GOOD MORNING, breakfast line, Full Scottish, gull, sun and waves |
++| `bw-seasons` | 1080 × 1920 | 7 | Cawley lockup, sunset glow, gull, SEASONS, Scottish set menu, two price lines, dessert list |
++| `bw-event-post` | 1200 × 630 | 5 | Wordmark, event type, headline, date/CTA, circular photo slot, scallop footer |
++| `bw-announcement` | 1200 × 630 | 4 | Cawley lockup, topic, headline, supporting line, gull, sun and waves |
++| `bw-from-the-sea` | 1600 × 900 | 5 | Blue-tinted wordmark, FROM THE SEA, dish, description and price, circular photo slot |
++| `bw-banner` | 1600 × 600 | 1 | Full wordmark, gull, Cawley endorsement, waves, scallop footer |
++| `bw-group-banner` | 1600 × 400 | 1 | Cawley lockup, sunset glow, five venue names, waves |
++
++The waves, scallop shingles, sun, glow and gull are generated as small inline
++SVG images with an explicit intrinsic size (without one, a canvas export
++rasterises them at 300 × 150 and the pattern breaks). Photo slots are `image`
++variables whose default is the dashed placeholder, so swapping the variable
++removes the cue in one step. The ten cards declare a 4 % safe margin — the
++margin the artwork was drawn with — instead of the social channel default, and
++merge their brighter site palette into the composition kit so the off-palette
++guardrail stays honest. The group lockup comes from the pack's portfolio
++assets; without a portfolio the template still builds, just without the group
++mark.
++
+ A menu arrives with 17 variables (`menu_title`, five × `item_N_name`,
+ `item_N_desc`, `item_N_price`, `menu_footer`); a business-card back carries
+ the canonical contact block; a voucher has value, terms and code. Row-based
+diff --git a/package.json b/package.json
+index d567eb7..e01e3c9 100644
+--- a/package.json
++++ b/package.json
+@@ -12,6 +12,7 @@
+     "test": "node --test \"tests/*.test.js\"",
+     "test:smoke": "node tests/smoke.js",
+     "test:asset-studio": "node tests/asset-studio.js",
++    "test:agent-studio": "node tests/agent-studio.js",
+     "test:visual": "node tests/visual.js",
+     "test:visual:report": "node tests/visual.js --report",
+     "test:all": "npm test && npm run test:smoke && npm run test:asset-studio && npm run test:visual",
+diff --git a/pages/asset-studio.html b/pages/asset-studio.html
+index 618bc16..8a42b27 100644
+--- a/pages/asset-studio.html
++++ b/pages/asset-studio.html
+@@ -30,6 +30,7 @@
+                 <a class="ghost" href="voice.html" title="Speak brand copy or design a voice">Voice</a>
+                 <a class="ghost" href="social.html" title="Read the business social profile">Social</a>
+                 <button type="button" class="ghost" id="brandInfoBtn" aria-haspopup="dialog">Brand identity</button>
++                <button type="button" class="ghost" id="brandTemplatesBtn" aria-haspopup="dialog">Brand templates</button>
+                 <a class="ghost" href="studio-v2.html" title="Open the full layer studio for advanced composition editing">Studio V2</a>
+             </div>
+         </header>
+@@ -120,6 +121,21 @@
+         <div id="drawerBody" class="drawer-body"></div>
+     </aside>
+ 
++    <div id="brandTemplatesDialog" class="modal" hidden>
++        <div class="modal-backdrop" id="brandTemplatesBackdrop"></div>
++        <section class="modal-panel template-library-panel" role="dialog" aria-modal="true" aria-labelledby="brandTemplatesTitle">
++            <header class="gate-head">
++                <div>
++                    <p class="eyebrow">Brand identity</p>
++                    <h2 id="brandTemplatesTitle">Brand templates</h2>
++                    <p id="brandTemplatesHint" class="hint"></p>
++                </div>
++                <button type="button" class="icon-btn" id="brandTemplatesClose" aria-label="Close brand templates">×</button>
++            </header>
++            <div id="brandTemplateGrid" class="brand-template-grid"></div>
++        </section>
++    </div>
++
+ 
+     <div id="printDialog" class="modal" hidden>
+         <div class="modal-backdrop" id="printBackdrop"></div>
+@@ -190,6 +206,7 @@
+ 
+     <script src="/src/client/asset-studio/vendor/qrcode.min.js"></script>
+     <script src="/src/shared/asset-intel.js"></script>
++    <script src="/src/shared/studio-core.js"></script>
+     <script src="/src/shared/brand-pack.js"></script>
+     <script src="/src/client/asset-studio/engine.js"></script>
+     <script src="/src/client/asset-studio/categories.js"></script>
+diff --git a/pages/studio-agent.html b/pages/studio-agent.html
+index 945ca17..fd225a0 100644
+--- a/pages/studio-agent.html
++++ b/pages/studio-agent.html
+@@ -4,7 +4,7 @@
+ <head>
+     <meta charset="utf-8">
+     <meta name="viewport" content="width=device-width, initial-scale=1">
+-    <meta name="description" content="Asset Studio Agent — final brand assets with an agent that edits copy, colour, motif, logo, design and size.">
++    <meta name="description" content="Asset Studio Agent — brand templates and final assets with an agent that edits copy, colour, design and size.">
+     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231a1a2e'/%3E%3Ctext x='16' y='23' font-family='Georgia,serif' font-size='19' fill='%23f2eee7' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E">
+     <title>Asset Studio · Agent</title>
+     <link rel="stylesheet" href="/src/client/asset-studio/app.css">
+@@ -59,6 +59,7 @@
+         .sel-card.is-selected { border-color:var(--ag-ac); box-shadow:inset 0 0 0 1px var(--ag-ac); }
+         .sel-card canvas { display:block; width:100%; height:auto; max-height:130px; object-fit:contain; border-radius:4px; background:#0001; margin-bottom:4px; }
+         .sel-card span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
++        .sel-card.is-brand-template::after { content:"Brand template"; display:block; margin-top:3px; color:var(--ag-mu); font-size:10px; }
+         .mini-select { width:100%; margin:4px 0 10px; font:inherit; padding:6px 8px; border:1px solid var(--ag-line); border-radius:8px; background:#fff; color:var(--ag-ink); }
+         /* Canvas selection overlay */
+         .preview-panel .stage { position:relative; }
+@@ -210,6 +211,7 @@
+     <script src="/src/shared/brand-pack.js"></script>
+     <script src="/src/client/asset-studio/engine.js"></script>
+     <script src="/src/client/asset-studio/categories.js"></script>
++    <script src="/src/shared/studio-core.js"></script>
+     <script>
+     (function () {
+         'use strict';
+@@ -235,6 +237,7 @@
+         /* ---------- state ---------- */
+         let PACKS = [], P = null, B = null, TH = { ink: '#17162e', bone: '#f2eee7', accent: '#eb5b3c' }, PAL = {}, BF = { display: 'Georgia', body: 'Helvetica Neue' };
+         const UF = [], packCache = new Map(), IMG = new Map();
++        let BRAND_TEMPLATES = {}, BRAND_TEMPLATE_IMAGES = new Map();
+         const blank = () => ({ cat: Object.keys(window.AssetCategories)[0], tpl: 0, size: 0, t: {}, anim: {}, pal: null, motif: 'auto', motifOn: true, motifScale: 1, motifX: 0, motifY: 0, logoOn: true, logoScale: 1 });
+         let S = null, hist = [], focusKey = null, selTok = 0, rt = 0;
+         const preview = $('#previewCanvas');
+@@ -247,10 +250,34 @@
+         const presetDur = p => (PRESETS.find(x => x[0] === p) || [0, 0, 900])[2];
+         const presetLabel = p => (PRESETS.find(x => x[0] === p) || [0, p])[1];
+ 
+-        const cat = (s = S) => window.AssetCategories[s.cat] || window.AssetCategories[Object.keys(window.AssetCategories)[0]];
++        const categoryDesigns = id => [
++            ...(window.AssetCategories[id]?.tpls || []),
++            ...(BRAND_TEMPLATES[id] || [])
++        ];
++        const cat = (s = S) => {
++            const base = window.AssetCategories[s.cat] || window.AssetCategories[Object.keys(window.AssetCategories)[0]];
++            return { ...base, tpls: categoryDesigns(s.cat) };
++        };
+         const catLabel = id => String((window.AssetCategories[id] && window.AssetCategories[id].title) || id).replace(/ Maker$/, '');
+         const tplOf = (s = S) => cat(s).tpls[s.tpl] || cat(s).tpls[0];
+-        const sizesOf = (s = S) => { const c = cat(s), t = tplOf(s), all = c.sizes || []; if (!t || !Array.isArray(t.sizes) || !t.sizes.length) return all; const ok = new Set(t.sizes), f = all.filter(x => ok.has(x.n)); return f.length ? f : all; };
++        const brandTemplateSizes = template => (template.composition.formats?.length ? template.composition.formats : [template.composition]).map((format, index) => ({
++            n: format.label || format.name || (index ? `Format ${index + 1}` : 'Master'),
++            d: `${format.channel || template.channel} · ${format.width}×${format.height}`,
++            w: Number(format.width) || template.composition.width,
++            h: Number(format.height) || template.composition.height,
++            format,
++            dpi: format.dpi || template.composition.dpi,
++            mm: template.widthMm && template.heightMm ? [
++                template.widthMm * ((Number(format.width) || template.composition.width) / template.composition.width),
++                template.heightMm * ((Number(format.height) || template.composition.height) / template.composition.height)
++            ] : undefined
++        }));
++        const sizesOf = (s = S) => {
++            const c = cat(s), t = tplOf(s), all = c.sizes || [];
++            if (t?.brandComposition) return brandTemplateSizes(t);
++            if (!t || !Array.isArray(t.sizes) || !t.sizes.length) return all;
++            const ok = new Set(t.sizes), f = all.filter(x => ok.has(x.n)); return f.length ? f : all;
++        };
+         const sizeOf = (s = S) => { const z = sizesOf(s); return z[s.size] || z[0] || { n: 'Square', w: 1080, h: 1080 }; };
+ 
+         /* ---------- brand → theme / fonts / logos / photos ---------- */
+@@ -310,6 +337,75 @@
+             b._photos = (await Promise.all(urls.map(u => loadImg(u).catch(() => null)))).filter(Boolean); return b._photos;
+         }
+ 
++        function brandTemplateCategory(template) {
++            const id = template.id.toLowerCase();
++            if (id === 'menu') return 'menu';
++            if (id === 'flyer') return 'flyer';
++            if (id === 'voucher') return 'voucher';
++            if (id.startsWith('business-card')) return 'bizcard';
++            if (id === 'table-card') return 'tablecard';
++            if (id === 'display-screen' || id === 'digital-menu-board') return 'signage';
++            if (template.channel === 'print') return 'flyer';
++            if (template.channel === 'instore') return 'tablecard';
++            return 'social';
++        }
++        function brandTemplateDefaults(composition) {
++            const values = Object.fromEntries((composition.variables || [])
++                .filter(variable => variable.kind === 'text')
++                .map(variable => [variable.id, variable.defaultValue ?? '']));
++            (composition.layers || []).forEach(layer => {
++                if (layer.type === 'text' && !layer.bindings?.text && String(layer.text || '').trim()) {
++                    values[`layer:${layer.id}`] = layer.text;
++                }
++            });
++            return values;
++        }
++        async function loadBrandTemplates(brand) {
++            const grouped = Object.fromEntries(Object.keys(window.AssetCategories).map(id => [id, []]));
++            const entries = window.StudioBrand.templateCatalog(brand);
++            const templates = entries.map(entry => {
++                const composition = window.StudioBrand.createTemplateComposition({
++                    packId: P.id,
++                    packName: P.name,
++                    portfolio: P.portfolio,
++                    brand,
++                    templateId: entry.id
++                });
++                const category = brandTemplateCategory(entry);
++                const template = {
++                    id: entry.id,
++                    n: entry.label,
++                    t: brandTemplateDefaults(composition),
++                    brandComposition: true,
++                    composition,
++                    channel: entry.channel,
++                    category,
++                    profile: ['social', 'digital', 'display', 'video'].includes(entry.channel) ? 'screen' : 'print',
++                    widthMm: entry.widthMm,
++                    heightMm: entry.heightMm,
++                    dpi: entry.dpi
++                };
++                if (grouped[category]) grouped[category].push(template);
++                return template;
++            });
++            const urls = new Set(templates.flatMap(template => [
++                ...(template.composition.variables || [])
++                    .filter(variable => variable.kind === 'image' && variable.defaultValue)
++                    .map(variable => variable.defaultValue),
++                ...(template.composition.layers || [])
++                    .filter(layer => layer.type !== 'text' && layer.url)
++                    .map(layer => layer.url)
++            ]));
++            const loaded = await Promise.all([...urls].map(async url => {
++                try { return [url, await loadImg(url)]; }
++                catch { return [url, null]; }
++            }));
++            BRAND_TEMPLATES = grouped;
++            BRAND_TEMPLATE_IMAGES = new Map(loaded.filter(([, image]) => image));
++            const failures = loaded.filter(([, image]) => !image).length;
++            if (failures) toast(`${failures} brand-template image${failures === 1 ? '' : 's'} could not be loaded; affected designs may look incomplete.`, true);
++        }
++
+         /* ---------- brand copy ---------- */
+         const contact = f => { const e = ((B.guidelines && B.guidelines.contact) || []).find(c => String(c.field || '').toLowerCase() === f.toLowerCase()); return e && e.value || ''; };
+         const siteOf = () => String(contact('Website') || B.url || '').replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+@@ -337,7 +433,16 @@
+         /* ---------- engine bridge ---------- */
+         function palOf(s = S) {
+             if (s.pal) return s.pal;
+-            try { const r = window.StudioBrand.paletteRoles(B, s.cat === 'bizcard' ? 'business-card-front' : s.cat === 'tablecard' ? 'table-card' : s.cat === 'social' ? 'social-post' : (['flyer', 'menu', 'voucher'].includes(s.cat) ? s.cat : 'flyer')); if (r && r.ground && r.ink && r.accent && r.ground.hex) return { paper: r.ground.hex, ink: r.ink.hex, accent: r.accent.hex }; } catch { }
++            try {
++                const template = tplOf(s);
++                const id = template?.brandComposition ? template.id
++                    : s.cat === 'bizcard' ? 'business-card-front'
++                        : s.cat === 'tablecard' ? 'table-card'
++                            : s.cat === 'social' ? 'social-post'
++                                : (['flyer', 'menu', 'voucher'].includes(s.cat) ? s.cat : 'flyer');
++                const r = window.StudioBrand.paletteRoles(B, id);
++                if (r && r.ground && r.ink && r.accent && r.ground.hex) return { paper: r.ground.hex, ink: r.ink.hex, accent: r.accent.hex };
++            } catch { }
+             return { paper: TH.bone, ink: TH.ink, accent: TH.accent };
+         }
+         function engState(s) {
+@@ -349,7 +454,150 @@
+                 brandWordmark: (B && (B.wordmark || B.name)) || 'Brand', typeProfile: null, titleWeight: 700, defaultQr: (B && (B.url || (siteOf() ? 'https://' + siteOf() : ''))) || ''
+             };
+         }
+-        function draw(canvas, s, target) { window.AssetEngine.render(canvas, sizeOf(s), tplOf(s), engState(s), target); }
++        function resolveBrandComposition(template, s = S) {
++            const source = template.composition;
++            const text = textOf(s);
++            const variables = (source.variables || []).map(variable => (
++                Object.prototype.hasOwnProperty.call(text, variable.id)
++                    ? { ...variable, defaultValue: text[variable.id] }
++                    : variable
++            ));
++            const composition = { ...source, variables };
++            const size = sizeOf(s);
++            const format = size.format || null;
++            const original = source.meta?.palette || {};
++            const palette = palOf(s);
++            const colors = new Map([
++                [String(original.ground || '').toLowerCase(), palette.paper],
++                [String(original.ink || '').toLowerCase(), palette.ink],
++                [String(original.accent || '').toLowerCase(), palette.accent]
++            ].filter(([from]) => from));
++            const layers = (source.layers || []).map(layer => {
++                let resolved = window.StudioCore.resolveLayer(layer, { composition, format });
++                if (layer.type === 'text' && !layer.bindings?.text && text[`layer:${layer.id}`] !== undefined) {
++                    resolved = { ...resolved, text: text[`layer:${layer.id}`] };
++                }
++                if (resolved.color && colors.has(String(resolved.color).toLowerCase())) {
++                    resolved = { ...resolved, color: colors.get(String(resolved.color).toLowerCase()) };
++                }
++                if (resolved.recolorEnabled) {
++                    const color = colors.get(String(resolved.recolorColor || '').toLowerCase());
++                    if (color) resolved = { ...resolved, recolorColor: color };
++                }
++                if (resolved.type === 'text') {
++                    const family = String(resolved.font?.family || '');
++                    const role = Number(resolved.font?.weight || 400) >= 600 ? 'display' : 'body';
++                    resolved = { ...resolved, font: { ...resolved.font, family: s.fonts?.[role] || BF[role] || family } };
++                }
++                return resolved;
++            });
++            return { composition, size, layers, palette };
++        }
++        function drawBrandLayer(context, layer, size, scaleX, scaleY, palette) {
++            const x = Number(layer.x || 0) / 100 * size.w;
++            const y = Number(layer.y || 0) / 100 * size.h;
++            const width = Number(layer.w || 0) / 100 * size.w;
++            const height = Number(layer.h || 0) / 100 * size.h;
++            if (!(width > 0 && height > 0)) return;
++            context.save();
++            context.scale(scaleX, scaleY);
++            context.globalAlpha = Math.max(0, Math.min(1, Number(layer.opacity ?? 1)));
++            if (layer.rotation) {
++                context.translate(x + width / 2, y + height / 2);
++                context.rotate(Number(layer.rotation) * Math.PI / 180);
++                context.translate(-width / 2, -height / 2);
++            } else {
++                context.translate(x, y);
++            }
++            if (layer.type === 'text') {
++                const layout = window.StudioCore.layoutText({
++                    text: layer.text || '',
++                    font: layer.font || {},
++                    boxWidthPx: width,
++                    boxHeightPx: height,
++                    formatHeightPx: size.h,
++                    align: layer.align,
++                    verticalAlign: layer.verticalAlign,
++                    overflow: layer.overflow,
++                    measureFactory: options => window.StudioCore.buildTextMetrics(context, options)
++                });
++                context.fillStyle = layer.color || palette.ink;
++                context.textAlign = 'left';
++                context.textBaseline = 'alphabetic';
++                layout.lines.forEach(line => context.fillText(line.text, line.x, line.baselineY, Math.max(1, width - line.x)));
++            } else {
++                const image = BRAND_TEMPLATE_IMAGES.get(layer.url);
++                if (image) {
++                    context.beginPath();
++                    context.rect(0, 0, width, height);
++                    context.clip();
++                    const imageWidth = image.naturalWidth || image.width;
++                    const imageHeight = image.naturalHeight || image.height;
++                    const fit = layer.fit === 'contain' ? 'contain' : 'cover';
++                    const scale = fit === 'contain'
++                        ? Math.min(width / imageWidth, height / imageHeight)
++                        : Math.max(width / imageWidth, height / imageHeight);
++                    const drawWidth = imageWidth * scale;
++                    const drawHeight = imageHeight * scale;
++                    if (layer.recolorEnabled) {
++                        const tinted = document.createElement('canvas');
++                        tinted.width = imageWidth;
++                        tinted.height = imageHeight;
++                        const tintedContext = tinted.getContext('2d');
++                        tintedContext.drawImage(image, 0, 0, imageWidth, imageHeight);
++                        tintedContext.globalCompositeOperation = 'source-in';
++                        tintedContext.fillStyle = layer.recolorColor || '#ffffff';
++                        tintedContext.fillRect(0, 0, imageWidth, imageHeight);
++                        context.drawImage(tinted, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
++                    } else {
++                        context.drawImage(image, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
++                    }
++                }
++            }
++            context.restore();
++        }
++        function renderBrandComposition(canvas, template, s = S, targetWidth = null, capture = false, backgroundOnly = false) {
++            const { composition, size, layers, palette } = resolveBrandComposition(template, s);
++            const width = Math.max(1, Math.round(targetWidth || size.w));
++            const height = Math.max(1, Math.round(width * size.h / size.w));
++            canvas.width = width;
++            canvas.height = height;
++            const context = canvas.getContext('2d');
++            context.fillStyle = palette.paper || composition.meta?.palette?.ground || '#ffffff';
++            context.fillRect(0, 0, width, height);
++            const scaleX = width / size.w;
++            const scaleY = height / size.h;
++            const elements = [];
++            if (!backgroundOnly) layers.filter(layer => layer.visible !== false).sort((a, b) => a.z - b.z).forEach(layer => {
++                if (layer.type !== 'text' && !layer.url) return;
++                drawBrandLayer(context, layer, size, scaleX, scaleY, palette);
++                if (!capture) return;
++                const layerCanvas = document.createElement('canvas');
++                layerCanvas.width = width;
++                layerCanvas.height = height;
++                drawBrandLayer(layerCanvas.getContext('2d'), layer, size, scaleX, scaleY, palette);
++                const key = layer.type === 'text'
++                    ? (layer.bindings?.text || (!layer.bindings?.text ? `layer:${layer.id}` : null))
++                    : null;
++                elements.push({
++                    id: layer.id,
++                    kind: layer.type === 'text' ? 'text' : 'image',
++                    name: layer.name || (layer.type === 'text' ? 'Text' : 'Image'),
++                    x: Number(layer.x || 0) / 100,
++                    y: Number(layer.y || 0) / 100,
++                    w: Number(layer.w || 0) / 100,
++                    h: Number(layer.h || 0) / 100,
++                    key: key && Object.prototype.hasOwnProperty.call(textOf(s), key) ? key : null,
++                    canvas: layerCanvas
++                });
++            });
++            return { width, height, elements };
++        }
++        function draw(canvas, s, target) {
++            const template = tplOf(s);
++            if (template?.brandComposition) renderBrandComposition(canvas, template, s, target);
++            else window.AssetEngine.render(canvas, sizeOf(s), template, engState(s), target);
++        }
+         /* ----- element capture: the visible render doubles as the capture pass ----- */
+         function hookBoxes(st, ctx2, runs, logos) {
+             const hook = arr => {
+@@ -399,11 +647,18 @@
+             if (!B || !s) return;
+             const size = sizeOf(s), target = Math.min(size.w, 1100);
+             try {
+-                const c2 = preview.getContext('2d'), runs = [], logos = [], st = engState(s);
+-                hookBoxes(st, c2, runs, logos);
+-                window.AssetEngine.render(preview, size, tplOf(s), st, target);
++                const template = tplOf(s);
++                if (template.brandComposition) {
++                    const rendered = renderBrandComposition(preview, template, s, target, true);
++                    TL.els = rendered.elements;
++                } else {
++                    const c2 = preview.getContext('2d'), runs = [], logos = [], st = engState(s);
++                    hookBoxes(st, c2, runs, logos);
++                    window.AssetEngine.render(preview, size, template, st, target);
++                    TL.els = extractEls(s, preview, runs, logos);
++                }
+                 preview.style.maxWidth = '100%'; preview.style.height = 'auto';
+-                TL.els = extractEls(s, preview, runs, logos); TL.target = target; TL.shown = 'f';
++                TL.target = target; TL.shown = 'f';
+                 if (SEL && SEL !== 'art' && !TL.els.some(e => e.id === SEL)) SEL = null;
+             } catch (e) { console.error(e); toast('Could not render this design: ' + e.message, true); }
+             placeOverlay(); drawOverlay();
+@@ -474,8 +729,12 @@
+             const s = S, size = sizeOf(s), target = TL.target || Math.min(size.w, 1100);
+             const key = JSON.stringify([B.id, s.cat, s.tpl, s.size, s.t, s.pal, s.motif, s.motifOn, s.motifScale, s.motifX, s.motifY, s.logoScale, target]);
+             if (TL.art && TL.artKey === key) return TL.art;
+-            const cv = document.createElement('canvas'); cv.getContext('2d').fillText = () => { };
+-            window.AssetEngine.render(cv, size, tplOf(s), engState({ ...s, logoOn: false }), target);
++            const cv = document.createElement('canvas'), template = tplOf(s);
++            if (template.brandComposition) renderBrandComposition(cv, template, s, target, false, true);
++            else {
++                cv.getContext('2d').fillText = () => { };
++                window.AssetEngine.render(cv, size, template, engState({ ...s, logoOn: false }), target);
++            }
+             TL.art = cv; TL.artKey = key; return cv;
+         }
+         function drawText(c, e) {
+@@ -500,7 +759,11 @@
+                 c.translate(cx + f.dx * W, cy + f.dy * H); c.scale(f.s, f.s); c.translate(-cx, -cy); fn(); c.restore();
+             };
+             withAnim('art', { x: 0, y: 0, w: 1, h: 1 }, () => c.drawImage(art, 0, 0));
+-            TL.els.forEach(e => withAnim(e.id, e, () => { if (e.kind === 'text') drawText(c, e); else if (e.kind === 'logo') drawLogo(c, e, W, H); }));
++            TL.els.forEach(e => withAnim(e.id, e, () => {
++                if (tplOf().brandComposition) c.drawImage(e.canvas, 0, 0);
++                else if (e.kind === 'text') drawText(c, e);
++                else if (e.kind === 'logo') drawLogo(c, e, W, H);
++            }));
+             TL.shown = 'c';
+         }
+         function tlSync() {
+@@ -603,7 +866,7 @@
+             (P.brands || []).forEach(b => {
+                 const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'brand-chip'; btn.dataset.id = b.id; btn.title = b.tagline || b.name; btn.setAttribute('aria-pressed', String(B && b.id === B.id));
+                 const dot = document.createElement('i'); dot.style.cssText = 'display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;background:' + ((b.palette && ((b.palette[1] && b.palette[1].hex) || (b.palette[0] && b.palette[0].hex))) || '#999');
+-                btn.append(dot, document.createTextNode(b.name)); btn.onclick = () => { if (!B || b.id !== B.id) selectBrand(b.id); }; w.appendChild(btn);
++                btn.append(dot, document.createTextNode(b.name)); btn.onclick = () => { if (!B || b.id !== B.id) selectBrand(b.id).catch(error => toast('Could not load that brand: ' + error.message, true)); }; w.appendChild(btn);
+             });
+         }
+         function buildCategoryNav() {
+@@ -618,9 +881,12 @@
+             const g = $('#designGrid'), c = cat(); g.innerHTML = '';
+             $('#designMeta').textContent = `${c.tpls.length} for ${catLabel(S.cat)}`;
+             c.tpls.forEach((t, i) => {
+-                const b = document.createElement('button'); b.type = 'button'; b.className = 'design-card sel-card' + (i === S.tpl ? ' is-selected' : ''); b.title = t.n;
++                const b = document.createElement('button'); b.type = 'button'; b.className = 'design-card sel-card' + (i === S.tpl ? ' is-selected' : '') + (t.brandComposition ? ' is-brand-template' : ''); b.title = t.n;
+                 const cv = document.createElement('canvas'), sp = document.createElement('span'); sp.textContent = t.n; b.append(cv, sp);
+-                try { window.AssetEngine.renderThumb(cv, (c.sizes || []).find(z => !t.sizes || t.sizes.includes(z.n)) || sizeOf(), t, engState({ ...S, tpl: i, t: {} }), 160); } catch { cv.width = 160; cv.height = 160; }
++                try {
++                    if (t.brandComposition) renderBrandComposition(cv, t, { ...S, tpl: i, t: {} }, 160);
++                    else window.AssetEngine.renderThumb(cv, (c.sizes || []).find(z => !t.sizes || t.sizes.includes(z.n)) || sizeOf(), t, engState({ ...S, tpl: i, t: {} }), 160);
++                } catch { cv.width = 160; cv.height = 160; }
+                 b.onclick = () => { if (i !== S.tpl) commit([{ t: 'tpl', i }]); }; g.appendChild(b);
+             });
+         }
+@@ -675,6 +941,13 @@
+             h.querySelector('#palReset').onclick = () => commit([{ t: 'pal', pal: null }]);
+             h.querySelector('#palNight').onclick = () => commit([variantCmd('night')]);
+             h.querySelector('#palAcc').onclick = () => commit([variantCmd('accent')]);
++            if (tplOf().brandComposition) {
++                body.appendChild(Object.assign(document.createElement('p'), {
++                    className: 'hint',
++                    textContent: 'This brand template keeps its authored imagery and layout. Edit its copy and colours here, or select a layer to animate it.'
++                }));
++                return;
++            }
+             const slot = window.AssetEngine.templateUsesMotif(tplOf()), cur = S.motifOn === false ? 'none' : (S.motif || 'auto');
+             const mids = [...(slot ? ['auto'] : []), 'logo', ...window.AssetEngine.VECTORS.filter(i => i !== 'none'), 'none'];
+             const m = document.createElement('div');
+@@ -774,18 +1047,20 @@
+             if (has('light version', 'bright', 'reset colo', 'brand colo', 'default colo')) add('Brand colours', 'Back to the brand’s own palette.', [variantCmd('reset')]);
+             if (has('accent poster', 'accent background', 'accent ground', 'bold')) add('Accent ground', 'Accent-colour background with high-contrast type.', [variantCmd('accent')]);
+             /* motif / logo */
+-            if (has('no motif', 'remove motif', 'hide motif', 'without motif')) add('No motif', 'Removes the decorative motif.', [{ t: 'motif', id: 'none' }]);
+-            if (has('motif') && has('bigger', 'larger', 'increase')) add('Motif +25%', 'More presence.', [{ t: 'motifScale', v: S.motifScale * 1.25 }]);
+-            if (has('motif') && has('smaller', 'reduce')) add('Motif −20%', 'Gives text more room.', [{ t: 'motifScale', v: S.motifScale * .8 }]);
+-            if (has('motif') && has('left')) add('Motif left', 'Shifts 10%.', [{ t: 'motifPos', x: S.motifX - .1 }]);
+-            if (has('motif') && has('right')) add('Motif right', 'Shifts 10%.', [{ t: 'motifPos', x: S.motifX + .1 }]);
+-            if (has('motif') && has('up', 'higher')) add('Motif up', 'Shifts 10%.', [{ t: 'motifPos', y: S.motifY - .1 }]);
+-            if (has('motif') && has('down', 'lower')) add('Motif down', 'Shifts 10%.', [{ t: 'motifPos', y: S.motifY + .1 }]);
+-            if (has('motif') && !out.length) window.AssetEngine.VECTORS.filter(i => i !== 'none').slice(0, 4).forEach(id => add(`Motif: ${id}`, 'Swap the decorative motif.', [{ t: 'motif', id }]));
+-            if (has('hide logo', 'remove logo', 'no logo')) add('Hide logo', 'Removes the logo.', [{ t: 'logo', on: false }]);
+-            if (has('show logo', 'add logo')) add('Show logo', 'Brings the logo back.', [{ t: 'logo', on: true }]);
+-            if (has('logo') && has('bigger', 'larger', 'increase')) add('Logo +25%', 'More brand presence.', [{ t: 'logo', scale: S.logoScale * 1.25 }]);
+-            if (has('logo') && has('smaller', 'reduce')) add('Logo −20%', 'Quieter signature.', [{ t: 'logo', scale: S.logoScale * .8 }]);
++            if (!tplOf().brandComposition) {
++                if (has('no motif', 'remove motif', 'hide motif', 'without motif')) add('No motif', 'Removes the decorative motif.', [{ t: 'motif', id: 'none' }]);
++                if (has('motif') && has('bigger', 'larger', 'increase')) add('Motif +25%', 'More presence.', [{ t: 'motifScale', v: S.motifScale * 1.25 }]);
++                if (has('motif') && has('smaller', 'reduce')) add('Motif −20%', 'Gives text more room.', [{ t: 'motifScale', v: S.motifScale * .8 }]);
++                if (has('motif') && has('left')) add('Motif left', 'Shifts 10%.', [{ t: 'motifPos', x: S.motifX - .1 }]);
++                if (has('motif') && has('right')) add('Motif right', 'Shifts 10%.', [{ t: 'motifPos', x: S.motifX + .1 }]);
++                if (has('motif') && has('up', 'higher')) add('Motif up', 'Shifts 10%.', [{ t: 'motifPos', y: S.motifY - .1 }]);
++                if (has('motif') && has('down', 'lower')) add('Motif down', 'Shifts 10%.', [{ t: 'motifPos', y: S.motifY + .1 }]);
++                if (has('motif') && !out.length) window.AssetEngine.VECTORS.filter(i => i !== 'none').slice(0, 4).forEach(id => add(`Motif: ${id}`, 'Swap the decorative motif.', [{ t: 'motif', id }]));
++                if (has('hide logo', 'remove logo', 'no logo')) add('Hide logo', 'Removes the logo.', [{ t: 'logo', on: false }]);
++                if (has('show logo', 'add logo')) add('Show logo', 'Brings the logo back.', [{ t: 'logo', on: true }]);
++                if (has('logo') && has('bigger', 'larger', 'increase')) add('Logo +25%', 'More brand presence.', [{ t: 'logo', scale: S.logoScale * 1.25 }]);
++                if (has('logo') && has('smaller', 'reduce')) add('Logo −20%', 'Quieter signature.', [{ t: 'logo', scale: S.logoScale * .8 }]);
++            }
+             /* animation */
+             const animWords = ['animat', 'fade', 'slide', 'zoom', 'pulse', 'drift', 'stagger', 'entrance', 'appear', 'motion'], clearWords = ['clear anim', 'remove anim', 'no anim', 'stop anim'];
+             if (has(...animWords) || has(...clearWords)) {
+@@ -828,7 +1103,8 @@
+         }
+         function greet() {
+             chat.innerHTML = '';
+-            say('agent', `Hi, I’m the Studio agent. I can edit this <b>${esc(B.name)}</b> ${esc(catLabel(S.cat).toLowerCase())} — copy, colours, motif, logo, design and size. Click a text field to focus me on it, or just tell me what to change. Some starting points:`, suggest('ideas').slice(0, 3));
++            const capabilities = tplOf().brandComposition ? 'copy, colours, design and size' : 'copy, colours, motif, logo, design and size';
++            say('agent', `Hi, I’m the Studio agent. I can edit this <b>${esc(B.name)}</b> ${esc(catLabel(S.cat).toLowerCase())} — ${capabilities}. Click a text field to focus me on it, or just tell me what to change. Some starting points:`, suggest('ideas').slice(0, 3));
+         }
+         function undo() { if (!hist.length) { toast('Nothing to undo.'); return; } S = hist.pop(); afterChange(true); }
+ 
+@@ -848,10 +1124,15 @@
+         async function selectBrand(id, restore) {
+             const b = (P.brands || []).find(x => x.id === id); if (!b) return; const tok = ++selTok;
+             document.querySelectorAll('#brandSwitch button').forEach(x => x.disabled = true);
+-            B = b; deriveTheme(b); BF = brandFonts(b); hist = []; focusKey = null;
+-            await Promise.all([brandLogos(b), brandPhotos(b), document.fonts && document.fonts.ready].filter(Boolean)).catch(() => { });
++            B = b; BRAND_TEMPLATES = {}; BRAND_TEMPLATE_IMAGES = new Map(); deriveTheme(b); BF = brandFonts(b); hist = []; focusKey = null;
++            try {
++                await Promise.all([brandLogos(b), brandPhotos(b), loadBrandTemplates(b), document.fonts && document.fonts.ready].filter(Boolean));
++            } catch (error) {
++                document.querySelectorAll('#brandSwitch button').forEach(x => x.disabled = false);
++                throw error;
++            }
+             if (tok !== selTok) return;
+-            S = blank(); if (restore) { const c = window.AssetCategories[restore.cat]; if (c) { S.cat = restore.cat; S.tpl = clamp(restore.tpl | 0, 0, c.tpls.length - 1); S.size = Math.max(0, restore.size | 0); const saved = LS.get(stateKey(), null); if (saved && saved.cat === S.cat) S = { ...S, ...saved }; } }
++            S = blank(); if (restore) { const c = window.AssetCategories[restore.cat]; if (c) { S.cat = restore.cat; S.tpl = clamp(restore.tpl | 0, 0, categoryDesigns(restore.cat).length - 1); S.size = clamp(Math.max(0, restore.size | 0), 0, sizesOf(S).length - 1); const saved = LS.get(stateKey(), null); if (saved && saved.cat === S.cat) S = { ...S, ...saved }; } }
+             document.querySelectorAll('#brandSwitch button').forEach(x => x.disabled = false);
+             buildBrandPills(); buildAll(); renderPreview(); greet();
+             LS.set('assetStudioAgent.lastBrands.v1', { ...LS.get('assetStudioAgent.lastBrands.v1', {}), [P.id]: B.id });
+@@ -894,7 +1175,7 @@
+ 
+         async function boot() {
+             try {
+-                if (!window.AssetEngine || !window.AssetCategories) throw new Error('The Asset Studio engine did not load.');
++                if (!window.AssetEngine || !window.AssetCategories || !window.StudioCore || !window.StudioBrand) throw new Error('The Asset Studio template engine did not load.');
+                 const [d] = await Promise.all([jget(API + '/brand-packs'), loadFonts()]);
+                 PACKS = (d && d.packs) || []; if (!PACKS.length) throw new Error('No brand packs are available.');
+                 const q = new URLSearchParams(location.search), last = LS.get('assetStudioAgent.last.v1', {}), rb = q.get('brand') || q.get('brandId'), rp = q.get('pack') || q.get('packId');
+diff --git a/scripts/publish-brand-templates.js b/scripts/publish-brand-templates.js
+index 5e00d42..6b147dd 100644
+--- a/scripts/publish-brand-templates.js
++++ b/scripts/publish-brand-templates.js
+@@ -103,6 +103,7 @@ async function publishPack(packId, stats) {
+                 const composition = Brand.createTemplateComposition({
+                     packId: pack.id,
+                     packName: pack.name,
++                    portfolio: pack.portfolio,
+                     brand,
+                     templateId: template.id,
+                     name,
+diff --git a/server.js b/server.js
+index ee7bae3..41efc2e 100644
+--- a/server.js
++++ b/server.js
+@@ -3598,6 +3598,7 @@ async function createBrandTemplateProject(packId, payload) {
+         composition = StudioBrand.createTemplateComposition({
+             packId: pack.id,
+             packName: pack.name,
++            portfolio: pack.portfolio,
+             brand,
+             templateId: template.id,
+             projectId: id,
+diff --git a/src/client/asset-studio/app.css b/src/client/asset-studio/app.css
+index fbcf625..64f1751 100644
+--- a/src/client/asset-studio/app.css
++++ b/src/client/asset-studio/app.css
+@@ -382,6 +382,14 @@ img { max-width: 100%; }
+     white-space: nowrap;
+ }
+ 
++.design-tile .design-origin {
++    color: var(--brand);
++    font-size: 8px;
++    font-weight: 650;
++    letter-spacing: .04em;
++    text-transform: uppercase;
++}
++
+ /* ── controls ─────────────────────────────────────────────────────── */
+ 
+ .controls-panel { overflow: hidden; }
+@@ -1336,6 +1344,101 @@ img { max-width: 100%; }
+     box-shadow: 0 34px 90px rgb(0 0 0 / 30%);
+ }
+ 
++.template-library-panel {
++    width: min(1240px, 100%);
++}
++
++.brand-template-grid {
++    display: grid;
++    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
++    gap: 12px;
++}
++
++.asset-brand-template {
++    display: grid;
++    align-content: start;
++    gap: 8px;
++    min-width: 0;
++    padding: 10px;
++    border: 1px solid var(--line);
++    border-radius: 12px;
++    background: var(--surface-2);
++}
++
++.asset-brand-template h3 {
++    font: 400 19px/1.15 Georgia, "Times New Roman", serif;
++}
++
++.asset-brand-template .template-spec {
++    color: var(--muted);
++    font-size: 10px;
++}
++
++.asset-brand-template .template-description {
++    min-height: 3em;
++    color: var(--muted);
++    font-size: 11px;
++    line-height: 1.45;
++}
++
++.template-preview {
++    position: relative;
++    width: 100%;
++    min-height: 190px;
++    overflow: hidden;
++    border: 1px solid var(--line);
++    border-radius: 8px;
++    background-color: #e9e3d9;
++    background-image: linear-gradient(45deg, rgb(26 26 46 / 4%) 25%, transparent 25%),
++        linear-gradient(-45deg, rgb(26 26 46 / 4%) 25%, transparent 25%),
++        linear-gradient(45deg, transparent 75%, rgb(26 26 46 / 4%) 75%),
++        linear-gradient(-45deg, transparent 75%, rgb(26 26 46 / 4%) 75%);
++    background-position: 0 0, 0 5px, 5px -5px, -5px 0;
++    background-size: 10px 10px;
++}
++
++.template-preview-canvas {
++    position: absolute;
++    top: 50%;
++    left: 50%;
++    overflow: hidden;
++    transform: translate(-50%, -50%);
++}
++
++.template-preview-layer {
++    position: absolute;
++    box-sizing: border-box;
++}
++
++.template-preview-text {
++    display: flex;
++    overflow: hidden;
++    padding: 2px;
++    white-space: pre-wrap;
++    word-break: break-word;
++}
++
++.template-preview-text span {
++    width: 100%;
++    overflow: hidden;
++}
++
++.template-preview-error {
++    display: grid;
++    min-height: 190px;
++    place-items: center;
++    color: var(--muted);
++    font-size: 11px;
++}
++
++.template-actions {
++    display: flex;
++    flex-wrap: wrap;
++    gap: 6px;
++}
++
++.template-actions .btn { text-decoration: none; }
++
+ .print-layout {
+     display: grid;
+     grid-template-columns: 270px minmax(0, 1fr);
+@@ -1437,11 +1540,16 @@ img { max-width: 100%; }
+ @media (max-width: 820px) {
+     .modal { padding: 12px; }
+     .modal-panel { padding: 18px; }
++    .brand-template-grid { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
+     .print-layout { grid-template-columns: 1fr; }
+     #printPreview { max-height: 40vh; }
+     .print-actions #printStatus { width: 100%; margin-left: 0; }
+ }
+ 
++@media (max-width: 520px) {
++    .brand-template-grid { grid-template-columns: 1fr; }
++}
++
+ /* ── toast ────────────────────────────────────────────────────────── */
+ 
+ .toast {
+diff --git a/src/client/asset-studio/app.js b/src/client/asset-studio/app.js
+index 6b05b70..425feb0 100644
+--- a/src/client/asset-studio/app.js
++++ b/src/client/asset-studio/app.js
+@@ -506,6 +506,8 @@ Chocolate hazelnut spread | Deez Nuts`,
+         pack: null,
+         brands: [],
+         brand: null,
++        brandTemplates: {},
++        brandTemplateImages: new Map(),
+         categoryId: 'flyer',
+         templateIndex: 0,
+         sizeIndex: 0,
+@@ -535,6 +537,7 @@ Chocolate hazelnut spread | Deez Nuts`,
+         qr: '',
+         text: {},
+         photoIndex: 0,
++        activeBrandImageVariable: '',
+         photos: [],
+         photoSources: [],
+         logoWordmark: null,
+@@ -639,12 +642,38 @@ Chocolate hazelnut spread | Deez Nuts`,
+ 
+     // ─── category + template helpers ─────────────────────────────────
+ 
+-    const currentCategory = () => window.AssetCategories[state.categoryId];
++    const categoryDesigns = (id) => [
++        ...(window.AssetCategories[id]?.tpls || []),
++        ...(state.brandTemplates[id] || []),
++    ];
++    const currentCategory = () => {
++        const category = window.AssetCategories[state.categoryId];
++        return category ? { ...category, tpls: categoryDesigns(state.categoryId) } : null;
++    };
+     const currentTemplate = () => currentCategory()?.tpls[state.templateIndex] || null;
+     // A template may list the size presets it supports (`sizes: ['A4 portrait',
+     // …]`). Categories with mixed print/screen work (signage, packaging) need
+     // this; categories where every design shares the list need nothing.
+     const sizesForTemplate = (template = currentTemplate(), category = currentCategory()) => {
++        if (template?.brandComposition) {
++            return (template.composition.formats || [template.composition])
++                .map((format, index) => ({
++                    n: format.label || format.name || (index ? `Format ${index + 1}` : 'Master'),
++                    d: `${format.channel || template.channel} · ${format.width}×${format.height}`,
++                    w: Number(format.width) || template.composition.width,
++                    h: Number(format.height) || template.composition.height,
++                    format,
++                    formatIndex: index,
++                    dpi: format.dpi || template.composition.dpi,
++                    mm: template.widthMm && template.heightMm
++                        ? [
++                            template.widthMm * ((Number(format.width) || template.composition.width) / template.composition.width),
++                            template.heightMm * ((Number(format.height) || template.composition.height) / template.composition.height),
++                        ]
++                        : undefined,
++                    print: template.profile === 'print',
++                }));
++        }
+         const all = category?.sizes || [];
+         if (!template || !Array.isArray(template.sizes) || !template.sizes.length) return all;
+         const allowed = new Set(template.sizes);
+@@ -660,6 +689,99 @@ Chocolate hazelnut spread | Deez Nuts`,
+     // print | screen | thermal — drives which exports are offered.
+     const currentProfile = () => currentTemplate()?.profile || currentCategory()?.profile || 'print';
+ 
++    const assetCategoryForBrandTemplate = (template) => {
++        const id = template.id.toLowerCase();
++        if (id === 'menu') return 'menu';
++        if (id === 'flyer') return 'flyer';
++        if (id === 'voucher') return 'voucher';
++        if (id.startsWith('business-card')) return 'bizcard';
++        if (id === 'table-card') return 'tablecard';
++        if (id === 'display-screen' || id === 'digital-menu-board') return 'signage';
++        if (template.channel === 'print') return 'flyer';
++        if (template.channel === 'instore') return 'tablecard';
++        return 'social';
++    };
++
++    const brandTemplateTextFields = (template) => {
++        if (!template?.brandComposition) return [];
++        const composition = template.composition;
++        const fields = new Map((composition.variables || [])
++            .filter((variable) => variable.kind === 'text')
++            .map((variable) => [variable.id, {
++                key: variable.id,
++                label: variable.name || humanizeField(variable.id),
++                value: variable.defaultValue ?? '',
++            }]));
++        (composition.layers || []).forEach((layer) => {
++            if (layer.type !== 'text' || layer.bindings?.text || !String(layer.text || '').trim()) return;
++            const key = `layer:${layer.id}`;
++            fields.set(key, { key, label: layer.name || 'Text', value: layer.text });
++        });
++        return [...fields.values()];
++    };
++
++    const brandTemplateDefaults = (template) => Object.fromEntries(
++        [
++            ...(template.composition.variables || []).map((variable) => [variable.id, variable.defaultValue ?? '']),
++            ...brandTemplateTextFields(template)
++                .filter((field) => field.key.startsWith('layer:'))
++                .map((field) => [field.key, field.value]),
++        ],
++    );
++
++    const loadBrandTemplates = async (brand) => {
++        const grouped = Object.fromEntries(Object.keys(window.AssetCategories).map((id) => [id, []]));
++        const catalog = window.StudioBrand.templateCatalog(brand);
++        const templates = catalog.map((entry) => {
++            const composition = window.StudioBrand.createTemplateComposition({
++                packId: state.pack.id,
++                packName: state.pack.name,
++                portfolio: state.pack.portfolio,
++                brand,
++                templateId: entry.id,
++            });
++            const categoryId = assetCategoryForBrandTemplate(entry);
++            const formats = composition.formats?.length ? composition.formats : [composition];
++            const template = {
++                id: entry.id,
++                n: entry.label,
++                t: brandTemplateDefaults({ brandComposition: true, composition }),
++                brandComposition: true,
++                composition,
++                brandTemplateCategoryId: categoryId,
++                profile: ['social', 'digital', 'display', 'video'].includes(entry.channel) ? 'screen' : 'print',
++                ph: composition.layers.some((layer) => layer.type !== 'text' && (layer.bindings?.url
++                    || /photo|image/i.test(layer.name || ''))),
++                spec: entry.spec,
++                description: entry.description,
++                widthMm: entry.widthMm,
++                heightMm: entry.heightMm,
++                dpi: entry.dpi,
++                formats,
++                motion: entry.motion,
++                duration: entry.duration,
++            };
++            if (grouped[categoryId]) grouped[categoryId].push(template);
++            return template;
++        });
++        const imageUrls = new Set(templates.flatMap((template) => template.composition.layers
++            .filter((layer) => layer.type !== 'text' && layer.url)
++            .map((layer) => layer.url)));
++        const loaded = await Promise.all([...imageUrls].map(async (url) => {
++            try {
++                return [url, await loadImage(url)];
++            } catch {
++                return [url, null];
++            }
++        }));
++        state.brandTemplateImages = new Map(loaded.filter(([, image]) => image));
++        state.brandTemplates = grouped;
++        const failures = loaded.filter(([, image]) => !image).length;
++        if (failures) {
++            toast(`${failures} brand-template image${failures === 1 ? '' : 's'} could not be loaded; affected designs may look incomplete.`, true);
++        }
++    };
++
+     const slidePoints = () => String(state.text?.points || '')
+         .split('\n')
+         .map((line) => line.trim())
+@@ -754,6 +876,7 @@ Chocolate hazelnut spread | Deez Nuts`,
+ 
+     const categoryDefaultText = (template, index) => {
+         if (!template) return {};
++        if (template.brandComposition) return brandTemplateDefaults(template);
+         const key = `${state.brand?.id || 'none'}|${state.categoryId}|${index}`;
+         if (defaultTextCache.has(key)) return { ...defaultTextCache.get(key) };
+         const text = {};
+@@ -1227,7 +1350,9 @@ Chocolate hazelnut spread | Deez Nuts`,
+             'previewBrand', 'previewTitle', 'previewFormat', 'previewSize', 'previewCanvas',
+             'downloadBtn', 'printBtn', 'saveBtn', 'exportNote', 'brandGate', 'gateClose',
+             'gateGrid', 'gateError', 'gatePortfolio', 'gateGroups', 'brandDrawer', 'drawerBackdrop',
+-            'drawerBody', 'drawerTitle', 'drawerClose', 'toast', 'photoInput', 'fontInput',
++            'drawerBody', 'drawerTitle', 'drawerClose', 'brandTemplatesBtn', 'brandTemplatesDialog',
++            'brandTemplatesBackdrop', 'brandTemplatesClose', 'brandTemplatesTitle', 'brandTemplatesHint',
++            'brandTemplateGrid', 'toast', 'photoInput', 'fontInput',
+             'printPackBtn', 'printDialog', 'printBackdrop', 'printClose', 'printBleed',
+             'printSafe', 'printMarks', 'printDpi', 'printMeta', 'printPageCount',
+             'printPreview', 'printReport', 'printDownload', 'printCancel', 'printStatus',
+@@ -1245,6 +1370,9 @@ Chocolate hazelnut spread | Deez Nuts`,
+         el.saveBtn.addEventListener('click', saveAsset);
+         el.groupSelect.addEventListener('change', () => activatePack(el.groupSelect.value, { autoSelect: true }));
+         el.brandInfoBtn.addEventListener('click', openDrawer);
++        el.brandTemplatesBtn.addEventListener('click', renderBrandTemplateLibrary);
++        el.brandTemplatesClose.addEventListener('click', closeBrandTemplates);
++        el.brandTemplatesBackdrop.addEventListener('click', closeBrandTemplates);
+         el.drawerClose.addEventListener('click', closeDrawer);
+         el.drawerBackdrop.addEventListener('click', closeDrawer);
+         el.gateClose.addEventListener('click', () => { if (state.brand) hideGate(); });
+@@ -1267,6 +1395,10 @@ Chocolate hazelnut spread | Deez Nuts`,
+                 closePrintDialog();
+                 return;
+             }
++            if (!el.brandTemplatesDialog.hidden) {
++                closeBrandTemplates();
++                return;
++            }
+             if (!el.brandDrawer.hidden) {
+                 closeDrawer();
+                 return;
+@@ -1653,6 +1785,7 @@ Chocolate hazelnut spread | Deez Nuts`,
+         loadLibraryForBrand(brand);
+         state.fonts = defaultFontsForBrand(brand);
+         applyBrandPalette();
++        await loadBrandTemplates(brand);
+ 
+         const category = currentCategory();
+         let templateIndex = 0;
+@@ -1673,6 +1806,9 @@ Chocolate hazelnut spread | Deez Nuts`,
+         state.motif = defaultMotifForBrand(brand, category.tpls[templateIndex]);
+         resetMotifPlacement();
+         state.text = categoryDefaultText(category.tpls[templateIndex], templateIndex);
++        state.activeBrandImageVariable = category.tpls[templateIndex].brandComposition
++            ? category.tpls[templateIndex].composition.variables?.find((variable) => variable.kind === 'image')?.id || ''
++            : '';
+         if (restore) applySessionOverrides(session);
+         writeLastBrand(state.pack?.id, brand.id);
+         clearZoom();
+@@ -1727,6 +1863,7 @@ Chocolate hazelnut spread | Deez Nuts`,
+         resetMotifPlacement();
+         resetLogoPlacement();
+         state.text = categoryDefaultText(category.tpls[0], 0);
++        state.activeBrandImageVariable = '';
+         clearZoom();
+         renderWorkspace();
+     };
+@@ -1734,13 +1871,26 @@ Chocolate hazelnut spread | Deez Nuts`,
+     const selectTemplate = (index) => {
+         const category = currentCategory();
+         if (!category?.tpls[index]) return;
++        const template = category.tpls[index];
+         state.templateIndex = index;
+         state.sizeIndex = 0;
+         state.slideIndex = 0;
+-        state.motif = defaultMotifForBrand(state.brand, category.tpls[index]);
++        state.motif = defaultMotifForBrand(state.brand, template);
+         resetMotifPlacement();
+         resetLogoPlacement();
+-        state.text = categoryDefaultText(category.tpls[index], index);
++        state.text = categoryDefaultText(template, index);
++        state.activeBrandImageVariable = template.brandComposition
++            ? template.composition.variables?.find((variable) => variable.kind === 'image')?.id || ''
++            : '';
++        if (template.brandComposition) {
++            const palette = template.composition.meta?.palette || {};
++            state.pal = {
++                paper: palette.ground || state.pal.paper,
++                ink: palette.ink || state.pal.ink,
++                accent: palette.accent || state.pal.accent,
++            };
++            applyTheme();
++        }
+         clearZoom();
+         renderWorkspace();
+     };
+@@ -1778,7 +1928,7 @@ Chocolate hazelnut spread | Deez Nuts`,
+             const category = window.AssetCategories[id];
+             const tab = button(null, 'category-tab', () => selectCategory(id));
+             tab.setAttribute('aria-selected', String(id === state.categoryId));
+-            tab.append(make('b', null, categoryLabel(id)), make('small', null, `${category.tpls.length} designs`));
++            tab.append(make('b', null, categoryLabel(id)), make('small', null, `${categoryDesigns(id).length} designs`));
+             el.categoryNav.append(tab);
+         });
+     };
+@@ -1794,11 +1944,143 @@ Chocolate hazelnut spread | Deez Nuts`,
+             thumb.append(document.createElement('canvas'));
+             const label = make('span', null, template.n);
+             tile.append(thumb, label);
++            if (template.brandComposition) {
++                tile.append(make('small', 'design-origin', 'Brand template'));
++            }
+             el.designGrid.append(tile);
+         });
+         renderDesignThumbnails();
+     };
+ 
++    const resolveBrandComposition = (template, text = state.text) => {
++        const source = template.composition;
++        const variables = (source.variables || []).map((variable) => (
++            Object.prototype.hasOwnProperty.call(text || {}, variable.id)
++                ? { ...variable, defaultValue: text[variable.id] }
++                : variable
++        ));
++        const composition = { ...source, variables };
++        const size = sizesForTemplate(template)[state.sizeIndex] || sizesForTemplate(template)[0];
++        const format = size?.format || null;
++        const original = source.meta?.palette || {};
++        const colors = new Map([
++            [String(original.ground || '').toLowerCase(), state.pal.paper],
++            [String(original.ink || '').toLowerCase(), state.pal.ink],
++            [String(original.accent || '').toLowerCase(), state.pal.accent],
++        ].filter(([from]) => from));
++        const layers = (source.layers || []).map((layer) => {
++            let resolved = window.StudioCore.resolveLayer(layer, { composition, format });
++            if (layer.type === 'text' && !layer.bindings?.text && text?.[`layer:${layer.id}`] !== undefined) {
++                resolved = { ...resolved, text: text[`layer:${layer.id}`] };
++            }
++            if (resolved.color && colors.has(String(resolved.color).toLowerCase())) {
++                resolved = { ...resolved, color: colors.get(String(resolved.color).toLowerCase()) };
++            }
++            if (resolved.recolorEnabled) {
++                const color = colors.get(String(resolved.recolorColor || '').toLowerCase());
++                if (color) resolved = { ...resolved, recolorColor: color };
++            }
++            if (resolved.type === 'text') {
++                const family = String(resolved.font?.family || '');
++                const role = /georgia|times|serif|didot|palatino|baskerville/i.test(family)
++                    ? 'serif'
++                    : (Number(resolved.font?.weight || 400) >= 600 ? 'display' : 'sans');
++                resolved = { ...resolved, font: { ...resolved.font, family: state.fonts[role] || family } };
++            }
++            return resolved;
++        });
++        return { composition, format, size, layers };
++    };
++
++    const renderBrandComposition = (canvas, template, text = state.text, targetWidth = null) => {
++        const { composition, size, layers } = resolveBrandComposition(template, text);
++        const width = Math.max(1, Math.round(targetWidth || size.w));
++        const height = Math.max(1, Math.round(width * size.h / size.w));
++        canvas.width = width;
++        canvas.height = height;
++        const context = canvas.getContext('2d');
++        const scaleX = width / size.w;
++        const scaleY = height / size.h;
++        context.save();
++        context.scale(scaleX, scaleY);
++        context.fillStyle = state.pal.paper || composition.meta?.palette?.ground || '#ffffff';
++        context.fillRect(0, 0, size.w, size.h);
++        layers.filter((layer) => layer.visible !== false).sort((a, b) => a.z - b.z).forEach((layer) => {
++            const x = Number(layer.x || 0) / 100 * size.w;
++            const y = Number(layer.y || 0) / 100 * size.h;
++            const layerWidth = Number(layer.w || 0) / 100 * size.w;
++            const layerHeight = Number(layer.h || 0) / 100 * size.h;
++            if (!(layerWidth > 0 && layerHeight > 0)) return;
++            context.save();
++            context.globalAlpha = Math.max(0, Math.min(1, Number(layer.opacity ?? 1)));
++            if (layer.rotation) {
++                context.translate(x + layerWidth / 2, y + layerHeight / 2);
++                context.rotate(Number(layer.rotation) * Math.PI / 180);
++                context.translate(-layerWidth / 2, -layerHeight / 2);
++            } else {
++                context.translate(x, y);
++            }
++            if (layer.type === 'text') {
++                const font = layer.font || {};
++                const layout = window.StudioCore.layoutText({
++                    text: layer.text || '',
++                    font,
++                    boxWidthPx: layerWidth,
++                    boxHeightPx: layerHeight,
++                    formatHeightPx: size.h,
++                    align: layer.align,
++                    verticalAlign: layer.verticalAlign,
++                    overflow: layer.overflow,
++                    measureFactory: (options) => window.StudioCore.buildTextMetrics(context, options),
++                });
++                context.fillStyle = layer.color || state.pal.ink;
++                context.textAlign = 'left';
++                context.textBaseline = 'alphabetic';
++                layout.lines.forEach((line) => context.fillText(
++                    line.text,
++                    line.x,
++                    line.baselineY,
++                    Math.max(1, layerWidth - line.x),
++                ));
++            } else {
++                const image = state.brandTemplateImages.get(layer.url);
++                if (image) {
++                    context.beginPath();
++                    context.rect(0, 0, layerWidth, layerHeight);
++                    context.clip();
++                    const imageWidth = image.naturalWidth || image.width;
++                    const imageHeight = image.naturalHeight || image.height;
++                    const fit = layer.fit === 'contain' ? 'contain' : 'cover';
++                    const scale = fit === 'contain'
++                        ? Math.min(layerWidth / imageWidth, layerHeight / imageHeight)
++                        : Math.max(layerWidth / imageWidth, layerHeight / imageHeight);
++                    const drawWidth = imageWidth * scale;
++                    const drawHeight = imageHeight * scale;
++                    if (layer.recolorEnabled) {
++                        const imageCanvas = document.createElement('canvas');
++                        const drawContext = imageCanvas.getContext('2d');
++                        imageCanvas.width = imageWidth;
++                        imageCanvas.height = imageHeight;
++                        drawContext.drawImage(image, 0, 0, imageWidth, imageHeight);
++                        drawContext.globalCompositeOperation = 'source-in';
++                        drawContext.fillStyle = layer.recolorColor || '#ffffff';
++                        drawContext.fillRect(0, 0, imageWidth, imageHeight);
++                        context.drawImage(imageCanvas, (layerWidth - drawWidth) / 2, (layerHeight - drawHeight) / 2, drawWidth, drawHeight);
++                    } else {
++                        context.drawImage(image,
++                            (layerWidth - drawWidth) / 2,
++                            (layerHeight - drawHeight) / 2,
++                            drawWidth,
++                            drawHeight);
++                    }
++                }
++            }
++            context.restore();
++        });
++        context.restore();
++        return { width, height };
++    };
++
+     const renderDesignThumbnails = () => {
+         const category = currentCategory();
+         [...el.designGrid.querySelectorAll('.design-tile')].forEach((tile, index) => {
+@@ -1810,9 +2092,12 @@ Chocolate hazelnut spread | Deez Nuts`,
+             const text = index === state.templateIndex ? state.text : categoryDefaultText(template, index);
+             const targetWidth = Math.min(THUMB_WIDTH * 2, Math.round(292 * (thumbSize.w / thumbSize.h)));
+             try {
+-                const thumbState = buildRenderState(text);
+-                thumbState.slideIndex = 0;
+-                window.AssetEngine.render(canvas, thumbSize, template, thumbState, targetWidth);
++                if (template.brandComposition) renderBrandComposition(canvas, template, text, targetWidth);
++                else {
++                    const thumbState = buildRenderState(text);
++                    thumbState.slideIndex = 0;
++                    window.AssetEngine.render(canvas, thumbSize, template, thumbState, targetWidth);
++                }
+             } catch {
+                 /* a broken preview must not stop the editor */
+             }
+@@ -1821,7 +2106,10 @@ Chocolate hazelnut spread | Deez Nuts`,
+ 
+     const renderControlTabs = () => {
+         clear(el.controlTabs);
+-        CONTROLS.forEach(([id, label]) => {
++        const controls = currentTemplate()?.brandComposition
++            ? CONTROLS.filter(([id]) => ['colours', 'type', 'image', 'text', 'size', 'saved'].includes(id))
++            : CONTROLS;
++        controls.forEach(([id, label]) => {
+             const count = id === 'saved' && state.saved.length ? ` (${state.saved.length})` : '';
+             const tab = button(`${label}${count}`, 'control-tab', () => setActiveTab(id));
+             tab.id = `control-tab-${id}`;
+@@ -1935,7 +2223,15 @@ Chocolate hazelnut spread | Deez Nuts`,
+ 
+         const actions = make('div', 'button-row');
+         actions.append(button('Reset to brand palette', 'btn wide', () => {
+-            applyBrandPalette();
++            if (currentTemplate()?.brandComposition) {
++                const palette = currentTemplate().composition.meta?.palette || {};
++                state.pal = {
++                    paper: palette.ground || state.pal.paper,
++                    ink: palette.ink || state.pal.ink,
++                    accent: palette.accent || state.pal.accent,
++                };
++                applyTheme();
++            } else applyBrandPalette();
+             state.fonts = defaultFontsForBrand(state.brand);
+             renderControlBody();
+             schedulePreviewAndThumbs();
+@@ -2141,6 +2437,10 @@ Chocolate hazelnut spread | Deez Nuts`,
+                 verified: ['verified', 'approved'].includes(asset.review.state),
+             });
+             state.photoIndex = state.photos.length - 1;
++            if (currentTemplate()?.brandComposition && state.activeBrandImageVariable) {
++                state.text[state.activeBrandImageVariable] = src;
++                state.brandTemplateImages.set(src, image);
++            }
+             renderControlBody();
+             schedulePreviewAndThumbs();
+             queueSession();
+@@ -2219,6 +2519,10 @@ Chocolate hazelnut spread | Deez Nuts`,
+ 
+     const renderImagePanel = () => {
+         const template = currentTemplate();
++        if (template?.brandComposition) {
++            renderBrandImagePanel(template);
++            return;
++        }
+         if (!templateHasPhoto(template)) {
+             el.controlBody.append(make('p', 'control-note',
+                 'This design has no photo slot. Choose a design with a photograph — the gallery marks designs that use brand photography.'));
+@@ -2268,6 +2572,64 @@ Chocolate hazelnut spread | Deez Nuts`,
+         el.controlBody.append(actions);
+     };
+ 
++    const renderBrandImagePanel = (template) => {
++        const variables = (template.composition.variables || []).filter((variable) => variable.kind === 'image');
++        if (!variables.length) {
++            el.controlBody.append(make('p', 'control-note',
++                'This brand template has no replaceable image slots. Its brand artwork and logos remain in place.'));
++            return;
++        }
++        if (!variables.some((variable) => variable.id === state.activeBrandImageVariable)) {
++            state.activeBrandImageVariable = variables[0].id;
++        }
++        const field = make('label', 'field');
++        field.append(make('span', null, 'Image slot'));
++        const select = document.createElement('select');
++        select.setAttribute('aria-label', 'Brand template image slot');
++        variables.forEach((variable) => {
++            const option = document.createElement('option');
++            option.value = variable.id;
++            option.textContent = variable.name || humanizeField(variable.id);
++            select.append(option);
++        });
++        select.value = state.activeBrandImageVariable;
++        select.addEventListener('change', () => {
++            state.activeBrandImageVariable = select.value;
++            renderControlBody();
++        });
++        field.append(select);
++        el.controlBody.append(field);
++        renderLibrarySection();
++        el.controlBody.append(make('p', 'control-note',
++            'Choose a brand photograph for this image slot. The original logo and decorative artwork are preserved.'));
++
++        const grid = make('div', 'photo-grid');
++        state.photoSources.forEach((source, index) => {
++            const tile = button(null, 'photo-tile', () => {
++                state.text[state.activeBrandImageVariable] = source.src;
++                state.photoIndex = index;
++                const image = state.photos[index];
++                if (image) state.brandTemplateImages.set(source.src, image);
++                renderControlBody();
++                schedulePreviewAndThumbs();
++                queueSession();
++            });
++            tile.setAttribute('aria-pressed', String(state.text[state.activeBrandImageVariable] === source.src));
++            const image = document.createElement('img');
++            image.src = source.src;
++            image.alt = source.name;
++            image.loading = 'lazy';
++            tile.append(image, make('span', null, source.name));
++            if (source.uploaded) tile.append(make('span', 'uploaded', 'up'));
++            grid.append(tile);
++        });
++        el.controlBody.append(grid);
++        if (!state.photoSources.length) {
++            el.controlBody.append(make('p', 'hint', 'No photography is attached to this brand yet. Upload an image to use the slot.'));
++        }
++        el.controlBody.append(button('Upload image', 'btn', () => el.photoInput.click()));
++    };
++
+     const templateHasAnyMotif = (template) => templateHasMotif(template)
+         || /drawMotif\s*\(/.test(String(template?.draw || ''));
+ 
+@@ -2644,6 +3006,30 @@ Chocolate hazelnut spread | Deez Nuts`,
+     const renderTextPanel = () => {
+         const template = currentTemplate();
+         const category = currentCategory();
++        if (template?.brandComposition) {
++            el.controlBody.append(make('p', 'control-note',
++                'Edit the brand template’s text fields. Your changes stay with the asset when you save or export it.'));
++            const fields = brandTemplateTextFields(template);
++            fields.forEach(({ key, label, value }) => {
++                const field = make('label', 'field');
++                field.append(make('span', null, label));
++                const rows = typeof (state.text[key] ?? value) === 'string'
++                    && String(state.text[key] ?? value).length > 80;
++                const control = rows ? document.createElement('textarea') : document.createElement('input');
++                if (!rows) control.type = 'text';
++                else control.rows = 3;
++                control.value = state.text[key] ?? value;
++                control.addEventListener('input', () => {
++                    state.text[key] = control.value;
++                    schedulePreviewAndThumbs();
++                    queueSession();
++                });
++                field.append(control);
++                el.controlBody.append(field);
++            });
++            if (!fields.length) el.controlBody.append(make('p', 'hint', 'This design has no editable text fields.'));
++            return;
++        }
+         el.controlBody.append(make('p', 'control-note',
+             'Leave a field empty and it disappears from the design. The copy is brandified when you switch brands.'));
+ 
+@@ -3026,8 +3412,10 @@ Chocolate hazelnut spread | Deez Nuts`,
+         // Upscale the render while inspecting so the zoom shows real detail.
+         const targetWidth = Math.min(ZOOM_RENDER_MAX, Math.round(baseTarget * Math.max(1, state.zoom)));
+         try {
+-            const rendered = window.AssetEngine.render(el.previewCanvas, size, template,
+-                buildRenderState(state.text), targetWidth);
++            const rendered = template.brandComposition
++                ? renderBrandComposition(el.previewCanvas, template, state.text, targetWidth)
++                : window.AssetEngine.render(el.previewCanvas, size, template,
++                    buildRenderState(state.text), targetWidth);
+             // Rendered anchors power click-and-drag placement.
+             state.motifAnchor = rendered?.motif || null;
+             state.logoAnchor = rendered?.logo || null;
+@@ -3081,8 +3469,12 @@ Chocolate hazelnut spread | Deez Nuts`,
+ 
+     const fullSizeCanvas = (options = {}) => {
+         const canvas = document.createElement('canvas');
+-        window.AssetEngine.render(canvas, currentSize(), currentTemplate(), buildRenderState(state.text), null,
+-            { backdrop: false, ...options });
++        if (currentTemplate()?.brandComposition) {
++            renderBrandComposition(canvas, currentTemplate(), state.text, currentSize().w);
++        } else {
++            window.AssetEngine.render(canvas, currentSize(), currentTemplate(), buildRenderState(state.text), null,
++                { backdrop: false, ...options });
++        }
+         return canvas;
+     };
+ 
+@@ -3228,7 +3620,8 @@ Chocolate hazelnut spread | Deez Nuts`,
+         const canvas = document.createElement('canvas');
+         // Print uses the unclipped artwork plus a vector cut line, so the
+         // bleed can extend past a die-cut edge.
+-        window.AssetEngine.render(canvas, printSideSize(side), template, renderState, width, { clipShape: false });
++        if (template.brandComposition) renderBrandComposition(canvas, template, state.text, width);
++        else window.AssetEngine.render(canvas, printSideSize(side), template, renderState, width, { clipShape: false });
+         return { canvas, renderState };
+     };
+ 
+@@ -3546,7 +3939,8 @@ Chocolate hazelnut spread | Deez Nuts`,
+ 
+     const makeThumb = () => {
+         const canvas = document.createElement('canvas');
+-        window.AssetEngine.render(canvas, currentSize(), currentTemplate(), buildRenderState(state.text), 420);
++        if (currentTemplate()?.brandComposition) renderBrandComposition(canvas, currentTemplate(), state.text, 420);
++        else window.AssetEngine.render(canvas, currentSize(), currentTemplate(), buildRenderState(state.text), 420);
+         return canvas.toDataURL('image/jpeg', 0.82);
+     };
+ 
+@@ -3736,6 +4130,10 @@ Chocolate hazelnut spread | Deez Nuts`,
+         state.photos.push(image);
+         state.photoSources.push(source);
+         state.photoIndex = state.photos.length - 1;
++        if (currentTemplate()?.brandComposition && state.activeBrandImageVariable) {
++            state.text[state.activeBrandImageVariable] = source.src;
++            state.brandTemplateImages.set(source.src, image);
++        }
+         renderControlBody();
+         schedulePreviewAndThumbs();
+         queueSession();
+@@ -3789,10 +4187,155 @@ Chocolate hazelnut spread | Deez Nuts`,
+         el.drawerClose.focus();
+     };
+ 
++    const renderBrandTemplatePreview = (composition) => {
++        const preview = make('div', 'template-preview');
++        if (!composition?.layers?.length || !window.StudioCore) {
++            preview.append(make('p', 'template-preview-error', 'Preview unavailable'));
++            return preview;
++        }
++        const maxWidth = 240;
++        const maxHeight = 178;
++        const scale = Math.min(maxWidth / composition.width, maxHeight / composition.height);
++        const width = Math.max(20, Math.round(composition.width * scale));
++        const height = Math.max(20, Math.round(composition.height * scale));
++        const canvas = make('div', 'template-preview-canvas');
++        canvas.style.width = `${width}px`;
++        canvas.style.height = `${height}px`;
++        const format = window.StudioCore.getActiveFormat?.(composition) || null;
++        canvas.style.background = composition.meta?.palette?.ground
++            || composition.brandKit?.palette?.[0]?.hex
++            || '#ffffff';
++        composition.layers.map((layer) => {
++            try {
++                return window.StudioCore.resolveLayer(layer, { composition, format });
++            } catch {
++                return layer;
++            }
++        }).filter((layer) => layer.visible !== false).sort((a, b) => a.z - b.z).forEach((layer) => {
++            const node = make('div', `template-preview-layer${layer.type === 'text' ? ' template-preview-text' : ''}`);
++            Object.assign(node.style, {
++                left: `${layer.x}%`,
++                top: `${layer.y}%`,
++                width: `${layer.w}%`,
++                height: `${layer.h}%`,
++                zIndex: String(layer.z),
++                opacity: String(layer.opacity ?? 1),
++            });
++            if (layer.type === 'text') {
++                Object.assign(node.style, {
++                    color: layer.color || '#111111',
++                    fontFamily: `"${String(layer.font?.family || 'Arial').replace(/"/g, '')}", sans-serif`,
++                    fontWeight: String(layer.font?.weight || 400),
++                    fontStyle: layer.font?.style || 'normal',
++                    fontSize: `${Math.max(1, (height * Number(layer.font?.sizePct || 3)) / 100)}px`,
++                    lineHeight: String(layer.font?.lineHeight || 1.2),
++                    letterSpacing: `${Number(layer.font?.letterSpacingEm || 0)}em`,
++                    textTransform: layer.font?.transform || 'none',
++                    textAlign: layer.align || 'left',
++                    alignItems: layer.verticalAlign === 'top'
++                        ? 'flex-start'
++                        : (layer.verticalAlign === 'bottom' ? 'flex-end' : 'center'),
++                });
++                node.append(make('span', null, layer.text || ''));
++            } else if (layer.url) {
++                const url = String(layer.url).replace(/"/g, '%22');
++                const fit = layer.fit === 'contain' ? 'contain' : 'cover';
++                if (layer.recolorEnabled) {
++                    node.style.backgroundColor = layer.recolorColor || '#ffffff';
++                    node.style.maskImage = `url("${url}")`;
++                    node.style.webkitMaskImage = `url("${url}")`;
++                    node.style.maskSize = fit;
++                    node.style.webkitMaskSize = fit;
++                    node.style.maskRepeat = 'no-repeat';
++                    node.style.webkitMaskRepeat = 'no-repeat';
++                    node.style.maskPosition = 'center';
++                    node.style.webkitMaskPosition = 'center';
++                } else {
++                    node.style.backgroundImage = `url("${url}")`;
++                    node.style.backgroundSize = fit;
++                    node.style.backgroundPosition = 'center';
++                    node.style.backgroundRepeat = 'no-repeat';
++                }
++            }
++            canvas.append(node);
++        });
++        preview.append(canvas);
++        return preview;
++    };
++
++    const renderBrandTemplateLibrary = () => {
++        const brand = state.brand;
++        if (!brand || !state.pack) return;
++        const templates = window.StudioBrand.templateCatalog(brand);
++        el.brandTemplatesTitle.textContent = `${brand.name} templates`;
++        el.brandTemplatesHint.textContent = `${state.pack.name} · ${templates.length} brand templates`;
++        clear(el.brandTemplateGrid);
++        templates.forEach((template) => {
++            let preview;
++            try {
++                const composition = window.StudioBrand.createTemplateComposition({
++                    packId: state.pack.id,
++                    packName: state.pack.name,
++                    portfolio: state.pack.portfolio,
++                    brand,
++                    templateId: template.id,
++                });
++                preview = renderBrandTemplatePreview(composition);
++            } catch (error) {
++                preview = make('div', 'template-preview');
++                preview.append(make('p', 'template-preview-error', `Preview unavailable: ${error.message}`));
++            }
++            const card = make('article', 'asset-brand-template');
++            card.append(
++                preview,
++                make('h3', null, template.label),
++                make('p', 'template-spec', `${template.spec} · ${template.channel}`),
++                make('p', 'template-description', template.description),
++            );
++            const actions = make('div', 'template-actions');
++            const openDesign = button('Open in Designs', 'btn primary', () => {
++                closeBrandTemplates();
++                const assetTemplate = (state.brandTemplates[assetCategoryForBrandTemplate(template)] || [])
++                    .find((entry) => entry.id === template.id);
++                if (!assetTemplate) {
++                    toast(`“${template.label}” is not available in the active brand’s design list.`, true);
++                    return;
++                }
++                if (state.categoryId !== assetTemplate.brandTemplateCategoryId) {
++                    selectCategory(assetTemplate.brandTemplateCategoryId);
++                }
++                const index = categoryDesigns(assetTemplate.brandTemplateCategoryId).indexOf(assetTemplate);
++                selectTemplate(index);
++            });
++            const create = document.createElement('a');
++            create.className = 'btn primary';
++            create.target = '_blank';
++            create.rel = 'noopener';
++            create.href = `studio-v2.html?brandPackId=${encodeURIComponent(state.pack.id)}`
++                + `&brandId=${encodeURIComponent(brand.id)}`
++                + `&brandTemplateId=${encodeURIComponent(template.id)}`;
++            create.textContent = 'Edit layers in Studio V2';
++            actions.append(openDesign, create);
++            card.append(actions);
++            el.brandTemplateGrid.append(card);
++        });
++        el.brandTemplatesDialog.hidden = false;
++        document.body.style.overflow = 'hidden';
++        el.brandTemplatesClose.focus();
++    };
++
++    const closeBrandTemplates = () => {
++        el.brandTemplatesDialog.hidden = true;
++        if (el.brandGate.hidden && el.brandDrawer.hidden && el.printDialog.hidden) {
++            document.body.style.overflow = '';
++        }
++        el.brandTemplatesBtn.focus();
++    };
++
+     const closeDrawer = () => {
+         el.brandDrawer.hidden = true;
+         el.drawerBackdrop.hidden = true;
+-        if (el.brandGate.hidden) document.body.style.overflow = '';
++        if (el.brandGate.hidden && el.brandTemplatesDialog.hidden && el.printDialog.hidden) document.body.style.overflow = '';
+         el.brandInfoBtn.focus();
+     };
+ 
+diff --git a/src/client/brand/brand-identity.js b/src/client/brand/brand-identity.js
+index 77cf4e3..b2bf5a6 100644
+--- a/src/client/brand/brand-identity.js
++++ b/src/client/brand/brand-identity.js
+@@ -887,6 +887,7 @@
+                 composition = CORE.createTemplateComposition({
+                     packId: state.pack.id,
+                     packName: state.pack.name,
++                    portfolio: state.pack.portfolio,
+                     brand,
+                     templateId: template.id,
+                     projectId: 'preview',
+@@ -1137,15 +1138,30 @@
+             } else {
+                 const url = String(layer.url || '');
+                 if (!url) return;
+-                canvas.appendChild(h('div', {
+-                    class: 'brand-preview-layer',
+-                    style: {
+-                        ...geometry,
+-                        backgroundImage: `url("${url.replace(/"/g, '%22')}")`,
+-                        backgroundSize: layer.fit === 'contain' ? 'contain' : 'cover',
+-                        opacity: String(layer.opacity ?? 1),
+-                    },
+-                }));
++                const escaped = url.replace(/"/g, '%22');
++                const fit = layer.fit === 'contain' ? 'contain' : 'cover';
++                const style = {
++                    ...geometry,
++                    opacity: String(layer.opacity ?? 1),
++                };
++                if (layer.recolorEnabled) {
++                    // The studio paints a recoloured image as a flat flood through
++                    // its alpha. A CSS mask gives the same result in the card
++                    // preview, so a blue-tinted wordmark reads as blue here too.
++                    style.backgroundColor = layer.recolorColor || '#ffffff';
++                    style.maskImage = `url("${escaped}")`;
++                    style.webkitMaskImage = `url("${escaped}")`;
++                    style.maskSize = fit;
++                    style.webkitMaskSize = fit;
++                    style.maskRepeat = 'no-repeat';
++                    style.webkitMaskRepeat = 'no-repeat';
++                    style.maskPosition = 'center';
++                    style.webkitMaskPosition = 'center';
++                } else {
++                    style.backgroundImage = `url("${escaped}")`;
++                    style.backgroundSize = fit;
++                }
++                canvas.appendChild(h('div', { class: 'brand-preview-layer', style }));
+             }
+         });
+         box.appendChild(canvas);
+@@ -1691,7 +1707,52 @@
+             });
+         }
+         renderSidebar();
+-        ensureLoaded();
++        if (!openTemplateDeepLink()) ensureLoaded();
++    }
++
++    function openTemplateDeepLink() {
++        const params = new URLSearchParams(window.location.search);
++        const packId = params.get('brandPackId');
++        const brandId = params.get('brandId');
++        const templateId = params.get('brandTemplateId');
++        if (!packId || !brandId || !templateId) return false;
++        window.history.replaceState(null, '', `${window.location.pathname}${window.location.hash}`);
++        (async () => {
++            try {
++                state.loading = true;
++                await fetchPacks();
++                if (!state.packs.some((pack) => pack.id === packId)) {
++                    throw new Error(`Brand pack “${packId}” was not found.`);
++                }
++                state.pack = await fetchPack(packId);
++                const brand = state.pack.brands.find((entry) => entry.id === brandId);
++                if (!brand) throw new Error(`Brand “${brandId}” is not in this pack.`);
++                if (!CORE?.templateCatalog(brand).some((template) => template.id === templateId)) {
++                    throw new Error(`Template “${templateId}” is not available for ${brand.name}.`);
++                }
++                state.brandId = brandId;
++                state.tab = 'templates';
++                state.loaded = true;
++                state.error = '';
++                renderAll();
++                openDialog({ brandId, tab: 'templates' });
++
++                const deadline = Date.now() + 10000;
++                while (!studio() && Date.now() < deadline) {
++                    await new Promise((resolve) => window.setTimeout(resolve, 100));
++                }
++                if (!studio()) throw new Error('The layer editor did not finish loading. Please choose Create again.');
++                await createTemplate(templateId);
++            } catch (error) {
++                state.error = error.message || 'Could not open this brand template.';
++                state.loading = false;
++                openDialog({ brandId, tab: 'templates' });
++                setStatus(state.error, { error: true });
++            } finally {
++                state.loading = false;
++            }
++        })();
++        return true;
+     }
+ 
+     if (document.readyState === 'loading') {
+diff --git a/src/shared/brand-pack.js b/src/shared/brand-pack.js
+index fbcfc7e..18dd8de 100644
+--- a/src/shared/brand-pack.js
++++ b/src/shared/brand-pack.js
+@@ -1691,6 +1691,880 @@
+         return { layers, variables };
+     }
+ 
++    // ─── Cawley / Boardwalk social templates ──────────────────────────
++    // Ten designs from the Boardwalk social pack (01.pdf) rebuilt as real v3
++    // compositions: every word is a bindable text layer, every photo slot is an
++    // image variable, and the waves, scallops, sun, glow and gull are compact
++    // inline SVG art. Nothing is a screenshot, so variables, formats, guardrails
++    // and the export path all apply.
++    //
++    // The art direction uses the venue's brighter site palette rather than the
++    // pack's darker teal, so the colours are declared on each template and
++    // merged into the composition kit (see createTemplateComposition). The
++    // ground and orange are a touch deeper than the reference so white type
++    // clears the contrast rule the studio enforces.
++
++    const BW = Object.freeze({
++        blue: '#0890ce',
++        blueDeep: '#0b5f86',
++        teal: '#00969e',
++        mint: '#bee2de',
++        mintLine: '#a6d5ce',
++        ink: '#24424a',
++        inkDeep: '#123f4c',
++        yellow: '#feef00',
++        orange: '#e8641a',
++        white: '#ffffff',
++    });
++
++    const BOARDWALK_BRAND = (brand) => /boardwalk/i.test(`${brand?.id || ''} ${brand?.name || ''}`);
++
++    // The reference art runs close to the edges. The studio's social default
++    // (12 % top, 16 % bottom) would pull every footer into the middle, so these
++    // cards declare their own 4 % margin — still a margin, just the one the
++    // design was drawn with.
++    const BW_SAFE_ZONE = Object.freeze({ top: 0.04, right: 0.04, bottom: 0.04, left: 0.04 });
++
++    const BW_KIT_COLORS = Object.freeze([
++        { name: 'Boardwalk Blue', hex: BW.blue },
++        { name: 'Coast Teal', hex: BW.teal },
++        { name: 'Sea Glass', hex: BW.mint },
++        { name: 'Deep Ink', hex: BW.ink },
++        { name: 'Sun Yellow', hex: BW.yellow },
++        { name: 'Sunset Orange', hex: BW.orange },
++    ]);
++
++    function bwRound(value) {
++        return Math.round(Number(value) * 100) / 100;
++    }
++
++    /** SVG art travels as a base64 data URL: compact, and immune to URL escaping. */
++    function bwSvg(svg) {
++        const base64 = typeof btoa === 'function'
++            ? btoa(svg)
++            : Buffer.from(svg, 'utf8').toString('base64');
++        return `data:image/svg+xml;base64,${base64}`;
++    }
++
++    /**
++     * A three-line wave band, generated as a repeating SVG pattern so even a
++     * 1600 px header stays well under the 2 KB asset-URL cap.
++     */
++    function bwWaveUrl(options) {
++        const spec = options || {};
++        const widthPx = Math.max(1, finite(spec.width, 1080));
++        const heightPx = Math.max(1, finite(spec.height, 54));
++        const color = normalizeHex(spec.color) || BW.white;
++        const W = 1000;
++        const H = Math.max(24, Math.round((W * heightPx) / widthPx));
++        const L = Math.max(70, Math.round(W * (finite(spec.wavelength, 0.21))));
++        const A = H * (finite(spec.amplitude, 0.22));
++        const base = H * (finite(spec.thickness, 0.09));
++        const count = clamp(Math.round(finite(spec.rows, 3)), 2, 5);
++        const rows = Array.from({ length: count }, (_, index) => {
++            const f = count === 3
++                ? [0.3, 0.52, 0.76][index]
++                : 0.18 + (0.66 * index) / Math.max(1, count - 1);
++            return { y: f, a: index % 2 ? 0.8 : 1, w: index === 1 ? 0.55 : 1 };
++        });
++        const paths = rows.map((row) => {
++            const y = bwRound(H * row.y);
++            const a = bwRound(A * row.a);
++            const sw = bwRound(base * row.w);
++            return `<path d="M0 ${bwRound(y - a)} C${bwRound(L * 0.25)} ${bwRound(y - a)} ${bwRound(L * 0.25)} ${bwRound(y + a)} ${bwRound(L / 2)} ${bwRound(y + a)} C${bwRound(L * 0.75)} ${bwRound(y + a)} ${bwRound(L * 0.75)} ${bwRound(y - a)} ${L} ${bwRound(y - a)}" fill="none" stroke="${color}" stroke-width="${sw}"/>`;
++        }).join('');
++        return bwSvg(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><defs><pattern id="w" width="${L}" height="${H}" patternUnits="userSpaceOnUse">${paths}</pattern></defs><rect width="${W}" height="${H}" fill="url(#w)"/></svg>`);
++    }
++
++    /**
++     * The venue's scallop-shingle footer: overlapping shell arcs with a three
++     * tick fan, tiled in two staggered rows.
++     */
++    function bwScallopUrl(options) {
++        const spec = options || {};
++        const widthPx = Math.max(1, finite(spec.width, 1080));
++        const heightPx = Math.max(1, finite(spec.height, 150));
++        const ground = normalizeHex(spec.ground) || BW.mint;
++        const line = normalizeHex(spec.line) || BW.mintLine;
++        const W = 1000;
++        const H = Math.max(60, Math.round((W * heightPx) / widthPx));
++        // Keep the shell roughly 120 px wide on every canvas, so a wide banner
++        // gets more scallops rather than bigger ones.
++        const T = Math.max(48, Math.round((105 * W) / widthPx));
++        const S = Math.round(T * 0.56);
++        const sw = bwRound((4 * W) / widthPx);
++        const arcs = [0.5, 0.36, 0.22].map((f) => {
++            const r = bwRound(T * f);
++            const lift = bwRound(r * 1.3);
++            return `<path d="M${bwRound(-r)} 0 C${bwRound(-r)} ${bwRound(-lift)} ${bwRound(r)} ${bwRound(-lift)} ${bwRound(r)} 0"/>`;
++        }).join('');
++        const ticks = `<path d="M0 ${bwRound(-T * 0.22)} L${bwRound(-T * 0.13)} ${bwRound(-T * 0.4)} M0 ${bwRound(-T * 0.22)} L${bwRound(T * 0.13)} ${bwRound(-T * 0.4)} M0 ${bwRound(-T * 0.22)} L0 ${bwRound(-T * 0.36)}"/>`;
++        const motif = `<g id="m" fill="none" stroke="${line}" stroke-width="${sw}" stroke-linecap="round">${arcs}${ticks}</g>`;
++        const tileH = 2 * S;
++        return bwSvg(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><defs>${motif}<pattern id="p" width="${T}" height="${tileH}" patternUnits="userSpaceOnUse"><rect width="${T}" height="${tileH}" fill="${ground}"/><g opacity="0.62"><use xlink:href="#m" x="0" y="${tileH}"/><use xlink:href="#m" x="${T}" y="${tileH}"/><use xlink:href="#m" x="${T / 2}" y="${S}"/></g></pattern></defs><rect width="${W}" height="${H}" fill="url(#p)"/></svg>`);
++    }
++
++    function bwSunUrl(color) {
++        const fill = normalizeHex(color) || BW.yellow;
++        return bwSvg(`<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="${fill}"/></svg>`);
++    }
++
++    /**
++     * Warm glow. The layer paints the ground it sits on and then a radial
++     * gradient, so it is a soft halo while the contrast pass still samples the
++     * teal ground rather than a photograph stand-in.
++     */
++    function bwGlowUrl(color, base) {
++        const fill = normalizeHex(color) || BW.orange;
++        const ground = normalizeHex(base) || BW.teal;
++        return bwSvg(`<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 100 100"><defs><radialGradient id="g"><stop offset="0" stop-color="${fill}"/><stop offset="0.5" stop-color="${fill}" stop-opacity="0.92"/><stop offset="0.8" stop-color="${fill}" stop-opacity="0.45"/><stop offset="1" stop-color="${fill}" stop-opacity="0"/></radialGradient></defs><rect width="100" height="100" fill="${ground}"/><circle cx="50" cy="50" r="50" fill="url(#g)"/></svg>`);
++    }
++
++    function bwGullUrl(color) {
++        const fill = normalizeHex(color) || BW.white;
++        return bwSvg(`<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="580" viewBox="0 0 100 58"><path d="M1 27C15 18 28 17 38 26C46 19 58 17 69 21C80 25 92 30 99 33C88 35 77 36 66 38C55 40 45 45 38 51C35 43 22 31 1 27Z" fill="${fill}"/></svg>`);
++    }
++
++    /**
++     * A photo slot. The dashed frame and the "Add …" hint are baked into the
++     * placeholder, so swapping the bound image variable removes the whole cue
++     * without leaving orphaned type behind.
++     */
++    function bwPhotoUrl(options) {
++        const spec = options || {};
++        const fill = normalizeHex(spec.fill) || 'none';
++        const stroke = normalizeHex(spec.stroke) || BW.white;
++        const textColor = normalizeHex(spec.textColor) || BW.white;
++        const label = text(spec.label, 48) || 'Add photo';
++        const aspect = clamp(finite(spec.aspect, 1), 0.2, 5);
++        const dash = clamp(finite(spec.dash, 1.8), 0.4, 4);
++        const labelSize = clamp(finite(spec.font, 5), 1.5, 8);
++        const h = bwRound(100 * aspect);
++        const shape = spec.shape === 'rect'
++            ? `<rect x="1.6" y="1.6" width="96.8" height="${bwRound(h - 3.2)}" rx="0"/>`
++            : `<circle cx="50" cy="${bwRound(h / 2)}" r="${bwRound(Math.min(48, h / 2 - 2))}"/>`;
++        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="${bwRound(1000 * aspect)}" viewBox="0 0 100 ${h}"><g fill="${fill}" stroke="${stroke}" stroke-width="1.2" stroke-dasharray="${dash} ${bwRound(dash * 0.78)}">${shape}</g><text x="50" y="${bwRound(h / 2)}" text-anchor="middle" dominant-baseline="middle" font-family="Helvetica Neue, Arial, sans-serif" font-size="${labelSize}" fill="${textColor}">${label}</text></svg>`;
++        return bwSvg(svg);
++    }
++
++    function bwImageVariable(id, name, url) {
++        return {
++            id,
++            name,
++            kind: 'image',
++            defaultValue: String(url || '').slice(0, 2048),
++            locked: false,
++        };
++    }
++
++    function bwLogo(brand, variant) {
++        const logos = (brand?.logos || []).filter((logo) => !logo.presentation);
++        const words = logos.filter((logo) => String(logo.kind || '').toLowerCase() === 'wordmark');
++        return words.find((logo) => logo.variant === variant)
++            || words.find((logo) => logo.variant === 'color')
++            || words[0]
++            || null;
++    }
++
++    /** The group endorsement lockup, from the pack's portfolio assets when present. */
++    function bwGroupLockup(ctx) {
++        const assets = ctx?.portfolio?.assets || [];
++        const usable = assets.filter((asset) => /\.(png|svg|webp)$/i.test(asset.url || ''));
++        const named = usable.filter((asset) => /cawley/i.test(`${asset.name || ''} ${asset.path || ''}`));
++        return named.find((asset) => /white|light/i.test(`${asset.name || ''} ${asset.path || ''}`))
++            || named.find((asset) => /wordmark|lockup/i.test(`${asset.name || ''} ${asset.path || ''}`))
++            || named[0]
++            || null;
++    }
++
++    function bwWordmarkLayer(brand, spec) {
++        const logo = bwLogo(brand, spec.variant || 'light');
++        if (!logo) return null;
++        const layer = imageLayer({
++            id: spec.id, name: spec.name || 'Boardwalk wordmark', url: logo.url, fit: 'contain',
++            x: spec.x, y: spec.y, w: spec.w, h: spec.h, z: spec.z ?? 20, bleed: true,
++        });
++        if (spec.recolor) {
++            layer.recolorEnabled = true;
++            layer.recolorColor = spec.recolor;
++        }
++        return layer;
++    }
++
++    function bwLockupLayer(ctx, spec) {
++        const asset = bwGroupLockup(ctx);
++        if (!asset) return null;
++        return imageLayer({
++            id: spec.id, name: spec.name || 'Cawley lockup', url: asset.url, fit: 'contain',
++            x: spec.x, y: spec.y, w: spec.w, h: spec.h, z: spec.z ?? 20, bleed: true,
++        });
++    }
++
++    function bwDashedCircle(spec) {
++        return imageLayer({
++            id: spec.id, name: spec.name || 'Photo slot', url: spec.url, fit: 'cover',
++            x: spec.x, y: spec.y, w: spec.w, h: spec.h, z: spec.z ?? 6, bleed: false,
++        });
++    }
++
++    /** The site handle every reference card carries. */
++    const BW_SITE = 'www.cawleyhotels.com';
++    const BW_GROUP_SITE = 'CAWLEYHOTELS.COM';
++
++    function bwText(spec) {
++        return textLayer({
++            ...spec,
++            family: spec.family || 'Helvetica Neue',
++            weight: spec.weight ?? 300,
++        });
++    }
++
++    // ── 1. Dessert of the day ─────────────────────────────────────────
++    function buildDessertCard(ctx) {
++        const { brand } = ctx;
++        const layers = [];
++        const variables = [];
++        layers.push(imageLayer({ id: 'bw-dessert-ground', name: 'Blue ground', color: BW.blue, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
++        layers.push(imageLayer({
++            id: 'bw-dessert-pattern', name: 'Sea-glass scallops', url: bwScallopUrl({ width: 1080, height: 147, ground: BW.mint, line: BW.mintLine }),
++            x: 0, y: 86.4, w: 100, h: 13.6, z: 1, bleed: true,
++        }));
++        const wordmark = bwWordmarkLayer(brand, { id: 'bw-dessert-wordmark', variant: 'light', x: 12, y: 5.4, w: 76, h: 8.45, z: 20 });
++        if (wordmark) layers.push(wordmark);
++        layers.push(bwText({
++            id: 'bw-dessert-kicker', name: 'Kicker', binding: 'bw_dessert_kicker', text: 'Dessert of the day',
++            sizePct: 2.7, letterSpacingEm: 0.26, transform: 'uppercase', color: BW.white,
++            align: 'center', x: 5, y: 16.8, w: 90, h: 3.6, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_dessert_kicker', name: 'Kicker', value: 'Dessert of the day' }));
++        const photo = bwPhotoUrl({ label: 'Add dish photo', stroke: BW.white, textColor: BW.white, fill: 'none', dash: 1.8, font: 5.2 });
++        const photoLayer = bwDashedCircle({ id: 'bw-dessert-photo', name: 'Dish photo', url: photo, x: 29, y: 26, w: 42, h: 42, z: 8 });
++        photoLayer.bindings = { url: 'bw_dessert_photo' };
++        layers.push(photoLayer);
++        variables.push(bwImageVariable('bw_dessert_photo', 'Dish photo', photo));
++        layers.push(bwText({
++            id: 'bw-dessert-dish', name: 'Dish', binding: 'bw_dessert_dish', text: 'Sticky Toffee Pudding',
++            family: 'Georgia', weight: 700, sizePct: 6.2, lineHeight: 1.05, color: BW.white,
++            align: 'center', x: 5, y: 70.2, w: 90, h: 7, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_dessert_dish', name: 'Dish', value: 'Sticky Toffee Pudding' }));
++        layers.push(bwText({
++            id: 'bw-dessert-detail', name: 'Description', binding: 'bw_dessert_detail',
++            text: 'butterscotch sauce, vanilla ice cream · 8.95',
++            family: 'Georgia', weight: 400, style: 'italic', sizePct: 2.7, color: BW.white,
++            align: 'center', x: 5, y: 77.4, w: 90, h: 4.6, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_dessert_detail', name: 'Description and price', value: 'butterscotch sauce, vanilla ice cream · 8.95' }));
++        layers.push(imageLayer({
++            id: 'bw-dessert-waves', name: 'Waves', url: bwWaveUrl({ width: 1080, height: 56, color: BW.white }),
++            x: 0, y: 81.8, w: 100, h: 4.8, z: 12, bleed: true,
++        }));
++        layers.push(bwText({
++            id: 'bw-dessert-footer', name: 'Website', binding: 'bw_dessert_footer', text: BW_SITE,
++            sizePct: 2.5, weight: 500, letterSpacingEm: 0.01, color: BW.blueDeep,
++            align: 'center', x: 5, y: 88.6, w: 90, h: 3.2, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_dessert_footer', name: 'Website', value: BW_SITE }));
++        return { layers, variables };
++    }
++
++    // ── 2. Sweets menu ────────────────────────────────────────────────
++    function buildSweetsMenu(ctx) {
++        const { brand } = ctx;
++        const layers = [];
++        const variables = [];
++        layers.push(imageLayer({ id: 'bw-sweets-ground', name: 'Blue ground', color: BW.blue, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
++        layers.push(imageLayer({ id: 'bw-sweets-mint', name: 'Mint ground', color: BW.mint, x: 0, y: 35.4, w: 100, h: 64.6, z: 1, bleed: true }));
++        const wordmark = bwWordmarkLayer(brand, { id: 'bw-sweets-wordmark', variant: 'light', x: 12.5, y: 7.8, w: 75, h: 8.33, z: 20 });
++        if (wordmark) layers.push(wordmark);
++        layers.push(bwText({
++            id: 'bw-sweets-kicker', name: 'Kicker', binding: 'bw_sweets_kicker', text: 'Sweets',
++            sizePct: 2.7, letterSpacingEm: 0.34, transform: 'uppercase', color: BW.white,
++            align: 'center', x: 5, y: 17.6, w: 90, h: 3.6, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_sweets_kicker', name: 'Kicker', value: 'Sweets' }));
++        layers.push(imageLayer({
++            id: 'bw-sweets-waves', name: 'Waves', url: bwWaveUrl({ width: 1080, height: 74, color: BW.white }),
++            x: 0, y: 30, w: 100, h: 5.6, z: 12, bleed: true,
++        }));
++        layers.push(imageLayer({ id: 'bw-sweets-card', name: 'Menu card', color: BW.white, x: 9, y: 39, w: 82, h: 27, z: 4, bleed: false }));
++        const dishNames = ['Sticky Toffee Pudding', 'Caramel Churros', 'Homemade Tiramisu', 'Sicilian Lemon Sundae'];
++        const prices = ['8.95', '8.95', '9.95', '9.95'];
++        dishNames.forEach((name, index) => {
++            const y = 43.2 + index * 5;
++            layers.push(bwText({
++                id: `bw-sweets-item-${index + 1}-name`, name: `Dish ${index + 1}`, binding: `bw_sweets_item_${index + 1}_name`, text: name,
++                family: 'Georgia', weight: 700, sizePct: 3.3, color: BW.ink,
++                align: 'left', x: 12.5, y, w: 55, h: 4.4, z: 30,
++            }));
++            variables.push(variable({ id: `bw_sweets_item_${index + 1}_name`, name: `Dish ${index + 1}`, value: name }));
++            layers.push(bwText({
++                id: `bw-sweets-item-${index + 1}-price`, name: `Price ${index + 1}`, binding: `bw_sweets_item_${index + 1}_price`, text: prices[index],
++                family: 'Georgia', weight: 400, style: 'italic', sizePct: 3.1, color: BW.inkDeep,
++                align: 'right', x: 70, y, w: 18, h: 4.4, z: 30,
++            }));
++            variables.push(variable({ id: `bw_sweets_item_${index + 1}_price`, name: `Price ${index + 1}`, value: prices[index] }));
++        });
++        layers.push(bwText({
++            id: 'bw-sweets-tagline', name: 'Tagline', binding: 'bw_sweets_tagline', text: 'Save room for something sweet.',
++            family: 'Georgia', weight: 400, style: 'italic', sizePct: 2.8, color: BW.inkDeep,
++            align: 'center', x: 5, y: 68.4, w: 90, h: 4.2, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_sweets_tagline', name: 'Tagline', value: 'Save room for something sweet.' }));
++        layers.push(bwText({
++            id: 'bw-sweets-footer', name: 'Website', binding: 'bw_sweets_footer', text: BW_SITE,
++            sizePct: 2.4, weight: 500, color: BW.blueDeep,
++            align: 'center', x: 5, y: 91.6, w: 90, h: 3.2, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_sweets_footer', name: 'Website', value: BW_SITE }));
++        return { layers, variables };
++    }
++
++    // ── 3. À la carte — pizza ─────────────────────────────────────────
++    function buildALaCarte(ctx) {
++        const { brand } = ctx;
++        const layers = [];
++        const variables = [];
++        layers.push(imageLayer({ id: 'bw-alc-ground', name: 'Blue ground', color: BW.blue, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
++        const wordmark = bwWordmarkLayer(brand, { id: 'bw-alc-wordmark', variant: 'light', x: 12, y: 5.2, w: 76, h: 6.6, z: 20 });
++        if (wordmark) layers.push(wordmark);
++        layers.push(bwText({
++            id: 'bw-alc-kicker', name: 'Kicker', binding: 'bw_alc_kicker', text: 'À la carte menu',
++            sizePct: 2.5, letterSpacingEm: 0.3, transform: 'uppercase', color: BW.white,
++            align: 'center', x: 5, y: 14, w: 90, h: 3.4, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_alc_kicker', name: 'Kicker', value: 'À la carte menu' }));
++        const photo = bwPhotoUrl({ shape: 'rect', aspect: 0.706, label: 'Add pizza photo', fill: '#8fd2ee', stroke: BW.white, textColor: BW.white, dash: 0.9, font: 2.8 });
++        const photoLayer = bwDashedCircle({ id: 'bw-alc-photo', name: 'Pizza photo', url: photo, x: 7.5, y: 18.5, w: 85, h: 40, z: 8 });
++        photoLayer.bindings = { url: 'bw_alc_photo' };
++        layers.push(photoLayer);
++        variables.push(bwImageVariable('bw_alc_photo', 'Pizza photo', photo));
++        layers.push(bwText({
++            id: 'bw-alc-eyebrow', name: 'Eyebrow', binding: 'bw_alc_eyebrow', text: 'Sea-salt stone baked',
++            sizePct: 2.5, letterSpacingEm: 0.22, transform: 'uppercase', color: BW.white,
++            align: 'center', x: 5, y: 63.2, w: 90, h: 3.2, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_alc_eyebrow', name: 'Eyebrow', value: 'Sea-salt stone baked' }));
++        layers.push(bwText({
++            id: 'bw-alc-title', name: 'Dish title', binding: 'bw_alc_title', text: 'Pizza',
++            family: 'Georgia', weight: 700, sizePct: 8.4, lineHeight: 1.02, color: BW.white,
++            align: 'center', x: 5, y: 67.6, w: 90, h: 9.2, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_alc_title', name: 'Dish title', value: 'Pizza' }));
++        layers.push(bwText({
++            id: 'bw-alc-flavours', name: 'Flavours', binding: 'bw_alc_flavours', text: 'Pepperoni & Hot Honey · Margherita · Vegana',
++            family: 'Georgia', weight: 400, style: 'italic', sizePct: 2.6, lineHeight: 1.25, color: BW.white,
++            align: 'center', x: 5, y: 75.4, w: 90, h: 6.4, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_alc_flavours', name: 'Flavours', value: 'Pepperoni & Hot Honey · Margherita · Vegana' }));
++        layers.push(bwText({
++            id: 'bw-alc-price', name: 'Price line', binding: 'bw_alc_price', text: 'from 12.95',
++            family: 'Georgia', weight: 400, style: 'italic', sizePct: 2.6, color: BW.white,
++            align: 'center', x: 5, y: 80.4, w: 90, h: 4, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_alc_price', name: 'Price line', value: 'from 12.95' }));
++        layers.push(imageLayer({
++            id: 'bw-alc-waves', name: 'Waves', url: bwWaveUrl({ width: 1000, height: 52, color: BW.white }),
++            x: 0, y: 85.4, w: 100, h: 5, z: 12, bleed: true,
++        }));
++        layers.push(imageLayer({
++            id: 'bw-alc-pattern', name: 'Sea-glass scallops', url: bwScallopUrl({ width: 1000, height: 150, ground: BW.mint, line: BW.mintLine }),
++            x: 0, y: 90, w: 100, h: 10, z: 10, bleed: true,
++        }));
++        layers.push(bwText({
++            id: 'bw-alc-footer', name: 'Website', binding: 'bw_alc_footer', text: BW_SITE,
++            sizePct: 2.4, weight: 500, color: BW.blueDeep,
++            align: 'center', x: 5, y: 92.4, w: 90, h: 3.2, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_alc_footer', name: 'Website', value: BW_SITE }));
++        return { layers, variables };
++    }
++
++    // ── 4. Good morning — breakfast story ─────────────────────────────
++    function buildGoodMorning(ctx) {
++        const layers = [];
++        const variables = [];
++        layers.push(imageLayer({ id: 'bw-gm-ground', name: 'Blue ground', color: BW.blue, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
++        const lockup = bwLockupLayer(ctx, { id: 'bw-gm-lockup', x: 33, y: 12.8, w: 34, h: 6.6, z: 20 });
++        if (lockup) layers.push(lockup);
++        layers.push(bwText({
++            id: 'bw-gm-headline', name: 'Headline', binding: 'bw_gm_headline', text: 'Good morning',
++            sizePct: 10.3, weight: 300, lineHeight: 1, letterSpacingEm: 0.01, transform: 'uppercase', color: BW.white,
++            align: 'center', x: 5, y: 26.6, w: 90, h: 21.4, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_gm_headline', name: 'Headline', value: 'Good morning' }));
++        layers.push(bwText({
++            id: 'bw-gm-kicker', name: 'Kicker', binding: 'bw_gm_kicker', text: 'Now serving breakfast',
++            sizePct: 2.2, letterSpacingEm: 0.16, transform: 'uppercase', color: BW.white,
++            align: 'center', x: 5, y: 50.4, w: 90, h: 3.4, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_gm_kicker', name: 'Kicker', value: 'Now serving breakfast' }));
++        layers.push(bwText({
++            id: 'bw-gm-dish', name: 'Dish', binding: 'bw_gm_dish', text: 'Full Scottish',
++            family: 'Georgia', weight: 700, sizePct: 4.8, lineHeight: 1.05, color: BW.white,
++            align: 'center', x: 5, y: 54, w: 90, h: 5.8, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_gm_dish', name: 'Dish', value: 'Full Scottish' }));
++        layers.push(bwText({
++            id: 'bw-gm-detail', name: 'Description', binding: 'bw_gm_detail',
++            text: 'your choice of eggs, dry-cured bacon, pork sausage, potato scone & black pudding · 14.95',
++            family: 'Georgia', weight: 400, style: 'italic', sizePct: 2.2, lineHeight: 1.35, color: BW.white,
++            align: 'center', x: 8, y: 60.4, w: 84, h: 8.4, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_gm_detail', name: 'Description and price', value: 'your choice of eggs, dry-cured bacon, pork sausage, potato scone & black pudding · 14.95' }));
++        layers.push(imageLayer({ id: 'bw-gm-gull', name: 'Gull', url: bwGullUrl(BW.white), x: 82, y: 68.4, w: 11, h: 5.8, z: 14, bleed: false }));
++        layers.push(imageLayer({ id: 'bw-gm-sun', name: 'Sun', url: bwSunUrl(BW.yellow), x: 13, y: 78.5, w: 74, h: 41.6, z: 6, bleed: true }));
++        layers.push(imageLayer({
++            id: 'bw-gm-waves', name: 'Waves', url: bwWaveUrl({ width: 1080, height: 104, color: BW.white }),
++            x: 0, y: 85.8, w: 100, h: 5.4, z: 12, bleed: true,
++        }));
++        layers.push(bwText({
++            id: 'bw-gm-footer', name: 'Website', binding: 'bw_gm_footer', text: BW_SITE,
++            sizePct: 2.4, weight: 500, color: BW.inkDeep,
++            align: 'center', x: 5, y: 92, w: 90, h: 3.4, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_gm_footer', name: 'Website', value: BW_SITE }));
++        return { layers, variables };
++    }
++
++    // ── 5. Seasons — set-menu story ───────────────────────────────────
++    function buildSeasonsStory(ctx) {
++        const layers = [];
++        const variables = [];
++        layers.push(imageLayer({ id: 'bw-seasons-ground', name: 'Teal ground', color: BW.teal, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
++        layers.push(imageLayer({ id: 'bw-seasons-glow', name: 'Sunset glow', url: bwGlowUrl(BW.orange, BW.teal), x: 14, y: 21, w: 72, h: 40.5, z: 2, bleed: true }));
++        const lockup = bwLockupLayer(ctx, { id: 'bw-seasons-lockup', x: 34, y: 12.2, w: 32, h: 6.6, z: 20 });
++        if (lockup) layers.push(lockup);
++        layers.push(imageLayer({ id: 'bw-seasons-gull', name: 'Gull', url: bwGullUrl(BW.white), x: 49, y: 27.2, w: 14, h: 7, z: 14, bleed: false }));
++        layers.push(bwText({
++            id: 'bw-seasons-title', name: 'Title', binding: 'bw_seasons_title', text: 'Seasons',
++            sizePct: 8.2, weight: 300, lineHeight: 1.05, letterSpacingEm: 0.12, transform: 'uppercase', color: BW.white,
++            align: 'center', x: 5, y: 38, w: 90, h: 9.2, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_seasons_title', name: 'Title', value: 'Seasons' }));
++        layers.push(bwText({
++            id: 'bw-seasons-kicker', name: 'Kicker', binding: 'bw_seasons_kicker', text: 'Scottish set menu',
++            sizePct: 2.2, letterSpacingEm: 0.24, transform: 'uppercase', color: BW.white,
++            align: 'center', x: 5, y: 47.2, w: 90, h: 3.4, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_seasons_kicker', name: 'Kicker', value: 'Scottish set menu' }));
++        layers.push(bwText({
++            id: 'bw-seasons-price-2', name: 'Two courses', binding: 'bw_seasons_price_2', text: '2 Courses · 25.95',
++            family: 'Georgia', weight: 400, sizePct: 4.7, lineHeight: 1.02, color: BW.white,
++            align: 'center', x: 5, y: 51.4, w: 90, h: 5.4, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_seasons_price_2', name: 'Two courses', value: '2 Courses · 25.95' }));
++        layers.push(bwText({
++            id: 'bw-seasons-price-3', name: 'Three courses', binding: 'bw_seasons_price_3', text: '3 Courses · 29.95',
++            family: 'Georgia', weight: 400, sizePct: 4.7, lineHeight: 1.02, color: BW.white,
++            align: 'center', x: 5, y: 56.6, w: 90, h: 5.4, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_seasons_price_3', name: 'Three courses', value: '3 Courses · 29.95' }));
++        layers.push(bwText({
++            id: 'bw-seasons-detail', name: 'Desserts', binding: 'bw_seasons_detail',
++            text: 'Cullen Skink · Haggis, Neeps & Tatties',
++            family: 'Georgia', weight: 400, style: 'italic', sizePct: 2.2, color: BW.white,
++            align: 'center', x: 5, y: 63, w: 90, h: 4, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_seasons_detail', name: 'Desserts', value: 'Cullen Skink · Haggis, Neeps & Tatties' }));
++        layers.push(bwText({
++            id: 'bw-seasons-detail-2', name: 'Desserts, second line', binding: 'bw_seasons_detail_2',
++            text: 'Cranachan Mini Mess',
++            family: 'Georgia', weight: 400, style: 'italic', sizePct: 2.2, color: BW.white,
++            align: 'center', x: 5, y: 65.8, w: 90, h: 4, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_seasons_detail_2', name: 'Desserts, second line', value: 'Cranachan Mini Mess' }));
++        layers.push(imageLayer({
++            id: 'bw-seasons-waves', name: 'Waves', url: bwWaveUrl({ width: 1080, height: 116, color: BW.white }),
++            x: 0, y: 83.4, w: 100, h: 6.4, z: 12, bleed: true,
++        }));
++        layers.push(bwText({
++            id: 'bw-seasons-footer', name: 'Website', binding: 'bw_seasons_footer', text: BW_GROUP_SITE,
++            sizePct: 2.5, weight: 500, letterSpacingEm: 0.18, color: BW.white,
++            align: 'center', x: 5, y: 91.8, w: 90, h: 3.4, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_seasons_footer', name: 'Website', value: BW_GROUP_SITE }));
++        return { layers, variables };
++    }
++
++    // ── 6. Event post ─────────────────────────────────────────────────
++    function buildEventPost(ctx) {
++        const { brand } = ctx;
++        const layers = [];
++        const variables = [];
++        layers.push(imageLayer({ id: 'bw-event-ground', name: 'Blue ground', color: BW.blue, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
++        const wordmark = bwWordmarkLayer(brand, { id: 'bw-event-wordmark', variant: 'light', x: 8, y: 12.5, w: 48, h: 15.4, z: 20 });
++        if (wordmark) layers.push(wordmark);
++        layers.push(bwText({
++            id: 'bw-event-type', name: 'Event type', binding: 'bw_event_type', text: '[Event type]',
++            sizePct: 3.1, letterSpacingEm: 0.14, transform: 'uppercase', color: BW.white,
++            align: 'left', x: 8, y: 32.4, w: 48, h: 4.6, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_event_type', name: 'Event type', value: '[Event type]' }));
++        layers.push(bwText({
++            id: 'bw-event-headline', name: 'Headline', binding: 'bw_event_headline', text: '[Headline goes here]',
++            family: 'Georgia', weight: 700, sizePct: 7.2, lineHeight: 1.04, color: BW.white,
++            align: 'left', x: 8, y: 43.2, w: 48, h: 12.5, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_event_headline', name: 'Headline', value: '[Headline goes here]' }));
++        layers.push(bwText({
++            id: 'bw-event-detail', name: 'Date and CTA', binding: 'bw_event_detail', text: '[Date] · [Time] · Book now',
++            family: 'Georgia', weight: 400, style: 'italic', sizePct: 3, color: BW.white,
++            align: 'left', x: 8, y: 57.2, w: 50, h: 5.2, z: 30,
++        }));
++        variables.push(variable({ id: 'bw-event_detail', name: 'Date and CTA', value: '[Date] · [Time] · Book now' }));
++        const photo = bwPhotoUrl({ label: 'Add photo', fill: '#2f9fd6', stroke: BW.white, textColor: BW.white, dash: 1.9, font: 5.6 });
++        const photoLayer = bwDashedCircle({ id: 'bw-event-photo', name: 'Event photo', url: photo, x: 59, y: 10, w: 35, h: 66.7, z: 8 });
++        photoLayer.bindings = { url: 'bw_event_photo' };
++        layers.push(photoLayer);
++        variables.push(bwImageVariable('bw_event_photo', 'Event photo', photo));
++        layers.push(imageLayer({
++            id: 'bw-event-waves', name: 'Waves', url: bwWaveUrl({ width: 1200, height: 52, color: BW.white }),
++            x: 0, y: 81.4, w: 100, h: 8.4, z: 12, bleed: true,
++        }));
++        layers.push(imageLayer({
++            id: 'bw-event-pattern', name: 'Sea-glass scallops', url: bwScallopUrl({ width: 1200, height: 66, ground: BW.mint, line: BW.mintLine }),
++            x: 0, y: 89.4, w: 100, h: 10.6, z: 10, bleed: true,
++        }));
++        layers.push(bwText({
++            id: 'bw-event-footer', name: 'Website', binding: 'bw_event_footer', text: BW_SITE,
++            sizePct: 2.6, weight: 500, color: BW.blueDeep,
++            align: 'center', x: 5, y: 92.6, w: 90, h: 3.4, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_event_footer', name: 'Website', value: BW_SITE }));
++        return { layers, variables };
++    }
++
++    // ── 7. Announcement banner ────────────────────────────────────────
++    function buildAnnouncement(ctx) {
++        const layers = [];
++        const variables = [];
++        layers.push(imageLayer({ id: 'bw-ann-ground', name: 'Blue ground', color: BW.blue, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
++        const lockup = bwLockupLayer(ctx, { id: 'bw-ann-lockup', x: 6, y: 13.4, w: 26, h: 15.4, z: 20 });
++        if (lockup) layers.push(lockup);
++        layers.push(imageLayer({ id: 'bw-ann-gull', name: 'Gull', url: bwGullUrl(BW.white), x: 72.5, y: 16.6, w: 14, h: 7.4, z: 14, bleed: false }));
++        layers.push(bwText({
++            id: 'bw-ann-topic', name: 'Topic', binding: 'bw_ann_topic', text: "[Topic · e.g. we're hiring]",
++            sizePct: 2.9, letterSpacingEm: 0.12, transform: 'uppercase', color: BW.white,
++            align: 'left', x: 6, y: 33.6, w: 52, h: 4.4, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_ann_topic', name: 'Topic', value: "[Topic · e.g. we're hiring]" }));
++        layers.push(bwText({
++            id: 'bw-ann-headline', name: 'Headline', binding: 'bw_ann_headline', text: '[Headline goes here]',
++            family: 'Georgia', weight: 700, sizePct: 7.2, lineHeight: 1.04, color: BW.white,
++            align: 'left', x: 6, y: 42.8, w: 52, h: 12.5, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_ann_headline', name: 'Headline', value: '[Headline goes here]' }));
++        layers.push(bwText({
++            id: 'bw-ann-detail', name: 'Supporting line', binding: 'bw_ann_detail', text: '[One supporting line]',
++            family: 'Georgia', weight: 400, style: 'italic', sizePct: 3, color: BW.white,
++            align: 'left', x: 6, y: 56.8, w: 52, h: 5.2, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_ann_detail', name: 'Supporting line', value: '[One supporting line]' }));
++        layers.push(imageLayer({ id: 'bw-ann-sun', name: 'Sun', url: bwSunUrl(BW.yellow), x: 58, y: 51, w: 42, h: 80, z: 6, bleed: true }));
++        layers.push(imageLayer({
++            id: 'bw-ann-waves', name: 'Waves', url: bwWaveUrl({ width: 1200, height: 52, color: BW.white }),
++            x: 0, y: 77.4, w: 100, h: 9.4, z: 12, bleed: true,
++        }));
++        layers.push(bwText({
++            id: 'bw-ann-footer', name: 'Website', binding: 'bw_ann_footer', text: BW_SITE,
++            sizePct: 2.8, weight: 500, color: BW.white,
++            align: 'left', x: 6, y: 88.6, w: 40, h: 3.8, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_ann_footer', name: 'Website', value: BW_SITE }));
++        return { layers, variables };
++    }
++
++    // ── 8. From the sea — dish post ───────────────────────────────────
++    function buildFromTheSea(ctx) {
++        const { brand } = ctx;
++        const layers = [];
++        const variables = [];
++        layers.push(imageLayer({ id: 'bw-sea-ground', name: 'Paper ground', color: BW.white, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
++        layers.push(imageLayer({
++            id: 'bw-sea-pattern', name: 'Sea-glass scallops', url: bwScallopUrl({ width: 1600, height: 187, ground: BW.mint, line: BW.mintLine }),
++            x: 0, y: 79.2, w: 100, h: 20.8, z: 1, bleed: true,
++        }));
++        const wordmark = bwWordmarkLayer(brand, { id: 'bw-sea-wordmark', variant: 'light', x: 8, y: 9.2, w: 51, h: 10.4, z: 20, recolor: BW.blue });
++        if (wordmark) layers.push(wordmark);
++        layers.push(bwText({
++            id: 'bw-sea-kicker', name: 'Kicker', binding: 'bw_sea_kicker', text: 'From the sea',
++            sizePct: 2.7, letterSpacingEm: 0.26, transform: 'uppercase', color: '#0a7f76',
++            align: 'left', x: 8, y: 30.2, w: 45, h: 3.6, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_sea_kicker', name: 'Kicker', value: 'From the sea' }));
++        layers.push(bwText({
++            id: 'bw-sea-dish', name: 'Dish', binding: 'bw_sea_dish', text: 'Classic Fish & Chips',
++            family: 'Georgia', weight: 700, sizePct: 7.8, lineHeight: 1.02, color: BW.ink,
++            align: 'left', x: 8, y: 34, w: 52, h: 18, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_sea_dish', name: 'Dish', value: 'Classic Fish & Chips' }));
++        layers.push(bwText({
++            id: 'bw-sea-detail', name: 'Description', binding: 'bw_sea_detail',
++            text: 'battered haddock, minted mushy peas, lemon wedge · 19.95',
++            family: 'Georgia', weight: 400, style: 'italic', sizePct: 2.8, lineHeight: 1.35, color: BW.ink,
++            align: 'left', x: 8, y: 54.4, w: 45, h: 8, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_sea_detail', name: 'Description and price', value: 'battered haddock, minted mushy peas, lemon wedge · 19.95' }));
++        const photo = bwPhotoUrl({ label: 'Add dish photo', fill: '#eaf5f9', stroke: BW.blue, textColor: '#1b4c5a', dash: 1.4, font: 4.2 });
++        const photoLayer = bwDashedCircle({ id: 'bw-sea-photo', name: 'Dish photo', url: photo, x: 59, y: 8.5, w: 35, h: 62.2, z: 8 });
++        photoLayer.bindings = { url: 'bw_sea_photo' };
++        layers.push(photoLayer);
++        variables.push(bwImageVariable('bw_sea_photo', 'Dish photo', photo));
++        layers.push(imageLayer({
++            id: 'bw-sea-waves', name: 'Waves', url: bwWaveUrl({ width: 1600, height: 76, color: BW.blue }),
++            x: 0, y: 71, w: 100, h: 8.4, z: 12, bleed: true,
++        }));
++        layers.push(bwText({
++            id: 'bw-sea-footer', name: 'Website', binding: 'bw_sea_footer', text: BW_SITE,
++            sizePct: 2.7, weight: 500, color: BW.blueDeep,
++            align: 'center', x: 5, y: 85, w: 90, h: 3.4, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_sea_footer', name: 'Website', value: BW_SITE }));
++        return { layers, variables };
++    }
++
++    // ── 9. Boardwalk banner ───────────────────────────────────────────
++    function buildBoardwalkBanner(ctx) {
++        const { brand } = ctx;
++        const layers = [];
++        const variables = [];
++        layers.push(imageLayer({ id: 'bw-banner-ground', name: 'Blue ground', color: BW.blue, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
++        const wordmark = bwWordmarkLayer(brand, { id: 'bw-banner-wordmark', variant: 'light', x: 8, y: 11, w: 70, h: 20.5, z: 20 });
++        if (wordmark) layers.push(wordmark);
++        layers.push(imageLayer({ id: 'bw-banner-gull', name: 'Gull', url: bwGullUrl('#bfe3dc'), x: 76.5, y: 14.5, w: 13, h: 6.5, z: 21, bleed: false }));
++        layers.push(bwText({
++            id: 'bw-banner-caption', name: 'Caption', binding: 'bw_banner_caption', text: 'Cawley Hotels & Restaurants',
++            sizePct: 4.2, letterSpacingEm: 0.34, transform: 'uppercase', color: BW.white,
++            align: 'center', x: 5, y: 38.4, w: 90, h: 6, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_banner_caption', name: 'Caption', value: 'Cawley Hotels & Restaurants' }));
++        layers.push(imageLayer({
++            id: 'bw-banner-waves', name: 'Waves', url: bwWaveUrl({ width: 1600, height: 90, rows: 4, color: BW.white }),
++            x: 0, y: 69.5, w: 100, h: 15, z: 12, bleed: true,
++        }));
++        layers.push(imageLayer({
++            id: 'bw-banner-pattern', name: 'Sea-glass scallops', url: bwScallopUrl({ width: 1600, height: 96, ground: BW.mint, line: BW.mintLine }),
++            x: 0, y: 84, w: 100, h: 16, z: 10, bleed: true,
++        }));
++        return { layers, variables };
++    }
++
++    // ── 10. Group banner ──────────────────────────────────────────────
++    function buildGroupBanner(ctx) {
++        const layers = [];
++        const variables = [];
++        layers.push(imageLayer({ id: 'bw-group-ground', name: 'Teal ground', color: BW.teal, x: 0, y: 0, w: 100, h: 100, z: 0, bleed: true }));
++        layers.push(imageLayer({ id: 'bw-group-glow', name: 'Sunset glow', url: bwGlowUrl(BW.orange, BW.teal), x: 57, y: -34, w: 42, h: 168, z: 2, bleed: true }));
++        const lockup = bwLockupLayer(ctx, { id: 'bw-group-lockup', x: 56, y: 17, w: 28, h: 40, z: 20 });
++        if (lockup) layers.push(lockup);
++        layers.push(bwText({
++            id: 'bw-group-venues', name: 'Venues', binding: 'bw_group_venues',
++            text: 'Duck Bay · Boat Yard · Coast · Boardwalk · River House',
++            sizePct: 3.4, letterSpacingEm: 0.14, transform: 'uppercase', color: BW.white,
++            align: 'center', x: 42, y: 65.4, w: 56, h: 7.6, z: 30,
++        }));
++        variables.push(variable({ id: 'bw_group_venues', name: 'Venues', value: 'Duck Bay · Boat Yard · Coast · Boardwalk · River House' }));
++        layers.push(imageLayer({
++            id: 'bw-group-waves', name: 'Waves', url: bwWaveUrl({ width: 1600, height: 108, rows: 4, thickness: 0.05, color: BW.white }),
++            x: 0, y: 74.5, w: 100, h: 25.5, z: 12, bleed: true,
++        }));
++        return { layers, variables };
++    }
++
++    const BW_TEMPLATES = [
++        {
++            id: 'bw-dessert',
++            label: 'Dessert of the day',
++            category: 'Social',
++            description: 'A blue dessert card with the wordmark, a circular dish-photo slot, the dish and price, and the sea-glass footer.',
++            channel: 'social',
++            width: 1080,
++            height: 1080,
++            widthMm: null,
++            heightMm: null,
++            paper: '1:1',
++            dpi: 72,
++            formats: [],
++            appliesTo: BOARDWALK_BRAND,
++            safeZone: BW_SAFE_ZONE,
++            kitColors: BW_KIT_COLORS,
++            palette: { ground: BW.blue, ink: BW.ink, accent: BW.mint },
++            build: buildDessertCard,
++        },
++        {
++            id: 'bw-sweets-menu',
++            label: 'Sweets menu',
++            category: 'Social',
++            description: 'A 4:5 sweets menu: a white card with four dishes and prices over the mint ground, wordmark and waves above.',
++            channel: 'social',
++            width: 1080,
++            height: 1350,
++            widthMm: null,
++            heightMm: null,
++            paper: '4:5',
++            dpi: 72,
++            formats: [],
++            appliesTo: BOARDWALK_BRAND,
++            safeZone: BW_SAFE_ZONE,
++            kitColors: BW_KIT_COLORS,
++            palette: { ground: BW.mint, ink: BW.ink, accent: BW.blue },
++            build: buildSweetsMenu,
++        },
++        {
++            id: 'bw-a-la-carte',
++            label: 'À la carte — pizza',
++            category: 'Social',
++            description: 'A 2:3 à la carte card with a dashed pizza-photo frame, the sea-salt eyebrow, dish, flavours and price.',
++            channel: 'social',
++            width: 1000,
++            height: 1500,
++            widthMm: null,
++            heightMm: null,
++            paper: '2:3',
++            dpi: 72,
++            formats: [],
++            appliesTo: BOARDWALK_BRAND,
++            safeZone: BW_SAFE_ZONE,
++            kitColors: BW_KIT_COLORS,
++            palette: { ground: BW.blue, ink: BW.ink, accent: BW.white },
++            build: buildALaCarte,
++        },
++        {
++            id: 'bw-good-morning',
++            label: 'Good morning story',
++            category: 'Social',
++            description: 'A 9:16 breakfast story: the Cawley lockup, a big GOOD MORNING, the Full Scottish line, a gull and the sun and waves.',
++            channel: 'social',
++            width: 1080,
++            height: 1920,
++            widthMm: null,
++            heightMm: null,
++            paper: '9:16',
++            dpi: 72,
++            formats: [],
++            appliesTo: BOARDWALK_BRAND,
++            safeZone: BW_SAFE_ZONE,
++            kitColors: BW_KIT_COLORS,
++            palette: { ground: BW.blue, ink: BW.ink, accent: BW.yellow },
++            build: buildGoodMorning,
++        },
++        {
++            id: 'bw-seasons',
++            label: 'Seasons story',
++            category: 'Social',
++            description: 'A 9:16 set-menu story on teal with the orange glow, SEASONS, two price lines and the dessert list.',
++            channel: 'social',
++            width: 1080,
++            height: 1920,
++            widthMm: null,
++            heightMm: null,
++            paper: '9:16',
++            dpi: 72,
++            formats: [],
++            appliesTo: BOARDWALK_BRAND,
++            safeZone: BW_SAFE_ZONE,
++            kitColors: BW_KIT_COLORS,
++            palette: { ground: BW.teal, ink: BW.ink, accent: BW.orange },
++            build: buildSeasonsStory,
++        },
++        {
++            id: 'bw-event-post',
++            label: 'Event post',
++            category: 'Social',
++            description: 'A 1.91:1 event card with the wordmark, event type, headline and date, plus a circular photo slot.',
++            channel: 'social',
++            width: 1200,
++            height: 630,
++            widthMm: null,
++            heightMm: null,
++            paper: '1.91:1',
++            dpi: 72,
++            formats: [],
++            appliesTo: BOARDWALK_BRAND,
++            safeZone: BW_SAFE_ZONE,
++            kitColors: BW_KIT_COLORS,
++            palette: { ground: BW.blue, ink: BW.ink, accent: BW.mint },
++            build: buildEventPost,
++        },
++        {
++            id: 'bw-announcement',
++            label: 'Announcement banner',
++            category: 'Social',
++            description: 'A 1.91:1 announcement card: the Cawley lockup, topic, headline and supporting line over the sun and waves.',
++            channel: 'social',
++            width: 1200,
++            height: 630,
++            widthMm: null,
++            heightMm: null,
++            paper: '1.91:1',
++            dpi: 72,
++            formats: [],
++            appliesTo: BOARDWALK_BRAND,
++            safeZone: BW_SAFE_ZONE,
++            kitColors: BW_KIT_COLORS,
++            palette: { ground: BW.blue, ink: BW.ink, accent: BW.yellow },
++            build: buildAnnouncement,
++        },
++        {
++            id: 'bw-from-the-sea',
++            label: 'From the sea — dish post',
++            category: 'Social',
++            description: 'A 16:9 light dish card with the blue wordmark, FROM THE SEA, the fish dish and a circular photo slot.',
++            channel: 'social',
++            width: 1600,
++            height: 900,
++            widthMm: null,
++            heightMm: null,
++            paper: '16:9',
++            dpi: 72,
++            formats: [],
++            appliesTo: BOARDWALK_BRAND,
++            safeZone: BW_SAFE_ZONE,
++            kitColors: BW_KIT_COLORS,
++            palette: { ground: BW.white, ink: BW.ink, accent: BW.mint },
++            build: buildFromTheSea,
++        },
++        {
++            id: 'bw-banner',
++            label: 'Boardwalk banner',
++            category: 'Social',
++            description: 'A wide 8:3 boardwalk header with the full wordmark, the gull, the Cawley endorsement and the sea-glass footer.',
++            channel: 'social',
++            width: 1600,
++            height: 600,
++            widthMm: null,
++            heightMm: null,
++            paper: '8:3',
++            dpi: 72,
++            formats: [],
++            appliesTo: BOARDWALK_BRAND,
++            safeZone: BW_SAFE_ZONE,
++            kitColors: BW_KIT_COLORS,
++            palette: { ground: BW.blue, ink: BW.ink, accent: BW.mint },
++            build: buildBoardwalkBanner,
++        },
++        {
++            id: 'bw-group-banner',
++            label: 'Group banner',
++            category: 'Social',
++            description: 'A 4:1 group header on teal with the Cawley lockup, the sunset glow and the five venue names.',
++            channel: 'social',
++            width: 1600,
++            height: 400,
++            widthMm: null,
++            heightMm: null,
++            paper: '4:1',
++            dpi: 72,
++            formats: [],
++            appliesTo: BOARDWALK_BRAND,
++            safeZone: BW_SAFE_ZONE,
++            kitColors: BW_KIT_COLORS,
++            palette: { ground: BW.teal, ink: BW.ink, accent: BW.orange },
++            build: buildGroupBanner,
++        },
++    ];
++
+     const TEMPLATES = [
+         {
+             id: 'menu',
+@@ -2002,6 +2876,10 @@
+         },
+     ];
+ 
++    // The Boardwalk social set is appended so the shared initial list stays in
++    // its published order for every other brand.
++    TEMPLATES.push(...BW_TEMPLATES);
++
+     function templateById(id) {
+         return TEMPLATES.find((template) => template.id === id) || null;
+     }
+@@ -3327,6 +4205,17 @@
+     }
+ 
+     function formatFor(template) {
++        // A template can carry its own safe margin (as fractions of the
++        // format). The studio reads it from the format, so the guardrail and
++        // the build-time type fit agree.
++        const safeZone = template.safeZone && typeof template.safeZone === 'object'
++            ? {
++                top: clamp(finite(template.safeZone.top, 0), 0, 0.45),
++                right: clamp(finite(template.safeZone.right, 0), 0, 0.45),
++                bottom: clamp(finite(template.safeZone.bottom, 0), 0, 0.45),
++                left: clamp(finite(template.safeZone.left, 0), 0, 0.45),
++            }
++            : null;
+         const master = {
+             id: 'master',
+             isMaster: true,
+@@ -3337,16 +4226,21 @@
+             layerOverrides: {},
+             variableValues: {},
+         };
+-        const extras = (template.formats || []).map((format) => ({
+-            id: format.id,
+-            isMaster: false,
+-            channel: template.channel,
+-            label: format.label || format.id,
+-            width: format.width,
+-            height: format.height,
+-            layerOverrides: {},
+-            variableValues: {},
+-        }));
++        if (safeZone) master.safeZone = safeZone;
++        const extras = (template.formats || []).map((format) => {
++            const entry = {
++                id: format.id,
++                isMaster: false,
++                channel: template.channel,
++                label: format.label || format.id,
++                width: format.width,
++                height: format.height,
++                layerOverrides: {},
++                variableValues: {},
++            };
++            if (safeZone) entry.safeZone = safeZone;
++            return entry;
++        });
+         return [master, ...extras];
+     }
+ 
+@@ -3363,6 +4257,9 @@
+         if (!template) throw new Error(`Unknown template “${source.templateId}”.`);
+         layerCounter = 0;
+         const ctx = makeContext(brand, template);
++        // Group identity (the Cawley endorsement lockup) lives on the pack's
++        // portfolio rather than on a single brand, so pass it through.
++        ctx.portfolio = normalizePortfolio(source.portfolio);
+         const built = template.build(ctx);
+         if (!built || !Array.isArray(built.layers) || !built.layers.length) {
+             throw new Error(`The “${template.label}” template produced no layers.`);
+@@ -3390,7 +4287,14 @@
+             layer.id = id;
+             if (layer.type === 'image') layer.bleed = layer.bleed === true;
+         });
+-        const zone = safeZoneForChannel(template.channel);
++        const zone = template.safeZone && typeof template.safeZone === 'object'
++            ? {
++                top: clamp(finite(template.safeZone.top, 0), 0, 0.45) * 100,
++                right: clamp(finite(template.safeZone.right, 0), 0, 0.45) * 100,
++                bottom: clamp(finite(template.safeZone.bottom, 0), 0, 0.45) * 100,
++                left: clamp(finite(template.safeZone.left, 0), 0, 0.45) * 100,
++            }
++            : safeZoneForChannel(template.channel);
+         const layout = { width: template.width, height: template.height };
+         built.layers.forEach((layer) => fitTextToSafeArea(layer, zone));
+         built.layers.forEach((layer) => fitTextHeight(layer, layout, built.layers, zone));
+@@ -3402,6 +4306,18 @@
+             ? String(source.projectId)
+             : slugId(`${brand.id}-${template.id}`, 'brand-template');
+         const kit = brandKitFor(brand);
++        // Templates drawn in a wider art direction than the guide's palette
++        // declare those colours here. Merging them into the composition kit
++        // keeps the off-palette guardrail honest for a scene the user edits.
++        if (kit && Array.isArray(template.kitColors) && template.kitColors.length) {
++            const seenHex = new Set(kit.palette.map((entry) => entry.hex.toLowerCase()));
++            template.kitColors.forEach((entry) => {
++                const hex = normalizeHex(entry?.hex);
++                if (!hex || seenHex.has(hex) || kit.palette.length >= 40) return;
++                seenHex.add(hex);
++                kit.palette.push({ name: text(entry.name, 80) || hex.toUpperCase(), hex });
++            });
++        }
+         const name = text(source.name, 120) || `${brand.name} — ${template.label}`;
+         return {
+             version: 3,
+@@ -3438,12 +4354,19 @@
+                         scope: ctx.roles.application.scope,
+                     }
+                     : null,
+-                palette: {
+-                    ground: ctx.roles.ground.hex,
+-                    accent: ctx.roles.accent.hex,
+-                    ink: ctx.roles.ink.hex,
+-                    contrast: ctx.roles.contrast,
+-                },
++                palette: template.palette && normalizeHex(template.palette.ground)
++                    ? {
++                        ground: normalizeHex(template.palette.ground),
++                        accent: normalizeHex(template.palette.accent) || ctx.roles.accent.hex,
++                        ink: normalizeHex(template.palette.ink) || ctx.roles.ink.hex,
++                        contrast: ctx.roles.contrast,
++                    }
++                    : {
++                        ground: ctx.roles.ground.hex,
++                        accent: ctx.roles.accent.hex,
++                        ink: ctx.roles.ink.hex,
++                        contrast: ctx.roles.contrast,
++                    },
+                 fontSubstitutions,
+                 createdAt: now,
+                 updatedAt: now,
+diff --git a/tests/asset-studio.js b/tests/asset-studio.js
+index 388307a..c026a0a 100644
+--- a/tests/asset-studio.js
++++ b/tests/asset-studio.js
+@@ -117,6 +117,71 @@ async function main() {
+         if (tabs === 11) ok('eleven asset categories are available');
+         else fail(`expected 11 categories, found ${tabs}`);
+ 
++        console.log('\nBrand templates');
++        await page.locator('#brandTemplatesBtn').click();
++        await page.waitForSelector('.asset-brand-template', { timeout: 10000 });
++        const catalogCount = await page.evaluate(async () => {
++            const active = [...document.querySelectorAll('#brandSwitch button')]
++                .find((button) => button.getAttribute('aria-pressed') === 'true');
++            const brandName = active?.textContent.trim();
++            const { packs } = await fetch('/api/brand-packs').then((response) => response.json());
++            for (const summary of packs || []) {
++                const { pack } = await fetch(`/api/brand-packs/${encodeURIComponent(summary.id)}`).then((response) => response.json());
++                const brand = pack?.brands?.find((entry) => entry.name === brandName);
++                if (brand) return window.StudioBrand.templateCatalog(brand).length;
++            }
++            return 0;
++        });
++        const templateCards = await page.locator('.asset-brand-template').count();
++        if (catalogCount > 0 && templateCards === catalogCount) {
++            ok(`all ${catalogCount} brand catalog templates are available`);
++        } else {
++            fail(`expected ${catalogCount} brand catalog templates, found ${templateCards}`);
++        }
++        const previewCount = await page.locator('.template-preview-canvas').count();
++        if (previewCount === catalogCount) ok('every brand template has a rendered preview');
++        else fail(`expected ${catalogCount} template previews, found ${previewCount}`);
++        const createHref = await page.locator('.asset-brand-template a').last().getAttribute('href');
++        if (createHref?.includes('brandPackId=') && createHref.includes('brandId=') && createHref.includes('brandTemplateId=')) {
++            ok('each template links to its matching Studio V2 creation flow');
++        } else {
++            fail(`brand template creation link is incomplete: ${createHref}`);
++        }
++        const firstTemplateName = await page.locator('.asset-brand-template h3').first().textContent();
++        await page.locator('.asset-brand-template button').first().click();
++        await page.waitForFunction((name) => document.getElementById('previewTitle').textContent.trim() === name, firstTemplateName);
++        const selectedTemplateCategory = await page.locator('.category-tab[aria-selected="true"] b').textContent();
++        if (selectedTemplateCategory) ok(`brand template opens under ${selectedTemplateCategory}`);
++        else fail('brand template did not select an asset category');
++        await page.getByRole('tab', { name: 'Text' }).click();
++        const firstTextInput = page.locator('#controlBody input[type="text"], #controlBody textarea').first();
++        const editableFieldCount = await page.locator('#controlBody input[type="text"], #controlBody textarea').count();
++        if (editableFieldCount > 0) ok(`brand template exposes ${editableFieldCount} editable text fields in Asset Studio`);
++        else fail('brand template has no editable text fields in Asset Studio');
++        if (editableFieldCount > 0) {
++            const beforeEdit = await page.locator('#previewCanvas').evaluate((canvas) => canvas.toDataURL());
++            await firstTextInput.fill('Asset Studio edited copy');
++            await page.waitForTimeout(200);
++            const afterEdit = await page.locator('#previewCanvas').evaluate((canvas) => canvas.toDataURL());
++            if (beforeEdit !== afterEdit) ok('editing brand-template copy repaints the Asset Studio preview');
++            else fail('editing brand-template copy did not repaint the Asset Studio preview');
++        }
++        const [brandTemplateDownload] = await Promise.all([
++            page.waitForEvent('download'),
++            page.locator('#downloadBtn').click(),
++        ]);
++        if (brandTemplateDownload.suggestedFilename().endsWith('.png')) {
++            ok('brand template exports as a full-resolution PNG from Asset Studio');
++        } else {
++            fail(`unexpected brand-template export: ${brandTemplateDownload.suggestedFilename()}`);
++        }
++        if (await page.locator('#printPackBtn').isVisible()) {
++            await page.locator('#printPackBtn').click();
++            if (!(await page.locator('#printDialog').isHidden())) ok('print brand templates are wired to the print-pack workflow');
++            else fail('print brand template did not open the print-pack workflow');
++            await page.locator('#printCancel').click();
++        }
++
+         console.log('\nEvery category and design');
+         const categoryCount = await page.locator('.category-tab').count();
+         let totalDesigns = 0;
+@@ -141,8 +206,9 @@ async function main() {
+             totalDesigns += designCount;
+             if (categoryOk === designCount) ok(`${label}: all ${designCount} designs render`);
+         }
+-        if (totalDesigns === 50) ok('fifty designs across eleven categories');
+-        else fail(`expected 50 designs, walked ${totalDesigns}`);
++        const expectedDesigns = 50 + catalogCount;
++        if (totalDesigns === expectedDesigns) ok(`${totalDesigns} designs are available across eleven categories (${catalogCount} brand templates)`);
++        else fail(`expected ${expectedDesigns} total designs including ${catalogCount} brand templates, walked ${totalDesigns}`);
+ 
+         // Back to the first flyer for the control checks.
+         await page.locator('.category-tab').nth(0).click();
+diff --git a/tests/brand.test.js b/tests/brand.test.js
+index 1c4c7a1..5d40856 100644
+--- a/tests/brand.test.js
++++ b/tests/brand.test.js
+@@ -859,3 +859,139 @@ test('brand-pack and asset-intel share one provenance vocabulary', () => {
+     assert.equal(blank.provenance.kind, 'unknown');
+     assert.equal(blank.brands[0].provenance.kind, 'unknown');
+ });
++
++// ---------------------------------------------------------------------------
++// Boardwalk social set (the ten designs from the Cawley Boardwalk social pack)
++// ---------------------------------------------------------------------------
++
++const boardwalkInput = () => ({
++    id: 'boardwalk',
++    name: 'Boardwalk',
++    tagline: 'Stylish, all day dining.',
++    url: 'https://boardwalkfalkirk.co.uk',
++    palette: [
++        { name: 'Boardwalk Teal', hex: '#055768', role: 'Header band, buttons, links' },
++        { name: 'Paper', hex: '#ffffff', role: 'Page ground, type on teal' },
++        { name: 'Ink', hex: '#3d3e3e', role: 'Body copy' },
++    ],
++    typography: {
++        families: ['Mulish 300', 'Mulish 400'],
++        scale: [
++            { id: 'title', family: 'Mulish 300', px: 64, size: '64 px' },
++            { id: 'body-m', family: 'Mulish 400', px: 16, size: '16 px' },
++        ],
++    },
++    logos: [
++        {
++            name: 'boardwalk wordmark white', kind: 'wordmark', variant: 'light', format: 'png',
++            url: '/api/brand-packs/test-pack/files/boardwalk/assets/logos/boardwalk-wordmark-white.png',
++        },
++        {
++            name: 'boardwalk wordmark ink', kind: 'wordmark', variant: 'dark', format: 'png',
++            url: '/api/brand-packs/test-pack/files/boardwalk/assets/logos/boardwalk-wordmark-ink.png',
++        },
++    ],
++    guidelines: { facts: [{ field: 'Group', value: 'Cawley Hotels & Restaurants' }] },
++});
++
++const boardwalkPortfolio = () => ({
++    name: 'Portfolio brand overview',
++    assets: [{
++        name: 'cawley wordmark white',
++        path: 'assets/cawley-wordmark-white.png',
++        url: '/api/brand-packs/test-pack/files/portfolio/assets/cawley-wordmark-white.png',
++    }],
++});
++
++const BW_TEMPLATE_IDS = [
++    'bw-dessert', 'bw-sweets-menu', 'bw-a-la-carte', 'bw-good-morning', 'bw-seasons',
++    'bw-event-post', 'bw-announcement', 'bw-from-the-sea', 'bw-banner', 'bw-group-banner',
++];
++
++test('the Boardwalk social set is offered only to Boardwalk', () => {
++    const boardwalk = Brand.normalizeBrand(boardwalkInput(), 0);
++    const ids = Brand.templateCatalog(boardwalk).map((entry) => entry.id);
++    BW_TEMPLATE_IDS.forEach((id) => assert.ok(ids.includes(id), id));
++    const plain = Brand.normalizeBrand({ id: 'plain', name: 'Plain', palette: [{ name: 'Ink', hex: '#111111' }] }, 0);
++    const plainIds = Brand.templateCatalog(plain).map((entry) => entry.id);
++    BW_TEMPLATE_IDS.forEach((id) => assert.ok(!plainIds.includes(id), id));
++    assert.strictEqual(ids.length, plainIds.length + BW_TEMPLATE_IDS.length);
++});
++
++test('every Boardwalk social template builds a clean v3 composition', () => {
++    const boardwalk = Brand.normalizeBrand(boardwalkInput(), 0);
++    BW_TEMPLATE_IDS.forEach((templateId) => {
++        const composition = Brand.createTemplateComposition({
++            packId: 'test-pack',
++            packName: 'Test pack',
++            portfolio: boardwalkPortfolio(),
++            brand: boardwalk,
++            templateId,
++            projectId: 'p',
++        });
++        assert.strictEqual(composition.version, 3, templateId);
++        assert.ok(composition.layers.length >= 5, templateId);
++        assert.ok(composition.variables.length > 0, templateId);
++        assert.deepStrictEqual(composition.formats[0].safeZone, { top: 0.04, right: 0.04, bottom: 0.04, left: 0.04 }, templateId);
++        // The art direction's colours join the kit so the off-palette guardrail
++        // does not flag artwork the template itself introduced.
++        const kitHex = new Set(composition.brandKit.palette.map((entry) => entry.hex));
++        ['#0890ce', '#00969e', '#bee2de', '#feef00', '#e8641a'].forEach((hex) => {
++            assert.ok(kitHex.has(hex), `${templateId} kit is missing ${hex}`);
++        });
++        // Inline SVG art has to stay under the shared 2 KB asset-URL cap.
++        composition.layers.forEach((layer) => {
++            if (layer.type !== 'image') return;
++            const url = String(layer.url);
++            assert.ok(url.length <= 2048, `${templateId}/${layer.id}`);
++            // An SVG without width/height rasterises at the 300×150 default and
++            // breaks in the canvas export path, so every generated graphic
++            // declares its intrinsic size.
++            if (url.startsWith('data:image/svg+xml;base64,')) {
++                const svg = Buffer.from(url.slice('data:image/svg+xml;base64,'.length), 'base64').toString('utf8');
++                assert.match(svg, /<svg[^>]+width="\d+"/, `${templateId}/${layer.id} width`);
++                assert.match(svg, /<svg[^>]+height="\d+"/, `${templateId}/${layer.id} height`);
++            }
++        });
++        // The contrast pass run at build time must not have swapped type to a
++        // neutral that is off the art direction.
++        composition.layers.filter((layer) => layer.type === 'text').forEach((layer) => {
++            assert.notStrictEqual(layer.color, '#000000', `${templateId}/${layer.id}`);
++        });
++        assert.deepStrictEqual(Core.safeZoneViolations(composition, { format: composition.formats[0] }), [], templateId);
++    });
++});
++
++test('photo slots are image variables and the group lockup comes from the portfolio', () => {
++    const boardwalk = Brand.normalizeBrand(boardwalkInput(), 0);
++    const dessert = Brand.createTemplateComposition({
++        packId: 'test-pack', packName: 'Test pack', portfolio: boardwalkPortfolio(),
++        brand: boardwalk, templateId: 'bw-dessert',
++    });
++    const photo = dessert.variables.find((variable) => variable.id === 'bw_dessert_photo');
++    assert.ok(photo);
++    assert.strictEqual(photo.kind, 'image');
++    const photoLayer = dessert.layers.find((layer) => layer.id === 'bw-dessert-photo');
++    assert.strictEqual(photoLayer.bindings.url, 'bw_dessert_photo');
++    assert.ok(String(photoLayer.url).startsWith('data:image/svg+xml'));
++
++    const morning = Brand.createTemplateComposition({
++        packId: 'test-pack', packName: 'Test pack', portfolio: boardwalkPortfolio(),
++        brand: boardwalk, templateId: 'bw-good-morning',
++    });
++    const lockup = morning.layers.find((layer) => layer.id === 'bw-gm-lockup');
++    assert.ok(lockup);
++    assert.match(lockup.url, /cawley-wordmark-white\.png$/);
++    // Without a portfolio the template still builds, just without the group mark.
++    const bare = Brand.createTemplateComposition({ brand: boardwalk, templateId: 'bw-good-morning' });
++    assert.ok(!bare.layers.some((layer) => layer.id === 'bw-gm-lockup'));
++    const bareDessert = Brand.createTemplateComposition({ brand: boardwalk, templateId: 'bw-dessert' });
++    const wordmark = bareDessert.layers.find((layer) => layer.id === 'bw-dessert-wordmark');
++    assert.ok(wordmark && /boardwalk-wordmark-white\.png$/.test(wordmark.url));
++    // The light-ground card tints the single white wordmark blue rather than
++    // shipping a second raster cut.
++    const sea = Brand.createTemplateComposition({ brand: boardwalk, templateId: 'bw-from-the-sea' });
++    const seaWordmark = sea.layers.find((layer) => layer.id === 'bw-sea-wordmark');
++    assert.strictEqual(seaWordmark.recolorEnabled, true);
++    assert.strictEqual(seaWordmark.recolorColor, '#0890ce');
++});
+diff --git a/tests/agent-studio.js b/tests/agent-studio.js
+new file mode 100644
+index 0000000..d8d47d8
+--- /dev/null
++++ b/tests/agent-studio.js
+@@ -0,0 +1,128 @@
++'use strict';
++/**
++ * Browser smoke test for brand-template integration in Studio Agent.
++ *
++ * Run with: node tests/agent-studio.js
++ */
++const { spawn } = require('node:child_process');
++const path = require('node:path');
++
++const PLAYWRIGHT = process.env.PLAYWRIGHT_PATH
++    || '/opt/homebrew/lib/node_modules/@playwright/mcp/node_modules/playwright';
++const { chromium } = require(PLAYWRIGHT);
++const ROOT = path.join(__dirname, '..');
++const PORT = 8623 + Math.floor(Math.random() * 200);
++const BASE = `http://127.0.0.1:${PORT}`;
++const CHROME = process.env.CHROME_PATH
++    || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
++const failures = [];
++let checks = 0;
++
++function check(condition, message) {
++    checks += 1;
++    if (condition) console.log(`  ✓ ${message}`);
++    else {
++        failures.push(message);
++        console.log(`  ✗ ${message}`);
++    }
++}
++
++async function waitForHealth() {
++    const deadline = Date.now() + 15000;
++    while (Date.now() < deadline) {
++        try {
++            if ((await fetch(`${BASE}/api/health`)).ok) return;
++        } catch { /* wait for server startup */ }
++        await new Promise(resolve => setTimeout(resolve, 150));
++    }
++    throw new Error('the studio server did not start');
++}
++
++async function main() {
++    const server = spawn(process.execPath, ['server.js'], {
++        cwd: ROOT,
++        env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1' },
++        stdio: ['ignore', 'pipe', 'pipe']
++    });
++    let serverLog = '';
++    server.stdout.on('data', chunk => { serverLog += chunk.toString(); });
++    server.stderr.on('data', chunk => { serverLog += chunk.toString(); });
++    let browser;
++    try {
++        await waitForHealth();
++        browser = await chromium.launch({
++            executablePath: CHROME,
++            args: ['--no-first-run', '--no-default-browser-check']
++        });
++        const page = await browser.newPage({
++            viewport: { width: 1600, height: 1100 },
++            acceptDownloads: true
++        });
++        const errors = [];
++        page.on('pageerror', error => errors.push(error.message));
++
++        await page.goto(`${BASE}/studio-agent.html?brand=boardwalk`, { waitUntil: 'domcontentloaded' });
++        await page.waitForFunction(() => !document.getElementById('studio').hidden, null, { timeout: 20000 });
++        const expected = await page.evaluate(async () => {
++            const { packs } = await fetch('/api/brand-packs').then(response => response.json());
++            for (const summary of packs || []) {
++                const { pack } = await fetch(`/api/brand-packs/${encodeURIComponent(summary.id)}`).then(response => response.json());
++                const brand = pack?.brands?.find(entry => entry.id === 'boardwalk');
++                if (brand) return window.StudioBrand.templateCatalog(brand).length;
++            }
++            return 0;
++        });
++
++        const categoryResults = [];
++        for (const tab of await page.locator('.category-tab').all()) {
++            await tab.click();
++            await page.waitForTimeout(100);
++            const count = await page.locator('.is-brand-template').count();
++            const category = await tab.innerText();
++            categoryResults.push({ category, count });
++            for (let index = 0; index < count; index += 1) {
++                const card = page.locator('.is-brand-template').nth(index);
++                await card.click();
++                await page.waitForTimeout(80);
++                const rendered = await page.locator('#previewCanvas').evaluate(canvas => canvas.width > 0 && canvas.height > 0);
++                check(rendered, `brand design in ${category} renders in Studio Agent`);
++            }
++        }
++        const total = categoryResults.reduce((sum, entry) => sum + entry.count, 0);
++        check(expected > 0 && total === expected, `all ${expected} catalog templates appear in their design categories`);
++
++        const copyInput = page.locator('#controlBody input, #controlBody textarea').first();
++        const hasCopy = await copyInput.count();
++        check(hasCopy > 0, 'brand templates expose editable copy fields');
++        if (hasCopy) {
++            const before = await page.locator('#previewCanvas').evaluate(canvas => canvas.toDataURL());
++            await copyInput.fill('Agent Studio edited copy');
++            await page.waitForTimeout(180);
++            const after = await page.locator('#previewCanvas').evaluate(canvas => canvas.toDataURL());
++            check(before !== after, 'editing brand-template copy repaints the canvas');
++        }
++        const [download] = await Promise.all([
++            page.waitForEvent('download'),
++            page.locator('#downloadBtn').click()
++        ]);
++        check(download.suggestedFilename().endsWith('.png'), 'brand templates export as PNG from Studio Agent');
++
++        const relevantErrors = errors.filter(message => !/favicon|net::ERR_/i.test(message));
++        check(relevantErrors.length === 0, `no browser page errors${relevantErrors.length ? `: ${relevantErrors.join(' | ')}` : ''}`);
++    } finally {
++        if (browser) await browser.close().catch(() => {});
++        server.kill('SIGTERM');
++        await new Promise(resolve => server.once('exit', resolve));
++        if (failures.length) {
++            if (serverLog.trim()) console.log(`\nserver log:\n${serverLog}`);
++            process.exitCode = 1;
++        } else {
++            console.log(`\nall ${checks} Studio Agent checks passed`);
++        }
++    }
++}
++
++main().catch(error => {
++    console.error('\nStudio Agent test crashed:', error);
++    process.exitCode = 1;
++});

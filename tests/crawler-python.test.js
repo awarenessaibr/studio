@@ -407,3 +407,51 @@ test('python crawler helpers: JS shells, bundle assets, HTML address', (t) => {
     assert.equal(probeP2.data.route_key[0], probeP2.data.route_key[1],
         'query variants of one route collapse to a single render');
 });
+
+const PROBE_P3 = `
+import importlib.util, json, os, sys, tempfile
+spec = importlib.util.spec_from_file_location("crawler", sys.argv[1])
+mod = importlib.util.module_from_spec(spec)
+sys.modules["crawler"] = mod
+spec.loader.exec_module(mod)
+
+url = "https://melano.com.br/"
+mod.configure_site(url)
+mod.TEXT_DIR = tempfile.mkdtemp()
+mod.fetch_text_cached = lambda _url: None
+html = "<html><body><main>" + ("Visible site content. " * 40) + "</main></body></html>"
+
+class FakeBrowser:
+    @classmethod
+    def available(cls):
+        return True
+
+    @classmethod
+    def render(cls, target, **kwargs):
+        return mod.FetchResult(ok=True, status=200, url=target, text=html, via="browser")
+
+mod.Browser = FakeBrowser
+visited, text_pages = set(), set()
+result = mod.render_js_site([url], visited, text_pages)
+print(json.dumps({
+    "visited": sorted(visited),
+    "text_pages": sorted(text_pages),
+    "result_text_pages": sorted(result["text_pages"]),
+    "cached_html": mod._page_cache.get(url) == html,
+}))
+`;
+
+const probeP3 = runProbe(PROBE_P3);
+
+test('python crawler helpers: browser fallback when HTTP returns no HTML', (t) => {
+    if (probeP3.skip) {
+        t.skip(probeP3.skip);
+        return;
+    }
+    assert.equal(probeP3.error, undefined, probeP3.error);
+    assert.deepEqual(probeP3.data.visited, ['https://melano.com.br/']);
+    assert.deepEqual(probeP3.data.text_pages, ['https://melano.com.br/']);
+    assert.deepEqual(probeP3.data.result_text_pages, ['https://melano.com.br/']);
+    assert.equal(probeP3.data.cached_html, true,
+        'rendered HTML is cached for downstream brand and social extraction');
+});

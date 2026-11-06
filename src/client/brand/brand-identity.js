@@ -887,6 +887,7 @@
                 composition = CORE.createTemplateComposition({
                     packId: state.pack.id,
                     packName: state.pack.name,
+                    portfolio: state.pack.portfolio,
                     brand,
                     templateId: template.id,
                     projectId: 'preview',
@@ -1137,15 +1138,30 @@
             } else {
                 const url = String(layer.url || '');
                 if (!url) return;
-                canvas.appendChild(h('div', {
-                    class: 'brand-preview-layer',
-                    style: {
-                        ...geometry,
-                        backgroundImage: `url("${url.replace(/"/g, '%22')}")`,
-                        backgroundSize: layer.fit === 'contain' ? 'contain' : 'cover',
-                        opacity: String(layer.opacity ?? 1),
-                    },
-                }));
+                const escaped = url.replace(/"/g, '%22');
+                const fit = layer.fit === 'contain' ? 'contain' : 'cover';
+                const style = {
+                    ...geometry,
+                    opacity: String(layer.opacity ?? 1),
+                };
+                if (layer.recolorEnabled) {
+                    // The studio paints a recoloured image as a flat flood through
+                    // its alpha. A CSS mask gives the same result in the card
+                    // preview, so a blue-tinted wordmark reads as blue here too.
+                    style.backgroundColor = layer.recolorColor || '#ffffff';
+                    style.maskImage = `url("${escaped}")`;
+                    style.webkitMaskImage = `url("${escaped}")`;
+                    style.maskSize = fit;
+                    style.webkitMaskSize = fit;
+                    style.maskRepeat = 'no-repeat';
+                    style.webkitMaskRepeat = 'no-repeat';
+                    style.maskPosition = 'center';
+                    style.webkitMaskPosition = 'center';
+                } else {
+                    style.backgroundImage = `url("${escaped}")`;
+                    style.backgroundSize = fit;
+                }
+                canvas.appendChild(h('div', { class: 'brand-preview-layer', style }));
             }
         });
         box.appendChild(canvas);
@@ -1691,7 +1707,52 @@
             });
         }
         renderSidebar();
-        ensureLoaded();
+        if (!openTemplateDeepLink()) ensureLoaded();
+    }
+
+    function openTemplateDeepLink() {
+        const params = new URLSearchParams(window.location.search);
+        const packId = params.get('brandPackId');
+        const brandId = params.get('brandId');
+        const templateId = params.get('brandTemplateId');
+        if (!packId || !brandId || !templateId) return false;
+        window.history.replaceState(null, '', `${window.location.pathname}${window.location.hash}`);
+        (async () => {
+            try {
+                state.loading = true;
+                await fetchPacks();
+                if (!state.packs.some((pack) => pack.id === packId)) {
+                    throw new Error(`Brand pack “${packId}” was not found.`);
+                }
+                state.pack = await fetchPack(packId);
+                const brand = state.pack.brands.find((entry) => entry.id === brandId);
+                if (!brand) throw new Error(`Brand “${brandId}” is not in this pack.`);
+                if (!CORE?.templateCatalog(brand).some((template) => template.id === templateId)) {
+                    throw new Error(`Template “${templateId}” is not available for ${brand.name}.`);
+                }
+                state.brandId = brandId;
+                state.tab = 'templates';
+                state.loaded = true;
+                state.error = '';
+                renderAll();
+                openDialog({ brandId, tab: 'templates' });
+
+                const deadline = Date.now() + 10000;
+                while (!studio() && Date.now() < deadline) {
+                    await new Promise((resolve) => window.setTimeout(resolve, 100));
+                }
+                if (!studio()) throw new Error('The layer editor did not finish loading. Please choose Create again.');
+                await createTemplate(templateId);
+            } catch (error) {
+                state.error = error.message || 'Could not open this brand template.';
+                state.loading = false;
+                openDialog({ brandId, tab: 'templates' });
+                setStatus(state.error, { error: true });
+            } finally {
+                state.loading = false;
+            }
+        })();
+        return true;
     }
 
     if (document.readyState === 'loading') {

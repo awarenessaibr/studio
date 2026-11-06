@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Brand Asset Studio — final brand assets for every imported brand: flyers, menus, vouchers, cards, signage, packaging, social and compliance labels.">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231a1a2e'/%3E%3Ctext x='16' y='23' font-family='Georgia,serif' font-size='19' fill='%23f2eee7' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E">
+    <title>Asset Studio</title>
+    <link rel="stylesheet" href="/src/client/asset-studio/app.css">
+</head>
+
+<body>
+    <div id="boot" class="boot-screen" role="status" aria-live="polite">
+        <div class="boot-mark">A</div>
+        <p><strong>Asset Studio</strong><br>Loading brand identities…</p>
+    </div>
+
+    <div id="studio" class="studio" hidden>
+        <header class="topbar">
+            <div class="topbar-brand">
+                <select id="groupSelect" class="portfolio group-select" aria-label="Switch brand group" title="Switch brand group"></select>
+                <h1>Asset Studio</h1>
+                <p id="topbarHint">Final brand assets, without the noise.</p>
+            </div>
+            <div class="brand-switch" id="brandSwitch" aria-label="Active brand"></div>
+            <div class="topbar-actions">
+                <a class="ghost" href="crawler.html" title="Search and crawl a new business">Brand intake</a>
+                <a class="ghost" href="library.html" title="Browse the business asset library">Library</a>
+                <a class="ghost" href="voice.html" title="Speak brand copy or design a voice">Voice</a>
+                <a class="ghost" href="social.html" title="Read the business social profile">Social</a>
+                <button type="button" class="ghost" id="brandInfoBtn" aria-haspopup="dialog">Brand identity</button>
+                <button type="button" class="ghost" id="brandTemplatesBtn" aria-haspopup="dialog">Brand templates</button>
+                <a class="ghost" href="studio-v2.html" title="Open the full layer studio for advanced composition editing">Studio V2</a>
+            </div>
+        </header>
+
+        <nav class="category-nav" id="categoryNav" aria-label="Asset categories"></nav>
+
+        <main class="workspace">
+            <aside class="rail" aria-label="Design and controls">
+                <section class="panel design-panel">
+                    <header class="panel-head">
+                        <h2>Designs</h2>
+                        <span id="designMeta" class="panel-meta"></span>
+                    </header>
+                    <div id="designGrid" class="design-grid"></div>
+                </section>
+
+                <section class="panel controls-panel" aria-label="Asset controls">
+                    <div id="controlTabs" class="control-tabs" role="tablist" aria-label="Asset controls"></div>
+                    <div id="controlBody" class="control-body" role="tabpanel"></div>
+                </section>
+            </aside>
+
+            <section class="preview-panel" aria-label="Asset preview">
+                <header class="preview-head">
+                    <div>
+                        <p id="previewBrand" class="eyebrow"></p>
+                        <h2 id="previewTitle">Design</h2>
+                    </div>
+                    <div class="preview-meta">
+                        <span id="previewFormat" class="pill"></span>
+                        <span id="previewSize" class="pill subtle"></span>
+                    </div>
+                </header>
+
+                <div class="stage">
+                    <canvas id="previewCanvas" aria-label="Live asset preview"></canvas>
+                </div>
+
+                <div id="slideNav" class="slide-nav" hidden>
+                    <button type="button" class="slide-step" id="slidePrev" aria-label="Previous slide">‹</button>
+                    <span id="slideLabel">Slide 1 of 3</span>
+                    <button type="button" class="slide-step" id="slideNext" aria-label="Next slide">›</button>
+                    <button type="button" class="btn" id="slideDownload">Download 3 slides</button>
+                </div>
+
+                <div class="export-bar">
+                    <button type="button" class="btn primary" id="downloadBtn">Download PNG</button>
+                    <button type="button" class="btn" id="jpgBtn" hidden>Download JPG</button>
+                    <button type="button" class="btn" id="printBtn">Print</button>
+                    <button type="button" class="btn" id="printPackBtn">Print pack (PDF)</button>
+                    <button type="button" class="btn" id="saveBtn">Save asset</button>
+                    <span id="exportNote" class="hint"></span>
+                </div>
+                <p class="hint">
+                    The active brand’s palette, type, logo and photography are applied by default.
+                    Downloads are rendered at the full print resolution shown above.
+                </p>
+            </section>
+        </main>
+    </div>
+
+    <div id="brandGate" class="gate" hidden>
+        <div class="gate-backdrop"></div>
+        <div class="gate-panel" role="dialog" aria-modal="true" aria-labelledby="gateTitle">
+            <header class="gate-head">
+                <div>
+                    <p class="eyebrow" id="gatePortfolio">Dalton family venues</p>
+                    <h2 id="gateTitle">Choose a brand</h2>
+                    <p>Each identity carries its own palette, type, logos, photography and guidelines. Pick one to start defining final assets.</p>
+                </div>
+                <button type="button" class="icon-btn" id="gateClose" aria-label="Close brand chooser" hidden>×</button>
+            </header>
+            <div id="gateGroups" class="group-tabs" role="tablist" aria-label="Brand groups"></div>
+            <div id="gateGrid" class="gate-grid"></div>
+            <p id="gateError" class="gate-error" hidden></p>
+        </div>
+    </div>
+
+    <div id="drawerBackdrop" class="drawer-backdrop" hidden></div>
+    <aside id="brandDrawer" class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle" hidden>
+        <header class="drawer-head">
+            <div>
+                <p class="eyebrow">Brand identity</p>
+                <h2 id="drawerTitle">Brand</h2>
+            </div>
+            <button type="button" class="icon-btn" id="drawerClose" aria-label="Close brand identity">×</button>
+        </header>
+        <div id="drawerBody" class="drawer-body"></div>
+    </aside>
+
+    <div id="brandTemplatesDialog" class="modal" hidden>
+        <div class="modal-backdrop" id="brandTemplatesBackdrop"></div>
+        <section class="modal-panel template-library-panel" role="dialog" aria-modal="true" aria-labelledby="brandTemplatesTitle">
+            <header class="gate-head">
+                <div>
+                    <p class="eyebrow">Brand identity</p>
+                    <h2 id="brandTemplatesTitle">Brand templates</h2>
+                    <p id="brandTemplatesHint" class="hint"></p>
+                </div>
+                <button type="button" class="icon-btn" id="brandTemplatesClose" aria-label="Close brand templates">×</button>
+            </header>
+            <div id="brandTemplateGrid" class="brand-template-grid"></div>
+        </section>
+    </div>
+
+
+    <div id="printDialog" class="modal" hidden>
+        <div class="modal-backdrop" id="printBackdrop"></div>
+        <div class="modal-panel print-modal" role="dialog" aria-modal="true" aria-labelledby="printTitle">
+            <header class="gate-head">
+                <div>
+                    <p class="eyebrow">Print pack</p>
+                    <h2 id="printTitle">CMYK PDF with bleed and crop marks</h2>
+                    <p>Renders the asset at full print resolution, checks text and logos against the trim, and writes a CMYK PDF with trim and bleed boxes.</p>
+                </div>
+                <button type="button" class="icon-btn" id="printClose" aria-label="Close print pack">×</button>
+            </header>
+            <div class="print-layout">
+                <div class="print-options">
+                    <label class="field">
+                        <span>Bleed</span>
+                        <select id="printBleed">
+                            <option value="0">0 mm · trim only</option>
+                            <option value="3" selected>3 mm · standard</option>
+                            <option value="5">5 mm · large format</option>
+                        </select>
+                    </label>
+                    <label class="field">
+                        <span>Safe margin</span>
+                        <select id="printSafe">
+                            <option value="3">3 mm</option>
+                            <option value="4" selected>4 mm · standard</option>
+                            <option value="5">5 mm</option>
+                        </select>
+                    </label>
+                    <label class="field">
+                        <span>Resolution</span>
+                        <select id="printDpi">
+                            <option value="300" selected>300 dpi · print</option>
+                            <option value="150">150 dpi · draft / large</option>
+                            <option value="100">100 dpi · poster</option>
+                            <option value="50">50 dpi · banner</option>
+                        </select>
+                    </label>
+                    <label class="print-check">
+                        <input type="checkbox" id="printMarks" checked>
+                        Crop marks and slug
+                    </label>
+                    <div id="printMeta" class="print-meta"></div>
+                </div>
+                <div class="print-preview-wrap">
+                    <div class="print-preview-head">
+                        <span>Safe-zone check</span>
+                        <span id="printPageCount"></span>
+                    </div>
+                    <canvas id="printPreview" aria-label="Print safe-zone preview"></canvas>
+                    <p class="hint">Dashed line = safe margin. Red boxes = text or logo boxes inside it.</p>
+                </div>
+            </div>
+            <div id="printReport" class="print-report" aria-live="polite"></div>
+            <footer class="print-actions">
+                <button type="button" class="btn primary" id="printDownload">Download print pack</button>
+                <button type="button" class="btn" id="printCancel">Cancel</button>
+                <span id="printStatus" class="hint"></span>
+            </footer>
+        </div>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+    <input type="file" id="photoInput" accept="image/*" hidden>
+    <input type="file" id="fontInput" accept=".woff2,.woff,.ttf,.otf,font/woff2,font/woff,font/ttf,font/otf" hidden>
+
+    <script src="/src/client/asset-studio/vendor/qrcode.min.js"></script>
+    <script src="/src/shared/asset-intel.js"></script>
+    <script src="/src/shared/studio-core.js"></script>
+    <script src="/src/shared/brand-pack.js"></script>
+    <script src="/src/client/asset-studio/engine.js"></script>
+    <script src="/src/client/asset-studio/categories.js"></script>
+    <script src="/src/client/asset-studio/print.js"></script>
+    <script src="/src/client/asset-studio/app.js"></script>
+</body>
+
+</html>

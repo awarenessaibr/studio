@@ -74,6 +74,8 @@ Nothing is uploaded. Images are read as data URLs, so a small set works from
 3. The backend extracts to `data/imports/<id>/` and creates:
    - one layer per image (numbered files are **separate objects**, not
      animation frames),
+   - named layer groups when the ZIP includes an `image-to-layers.json`
+     segmentation manifest,
    - a locked reference layer for the final image at `z: 0`,
    - segments starting at `z: 2`.
 4. Alignment runs immediately: exact template matches are confirmed;
@@ -84,6 +86,12 @@ Use the `!` marker as the review queue, then **Confirm all positions** when
 the scene is right. The manual **Use as final image and align layers**
 button (click the reference layer) is stricter: it reports a match count and
 leaves unmatched layers alone.
+
+The Image → Layers **Recover missing** tool can also add cutouts directly to
+an existing project. It preserves the current layers and project files, matches
+recovered regions against the project's scene names/groups, and appends the
+recovered cutouts. The final image dimensions must match. Choosing no target
+project creates a separate recovered project instead.
 
 Limits: 220 MB ZIP, 60 MB final image, 500 layers.
 
@@ -378,21 +386,32 @@ Every feature here is review-first and optional; nothing is applied until you
 press Apply.
 
 ### Animation ideas (director)
-- **Requirements**: Ollama running locally with a vision model and a text
-  model. Defaults: `granite3.2-vision:2b` and `qwen3.5:9b`. The server
-  auto-detects `127.0.0.1:11434` / `:11436`, honours `OLLAMA_HOST` and
-  `STUDIO_OLLAMA_URL`, and the models can be overridden with
-  `STUDIO_VISION_MODEL` / `STUDIO_TEXT_MODEL`.
+- **Provider choice**: choose **Ollama · local** to select installed vision
+  and writing models, or **DeepSeek Flash · API** to use the configured
+  DeepSeek model. Ollama defaults are `granite3.2-vision:2b` and
+  `qwen3.5:9b`; the server auto-detects `127.0.0.1:11434` / `:11436`,
+  honours `OLLAMA_HOST` and `STUDIO_OLLAMA_URL`, and model defaults can be
+  overridden with `STUDIO_VISION_MODEL` / `STUDIO_TEXT_MODEL`.
+- **DeepSeek setup**: configure `STUDIO_DEEPSEEK_API_KEY` and
+  `STUDIO_DEEPSEEK_MODEL` on the server (optionally
+  `STUDIO_DEEPSEEK_BASE_URL`; defaults to `https://api.deepseek.com/v1`).
+  Credentials never reach the browser. The configured API model must accept
+  image input and return JSON chat completions.
 - **Flow**: optionally write **Story / context** → **Suggest animations** →
   the backend sends a downscaled final image + compact layer inventory to the
-  vision model, then the analysis + context to the writing model, validates
-  every proposed command against real layer ids and the preset vocabulary,
-  and saves four ideas.
+  selected provider, validates every proposed command against real layer ids
+  and the preset vocabulary, and saves four ideas. Ollama uses the selected
+  vision model followed by the writing model; DeepSeek uses the configured
+  API model for both steps.
+- **Local performance**: on CPU, 9B Ollama models can take a few minutes to
+  generate ideas. The local writer uses a compact prompt and bounded output to
+  avoid requests running past Ollama's request limit.
 - **Apply** writes their keyframes; **Reset** clears animation keyframes.
-  Context and model choice persist in the project meta; ideas persist in
-  `proposals.json`.
-- **Offline**: the panel reports `LLM offline` and shows the command to start
-  Ollama. Generation takes roughly 1–2 minutes on an M2 Pro.
+  Context and provider/model choice persist in the project meta; ideas persist
+  in `proposals.json`.
+- **Unavailable provider**: the panel explains whether Ollama needs to be
+  started or DeepSeek credentials/model configuration are missing.
+  Local generation time depends on the selected models and hardware.
 
 ### Layout alternatives
 **Layouts…** (Export bar) asks the local planner for five layout concepts —
@@ -494,5 +513,5 @@ map and dependency index.
 | GIF looks small | GIF is capped at 480 px by design; use video for quality |
 | Pinned edits do not animate | Keyframes are base-level; pinning offsets the base animation |
 | Guardrailed export refuses | Tools → Validate brand lists the rules; disable `block` or fix the layer |
-| `LLM offline` | Start Ollama and pull the two models |
+| No animation provider available | Start Ollama and install a vision model, or configure the DeepSeek API key and model on the server |
 | Layers missing after import | 500-layer cap, or the ZIP had > 500 images |

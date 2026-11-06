@@ -358,6 +358,11 @@ h3[data-sec]:focus-visible {
   min-width: 0;
 }
 .asset[data-choice] { cursor: pointer; }
+.asset[data-photo] { cursor: zoom-in; }
+.asset[data-photo]:focus-visible {
+  outline: 2px solid var(--ac);
+  outline-offset: 2px;
+}
 .asset:hover { border-color: var(--ac); }
 .asset.is-selected {
   border-color: var(--ac);
@@ -558,6 +563,7 @@ h3[data-sec]:focus-visible {
   background: var(--hi);
   border-left-color: var(--ac);
 }
+.lrow[data-m="1"] { box-shadow: inset 2px 0 var(--ac); }
 .lrow span {
   flex: 1;
   overflow: hidden;
@@ -598,6 +604,7 @@ main {
   align-items: center;
 }
 .wrap {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
@@ -605,6 +612,13 @@ main {
   align-items: center;
   padding: 16px;
   background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--tx) 6%, transparent), transparent);
+}
+.marquee {
+  position: absolute;
+  z-index: 10002;
+  border: 1px solid var(--ac);
+  background: color-mix(in srgb, var(--ac) 18%, transparent);
+  pointer-events: none;
 }
 .stage {
   container-type: size;
@@ -624,6 +638,10 @@ main {
 .T { display: flex; align-items: center; }
 .sel {
   outline: 2px solid #fff;
+  outline-offset: -2px;
+}
+.multi-sel {
+  outline: 2px dashed var(--ac);
   outline-offset: -2px;
 }
 .chip {
@@ -885,6 +903,7 @@ main {
 }
 .tlh {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: center;
   padding: 6px 12px;
@@ -918,6 +937,7 @@ main {
   cursor: pointer;
 }
 .tr[data-s="1"] .n { color: var(--tx); }
+.tr.drop-target .tk { outline: 1px solid var(--ac); outline-offset: -1px; }
 .tk {
   position: relative;
   height: 100%;
@@ -932,6 +952,7 @@ main {
   cursor: grab;
   min-width: 6px;
 }
+.bar.selected { outline: 2px solid var(--tx); outline-offset: 1px; z-index: 2; }
 .bar::after {
   content: "";
   position: absolute;
@@ -1152,7 +1173,22 @@ dialog.dlg {
   color: var(--tx);
   box-shadow: var(--shadow);
 }
+dialog.dlg:has(.photo-preview) { width: min(94vw, 880px); }
 dialog.dlg::backdrop { background: rgba(8, 8, 12, .6); }
+.photo-preview {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+.photo-preview img {
+  display: block;
+  max-width: 100%;
+  max-height: min(65vh, 680px);
+  object-fit: contain;
+  border-radius: 8px;
+  background: var(--rai);
+}
+.photo-preview p { max-width: 100%; }
 .dlg-in {
   padding: 16px 18px 14px;
   display: grid;
@@ -1337,8 +1373,8 @@ dialog.dlg::backdrop { background: rgba(8, 8, 12, .6); }
     <h3>Brand palette <small id="swh">· click to apply to the selected layer</small></h3>
     <div class="sw" id="sw"></div>
     <div class="sub" id="ty"></div>
-    <h3>Layers</h3>
-    <div id="layers"></div>
+    <h3 title="Double-click a layer to add or remove it from a multi-selection">Layers</h3>
+    <div id="layers" role="list" aria-label="Layers. Click to select, double-click to multi-select."></div>
   </aside>
   <div class="resize-handle" data-resize="left" aria-label="Resize left sidebar"></div>
   <main>
@@ -1349,12 +1385,19 @@ dialog.dlg::backdrop { background: rgba(8, 8, 12, .6); }
       <span class="sp"></span>
       <span style="color:var(--mu)" id="status">Click a layer, or drag an asset in.</span>
     </div>
-    <div class="wrap" id="wrap"><div class="stage" id="stage"></div></div>
+    <div class="wrap" id="wrap" aria-label="Canvas workspace. Drag from empty space around the canvas to select layers in a region."><div class="stage" id="stage"></div></div>
     <div class="timeline-resize-handle" data-resize="timeline" aria-label="Resize timeline" aria-expanded="true" title="Drag to resize · drag upward to collapse"></div>
     <div class="tl">
       <div class="tlh">
         <button id="tpl">▶ Play</button>
-        <input type="range" id="scrub" min="0" max="10000" step="50" value="10000" aria-label="Playhead">
+      <button id="tlCopy" title="Copy the selected animation event">Copy</button>
+      <button id="tlPaste" title="Paste the copied event onto the selected layer">Paste</button>
+      <button id="tlDuplicate" title="Duplicate the selected event on its current layer">Duplicate</button>
+      <button id="tlSave" title="Save the timeline animation to the shared library">Save animation</button>
+      <select id="tlSaved" aria-label="Saved animations"><option value="">Saved animations…</option></select>
+      <button id="tlApply" title="Apply the selected saved animation to this composition">Apply</button>
+      <button id="tlDelete" title="Delete the selected saved animation">Delete</button>
+      <input type="range" id="scrub" min="0" max="10000" step="50" value="10000" aria-label="Playhead">
         <output id="tt">10.00 / 10.00 s</output>
       </div>
       <div class="tlb" id="tlb"></div>
@@ -1540,7 +1583,13 @@ const rgba=(h,a)=>{const c=rgb(h);return`rgba(${c[0]},${c[1]},${c[2]},${a})`};
 
 /* ---------- state ---------- */
 let PACKS=[],P=null,B=null,FMT=null,TH={ink:'#17162e',bone:'#ebe6e0',accent:'#eb5b3c',chalk:'#ffffff'},PAL={},BF={display:'Georgia',body:'Helvetica Neue',dW:400,bW:400};
-let scene=[],sel=null,hist=[],uid=1,demo=false,selTok=0,UF=[];
+let scene=[],sel=null,selectedLayers=new Set(),hist=[],uid=1,demo=false,selTok=0,UF=[];
+function setLayerSelection(ids,primary){
+ const valid=[...new Set(ids)].filter(id=>scene.some(layer=>layer.id===id));
+ selectedLayers=new Set(valid);
+ sel=valid.includes(primary)?primary:(valid.at(-1)||null);
+}
+function clearLayerSelection(){setLayerSelection([],null)}
 const packCache=new Map(),IMG=new Map(),PXC=new Map(),TINT=new Map();
 const AS={tab:'brand',lib:{status:'idle',items:[],cls:'',verified:false,err:''},saved:{status:'idle',items:[],err:''},savedActive:null};
 const templateFallback=[
@@ -1559,9 +1608,7 @@ const motifFallback=[
  {id:'frame',label:'Frame',icon:'▣',tone:'ink'}
 ];
 function getTemplateCatalog(){
- const shared = typeof window !== 'undefined' && window.StudioBrand && typeof window.StudioBrand.templateCatalog === 'function'
-   ? window.StudioBrand.templateCatalog(B || (P && P.brands && P.brands[0]) || null)
-   : [];
+ const shared = brandTemplateEntries(B || (P && P.brands && P.brands[0]) || null);
  const sources=[shared && shared.length ? shared : null,B&&Array.isArray(B.templates)?B.templates:null,P&&Array.isArray(P.templates)?P.templates:null,templateFallback];
  const candidate = sources.find((entry) => Array.isArray(entry) && entry.length) || templateFallback;
  return candidate.map((item,index)=>({
@@ -1571,6 +1618,11 @@ function getTemplateCatalog(){
   category:String(item.category||item.kind||'Template'),
   format:String(item.format||item.paper||item.spec||item.size||'Brand format')
  }));
+}
+function brandTemplateEntries(brand=B){
+ return typeof window !== 'undefined' && window.StudioBrand && typeof window.StudioBrand.templateCatalog === 'function'
+  ? window.StudioBrand.templateCatalog(brand)
+  : [];
 }
 function getSizeCatalog(){
  const base=[{id:'a4',label:'A4 portrait',meta:'Print · 1240×1754',w:1240,h:1754},{id:'portrait-45',label:'Portrait 4:5',meta:'Feed · 1080×1350',w:1080,h:1350},{id:'story-916',label:'Story 9:16',meta:'Stories · 1080×1920',w:1080,h:1920},{id:'square',label:'Square',meta:'Post · 1080×1080',w:1080,h:1080},{id:'landscape',label:'Landscape',meta:'Banner · 1920×1080',w:1920,h:1080}];
@@ -1716,9 +1768,9 @@ function run(sc,cmds){for(const c of cmds){const g=id=>sc.find(l=>l.id===id);
  else if(c.type==='remove-layer'){const i=sc.findIndex(l=>l.id===c.layerId);if(i>-1){rememberSlot(sc[i]);sc.splice(i,1)}}
  else if(c.type==='swap-asset'){const l=g(c.layerId);if(l)l.tone=c.asset}
  else if(c.type==='variant'){const next=(FMT&&FMT.eng&&hasEngine())?engVariant(c.variant,sc):fitScene(buildScene(c.variant,sc));sc.splice(0,sc.length,...next)}
- else if(c.type==='set-animation'){const l=g(c.layerId);if(l)l.anim={preset:c.preset,start:c.startMs||0,duration:c.durationMs||900}}
- else if(c.type==='clear-animation'){const l=g(c.layerId);if(l)delete l.anim}}return sc}
-function commit(cmds){hist.push(clone(scene));run(scene,cmds);if(sel&&!scene.find(l=>l.id===sel))sel=null;render();layers();if(cmds.some(c=>c.type==='set-animation'))setTimeout(()=>play(0),60)}
+ else if(c.type==='set-animation'){const l=g(c.layerId);if(l){delete l.anims;delete l.kf;l.anim={preset:c.preset,start:c.startMs||0,duration:c.durationMs||900}}}
+ else if(c.type==='clear-animation'){const l=g(c.layerId);if(l){delete l.anim;delete l.anims;delete l.kf}}}return sc}
+function commit(cmds){hist.push(clone(scene));run(scene,cmds);selectedLayers=new Set([...selectedLayers].filter(id=>scene.some(l=>l.id===id)));if(sel&&!selectedLayers.has(sel))sel=[...selectedLayers].at(-1)||null;render();layers();if(cmds.some(c=>c.type==='set-animation'))setTimeout(()=>play(0),60)}
 
 /* ---------- render ---------- */
 function render(sc=scene,tgt=stage){tgt.innerHTML='';
@@ -1738,28 +1790,78 @@ function render(sc=scene,tgt=stage){tgt.innerHTML='';
    Object.assign(e.style,{color:l.color,fontFamily:f.family,fontWeight:f.weight,fontSize:f.sizePct+'cqh',lineHeight:f.lineHeight,letterSpacing:f.letterSpacingEm+'em',textTransform:f.transform});
    if(l.bg){e.style.background=l.bg;e.style.borderRadius=(l.radius||0)+'cqh';e.style.justifyContent='center'}
    if(l.nowrap)e.style.whiteSpace='pre';e.textContent=l.text}
-  if(l.kf){e.dataset.kf=1;applyKf(e,l,tgt===stage?T:DUR)}
-  else if(l.anim){
-   const infinite=['pulse','float','glowPulse'].includes(l.anim.preset);
-   const isClip=String(l.anim.preset).startsWith('clip');
+  const animations=timelineAnims(l),kfEvent=animations.find(a=>a.keyframes);
+  if(kfEvent){e.dataset.kf=1;applyKf(e,l,tgt===stage?T:DUR,kfEvent.keyframes)}
+  const cssAnimations=animations.filter(a=>!a.keyframes);
+  if(cssAnimations.length){
    e.dataset.an=1;
-   e.style.animation=`${l.anim.preset} ${l.anim.duration}ms ${infinite?'ease-in-out infinite':isClip?'cubic-bezier(.22,1,.36,1)':'ease-out'} ${l.anim.start-(tgt===stage?T:DUR)}ms both paused`;
+   e.style.animation=cssAnimations.map(a=>{
+    const infinite=['pulse','float','glowPulse'].includes(a.preset),isClip=String(a.preset).startsWith('clip');
+    return `${a.preset} ${a.duration}ms ${infinite?'ease-in-out infinite':isClip?'cubic-bezier(.22,1,.36,1)':'ease-out'} ${a.start-(tgt===stage?T:DUR)}ms both paused`;
+   }).join(', ');
   }
-  if(sc===scene&&tgt===stage&&l.id===sel){
-   e.classList.add('sel');
-   const c=document.createElement('span');c.className='chip';c.textContent=l.name;e.appendChild(c);
-   if(l.type!=='fill'){
+  if(sc===scene&&tgt===stage&&selectedLayers.has(l.id)){
+   e.classList.add(l.id===sel?'sel':'multi-sel');
+   if(l.id===sel){
+    const c=document.createElement('span');c.className='chip';c.textContent=l.name;e.appendChild(c);
+   }
+   if(l.id===sel&&l.type!=='fill'){
     if(tgt.clientHeight*l.h/100<18)e.classList.add('tiny-h');
     if(tgt.clientWidth*l.w/100<18)e.classList.add('tiny-w');
     for(const h of HANDLES){const g=document.createElement('span');g.className='hnd';g.dataset.h=h;g.onpointerdown=ev=>resizeLayer(ev,l,h,e);e.appendChild(g)}}
   }
   e.onpointerdown=ev=>down(ev,l.id);tgt.appendChild(e)}}
-function down(ev,id){if(ev.button)return;ev.preventDefault();if(sel!==id)select(id);const l=scene.find(q=>q.id===id);if(!l||l.type==='fill')return;
- const r=stage.getBoundingClientRect(),sx=ev.clientX,sy=ev.clientY,ox=l.x,oy=l.y;let moved=false;const el=ev.currentTarget;
- const mv=m=>{if(!moved){hist.push(clone(scene));moved=true}const px=l.x,py=l.y;l.x=+(ox+(m.clientX-sx)/r.width*100).toFixed(1);l.y=+(oy+(m.clientY-sy)/r.height*100).toFixed(1);el.style.left=l.x+'%';el.style.top=l.y+'%';
-  if(l.kf)l.kf=l.kf.map(k=>({...k,x:+(k.x+l.x-px).toFixed(2),y:+(k.y+l.y-py).toFixed(2)}))};
- const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);if(moved){layers();say('agent',`Moved ${esc(l.name)} to x ${l.x}, y ${l.y}.`)}};
+function down(ev,id){if(ev.button)return;const l=scene.find(q=>q.id===id);if(!l||l.type==='fill')return;ev.preventDefault();if(!selectedLayers.has(id))select(id);
+ const moving=[...selectedLayers].map(layerId=>scene.find(layer=>layer.id===layerId)).filter(layer=>layer&&layer.type!=='fill'&&!layer.hidden);
+ const r=stage.getBoundingClientRect(),sx=ev.clientX,sy=ev.clientY,originals=new Map(moving.map(layer=>[layer.id,{x:layer.x,y:layer.y}]));let moved=false;
+ const mv=m=>{const dx=(m.clientX-sx)/r.width*100,dy=(m.clientY-sy)/r.height*100;if(!moved){hist.push(clone(scene));moved=true}
+  moving.forEach(layer=>{const old=originals.get(layer.id),px=layer.x,py=layer.y;
+   layer.x=+(old.x+dx).toFixed(1);layer.y=+(old.y+dy).toFixed(1);
+   const el=stage.querySelector(`.L[data-id="${CSS.escape(layer.id)}"]`);
+   if(el)Object.assign(el.style,{left:layer.x+'%',top:layer.y+'%'});
+   const keys=layerKeyframes(layer);if(keys)setLayerKeyframes(layer,keys.map(k=>({...k,x:+(k.x+layer.x-px).toFixed(2),y:+(k.y+layer.y-py).toFixed(2)})));
+  })};
+ const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);if(moved){layers();say('agent',`Moved ${moving.length===1?esc(l.name):`${moving.length} selected layers`}.`)}};
  addEventListener('pointermove',mv);addEventListener('pointerup',up)}
+function toggleLayerSelection(id,base=selectedLayers){
+ const next=new Set(base);
+ if(next.has(id))next.delete(id);else next.add(id);
+ setLayerSelection(next,next.has(id)?id:[...next].at(-1));
+ render();layers();
+ const count=selectedLayers.size;
+ $('#status').textContent=count?`${count} layer${count===1?'':'s'} selected.`:'Layer selection cleared.';
+}
+function beginMarquee(ev){
+ if(ev.button!==0||ev.target.closest('.asset,.lrow,.resize-handle'))return;
+ const target=ev.target.closest('.L');
+ if(target&&scene.find(layer=>layer.id===target.dataset.id)?.type!=='fill')return;
+ ev.preventDefault();
+ const bounds=wrapEl.getBoundingClientRect(),sx=ev.clientX,sy=ev.clientY;
+ const box=document.createElement('div');box.className='marquee';box.setAttribute('aria-hidden','true');wrapEl.appendChild(box);
+ const draw=move=>{
+  const x1=Math.min(sx,move.clientX),y1=Math.min(sy,move.clientY);
+  Object.assign(box.style,{left:`${x1-bounds.left}px`,top:`${y1-bounds.top}px`,width:`${Math.abs(move.clientX-sx)}px`,height:`${Math.abs(move.clientY-sy)}px`});
+ };
+ let moved=false;
+ const move=moveEvent=>{if(Math.abs(moveEvent.clientX-sx)+Math.abs(moveEvent.clientY-sy)>3)moved=true;draw(moveEvent)};
+ const up=upEvent=>{
+  removeEventListener('pointermove',move);removeEventListener('pointerup',up);box.remove();
+  if(!moved){clearLayerSelection();render();layers();return}
+  const rect={left:Math.min(sx,upEvent.clientX),right:Math.max(sx,upEvent.clientX),top:Math.min(sy,upEvent.clientY),bottom:Math.max(sy,upEvent.clientY)};
+  const hit=scene.filter(layer=>{
+   if(layer.hidden||layer.type==='fill')return false;
+   const el=stage.querySelector(`.L[data-id="${CSS.escape(layer.id)}"]`);if(!el)return false;
+   const r=el.getBoundingClientRect();
+   return r.right>=rect.left&&r.left<=rect.right&&r.bottom>=rect.top&&r.top<=rect.bottom;
+  }).sort((a,b)=>a.z-b.z).map(layer=>layer.id);
+  const ids=upEvent.shiftKey?[...selectedLayers,...hit]:hit;
+  setLayerSelection(ids,hit.at(-1)||[...selectedLayers].at(-1));
+  render();layers();
+  $('#status').textContent=selectedLayers.size?`${selectedLayers.size} layer${selectedLayers.size===1?'':'s'} selected.`:'No layers in the selection area.';
+ };
+ draw(ev);addEventListener('pointermove',move);addEventListener('pointerup',up);
+}
+wrapEl.addEventListener('pointerdown',beginMarquee);
 
 /* ---------- resizing, layer areas and the right-click menu ---------- */
 const HANDLES=['nw','n','ne','e','se','s','sw','w'];
@@ -1800,11 +1902,11 @@ function areaFor(l){
 }
 
 function remapKf(l,from,to){
- if(!Array.isArray(l.kf)||!l.kf.length)return;
+ const keys=layerKeyframes(l);if(!Array.isArray(keys)||!keys.length)return;
  const sx=(to.w||1)/(from.w||1),sy=(to.h||1)/(from.h||1);
- l.kf=l.kf.map(k=>({...k,
+ setLayerKeyframes(l,keys.map(k=>({...k,
   x:+(to.x+(k.x-from.x)*sx).toFixed(2),y:+(to.y+(k.y-from.y)*sy).toFixed(2),
-  w:+(k.w*sx).toFixed(2),h:+(k.h*sy).toFixed(2)}));
+  w:+(k.w*sx).toFixed(2),h:+(k.h*sy).toFixed(2)})));
 }
 
 /* Text boxes hold no intrinsic size, so shrink the type until it fits again. */
@@ -1814,11 +1916,11 @@ function fitTextInBox(l){
 
 function resizeLayer(ev,l,dir,el){
  if(ev.button)return;ev.preventDefault();ev.stopPropagation();
- if(sel!==l.id){sel=l.id;render()}
+ if(sel!==l.id)select(l.id);
  const box=stage.getBoundingClientRect();
  const sx=ev.clientX,sy=ev.clientY,o={x:l.x,y:l.y,w:l.w,h:l.h};
  const asp=(o.w*FMT.w)/(o.h*FMT.h)||1;
- const kf0=Array.isArray(l.kf)?clone(l.kf):null,f0=l.font?l.font.sizePct:0;
+ const keys=layerKeyframes(l),kf0=Array.isArray(keys)?clone(keys):null,f0=l.font?l.font.sizePct:0;
  let moved=false;
  const mv=m=>{
   if(!moved){hist.push(clone(scene));moved=true}
@@ -1834,9 +1936,9 @@ function resizeLayer(ev,l,dir,el){
   if(f0&&dir!=='e'&&dir!=='w')l.font.sizePct=+clamp(f0*(h/o.h),.4,24).toFixed(2);
   if(kf0){
    const kx=(w||1)/(o.w||1),ky=(h||1)/(o.h||1);
-   l.kf=kf0.map(k=>({...k,
+   setLayerKeyframes(l,kf0.map(k=>({...k,
     x:+(x+(k.x-o.x)*kx).toFixed(2),y:+(y+(k.y-o.y)*ky).toFixed(2),
-    w:+(k.w*kx).toFixed(2),h:+(k.h*ky).toFixed(2)}));
+    w:+(k.w*kx).toFixed(2),h:+(k.h*ky).toFixed(2)})));
   }
   l.x=+x.toFixed(2);l.y=+y.toFixed(2);l.w=+w.toFixed(2);l.h=+h.toFixed(2);
   Object.assign(el.style,{left:l.x+'%',top:l.y+'%',width:l.w+'%',height:l.h+'%'});
@@ -1889,7 +1991,7 @@ function runLayerAction(action){
  if(!l)return;
  if(action==='remove'){
   hist.push(clone(scene));rememberSlot(l);
-  scene=scene.filter(q=>q!==l);if(sel===l.id)sel=null;
+  scene=scene.filter(q=>q!==l);selectedLayers.delete(l.id);if(sel===l.id)sel=[...selectedLayers].at(-1)||null;
   render();layers();say('agent',`Removed <b>${esc(l.name)}</b>.`);
   return;
  }
@@ -1925,15 +2027,29 @@ function sizeProbe(){probe.style.width=stage.clientWidth+'px';probe.style.height
 let wt,st;
 function layers(){list();ctx();engSyncSel();tl();clearTimeout(wt);wt=setTimeout(()=>watch(),30);clearTimeout(st);st=setTimeout(saveScene,400)}
 function list(){const w=$('#layers');w.innerHTML='';
- scene.slice().sort((a,b)=>b.z-a.z).forEach(l=>{const r=document.createElement('div');r.className='lrow';r.dataset.s=l.id===sel?1:0;
+ scene.slice().sort((a,b)=>b.z-a.z).forEach(l=>{const r=document.createElement('div');r.className='lrow';r.dataset.s=selectedLayers.has(l.id)?1:0;r.dataset.m=selectedLayers.has(l.id)&&l.id!==sel?1:0;r.tabIndex=0;r.setAttribute('role','listitem');
   r.innerHTML=`<span>${esc(l.name)}${cur.some(i=>i.id===l.id)?' <b class="warn">⚠</b>':''}</span><small>${l.type}</small><button title="Show/hide" aria-label="Show or hide ${esc(l.name)}">${l.hidden?'○':'●'}</button>`;
   r.dataset.id=l.id;
-  r.onclick=()=>select(l.id);r.querySelector('button').onclick=e=>{e.stopPropagation();hist.push(clone(scene));l.hidden=!l.hidden;render();layers()};w.appendChild(r)})}
-function ctx(){const l=scene.find(q=>q.id===sel);$('#ctx').innerHTML=l?`Context: <b>${esc(l.name)}</b> · ${l.type} · x${l.x} y${l.y} <button id="cx" aria-label="Clear selection">✕</button>`:'Context: <b>whole design</b> · select a layer to focus me';
+  r.setAttribute('aria-label',`${l.name}, ${l.type}${selectedLayers.has(l.id)?', selected':''}. Double-click to toggle multi-selection.`);
+  r.onclick=e=>{
+   if(e.target.closest('button'))return;
+   clearTimeout(layerClickTimer);
+   if(e.detail>=2){
+    const base=layerClickPending&&layerClickPending.id===l.id?layerClickPending.layers:selectedLayers;
+    layerClickPending=null;toggleLayerSelection(l.id,base);return;
+   }
+   layerClickPending={id:l.id,layers:new Set(selectedLayers)};
+   const pending=layerClickPending;
+   layerClickTimer=setTimeout(()=>{if(layerClickPending===pending)select(l.id)},350);
+  };
+  r.onkeydown=e=>{if(e.target!==r)return;if(e.key==='Enter'){e.preventDefault();clearTimeout(layerClickTimer);select(l.id);$('#layers').querySelector(`.lrow[data-id="${CSS.escape(l.id)}"]`)?.focus({preventScroll:true})}else if(e.key===' '){e.preventDefault();clearTimeout(layerClickTimer);toggleLayerSelection(l.id);$('#layers').querySelector(`.lrow[data-id="${CSS.escape(l.id)}"]`)?.focus({preventScroll:true})}};
+  r.querySelector('button').onclick=e=>{e.stopPropagation();hist.push(clone(scene));l.hidden=!l.hidden;render();layers()};w.appendChild(r)})}
+let layerClickTimer=0,layerClickPending=null;
+function ctx(){const l=scene.find(q=>q.id===sel),count=selectedLayers.size;$('#ctx').innerHTML=l?`Context: <b>${esc(l.name)}</b> · ${l.type}${count>1?` · ${count} layers selected`:''} · x${l.x} y${l.y} <button id="cx" aria-label="Clear selection">✕</button>`:'Context: <b>whole design</b> · select a layer to focus me';
  if(l)$('#cx').onclick=()=>select(null);
  const q=l?(l.type==='text'?['Rewrite it','Make it stand out','Animate it']:l.type==='image'?['Crop ideas','Add a scrim','Animate it']:['Options','Animate it']):['Layout concepts','Fix hierarchy','Animate it'];
  $('#qp').innerHTML='';q.forEach(t=>{const b=document.createElement('button');b.textContent=t;b.onclick=()=>ask(t);$('#qp').appendChild(b)})}
-function select(id){sel=id;render();layers();if(id){const l=scene.find(q=>q.id===id);say('agent',`Looking at <b>${esc(l.name)}</b>. Here’s what I’d try:`,suggest(l,''))}}
+function select(id){setLayerSelection(id?[id]:[],id);render();layers();if(id){const l=scene.find(q=>q.id===id);say('agent',`Looking at <b>${esc(l.name)}</b>. Here’s what I’d try:`,suggest(l,''))}}
 
 /* brand chrome */
 function chrome(){
@@ -2128,7 +2244,7 @@ function engApply(){
   if(B)saveScene();
   ENG.wired=true;AS.savedActive=null;Object.assign(ENG,{motif:'auto',motifOn:true,motifScale:1,motifX:0,motifY:0,textScale:1});
   FMT={id:`eng:${ENG.cat}:${ENG.tpl}:${ENG.size}`,group:engCatLabel(ENG.cat),n:`${engCatLabel(ENG.cat)} · ${size.n}`,w:size.w,h:size.h,eng:true};
-  hist=[];sel=null;seen=new Set();stopP();setDuration(DEFAULT_DUR);T=DUR;
+  hist=[];clearLayerSelection();seen=new Set();stopP();setDuration(DEFAULT_DUR);T=DUR;
   fitStage();sizeProbe();
   scene=engBuild();
   render();layers();assets();greet();remember();
@@ -2185,7 +2301,7 @@ function applyTemplateChoice(template){
  }else{
   FMT=target;
   fitStage();sizeProbe();
-  hist=[];sel=null;seen=new Set();stopP();setDuration(DEFAULT_DUR);T=DUR;
+  hist=[];clearLayerSelection();seen=new Set();stopP();setDuration(DEFAULT_DUR);T=DUR;
   scene=fitScene(buildScene('classic'));
   render();layers();greet();remember();
  }
@@ -2249,6 +2365,24 @@ function savedTemplatesPanel(){
  const short=n=>{const s=String(n||'');if(s.startsWith(B.name)){const rest=s.slice(B.name.length).replace(/^\s*[—–-]\s*/,'');if(rest)return rest}return s};
  return save+`<h3>Published templates <small>· ${st.items.length} saved from Asset Studio</small></h3><div class="eng-grid">${st.items.map(t=>`<button type="button" class="eng-card${t.id===AS.savedActive?' is-selected':''}" data-saved="${esc(t.id)}" title="${esc(t.name)} · ${t.width}×${t.height}px · ${t.layerCount} layer${t.layerCount===1?'':'s'}"><canvas></canvas><span>${esc(short(t.name))}</span></button>`).join('')}</div><p class="note">Published designs load their exact layers and artwork so you can keep editing them. ${link}</p>`;
 }
+function brandTemplatesPanel(){
+ const entries=brandTemplateEntries();
+ if(!entries.length)return '';
+ return `<h3>Brand templates <small>· ${entries.length} for ${esc(B.name)}</small></h3><div class="template-list">${entries.map(item=>{
+  const label=String(item.label||item.id||'Brand template');
+  const summary=String(item.description||item.spec||item.category||'Brand template');
+  return `<button type="button" class="asset" data-choice="true" data-k="brand-template:${esc(item.id)}" title="${esc(summary)}"><div class="th" style="background:linear-gradient(135deg,${TH.accent},${TH.ink});color:${TH.chalk};">${esc(label.slice(0,2).toUpperCase())}</div><span>${esc(label)}</span></button>`;
+ }).join('')}</div>`;
+}
+async function applyBrandTemplate(entry){
+ if(!B||!P||!entry)return;
+ try{
+  const composition=window.StudioBrand.createTemplateComposition({packId:P.id,packName:P.name,portfolio:P.portfolio,brand:B,templateId:entry.id});
+  const title=`${B.name} · ${entry.label||entry.id}`;
+  composition.name=title;
+  await adoptComposition(composition,title);
+ }catch(error){toast('Could not load brand template: '+error.message,true)}
+}
 async function savedThumb(cv,tpl){
  const comp=tpl.composition||{},w0=+(tpl.width||comp.width)||1748,h0=+(tpl.height||comp.height)||2480;
  const W=160,H=Math.max(40,Math.round(W*h0/w0)),dpr=Math.min(2,window.devicePixelRatio||1);
@@ -2277,8 +2411,8 @@ async function applySavedTemplate(id){
   const w=+(rec.width||comp.width)||FMT.w,h=+(rec.height||comp.height)||FMT.h;
   saveScene();
   FMT={id:`saved:${rec.id}`,group:'Saved',n:String(rec.name||'Published template'),w,h,saved:true};
-  AS.savedActive=id;hist=[];sel=null;seen=new Set();stopP();setDuration(+(rec.duration||comp.duration)||DEFAULT_DUR);
-  T=next.some(l=>l.anim)?0:DUR;
+  AS.savedActive=id;hist=[];clearLayerSelection();seen=new Set();stopP();setDuration(+(rec.duration||comp.duration)||DEFAULT_DUR);
+  T=next.some(l=>timelineAnims(l).length)?0:DUR;
   fitStage();sizeProbe();
   scene=next;
   chrome();render();layers();assets();greet();remember();
@@ -2320,7 +2454,7 @@ function assets(){
    h+=`<div class="asset" draggable="true" data-k="logo:${k}:${t}"><div class="th" style="background:${bg};color:${toneHex(t)}">${src?`<img alt="" src="${src}">`:esc(String(B.wordmark||B.name).toUpperCase().slice(0,12))}</div>${k==='mark'?'Mark':'Logo'} · ${t}</div>`}));
   h+=`</div><h3>Photography</h3>`;
   const ph=B.photography||[];
-  h+=ph.length?`<div class="assets">${ph.map((x,i)=>`<div class="asset" draggable="true" data-k="photo:${i}"><div class="th" style="background-image:url('${esc(x.url).replace(/'/g,'%27')}')"></div><span title="${esc(x.name)}">${esc(x.name||'Photo '+(i+1))}</span></div>`).join('')}</div>`:`<div class="note">This brand has no photography in its pack. Check the Library tab or <a href="library.html?brandId=${encodeURIComponent(B.id)}">add images to the library</a>.</div>`}
+  h+=ph.length?`<div class="assets">${ph.map((x,i)=>`<div class="asset" draggable="true" data-k="photo:${i}" data-photo="${i}" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Preview ${esc(x.name||'Photo '+(i+1))}"><div class="th" style="background-image:url('${esc(x.url).replace(/'/g,'%27')}')"></div><span title="${esc(x.name)}">${esc(x.name||'Photo '+(i+1))}</span></div>`).join('')}</div>`:`<div class="note">This brand has no photography in its pack. Check the Library tab or <a href="library.html?brandId=${encodeURIComponent(B.id)}">add images to the library</a>.</div>`}
  else if(AS.tab==='lib'){
   const lib=AS.lib;
   if(lib.status==='loading')h+=`<div class="note">Loading ${esc(B.name)} library…</div>`;
@@ -2331,7 +2465,7 @@ function assets(){
    h+=`<div class="flt"><select id="libCls" aria-label="Asset class"><option value="">All classes</option>${cls.map(c=>`<option value="${esc(c)}"${c===lib.cls?' selected':''}>${esc(c.replace(/-/g,' '))}</option>`).join('')}</select><label><input type="checkbox" id="libVer"${lib.verified?' checked':''}> Verified</label></div>`;
    h+=vis.length?`<div class="assets">${vis.slice(0,60).map(a=>`<div class="asset" draggable="true" data-k="lib:${esc(a.id)}" title="${esc(a.name)} · ${esc(a.state||'')}"><div class="th" style="background-image:url('${esc(a.thumb||a.sourceUrl)}');background-size:contain;background-repeat:no-repeat"></div><span><i class="st" data-s="${esc(a.state)}"></i>${esc(a.name)}</span></div>`).join('')}</div>`:`<div class="note">${lib.items.length?'No library assets match this filter.':'No images in this brand’s library yet.'}</div>`;
    h+=`<div class="note"><a href="library.html?brandId=${encodeURIComponent(B.id)}">Open the library →</a> to upload, verify or classify assets.</div>`}}
- else if(AS.tab==='tmpl'&&hasEngine()){h+=savedTemplatesPanel()+engPanel()}
+ else if(AS.tab==='tmpl'&&hasEngine()){h+=savedTemplatesPanel()+brandTemplatesPanel()+engPanel()}
  else if(AS.tab==='tmpl'){
   const templates=getTemplateCatalog();
   const sizes=getSizeCatalog();
@@ -2354,7 +2488,8 @@ function assets(){
    a.addEventListener('click',()=>{
     const k=a.dataset.k||'';
     const [kind, value]=k.split(':');
-    if(kind==='template'){const t=getTemplateCatalog().find(item=>String(item.id||item.slug||item.name||item.label)===value);if(t){applyTemplateChoice(t);}}
+    if(kind==='template'){const t=getTemplateCatalog().find(item=>String(item.id||item.slug||item.name||item.label)===value);if(t){const entry=brandTemplateEntries().find(item=>item.id===value);if(entry)applyBrandTemplate(entry);else applyTemplateChoice(t);}}
+    else if(kind==='brand-template'){const entry=brandTemplateEntries().find(item=>item.id===value);if(entry)applyBrandTemplate(entry)}
     else if(kind==='size'){const size=getSizeCatalog().find(s=>s.id===value);if(size){const map={a4:'a4',square:'sq','story-916':'story',landscape:'land','portrait-45':'portrait-45'};const next=FMTS.find(f=>f.id===map[value]||f.n.toLowerCase()===size.label.toLowerCase())||FMTS[0];setFormat(next.id);toast(`Size selected: ${size.label}`);}}
     else if(kind==='format'){const fmt=getFormatCatalog().find(f=>f.id===value);if(fmt){setFormat(fmt.id);toast(`Format selected: ${fmt.label}`);}}
     else if(kind==='motif'){const motif=getMotifCatalog().find(m=>m.id===value);if(motif){if(hasEngine() && B){ENG.motif=motif.id;ENG.motifOn=motif.id!=='none';engRefreshArt();} else {toast(`Motif selected: ${motif.label}`);}}}
@@ -2363,7 +2498,14 @@ function assets(){
    });
    return;
   }
-  a.ondragstart=e=>e.dataTransfer.setData('k',a.dataset.k);a.addEventListener('click',e=>e.preventDefault());
+  a.ondragstart=e=>e.dataTransfer.setData('k',a.dataset.k);
+  if(a.dataset.photo!=null){
+   const preview=()=>openPhotoPreview(+a.dataset.photo);
+   a.addEventListener('click',e=>{e.preventDefault();preview()});
+   a.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();preview()}});
+   return;
+  }
+  a.addEventListener('click',e=>e.preventDefault());
  });
  const c=$('#libCls'),v=$('#libVer');if(c)c.onchange=()=>{AS.lib.cls=c.value;assets()};if(v)v.onchange=()=>{AS.lib.verified=v.checked;assets()}}
 wrapEl.ondragover=e=>e.preventDefault();
@@ -2394,6 +2536,35 @@ async function addAsset(k,px,py){
  else if(a==='badge')Ly={...at(10,4),name:'Badge',type:'text',text:'NEW',bg:TH.accent,radius:2,font:F(BF.body,700,1.4,1.2,.12),color:readable('#ffffff',TH.accent)};
  else Ly={...at(40,6),name:'New text',type:'text',text:'Your text here',font:F(BF.display,BF.dW,2.4,1.2),color:TH.ink};
  hist.push(clone(scene));scene.push(Ly);$('#status').textContent=`Added ${Ly.name} to the canvas.`;say('agent',`Added <b>${esc(Ly.name)}</b> to the canvas.`);select(Ly.id) }
+async function usePhotoOnCanvas(index){
+ const photo=B&&B.photography&&B.photography[index];
+ if(!photo||!photo.url)throw new Error('This photograph is no longer available.');
+ const target=scene.find(layer=>layer.id===sel&&layer.type==='image')
+  ||scene.find(layer=>layer.id==='photo'&&layer.type==='image')
+  ||scene.find(layer=>layer.type==='image');
+ if(!target){await addAsset(`photo:${index}`,50,50);return}
+ const previousName=target.name;
+ const name=photo.name||'Photo';
+ hist.push(clone(scene));
+ target.name=name;target.src=photo.url;target.fx=50;target.fy=50;target.fit='cover';
+ delete target.assetId;
+ $('#status').textContent=`Replaced ${previousName} with ${name}.`;
+ select(target.id);
+ toast(`Canvas image replaced with ${name}.`);
+}
+function openPhotoPreview(index){
+ const photo=B&&B.photography&&B.photography[index];
+ if(!photo||!photo.url){toast('This photograph is no longer available.',true);return}
+ const name=photo.name||`Photo ${index+1}`;
+ openDialog({
+  title:name,
+  body:`<div class="photo-preview"><img src="${esc(photo.url)}" alt="${esc(name)}"><p class="note">Replace the selected image, or the existing hero image if none is selected. If the design has no image layer, this photo will be added to the canvas.</p></div>`,
+  actions:[
+   {label:'Close',value:null},
+   {label:'Replace image on canvas',primary:true,busy:'Applying…',run:()=>usePhotoOnCanvas(index)},
+  ],
+ });
+}
 
 /* ---------- agent ---------- */
 const S=(layerId,patch)=>({type:'set-layer',layerId,patch}),A=(layerId,preset,startMs,durationMs)=>({type:'set-animation',layerId,preset,startMs,durationMs});
@@ -2514,7 +2685,7 @@ function ask(t){say('user',esc(t));const l=scene.find(q=>q.id===sel);setTimeout(
   else cards=preferred.slice(0,3);
   say('agent',isExperimental?'Here are a wider set of experimental directions. Each still respects the brand palette and guardrails:':isClip?'Here are motion treatments using clip-path reveals and geometric wipes:':lm.includes('hier')?'One structural issue I can see:':lm.includes('anim')?'A motion-led treatment for the whole design. Drag the bars in the timeline to retime it:':'Three directions for the whole design, built from this brand’s palette and type. Hover to preview each on the canvas:',cards)
  }else{const c=suggest(l,t);say('agent',c.length?`For <b>${esc(l.name)}</b>:`:`I can’t do that to <b>${esc(l.name)}</b> yet. Try “bigger”, “accent colour”, “animate it” or “move up”.`,c)}} ,300)}
-function deleteSelection(){if(!sel)return;const l=scene.find(q=>q.id===sel);if(!l)return;hist.push(clone(scene));rememberSlot(l);scene=scene.filter(q=>q.id!==sel);sel=null;render();layers();$('#status').textContent=l.name?`Deleted ${l.name}.`:'Deleted layer.';closeLayerMenu()}
+function deleteSelection(){if(!selectedLayers.size&&sel)selectedLayers.add(sel);if(!selectedLayers.size)return;const removed=scene.filter(layer=>selectedLayers.has(layer.id));if(!removed.length)return;hist.push(clone(scene));removed.forEach(rememberSlot);scene=scene.filter(layer=>!selectedLayers.has(layer.id));clearLayerSelection();render();layers();$('#status').textContent=removed.length===1?`Deleted ${removed[0].name||'layer'}.`:`Deleted ${removed.length} layers.`;closeLayerMenu()}
 $('#f').onsubmit=e=>{e.preventDefault();const v=$('#in').value.trim();if(v){$('#in').value='';ask(v)}};
 $('#clearChat').onclick=()=>{chat.innerHTML='';$('#status').textContent='Chat cleared.'};
 document.addEventListener('keydown',(event)=>{const target=event.target;const editable=target&&((target.isContentEditable)||(target.tagName==='INPUT')||(target.tagName==='TEXTAREA')||(target.tagName==='SELECT'));if(editable)return;if((event.key==='Delete'||event.key==='Backspace')&&sel){event.preventDefault();deleteSelection()}});
@@ -2563,48 +2734,127 @@ function flag(a,lead){const nm=id=>(scene.find(l=>l.id===id)||{name:id}).name,it
 
 /* ---------- timeline ---------- */
 const DEFAULT_DUR=10000;let DUR=DEFAULT_DUR,T=DUR,playing=false,raf=0;
+let timelineSelection=null,timelineClipboard=null,timelineId=0;
+const newTimelineId=()=>`tl-${Date.now().toString(36)}-${(++timelineId).toString(36)}`;
+function timelineAnims(layer){
+ if(Array.isArray(layer.anims))return layer.anims;
+ return layer.anim?[{...layer.anim,id:'legacy',...(layer.kf?{keyframes:layer.kf}:{})}]:[];
+}
+function layerKeyframes(layer){const event=timelineAnims(layer).find(item=>Array.isArray(item.keyframes));return event?event.keyframes:layer.kf}
+function setLayerKeyframes(layer,frames){const event=Array.isArray(layer.anims)&&layer.anims.find(item=>Array.isArray(item.keyframes));if(event)event.keyframes=frames;else layer.kf=frames}
+function editableTimelineAnims(layer){
+ if(!Array.isArray(layer.anims)){
+  layer.anims=timelineAnims(layer).map(event=>({...event}));
+  delete layer.anim;delete layer.kf;
+ }
+ return layer.anims;
+}
+function findTimelineEvent(layerId,eventId){
+ const layer=scene.find(item=>item.id===layerId);
+ return layer&&timelineAnims(layer).find(event=>event.id===eventId);
+}
 function setDuration(ms){DUR=Math.max(1000,Math.min(60000,Math.round((+ms||DEFAULT_DUR)/500)*500));
  const sc=$('#scrub');if(sc){sc.max=DUR;if(T>DUR)T=DUR;sc.value=T}
  if($('#tt'))$('#tt').textContent=(T/1000).toFixed(2)+' / '+(DUR/1000).toFixed(2)+' s';if($('#tlb'))$('#tlb').style.setProperty('--p',T/DUR)}
 const easeSmooth=t=>t*t*(3-2*t);
-function applyKf(e,l,t){const k=l.kf;if(!k||!k.length)return;
+function applyKf(e,l,t,frames){const k=frames||l.kf;if(!k||!k.length)return;
  let i=0;while(i<k.length-1&&k[i+1].time<=t)i++;
  const a=k[i],b=k[i+1];
  if(!b||b.time<=a.time){Object.assign(e.style,{left:a.x+'%',top:a.y+'%',width:a.w+'%',height:a.h+'%',opacity:a.opacity});return}
  const p=easeSmooth(Math.max(0,Math.min(1,(t-a.time)/(b.time-a.time))));
  Object.assign(e.style,{left:(a.x+(b.x-a.x)*p)+'%',top:(a.y+(b.y-a.y)*p)+'%',
   width:(a.w+(b.w-a.w)*p)+'%',height:(a.h+(b.h-a.h)*p)+'%',opacity:+(a.opacity+(b.opacity-a.opacity)*p).toFixed(3)})}
-function seek(t){T=Math.max(0,Math.min(DUR,t));stage.querySelectorAll('[data-an]').forEach(e=>{const l=scene.find(q=>q.id===e.dataset.id);if(l&&l.anim&&!l.kf)e.style.animationDelay=(l.anim.start-T)+'ms'});
- stage.querySelectorAll('[data-kf]').forEach(e=>{const l=scene.find(q=>q.id===e.dataset.id);if(l&&l.kf)applyKf(e,l,T)});
+function seek(t){T=Math.max(0,Math.min(DUR,t));stage.querySelectorAll('[data-an]').forEach(e=>{const l=scene.find(q=>q.id===e.dataset.id);if(l)e.style.animationDelay=timelineAnims(l).filter(a=>!a.keyframes).map(a=>(a.start-T)+'ms').join(', ')});
+ stage.querySelectorAll('[data-kf]').forEach(e=>{const l=scene.find(q=>q.id===e.dataset.id),kf=l&&timelineAnims(l).find(a=>a.keyframes);if(l&&kf)applyKf(e,l,T,kf.keyframes)});
  $('#scrub').value=T;$('#tt').textContent=(T/1000).toFixed(2)+' / '+(DUR/1000).toFixed(2)+' s';$('#tlb').style.setProperty('--p',T/DUR)}
 function stopP(){playing=false;cancelAnimationFrame(raf);$('#tpl').textContent='▶ Play'}
 function play(from=T){stopP();if(from>=DUR)from=0;playing=true;$('#tpl').textContent='❚❚ Pause';const s=performance.now()-from;const f=n=>{seek(n-s);if(T<DUR&&playing)raf=requestAnimationFrame(f);else stopP()};raf=requestAnimationFrame(f)}
 $('#tpl').onclick=()=>playing?stopP():play();$('#scrub').oninput=e=>{stopP();seek(+e.target.value)};
-const pxb=(l,b)=>{b.style.left=l.anim.start/DUR*100+'%';b.style.width=Math.max(.6,l.anim.duration/DUR*100)+'%'};
-function retimeKeys(l,d){const s=l.anim.start,old=Math.max(1,l.anim.duration);l.kf=l.kf.map(k=>({...k,time:s+(k.time-s)*d/old}));l.anim.duration=d}
-function bd(e,l,b){e.stopPropagation();e.preventDefault();const tk=b.parentNode.getBoundingClientRect(),edge=e.clientX>b.getBoundingClientRect().right-8,sx=e.clientX,s0=l.anim.start,d0=l.anim.duration;let mv=false;
+const pxb=(a,b)=>{b.style.left=a.start/DUR*100+'%';b.style.width=Math.max(.6,a.duration/DUR*100)+'%'};
+function bd(e,layer,event,b){e.stopPropagation();e.preventDefault();event=editableTimelineAnims(layer).find(item=>item.id===event.id)||event;timelineSelection={layerId:layer.id,eventId:event.id};tl();
+ const tk=b.parentNode.getBoundingClientRect(),edge=e.clientX>b.getBoundingClientRect().right-8,sx=e.clientX,s0=event.start,d0=event.duration,keys0=event.keyframes?clone(event.keyframes):null;let mv=false;
  const m=ev=>{if(!mv){hist.push(clone(scene));mv=true}const dt=Math.round((ev.clientX-sx)/tk.width*DUR/100)*100;
-  if(edge){const d=Math.max(100,Math.min(DUR-s0,d0+dt));if(l.kf)retimeKeys(l,d);else l.anim.duration=d}
-  else{const st=Math.max(0,Math.min(DUR-l.anim.duration,s0+dt)),shift=st-l.anim.start;if(l.kf)l.kf=l.kf.map(k=>({...k,time:Math.max(0,k.time+shift)}));l.anim.start=st}
-  pxb(l,b);render();seek(T)};
- const u=()=>{removeEventListener('pointermove',m);removeEventListener('pointerup',u);if(mv){tl();say('agent',`${esc(l.name)}: ${l.anim.preset} now starts at ${(l.anim.start/1000).toFixed(1)}s and runs ${(l.anim.duration/1000).toFixed(1)}s.`);saveScene()}};
+  if(edge){const d=Math.max(100,Math.min(DUR-s0,d0+dt));if(keys0)event.keyframes=keys0.map(k=>({...k,time:s0+(k.time-s0)*d/Math.max(1,d0)}));event.duration=d}
+  else{const st=Math.max(0,Math.min(DUR-event.duration,s0+dt)),shift=st-s0;if(keys0)event.keyframes=keys0.map(k=>({...k,time:Math.max(0,k.time+shift)}));event.start=st}
+  pxb(event,b);render();seek(T);
+  const row=document.elementFromPoint(ev.clientX,ev.clientY)?.closest('.tr[data-layer-id]');
+  document.querySelectorAll('.tr.drop-target').forEach(item=>item.classList.remove('drop-target'));
+  if(row&&row.dataset.layerId!==layer.id)row.classList.add('drop-target')};
+ const u=ev=>{removeEventListener('pointermove',m);removeEventListener('pointerup',u);document.querySelectorAll('.tr.drop-target').forEach(item=>item.classList.remove('drop-target'));
+  if(mv){
+   const row=document.elementFromPoint(ev.clientX,ev.clientY)?.closest('.tr[data-layer-id]'),target=row&&scene.find(item=>item.id===row.dataset.layerId);
+   if(target&&target!==layer){editableTimelineAnims(layer).splice(editableTimelineAnims(layer).indexOf(event),1);editableTimelineAnims(target).push(event)}
+   timelineSelection={layerId:target?target.id:layer.id,eventId:event.id};
+   tl();saveScene();
+   say('agent',`${esc((target||layer).name)}: ${event.preset} starts at ${(event.start/1000).toFixed(1)}s and runs ${(event.duration/1000).toFixed(1)}s.`)
+  }};
  addEventListener('pointermove',m);addEventListener('pointerup',u)}
 function tl(){const w=$('#tlb'),n=Math.max(2,Math.min(10,Math.round(DUR/1000))),fmt=ms=>`${+(ms/1000).toFixed(2)}s`;
  w.innerHTML=`<div class="tr"><div class="n"></div><div class="tk" style="cursor:pointer">${[...Array(n+1)].map((_,i)=>`<small style="position:absolute;left:${i/n*100}%;font-size:9px;color:var(--mu);padding-left:2px">${fmt(i/n*DUR)}</small>`).join('')}</div></div>`;
  const rul=w.querySelector('.tk'),go=ev=>{const r=rul.getBoundingClientRect();stopP();seek((ev.clientX-r.left)/r.width*DUR)};
  rul.onpointerdown=ev=>{go(ev);const u=()=>{removeEventListener('pointermove',go);removeEventListener('pointerup',u)};addEventListener('pointermove',go);addEventListener('pointerup',u)};
- scene.filter(l=>!l.hidden).sort((a,b)=>b.z-a.z).forEach(l=>{const r=document.createElement('div');r.className='tr';r.dataset.s=l.id===sel?1:0;r.innerHTML=`<div class="n">${esc(l.name)}</div><div class="tk"></div>`;r.querySelector('.n').onclick=()=>select(l.id);
-  if(l.anim){const b=document.createElement('div');b.className='bar';
-   const keys=l.kf?l.kf.slice(1,-1).map(k=>`<i style="left:${((k.time-l.anim.start)/Math.max(1,l.anim.duration)*100).toFixed(2)}%"></i>`).join(''):'';
-   b.innerHTML=`<span>${l.anim.preset}</span>${keys}`;pxb(l,b);b.onpointerdown=e=>bd(e,l,b);r.querySelector('.tk').appendChild(b)}w.appendChild(r)});
+ scene.filter(l=>!l.hidden).sort((a,b)=>b.z-a.z).forEach(l=>{const r=document.createElement('div');r.className='tr';r.dataset.s=l.id===sel?1:0;r.dataset.layerId=l.id;r.innerHTML=`<div class="n">${esc(l.name)}</div><div class="tk"></div>`;r.querySelector('.n').onclick=()=>select(l.id);
+  timelineAnims(l).forEach((a,index)=>{if(!a.id)a.id=`legacy-${index}`;const b=document.createElement('div');b.className='bar'+(timelineSelection&&timelineSelection.layerId===l.id&&timelineSelection.eventId===a.id?' selected':'');b.dataset.animId=a.id;
+   const keys=a.keyframes?a.keyframes.slice(1,-1).map(k=>`<i style="left:${((k.time-a.start)/Math.max(1,a.duration)*100).toFixed(2)}%"></i>`).join(''):'';
+   b.innerHTML=`<span>${esc(a.preset)}</span>${keys}`;pxb(a,b);b.onclick=()=>{timelineSelection={layerId:l.id,eventId:a.id};tl()};b.onpointerdown=e=>bd(e,l,a,b);r.querySelector('.tk').appendChild(b)});w.appendChild(r)});
  const ph=document.createElement('div');ph.className='ph';w.appendChild(ph);seek(T)}
 
+function copyTimelineEvent(){const a=timelineSelection&&findTimelineEvent(timelineSelection.layerId,timelineSelection.eventId);if(!a){toast('Select an animation event first.');return}timelineClipboard=clone(a);$('#tlPaste').disabled=false;toast('Animation copied.')}
+function pasteTimelineEvent(duplicate){
+ if(!timelineClipboard){toast('Copy an animation event first.');return}
+ const layerId=duplicate&&timelineSelection?timelineSelection.layerId:sel;
+ const layer=scene.find(item=>item.id===layerId);
+ if(!layer){toast('Select a target layer first.');return}
+ hist.push(clone(scene));const event=clone(timelineClipboard);event.id=newTimelineId();
+ if(duplicate){const shift=Math.min(500,Math.max(0,DUR-event.start-event.duration));event.start+=shift;if(event.keyframes)event.keyframes=event.keyframes.map(k=>({...k,time:k.time+shift}))}
+ editableTimelineAnims(layer).push(event);timelineSelection={layerId:layer.id,eventId:event.id};render();tl();saveScene();toast(duplicate?'Animation duplicated.':'Animation pasted.')}
+async function loadTimelineLibrary(){
+ const select=$('#tlSaved');if(!select)return;const selected=select.value;
+ try{const data=await jget(`${API}/animation-library`);select.innerHTML='<option value="">Saved animations…</option>'+data.animations.map(a=>`<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('');if(data.animations.some(a=>a.id===selected))select.value=selected}
+ catch(error){toast(`Could not load saved animations: ${error.message}`)}
+}
+async function saveTimelineAnimation(){
+ const tracks=scene.flatMap(layer=>timelineAnims(layer).map(event=>({layerId:layer.id,layerName:layer.name,event:clone(event)})));
+ if(!tracks.length){toast('Add at least one animation event before saving.');return}
+ const name=prompt('Name this reusable animation');if(!name||!name.trim())return;
+ try{const result=await fetch(`${API}/animation-library`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name.trim(),tracks})});
+  const data=await result.json();if(!result.ok)throw new Error(data.error||`${result.status} ${result.statusText}`);
+  await loadTimelineLibrary();$('#tlSaved').value=data.animation.id;toast('Animation saved to the shared library.')}
+ catch(error){toast(`Could not save animation: ${error.message}`)}
+}
+async function applyTimelineAnimation(){
+ const id=$('#tlSaved').value;if(!id){toast('Choose a saved animation first.');return}
+ try{const data=await jget(`${API}/animation-library`),saved=data.animations.find(item=>item.id===id);if(!saved)throw new Error('The saved animation no longer exists.');
+  const byId=new Map(scene.map(layer=>[layer.id,layer])),byName=new Map(scene.map(layer=>[String(layer.name||'').trim().toLowerCase(),layer]));
+  const matched=[],unmatched=[];
+  saved.tracks.forEach(track=>{const layer=byId.get(track.layerId)||byName.get(String(track.layerName||'').trim().toLowerCase());if(layer)matched.push({layer,event:track.event});else unmatched.push(track.layerName)});
+  if(!matched.length){toast(`No matching layers found for “${saved.name}”.`);return}
+  hist.push(clone(scene));matched.forEach(({layer,event})=>editableTimelineAnims(layer).push({...clone(event),id:newTimelineId()}));
+  timelineSelection=null;render();tl();seek(T);saveScene();
+  const missing=unmatched.length?`; unmatched: ${unmatched.slice(0,5).join(', ')}${unmatched.length>5?'…':''}`:'';
+  toast(`Applied to ${matched.length} layer${matched.length===1?'':'s'}${unmatched.length?`; ${unmatched.length} track${unmatched.length===1?'':'s'} skipped${missing}`:''}.`)
+ }catch(error){toast(`Could not apply saved animation: ${error.message}`)}
+}
+async function deleteTimelineAnimation(){
+ const id=$('#tlSaved').value;if(!id){toast('Choose a saved animation first.');return}
+ const option=$('#tlSaved').selectedOptions[0];if(!confirm(`Delete “${option.textContent}” from the shared animation library?`))return;
+ try{const response=await fetch(`${API}/animation-library/${encodeURIComponent(id)}`,{method:'DELETE'}),data=await response.json();if(!response.ok)throw new Error(data.error||`${response.status} ${response.statusText}`);await loadTimelineLibrary();toast('Saved animation deleted.')}
+ catch(error){toast(`Could not delete saved animation: ${error.message}`)}
+}
+$('#tlCopy').onclick=copyTimelineEvent;
+$('#tlPaste').onclick=()=>pasteTimelineEvent(false);
+$('#tlDuplicate').onclick=()=>pasteTimelineEvent(true);
+$('#tlSave').onclick=saveTimelineAnimation;
+$('#tlApply').onclick=applyTimelineAnimation;
+$('#tlDelete').onclick=deleteTimelineAnimation;
+$('#tlPaste').disabled=true;
+loadTimelineLibrary();
+
 /* ---------- toolbar ---------- */
-$('#undo').onclick=()=>{if(hist.length){scene=hist.pop();if(!scene.find(l=>l.id===sel))sel=null;render();layers();$('#status').textContent='Undone.'}};
-$('#reset').onclick=()=>{hist.push(clone(scene));LS.del(sceneKey());scene=fitScene(buildScene('classic'));sel=null;render();layers();toast('Scene reset to the brand defaults.')};
+$('#undo').onclick=()=>{if(hist.length){scene=hist.pop();selectedLayers=new Set([...selectedLayers].filter(id=>scene.some(l=>l.id===id)));if(sel&&!selectedLayers.has(sel))sel=[...selectedLayers].at(-1)||null;render();layers();$('#status').textContent='Undone.'}};
+$('#reset').onclick=()=>{hist.push(clone(scene));LS.del(sceneKey());scene=fitScene(buildScene('classic'));clearLayerSelection();render();layers();toast('Scene reset to the brand defaults.')};
 $('#play').onclick=()=>play(0);
 $('#sz').onchange=e=>$('#app').classList.toggle('safe',e.target.checked);
-wrapEl.onclick=e=>{if(e.target.id==='wrap')select(null)};
 addEventListener('pointerdown',e=>{if(cxMenu&&!cxMenu.hidden&&!cxMenu.contains(e.target))closeLayerMenu()},true);
 addEventListener('keydown',e=>{if(e.key==='Escape'&&cxMenu&&!cxMenu.hidden)closeLayerMenu()});
 addEventListener('scroll',closeLayerMenu,true);
@@ -2637,7 +2887,7 @@ function roundRectPath(ctx,x,y,w,h,r){
 function layerState(l,t){
  const num=(v,d)=>{const n=+v;return Number.isFinite(n)?n:d};
  const st={x:num(l.x,0),y:num(l.y,0),w:num(l.w,100),h:num(l.h,10),opacity:1,scale:1,ty:0,clip:null};
- const k=l.kf;
+ const animations=timelineAnims(l),kfEvent=animations.find(event=>event.keyframes),k=kfEvent? kfEvent.keyframes:l.kf;
  if(k&&k.length){
   let i=0;while(i<k.length-1&&k[i+1].time<=t)i++;
   const a=k[i],b=k[i+1];
@@ -2655,16 +2905,17 @@ function layerState(l,t){
   st.opacity=oa+(ob-oa)*p;
   return st;
  }
- const a=l.anim;
- if(!a)return st;
- const dur=Math.max(1,num(a.duration,900)),start=num(a.start,0),preset=String(a.preset||'');
- const looping=ANIM_LOOPING.has(preset);
- let p=looping?((((t-start)/dur)%1)+1)%1:clamp((t-start)/dur,0,1);
- if(preset==='fadeIn'){st.opacity=p;st.ty=(1-p)*0.02}
- else if(preset==='zoom')st.scale=1+0.08*easeOutCubic(p);
- else if(preset==='parallax'){st.scale=1.08;st.ty=-0.025*easeOutCubic(p)}
- else if(preset==='pulse')st.opacity=Math.max(0,1-0.65*Math.sin(Math.PI*p));
- else if(preset.startsWith('clip'))st.clip={preset,p:easeOutQuint(p)};
+ for(const a of animations){
+  if(a.keyframes)continue;
+  const dur=Math.max(1,num(a.duration,900)),start=num(a.start,0),preset=String(a.preset||'');
+  const looping=ANIM_LOOPING.has(preset);
+  const p=looping?((((t-start)/dur)%1)+1)%1:clamp((t-start)/dur,0,1);
+  if(preset==='fadeIn'){st.opacity=p;st.ty=(1-p)*0.02}
+  else if(preset==='zoom')st.scale=1+0.08*easeOutCubic(p);
+  else if(preset==='parallax'){st.scale=1.08;st.ty=-0.025*easeOutCubic(p)}
+  else if(preset==='pulse')st.opacity=Math.max(0,1-0.65*Math.sin(Math.PI*p));
+  else if(preset.startsWith('clip'))st.clip={preset,p:easeOutQuint(p)};
+ }
  return st;
 }
 
@@ -2792,7 +3043,7 @@ async function paintLayer(ctx,l,W,H,t){
  const st=layerState(l,t);
  const x=st.x/100*W,y=st.y/100*H;
  const w=Math.max(.5,st.w/100*W),h=Math.max(.5,st.h/100*H);
- const base=Array.isArray(l.kf)&&l.kf.length?1:(l.opacity==null?1:+l.opacity);
+ const base=Array.isArray(layerKeyframes(l))&&layerKeyframes(l).length?1:(l.opacity==null?1:+l.opacity);
  const alpha=clamp(st.opacity*base,0,1);
  if(alpha<=.004)return;
  ctx.save();
@@ -2927,8 +3178,15 @@ async function compositionFromScene(name){
   }else{
    layers.push({...base,type:'image',url:await templateArtwork(l),fit:(l.type==='logo'||l.fit==='contain')?'contain':'cover'});
   }
-  if(Array.isArray(l.kf)&&l.kf.length>1){
-   layers[layers.length-1].keyframes=l.kf.slice().sort((a,b)=>a.time-b.time).map(k=>({
+  const animations=timelineAnims(l).map(event=>({
+   id:String(event.id||newTimelineId()),preset:event.preset,start:+event.start||0,duration:+event.duration||900,
+   ...(Array.isArray(event.keyframes)?{keyframes:clone(event.keyframes)}:{})
+  }));
+  if(animations.length===1)layers[layers.length-1].animation=animations[0];
+  else if(animations.length>1)layers[layers.length-1].animations=animations;
+  const legacyKeys=layerKeyframes(l);
+  if(Array.isArray(legacyKeys)&&legacyKeys.length>1&&!animations.some(event=>event.keyframes)){
+   layers[layers.length-1].keyframes=legacyKeys.slice().sort((a,b)=>a.time-b.time).map(k=>({
     time:+k.time||0,x:+k.x||0,y:+k.y||0,w:+k.w||0,h:+k.h||0,
     opacity:+clamp(k.opacity==null?1:+k.opacity,0,1).toFixed(3)}));
   }
@@ -3377,7 +3635,7 @@ async function segmentsFiles(){
   opacity:l.opacity==null?1:l.opacity,
   ...(l.type==='text'?{text:l.text,font:l.font,color:l.color,align:l.align}:{}),
   ...(l.src?{src:l.src}:{}),
-  ...(l.anim?{animation:l.anim}:{}),
+  ...(timelineAnims(l).length?{animations:timelineAnims(l)}:{}),
   file:`segments/${pad2(index+1)}-${slugText(l.name)}.png`,
  }));
  const manifest={
@@ -3534,7 +3792,8 @@ function importedScene(composition){
   if(from.bg)layer.bg=from.bg;
   if(from.radius!=null&&+from.radius>0)layer.radius=+from.radius;
   if(from.nowrap)layer.nowrap=true;
-  if(from.anim&&from.anim.preset&&!layer.anim)layer.anim={...from.anim};
+  if(Array.isArray(from.animations))layer.anims=from.animations.map(event=>({...event}));
+  else if(from.anim&&from.anim.preset&&!layer.anim)layer.anim={...from.anim};
  });
  return layers;
 }
@@ -3548,9 +3807,9 @@ async function adoptComposition(composition,label){
  const h=Math.max(64,Math.round(+(composition.height||FMT.h)));
  saveScene();
  FMT={id:'saved:imported',group:'Imported',n:title,w,h,saved:true};
- AS.savedActive=null;hist=[];sel=null;seen=new Set();stopP();
+ AS.savedActive=null;hist=[];clearLayerSelection();seen=new Set();stopP();
  setDuration(+(composition.duration)||DEFAULT_DUR);
- T=next.some(l=>l.anim)?0:DUR;
+ T=next.some(l=>timelineAnims(l).length)?0:DUR;
  fitStage();sizeProbe();
  scene=next;
  chrome();render();layers();assets();greet();remember();
@@ -3677,13 +3936,13 @@ const remember=()=>{LS.set('agentStudio.last.v1',{packId:P&&P.id,brandId:B&&B.id
 /* ---------- selection flow ---------- */
 async function setFormat(id){
  const f=FMTS.find(x=>x.id===id)||FMTS[0];if(B)saveScene();FMT=f;AS.savedActive=null;const kind=$('#fmtKind');if(kind)kind.value=fmtGroupFor(f.id);buildFormats();fitStage();sizeProbe();
- hist=[];sel=null;seen=new Set();
+ hist=[];clearLayerSelection();seen=new Set();
  if(B){const saved=loadScene();scene=saved||fitScene(buildScene('classic'));render();layers();assets();greet();remember()}}
 async function selectBrand(id){
  const b=(P.brands||[]).find(x=>x.id===id);if(!b)return;const tok=++selTok;
  if(B)saveScene();
  $('#brands').querySelectorAll('button').forEach(x=>x.disabled=true);
- B=b;deriveTheme(b);BF=brandFonts(b);hist=[];sel=null;seen=new Set();stopP();setDuration(DEFAULT_DUR);T=DUR;
+ B=b;deriveTheme(b);BF=brandFonts(b);hist=[];clearLayerSelection();seen=new Set();stopP();setDuration(DEFAULT_DUR);T=DUR;
  await Promise.all([brandLogos(b),engMedia(b),document.fonts&&document.fonts.ready].filter(Boolean)).catch(()=>{});
  if(tok!==selTok)return;
  (b.photography||[]).slice(0,1).forEach(p=>ensurePx(p.url));

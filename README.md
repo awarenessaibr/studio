@@ -18,6 +18,7 @@ runs unchanged under Node for tests.
 |---|---|---|---|
 | **Layer Studio v2** | `/` or `/studio-v2.html` | Compose, animate and export layered scenes and templates. Segments, keyframes, presets, text, formats, variables, characters, AI animation ideas. | [layer-studio.md](docs/layer-studio.md) |
 | **Asset Studio** | `/asset-studio.html` | Produce final, on-brand artwork fast: flyers, menus, vouchers, cards, social, signage, packaging and compliance labels, with print- and screen-ready output. | [asset-studio.md](docs/asset-studio.md) |
+| **Asset Studio Agent** | `/studio-agent.html` | Edit final brand artwork with an agent and use its short preset-animation timeline. | [asset-studio-animation.md](docs/asset-studio-animation.md) |
 | **Brand identity** | sidebar of the studio | Import a brand-kit ZIP, read the Word guides, browse palette/type/logos/guidelines, create print and digital templates, and publish edited scenes back as reusable brand templates with GIF/MP4 export. Also available as a drawer inside Asset Studio. | [brand-packs.md](docs/brand-packs.md) |
 | **Brand intake** | `/crawler.html` | Search a business, confirm its website/social profiles, queue several restaurants as a group, run the combined crawler one by one and import the finished group ZIP into Asset Studio. | [crawler.md](docs/crawler.md) |
 | **Asset library** | `/library.html` | Business Asset Intelligence: index pack assets and uploads, review and classify them, apply usage rules and feed the Asset Studio photo slot and print gate. | [asset-library.md](docs/asset-library.md) |
@@ -36,14 +37,24 @@ brief-driven batches without a browser.
 ## Quickstart
 
 ```bash
-node server.js            # or: npm start
+./start.sh                # or: node server.js / npm start
 # → http://127.0.0.1:8008/            Layer Studio v2
 # → http://127.0.0.1:8008/asset-studio.html
 ```
 
+Stop the server with `./stop.sh`. The scripts recognize an already-running
+Studio process, including one started manually, and record its PID so it can be
+stopped. `start.sh` uses the requested port exactly (8008 by default) and
+refuses to start if that port is occupied; it never silently switches ports.
+PID and log files are stored in `.run/`; set `PORT` or `HOST` before starting
+to override the defaults.
+
 `PORT=8010 node server.js` moves it. The static pages also open from
 `file://`, but **alignment, video export and every API-backed feature need
 HTTP** (browsers block canvas pixel readback and `fetch` on `file://`).
+The server listens on all interfaces for port forwarding. Use a firewall or
+trusted network to restrict access; binding to `0.0.0.0` makes the server
+reachable through every network interface.
 
 Requirements: Node ≥ 22.6 for the test runner (glob support in `node --test`),
 Chrome for the browser test harnesses (plus a Playwright module — see
@@ -59,6 +70,7 @@ the browser's own MP4/WebM recording is used. Application modules: none.
 | Capability | Use it when | Where | Details |
 |---|---|---|---|
 | Layered scene animation | You have PNG cut-outs and want motion, parallax, sprites | Layer Studio | [layer-studio.md](docs/layer-studio.md) |
+| Asset Studio Agent animation | Animate captured text, logos, or the whole artwork with short presets | `/studio-agent.html` → Timeline | [asset-studio-animation.md](docs/asset-studio-animation.md) |
 | Segment import + auto-align | You have a segments ZIP and the assembled image | Layer Studio → *Import ZIP + image* | [layer-studio.md](docs/layer-studio.md#3-projects-and-imports) |
 | 19 animation presets + keyframes | A layer needs life in one click, or exact timing | Inspector / Keyframes | [layer-studio.md](docs/layer-studio.md#6-animation) |
 | Character rigs (face, eyes, speech) | A portrait needs blinks, gaze, expressions, lip-sync | Inspector → Character | [layer-studio.md](docs/layer-studio.md#character-rigs) |

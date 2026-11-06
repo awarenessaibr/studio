@@ -145,6 +145,12 @@
         .layer-proposals-header .layer-section-toggle:hover { background: transparent; color: var(--ls-accent); }
         .layer-proposals > .layer-section-content { display: flex; flex: 1 1 auto; min-height: 0; flex-direction: column; gap: 8px; }
         #layerProposalMeta { margin: -6px 0 0; color: var(--ls-muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+        .layer-proposal-models { display: grid; gap: 6px; }
+        .layer-proposal-models label { display: grid; grid-template-columns: 58px minmax(0, 1fr); align-items: center; gap: 6px; color: var(--ls-muted); font-size: 10px; }
+        .layer-proposal-models select { min-width: 0; min-height: 28px; border: 1px solid var(--ls-line); border-radius: 5px; background: var(--ls-bg); padding: 4px 6px; color: var(--ls-text); font-size: 10px; }
+        #layerOllamaModelControls { display: grid; gap: 5px; }
+        #layerOllamaModelControls[hidden] { display: none; }
+        #layerAnimationProviderStatus { margin: 0; color: var(--ls-muted); font-size: 10px; line-height: 1.4; }
 
         /* Canvas highlight: matches the white box + name chip of the reference segment editor */
         .layer-item.ls-hover {
@@ -230,6 +236,23 @@
                     <div class="layer-proposals-actions">
                         <button type="button" id="layerProposeButton" data-action="propose-animations">Suggest animations</button>
                         <button type="button" id="layerResetAnimations" data-action="reset-animations">Reset</button>
+                    </div>
+                    <div class="layer-proposal-models">
+                        <label for="layerAnimationProvider">AI provider
+                            <select id="layerAnimationProvider" aria-label="Animation ideas AI provider">
+                                <option value="ollama">Ollama · local</option>
+                                <option value="deepseek">DeepSeek Flash · API</option>
+                            </select>
+                        </label>
+                        <div id="layerOllamaModelControls">
+                            <label for="layerVisionModel">Vision
+                                <select id="layerVisionModel" aria-label="Ollama vision model"></select>
+                            </label>
+                            <label for="layerTextModel">Writing
+                                <select id="layerTextModel" aria-label="Ollama writing model"></select>
+                            </label>
+                        </div>
+                        <p id="layerAnimationProviderStatus" role="status">Checking available AI providers…</p>
                     </div>
                     <p id="layerProposalContext" class="layer-proposal-context"></p>
                     <div id="layerProposalList" class="layer-proposal-list" aria-live="polite"></div>

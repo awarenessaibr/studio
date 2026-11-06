@@ -28,7 +28,7 @@ button-level detail.
 | A spoken line or a designed voice | **Voice Studio** | Local MLX-Audio speech + two-direction voice agent |
 | What the public says | **Social intelligence** | Channels, reviews, themes and voice from scraped profiles |
 | 40 menu variants from a spreadsheet | **Brief ingestion** (studio or CLI) | One row per creative, formats × locales |
-| Let a local vision model suggest animation | **Animation ideas** | Reads the final image, proposes preset commands |
+| Choose Ollama or DeepSeek API to suggest animation | **Animation ideas** | Reads the final image, proposes preset commands |
 | Let an LLM direct the scene or a character | **Agent protocol** | Structured JSON commands, validated |
 | Rename 60 meaningless cut-outs | **Organize with AI** | Vision model proposes name/group/role |
 
@@ -327,8 +327,8 @@ fadeOut, zoom, spin, shake, hop, swing, orbit, nod, blinkIn`
   without hand-keying 20 layers.
 - **In → out**: project + context → validated preset commands → keyframes;
   ideas persist in `proposals.json`.
-- **Requirements**: Ollama with a vision model and a text model (defaults
-  `granite3.2-vision:2b` / `qwen3.5:9b`); credentials stay on the server.
+- **Providers**: choose installed Ollama vision/writing models or a
+  server-configured DeepSeek API model; API credentials stay on the server.
 - **Doc**: [layer-studio.md](layer-studio.md#10-ai-assistance)
 
 ### Segment organiser

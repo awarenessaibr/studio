@@ -840,7 +840,7 @@ sections, then:
 | Payload | Created in | Meaning |
 |---|---|---|
 | `logo:<wordmark\|mark>:<white\|ink\|accent>` | Brand tab | camera-ready logo cut |
-| `photo:<index>` | Brand tab | `B.photography[index]` |
+| `photo:<index>` | Brand tab | `B.photography[index]`; drag adds it to the stage |
 | `lib:<ast_id>` | Library tab | library asset record |
 | `template:<id>` | fallback Templates | template card (text layer) |
 | `size:<id>` | fallback Templates | switch format |
@@ -850,6 +850,12 @@ sections, then:
 
 Choices in the fallback grid are click-only (`data-choice`), not draggable;
 the engine design/motif cards are click-only too.
+
+Photography cards also open a larger preview on click or keyboard activation.
+The preview action replaces the selected image layer; otherwise it uses the
+hero image layer, then the first image layer. If the scene has no image layer,
+the photo is added to the canvas. Replacement keeps the target layer's
+geometry and resets its crop to the centre.
 
 ### 8.3 `addAsset` (746–764)
 
@@ -872,7 +878,19 @@ box on the page. Every successful add pushes history, appends, says “Added …
 in chat, and selects the layer.
 
 `box(aspect, widthPct)` keeps the image aspect inside the page: if the
-computed height exceeds 80 %, it caps height and recomputes width.
+computed height exceeds 80 %, it caps height and recomputes width. A photo
+preview's replace action reuses the existing image layer instead of creating
+a new one; it adds a layer when the scene has no image.
+
+### 8.6 Layer multi-selection
+
+Single-clicking a layer row keeps the existing one-layer selection behavior.
+Double-clicking a row toggles it into or out of a multi-selection; selected
+layers can be dragged together from the stage, and Delete removes the selected
+layers. Dragging from empty space in the canvas workspace draws a marquee and
+selects every visible non-background layer it intersects. Hold Shift while
+marquee-selecting to add those layers to the current selection. The primary
+selection remains the layer used by the agent and inspector.
 
 ### 8.4 Library (`loadLibrary`, 739–744)
 
@@ -1384,6 +1402,7 @@ Static header links: `asset-studio.html`, `library.html`, `crawler.html`,
 | Event | Target | Handler | Effect |
 |---|---|---|---|
 | `pointerdown` | every `.L` | `down` | select + drag move |
+| `pointerdown` | empty canvas workspace / background | `beginMarquee` | draw a selection rectangle; visible intersecting layers become selected |
 | `pointerdown` | `.resize-handle` | `bindResizeHandles` | begin panel drag |
 | `dblclick` | handle | inline | toggle collapse |
 | `pointerdown` | timeline bar | `bd` | move/resize animation |
@@ -1395,16 +1414,19 @@ Static header links: `asset-studio.html`, `library.html`, `crawler.html`,
 | `change` | `#grp` | inline | `selectPack` |
 | `change` | library filters | `assets` | re-render filtered grid |
 | `dragstart` | `.asset[data-k]` | inline | set `dataTransfer 'k'` |
+| `click` / `keydown` | brand photography card | `assets` | open a large preview; Enter and Space activate it |
 | `dragover` / `drop` | `#wrap` | inline | add asset at drop point |
 | `click` | `#undo`, `#reset`, `#play`, `#tpl`, `#clearChat`, `#gc` | inline | toolbar actions |
 | `click` | palette swatch | `chrome` | recolour selected text/fill/shape |
-| `click` | layer row / eye | `list` | select / toggle hidden |
+| `click` / `dblclick` | layer row | `list` | select one / toggle multi-selection |
+| `click` | layer eye | `list` | toggle hidden |
 | `click` | `#cx` | `ctx` | clear selection |
 | `click` | quick prompt | `ctx` | `ask(prompt)` |
 | `submit` | `#f` | inline | `ask(input)` |
 | `contextmenu` | stage layer | `showContextMenu` | delete menu (broken, §16) |
 | `click`/`contextmenu` | document | inline | close context menu |
 | `keydown` | document | inline | Delete/Backspace deletes selection (ignores inputs/selects/contenteditable) |
+| `keydown` | focused layer row | `list` | Enter selects; Space toggles multi-selection |
 | `keydown` | handle | inline | arrows ±16 px, Enter/Space collapse |
 | `keydown` | `h3[data-sec]` | `wrapSections` | Enter/Space collapse |
 | `pointermove`/`up` | window | drag helpers | finish drags |

@@ -365,12 +365,15 @@ the UI still reported success:
     (`looks_like_js_shell`: <60 elements, ≤2 media, <600 chars of text, and a
     `#root`/`#app`/`__next`/`__nuxt`/`___gatsby` mount) and, after the static
     pool, renders the seed and up to `SPA_MAX_ROUTES` same-origin routes with
-    the browser (`render_js_site`). Playwright is thread-bound, so this pass is
-    serial on the main thread and runs after the thread pool. Rendered HTML is
-    written back into `_page_cache`, so the social phase reuses it instead of
-    refetching the shell. `--no-browser` or `CRAWLER_RENDER_JS=0` skips the
-    render pass; bundle harvesting (below) still contributes media, so a
-    JS-only site degrades to photography without text.
+    the browser (`render_js_site`). The same browser pass now runs if HTTP
+    returns no HTML at all (for example, when a site blocks the crawler's HTTP
+    client), rather than treating that as a terminal failure. Playwright is
+    thread-bound, so this pass is serial on the main thread and runs after the
+    thread pool. Rendered HTML is written back into `_page_cache`, so the social
+    phase reuses it instead of refetching the shell. `--no-browser` or
+    `CRAWLER_RENDER_JS=0` skips the render pass; bundle harvesting (below) still
+    contributes media when a shell was fetched, so a JS-only site degrades to
+    photography without text.
 22. **Images imported by the JS bundle were invisible.** A Vite build ships
     `assets/logo-melano-L1W7aZ4g.png` as a module import, so no `<img>` ever
     exists in the DOM. `harvest_bundle_assets` reads up to `BUNDLE_MAX_FILES`

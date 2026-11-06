@@ -6,6 +6,12 @@ no keyframes.
 
 `/asset-studio.html`
 
+The separate `/studio-agent.html` page adds an agent and a short preset
+animation timeline; see [Asset Studio Agent animation](asset-studio-animation.md).
+The companion [Studio Agent](../pages/studio-agent.html) also uses the active
+brand's template catalog in its category design lists, with editable copy and
+palette, layer selection, animation, and PNG/JPG export.
+
 ---
 
 ## 1. When to use it
@@ -98,11 +104,20 @@ typography, logos, photography, applications matrix, voice and a link to the
 Word guide. **Apply this palette & type** restores the pack defaults after
 experimenting.
 
+The Designs panel includes both the original layouts and the active brand's
+catalog templates in the relevant category tabs. Brand templates are marked in
+the grid, and can be edited in Asset Studio with the *Colours, Type, Image,
+Text,* and *Size* controls, then saved or exported like other designs.
+**Brand templates** is a catalog browser with previews; **Open in Designs**
+jumps to that template in the category grid. **Edit layers in Studio V2**
+remains available for advanced composition editing.
+
 ---
 
 ## 4. Categories and designs
 
-50 layouts across eleven categories. Sizes are the presets offered in *Size*;
+50 built-in layouts across eleven categories, plus the active brand's
+category-matched templates. Sizes are the presets offered in *Size*;
 a design exposes only the presets that suit it (a roll-up does not offer a
 story crop).
 

@@ -382,6 +382,14 @@ img { max-width: 100%; }
     white-space: nowrap;
 }
 
+.design-tile .design-origin {
+    color: var(--brand);
+    font-size: 8px;
+    font-weight: 650;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
 /* ── controls ─────────────────────────────────────────────────────── */
 
 .controls-panel { overflow: hidden; }
@@ -1336,6 +1344,101 @@ img { max-width: 100%; }
     box-shadow: 0 34px 90px rgb(0 0 0 / 30%);
 }
 
+.template-library-panel {
+    width: min(1240px, 100%);
+}
+
+.brand-template-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+}
+
+.asset-brand-template {
+    display: grid;
+    align-content: start;
+    gap: 8px;
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface-2);
+}
+
+.asset-brand-template h3 {
+    font: 400 19px/1.15 Georgia, "Times New Roman", serif;
+}
+
+.asset-brand-template .template-spec {
+    color: var(--muted);
+    font-size: 10px;
+}
+
+.asset-brand-template .template-description {
+    min-height: 3em;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.45;
+}
+
+.template-preview {
+    position: relative;
+    width: 100%;
+    min-height: 190px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background-color: #e9e3d9;
+    background-image: linear-gradient(45deg, rgb(26 26 46 / 4%) 25%, transparent 25%),
+        linear-gradient(-45deg, rgb(26 26 46 / 4%) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, rgb(26 26 46 / 4%) 75%),
+        linear-gradient(-45deg, transparent 75%, rgb(26 26 46 / 4%) 75%);
+    background-position: 0 0, 0 5px, 5px -5px, -5px 0;
+    background-size: 10px 10px;
+}
+
+.template-preview-canvas {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    overflow: hidden;
+    transform: translate(-50%, -50%);
+}
+
+.template-preview-layer {
+    position: absolute;
+    box-sizing: border-box;
+}
+
+.template-preview-text {
+    display: flex;
+    overflow: hidden;
+    padding: 2px;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.template-preview-text span {
+    width: 100%;
+    overflow: hidden;
+}
+
+.template-preview-error {
+    display: grid;
+    min-height: 190px;
+    place-items: center;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.template-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.template-actions .btn { text-decoration: none; }
+
 .print-layout {
     display: grid;
     grid-template-columns: 270px minmax(0, 1fr);
@@ -1437,9 +1540,14 @@ img { max-width: 100%; }
 @media (max-width: 820px) {
     .modal { padding: 12px; }
     .modal-panel { padding: 18px; }
+    .brand-template-grid { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
     .print-layout { grid-template-columns: 1fr; }
     #printPreview { max-height: 40vh; }
     .print-actions #printStatus { width: 100%; margin-left: 0; }
+}
+
+@media (max-width: 520px) {
+    .brand-template-grid { grid-template-columns: 1fr; }
 }
 
 /* ── toast ────────────────────────────────────────────────────────── */

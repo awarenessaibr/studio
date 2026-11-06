@@ -22,6 +22,9 @@ PORT=8010 HOST=127.0.0.1 node server.js
 | `STUDIO_OPENAI_API_KEY` | — | Enables the remote vision provider for *Organize with AI* |
 | `STUDIO_OPENAI_MODEL` | — | That provider's vision model |
 | `STUDIO_OPENAI_BASE_URL` | `https://api.openai.com/v1` | Any OpenAI-compatible endpoint |
+| `STUDIO_DEEPSEEK_API_KEY` | — | Server-side API key for DeepSeek animation ideas |
+| `STUDIO_DEEPSEEK_MODEL` | — | DeepSeek model id (for example `deepseek-flash`) |
+| `STUDIO_DEEPSEEK_BASE_URL` | `https://api.deepseek.com/v1` | DeepSeek-compatible chat-completions endpoint |
 | `STUDIO_PYTHON` | `.venv/bin/python` → `python3` | Interpreter used by the intake crawler |
 
 The server serves the pages and the repository-project asset route, and
@@ -79,8 +82,9 @@ for a worked example.
 
 | Method | Path | Body / result |
 |---|---|---|
+| `GET` | `/api/llm/animation-director` | Available animation-ideas providers and local model defaults; API keys are never returned |
 | `GET` | `/api/imports/:id/proposals` | `{ context, generatedAt, models, analysis, proposals }` |
-| `POST` | `/api/imports/:id/proposals` | `{ context, visionModel, textModel, count, image? }` → generated ideas |
+| `POST` | `/api/imports/:id/proposals` | `{ provider: "ollama"|"deepseek", context, visionModel?, textModel?, count, image? }` → generated ideas |
 | `PUT` | `/api/imports/:id/context` | `{ context, director }` → saved on the composition meta |
 
 Proposals are validated against real layer ids and the preset vocabulary,

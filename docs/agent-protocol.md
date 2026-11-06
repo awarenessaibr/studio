@@ -4,6 +4,9 @@ A JSON contract that lets a language model (or any script) direct a
 composition without touching the internals: the studio exports what exists,
 the model returns commands, the studio validates and applies them.
 
+For whole-scene loops, cut-out motion, and the project's motion-plan script,
+follow [the layered animation guide](animation.md).
+
 Two schema ids, both served by the studio:
 
 | Schema id | Scope | Entry point |

@@ -1,0 +1,1198 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Asset Studio Agent — brand templates and final assets with an agent that edits copy, colour, design and size.">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231a1a2e'/%3E%3Ctext x='16' y='23' font-family='Georgia,serif' font-size='19' fill='%23f2eee7' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E">
+    <title>Asset Studio · Agent</title>
+    <link rel="stylesheet" href="/src/client/asset-studio/app.css">
+    <style>
+        /* Agent additions — layout extends the Asset Studio workspace with a third column. */
+        :root { --ag-bg:#f2eee7; --ag-pan:#fff; --ag-ink:#1a1a2e; --ag-mu:#6d6a78; --ag-line:#ddd7cc; --ag-ac:#eb5b3c; --ag-ok:#2f9a8f; --ag-warn:#b7791f; }
+        .workspace.has-agent { display:grid; grid-template-columns:minmax(280px,340px) minmax(0,1fr) minmax(300px,380px); gap:16px; align-items:start; }
+        .workspace.has-agent .rail, .workspace.has-agent .preview-panel { min-width:0; }
+        .agent-panel { background:var(--ag-pan); border:1px solid var(--ag-line); border-radius:14px; display:flex; flex-direction:column; height:calc(100vh - 150px); min-height:460px; position:sticky; top:12px; overflow:hidden; color:var(--ag-ink); }
+        .agent-head { padding:12px 14px; border-bottom:1px solid var(--ag-line); display:flex; align-items:center; gap:8px; justify-content:space-between; }
+        .agent-head h2 { margin:0; font-size:14px; }
+        .agent-head .dot { width:8px; height:8px; border-radius:50%; background:var(--ag-ok); display:inline-block; margin-right:6px; }
+        .agent-head small { color:var(--ag-mu); display:block; font-weight:400; }
+        .agent-head button, .ag-qp button, .ag-card button, .ag-ctx button { font:inherit; border:1px solid var(--ag-line); background:transparent; color:inherit; border-radius:8px; padding:4px 9px; cursor:pointer; }
+        .agent-head button:hover, .ag-qp button:hover, .ag-card button:hover:not(:disabled) { border-color:var(--ag-ac); }
+        .ag-card button:disabled { opacity:.5; cursor:default; }
+        #agChat { flex:1; overflow:auto; padding:12px; display:flex; flex-direction:column; gap:10px; min-height:0; }
+        .ag-m { max-width:94%; padding:8px 11px; border-radius:12px; background:#f2eee7; font-size:13px; line-height:1.45; align-self:flex-start; }
+        .ag-m.u { align-self:flex-end; background:var(--ag-ink); color:#f2eee7; }
+        .ag-cards { display:grid; gap:7px; align-self:stretch; }
+        .ag-card { border:1px solid var(--ag-line); border-radius:10px; padding:9px 10px; background:#fbfaf7; }
+        .ag-card:hover { border-color:var(--ag-ac); }
+        .ag-card b { display:block; font-size:13px; }
+        .ag-card p { margin:2px 0 7px; color:var(--ag-mu); font-size:12px; }
+        .ag-card .r { display:flex; gap:6px; align-items:center; }
+        .ag-card .r small { flex:1; color:var(--ag-mu); }
+        .ag-card.done { border-color:var(--ag-ok); }
+        .ag-qp { display:flex; flex-wrap:wrap; gap:5px; padding:8px 12px 0; }
+        .ag-qp button { font-size:11px; border-radius:99px; }
+        .ag-ctx { margin:8px 12px 0; padding:6px 9px; border:1px dashed var(--ag-line); border-radius:8px; color:var(--ag-mu); font-size:12px; display:flex; gap:6px; align-items:center; }
+        .ag-ctx b { color:var(--ag-ink); } .ag-ctx button { margin-left:auto; padding:0 6px; }
+        #agForm { display:flex; gap:6px; padding:10px 12px; }
+        #agIn { flex:1; min-width:0; border:1px solid var(--ag-line); border-radius:8px; padding:8px 10px; font:inherit; background:#fff; color:var(--ag-ink); }
+        #agForm button { border:0; background:var(--ag-ink); color:#f2eee7; font-weight:700; border-radius:8px; padding:0 14px; cursor:pointer; }
+        .warn { color:var(--ag-warn); }
+        .field-list { display:grid; gap:10px; padding:4px 2px; }
+        .field-list label { display:grid; gap:3px; font-size:12px; color:var(--ag-mu); }
+        .field-list input, .field-list textarea { font:inherit; padding:7px 9px; border:1px solid var(--ag-line); border-radius:8px; background:#fff; color:var(--ag-ink); resize:vertical; }
+        .field-list label.is-focus input, .field-list label.is-focus textarea { border-color:var(--ag-ac); box-shadow:0 0 0 1px var(--ag-ac); }
+        .sw-row { display:flex; flex-wrap:wrap; gap:6px; padding:4px 2px 8px; }
+        .sw-row button { width:26px; height:26px; border-radius:50%; border:1px solid var(--ag-line); cursor:pointer; padding:0; }
+        .role-row { display:flex; gap:6px; padding:0 2px 6px; }
+        .role-row button { flex:1; font:inherit; font-size:12px; padding:4px; border:1px solid var(--ag-line); background:transparent; border-radius:8px; cursor:pointer; color:inherit; }
+        .role-row button[aria-pressed="true"] { border-color:var(--ag-ac); background:#f2eee7; }
+        .mt-row { display:grid; grid-template-columns:repeat(4,1fr); gap:5px; padding:4px 2px 8px; }
+        .mt-row button { font:inherit; font-size:10px; border:1px solid var(--ag-line); background:transparent; border-radius:7px; padding:3px; cursor:pointer; color:inherit; min-width:0; }
+        .mt-row button[aria-pressed="true"] { border-color:var(--ag-ac); background:#f2eee7; }
+        .mt-row canvas { display:block; width:100%; height:34px; object-fit:contain; border-radius:4px; margin-bottom:2px; }
+        .sl-row { display:grid; gap:2px; font-size:12px; color:var(--ag-mu); padding:0 2px 8px; }
+        .sl-row label { display:flex; justify-content:space-between; } .sl-row input { width:100%; }
+        .sel-card { display:block; width:100%; border:1px solid var(--ag-line); background:transparent; border-radius:8px; padding:4px; cursor:pointer; text-align:center; font-size:11px; color:inherit; min-width:0; }
+        .sel-card.is-selected { border-color:var(--ag-ac); box-shadow:inset 0 0 0 1px var(--ag-ac); }
+        .sel-card canvas { display:block; width:100%; height:auto; max-height:130px; object-fit:contain; border-radius:4px; background:#0001; margin-bottom:4px; }
+        .sel-card span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .sel-card.is-brand-template::after { content:"Brand template"; display:block; margin-top:3px; color:var(--ag-mu); font-size:10px; }
+        .mini-select { width:100%; margin:4px 0 10px; font:inherit; padding:6px 8px; border:1px solid var(--ag-line); border-radius:8px; background:#fff; color:var(--ag-ink); }
+        /* Canvas selection overlay */
+        .preview-panel .stage { position:relative; }
+        #selLayer { position:absolute; z-index:5; cursor:pointer; touch-action:none; }
+        .sel-box { position:absolute; box-sizing:border-box; border:1px solid transparent; border-radius:3px; pointer-events:none; }
+        .sel-box.hover { border-color:rgba(235,91,60,.65); background:rgba(235,91,60,.08); }
+        .sel-box.on { border:2px solid var(--ag-ac); box-shadow:0 0 0 1px #ffffff99; }
+        .sel-box.art.on { border-style:dashed; }
+        .sel-box .chip { position:absolute; left:-2px; top:-22px; background:var(--ag-ink); color:#f2eee7; font:11px/1 Helvetica,Arial,sans-serif; padding:4px 8px; border-radius:99px; white-space:nowrap; }
+        .sel-box .chip.below { top:auto; bottom:-22px; }
+        .sel-box.art .chip { top:6px; left:6px; }
+        /* Timeline */
+        #timelineBtn[aria-pressed="true"] { border-color:var(--ag-ac); box-shadow:inset 0 0 0 1px var(--ag-ac); }
+        .timeline { margin-top:14px; border:1px solid var(--ag-line); border-radius:12px; background:var(--ag-pan); color:var(--ag-ink); overflow:hidden; }
+        .timeline[hidden] { display:none; }
+        .tl-head { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:8px 12px; border-bottom:1px solid var(--ag-line); }
+        .tl-head button, .tl-head select { font:inherit; font-size:12px; border:1px solid var(--ag-line); background:transparent; color:inherit; border-radius:8px; padding:4px 9px; cursor:pointer; }
+        .tl-head button:hover:not(:disabled), .tl-head select:hover { border-color:var(--ag-ac); }
+        .tl-head button:disabled { opacity:.5; cursor:default; }
+        .tl-head input[type=range] { flex:1; min-width:120px; }
+        .tl-head output { font-variant-numeric:tabular-nums; color:var(--ag-mu); font-size:12px; min-width:92px; text-align:right; }
+        .tl-body { max-height:230px; overflow:auto; }
+        .tl-inner { position:relative; }
+        .tl-row { display:grid; grid-template-columns:120px 1fr; height:26px; align-items:center; border-bottom:1px solid #0000000d; }
+        .tl-row .n { padding:0 10px; font-size:11px; color:var(--ag-mu); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
+        .tl-row[data-on="1"] { background:#f2eee7; }
+        .tl-row[data-on="1"] .n { color:var(--ag-ink); font-weight:600; }
+        .tl-track { position:relative; height:100%; background:repeating-linear-gradient(90deg,var(--ag-line) 0 1px,transparent 1px 12.5%); }
+        .tl-ruler .tl-track small { position:absolute; top:6px; font-size:9px; color:var(--ag-mu); padding-left:3px; }
+        .tl-bar { position:absolute; top:4px; height:18px; border-radius:5px; background:var(--ag-ac); cursor:grab; min-width:8px; touch-action:none; }
+        .tl-bar::after { content:""; position:absolute; right:0; top:0; bottom:0; width:8px; cursor:ew-resize; background:#0004; border-radius:0 5px 5px 0; }
+        .tl-bar span { display:block; font:700 10px/18px Helvetica,Arial,sans-serif; color:#fff; padding-left:6px; white-space:nowrap; overflow:hidden; }
+        .tl-ph { position:absolute; top:0; bottom:0; width:2px; background:var(--ag-ink); pointer-events:none; z-index:3; left:calc(120px + (100% - 120px) * var(--p,1)); }
+        .tl-hint { padding:8px 12px; font-size:11px; color:var(--ag-mu); border-top:1px solid var(--ag-line); }
+        @media (max-width:1180px) { .workspace.has-agent { grid-template-columns:minmax(260px,320px) minmax(0,1fr); } .agent-panel { grid-column:1/-1; position:static; height:520px; } }
+        @media (max-width:760px) { .workspace.has-agent { grid-template-columns:1fr; } }
+    </style>
+</head>
+
+<body>
+    <div id="boot" class="boot-screen" role="status" aria-live="polite">
+        <div class="boot-mark">A</div>
+        <p id="bootMsg"><strong>Asset Studio · Agent</strong><br>Loading brand identities…</p>
+    </div>
+
+    <div id="studio" class="studio" hidden>
+        <header class="topbar">
+            <div class="topbar-brand">
+                <select id="groupSelect" class="portfolio group-select" aria-label="Switch brand group" title="Switch brand group"></select>
+                <h1>Asset Studio</h1>
+                <p id="topbarHint">Final brand assets, edited with the agent.</p>
+            </div>
+            <div class="brand-switch" id="brandSwitch" aria-label="Active brand"></div>
+            <div class="topbar-actions">
+                <a class="ghost" href="crawler.html" title="Search and crawl a new business">Brand intake</a>
+                <a class="ghost" href="library.html" id="lnkLib" title="Browse the business asset library">Library</a>
+                <a class="ghost" href="voice.html" title="Speak brand copy or design a voice">Voice</a>
+                <a class="ghost" href="social.html" title="Read the business social profile">Social</a>
+                <a class="ghost" href="asset-studio.html" id="lnkClassic" title="Open the classic Asset Studio">Classic</a>
+                <a class="ghost" href="studio-v2.html" title="Open the full layer studio">Studio V2</a>
+            </div>
+        </header>
+
+        <nav class="category-nav" id="categoryNav" aria-label="Asset categories"></nav>
+
+        <main class="workspace has-agent">
+            <aside class="rail" aria-label="Design and controls">
+                <section class="panel design-panel">
+                    <header class="panel-head">
+                        <h2>Designs</h2>
+                        <span id="designMeta" class="panel-meta"></span>
+                    </header>
+                    <div id="designGrid" class="design-grid"></div>
+                </section>
+
+                <section class="panel controls-panel" aria-label="Asset controls">
+                    <div id="controlTabs" class="control-tabs" role="tablist" aria-label="Asset controls"></div>
+                    <div id="controlBody" class="control-body" role="tabpanel"></div>
+                </section>
+            </aside>
+
+            <section class="preview-panel" aria-label="Asset preview">
+                <header class="preview-head">
+                    <div>
+                        <p id="previewBrand" class="eyebrow"></p>
+                        <h2 id="previewTitle">Design</h2>
+                    </div>
+                    <div class="preview-meta">
+                        <span id="previewFormat" class="pill"></span>
+                        <span id="previewSize" class="pill subtle"></span>
+                    </div>
+                </header>
+
+                <div class="stage">
+                    <canvas id="previewCanvas" aria-label="Live asset preview"></canvas>
+                    <div id="selLayer" aria-label="Click an element to select it"></div>
+                </div>
+
+                <div class="export-bar">
+                    <button type="button" class="btn" id="undoBtn">↶ Undo</button>
+                    <button type="button" class="btn" id="resetBtn">Reset design</button>
+                    <button type="button" class="btn primary" id="downloadBtn">Download PNG</button>
+                    <button type="button" class="btn" id="jpgBtn">Download JPG</button>
+                    <button type="button" class="btn" id="saveBtn">Save asset</button>
+                    <button type="button" class="btn" id="timelineBtn" aria-pressed="false" aria-controls="timeline" title="Show or hide the animation timeline">Timeline</button>
+                    <span id="exportNote" class="hint"></span>
+                </div>
+                <p class="hint">
+                    The active brand’s palette, type, logo and photography are applied by default.
+                    Click any element on the canvas to select it, then ask the agent to change or animate it — or edit directly on the left.
+                    Downloads are rendered at full print resolution.
+                </p>
+
+                <section id="timeline" class="timeline" hidden aria-label="Animation timeline">
+                    <div class="tl-head">
+                        <button type="button" id="tlPlay">▶ Play</button>
+                        <input type="range" id="tlScrub" min="0" max="8000" step="20" value="8000" aria-label="Playhead">
+                        <output id="tlTime">8.00 / 8.00 s</output>
+                        <select id="tlPreset" aria-label="Animation preset"></select>
+                        <button type="button" id="tlAdd" title="Add the chosen animation to the selected element" disabled>Animate selected</button>
+                        <button type="button" id="tlClear" title="Clear the selected element's animation, or all animation when nothing is selected">Clear</button>
+                        <button type="button" id="tlRec" title="Record the animation as a WebM video">Record WebM</button>
+                    </div>
+                    <div class="tl-body" id="tlBody"></div>
+                    <p class="tl-hint">Click an element on the canvas or a row to select it. Double-click a track to add the chosen animation there; drag a bar to retime it, drag its right edge to change its length.</p>
+                </section>
+            </section>
+
+            <section class="agent-panel" aria-label="Studio agent">
+                <header class="agent-head">
+                    <h2><span class="dot"></span>Studio agent<small>edits this asset with you</small></h2>
+                    <button type="button" id="agClear">Clear chat</button>
+                </header>
+                <div id="agChat" aria-live="polite"></div>
+                <div class="ag-qp" id="agQp"></div>
+                <div class="ag-ctx" id="agCtx"></div>
+                <form id="agForm">
+                    <input type="text" id="agIn" placeholder="e.g. “make the headline …”, “dark version”, “no motif”" autocomplete="off">
+                    <button>Send</button>
+                </form>
+            </section>
+        </main>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+    <script src="/src/client/asset-studio/vendor/qrcode.min.js"></script>
+    <script src="/src/shared/asset-intel.js"></script>
+    <script src="/src/shared/brand-pack.js"></script>
+    <script src="/src/client/asset-studio/engine.js"></script>
+    <script src="/src/client/asset-studio/categories.js"></script>
+    <script src="/src/shared/studio-core.js"></script>
+    <script>
+    (function () {
+        'use strict';
+        const API = 'api', $ = s => document.querySelector(s);
+        const clone = o => JSON.parse(JSON.stringify(o));
+        const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+        const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+        const LS = {
+            get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
+            set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } }
+        };
+        const jget = async p => { const r = await fetch(p, { cache: 'no-store' }); const j = await r.json().catch(() => null); if (!r.ok) throw new Error((j && j.error) || r.status + ' ' + r.statusText); return j; };
+        let toastT = 0;
+        const toast = (m, err) => { const t = $('#toast'); t.textContent = m; t.className = 'toast' + (err ? ' error' : ''); t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 3200); };
+
+        /* ---------- colour helpers ---------- */
+        const hx = s => { s = String(s || '').trim(); const m = /^#([0-9a-f]{3})$/i.exec(s); if (m) return '#' + [...m[1]].map(c => c + c).join('').toLowerCase(); return /^#[0-9a-f]{6}$/i.test(s) ? s.toLowerCase() : null; };
+        const rgb = h => [1, 3, 5].map(i => parseInt(h.substr(i, 2), 16));
+        const lum = c => { const f = v => { v /= 255; return v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; }; return .2126 * f(c[0]) + .7152 * f(c[1]) + .0722 * f(c[2]); };
+        const cr = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); };
+        const sat = h => { const [r, g, b] = rgb(h).map(v => v / 255), mx = Math.max(r, g, b), mn = Math.min(r, g, b); return mx ? (mx - mn) / mx * (.4 + mx * .6) : 0; };
+
+        /* ---------- state ---------- */
+        let PACKS = [], P = null, B = null, TH = { ink: '#17162e', bone: '#f2eee7', accent: '#eb5b3c' }, PAL = {}, BF = { display: 'Georgia', body: 'Helvetica Neue' };
+        const UF = [], packCache = new Map(), IMG = new Map();
+        let BRAND_TEMPLATES = {}, BRAND_TEMPLATE_IMAGES = new Map();
+        const blank = () => ({ cat: Object.keys(window.AssetCategories)[0], tpl: 0, size: 0, t: {}, anim: {}, pal: null, motif: 'auto', motifOn: true, motifScale: 1, motifX: 0, motifY: 0, logoOn: true, logoScale: 1 });
+        let S = null, hist = [], focusKey = null, selTok = 0, rt = 0;
+        const preview = $('#previewCanvas');
+        /* animation + selection state */
+        const DUR = 8000;
+        const TL = { open: false, T: DUR, playing: false, raf: 0, art: null, artKey: '', els: [], target: 0, shown: 'f', onEnd: null };
+        let SEL = null, HOV = null;
+        const ART = { id: 'art', name: 'Background & motif', kind: 'art' };
+        const PRESETS = [['fadeIn', 'Fade in', 900], ['slideUp', 'Slide up', 900], ['slideLeft', 'Slide in', 900], ['zoomIn', 'Zoom in', 900], ['pulse', 'Pulse', 2400], ['zoom', 'Slow zoom', DUR], ['drift', 'Drift', DUR]];
+        const presetDur = p => (PRESETS.find(x => x[0] === p) || [0, 0, 900])[2];
+        const presetLabel = p => (PRESETS.find(x => x[0] === p) || [0, p])[1];
+
+        const categoryDesigns = id => [
+            ...(window.AssetCategories[id]?.tpls || []),
+            ...(BRAND_TEMPLATES[id] || [])
+        ];
+        const cat = (s = S) => {
+            const base = window.AssetCategories[s.cat] || window.AssetCategories[Object.keys(window.AssetCategories)[0]];
+            return { ...base, tpls: categoryDesigns(s.cat) };
+        };
+        const catLabel = id => String((window.AssetCategories[id] && window.AssetCategories[id].title) || id).replace(/ Maker$/, '');
+        const tplOf = (s = S) => cat(s).tpls[s.tpl] || cat(s).tpls[0];
+        const brandTemplateSizes = template => (template.composition.formats?.length ? template.composition.formats : [template.composition]).map((format, index) => ({
+            n: format.label || format.name || (index ? `Format ${index + 1}` : 'Master'),
+            d: `${format.channel || template.channel} · ${format.width}×${format.height}`,
+            w: Number(format.width) || template.composition.width,
+            h: Number(format.height) || template.composition.height,
+            format,
+            dpi: format.dpi || template.composition.dpi,
+            mm: template.widthMm && template.heightMm ? [
+                template.widthMm * ((Number(format.width) || template.composition.width) / template.composition.width),
+                template.heightMm * ((Number(format.height) || template.composition.height) / template.composition.height)
+            ] : undefined
+        }));
+        const sizesOf = (s = S) => {
+            const c = cat(s), t = tplOf(s), all = c.sizes || [];
+            if (t?.brandComposition) return brandTemplateSizes(t);
+            if (!t || !Array.isArray(t.sizes) || !t.sizes.length) return all;
+            const ok = new Set(t.sizes), f = all.filter(x => ok.has(x.n)); return f.length ? f : all;
+        };
+        const sizeOf = (s = S) => { const z = sizesOf(s); return z[s.size] || z[0] || { n: 'Square', w: 1080, h: 1080 }; };
+
+        /* ---------- brand → theme / fonts / logos / photos ---------- */
+        function deriveTheme(b) {
+            const seen = new Set(), ents = [];
+            (b.palette || []).forEach(p => { const h = hx(p && p.hex); if (h && !seen.has(h)) { seen.add(h); ents.push({ name: String(p.name || p.role || h), hex: h }); } });
+            const byL = [...ents].sort((x, y) => lum(rgb(x.hex)) - lum(rgb(y.hex)));
+            const ink = byL.length && lum(rgb(byL[0].hex)) < .2 ? byL[0].hex : '#17162e';
+            const bone = byL.length && lum(rgb(byL[byL.length - 1].hex)) > .6 ? byL[byL.length - 1].hex : '#f2eee7';
+            const cand = ents.filter(e => e.hex !== ink && e.hex !== bone).sort((x, y) => sat(y.hex) - sat(x.hex));
+            const accent = cand[0] && sat(cand[0].hex) > .25 ? cand[0].hex : '#e1543a';
+            TH = { ink, bone, accent };
+            PAL = {}; const used = new Set(), put = (n, h) => { if (used.has(h)) return; used.add(h); let k = n, i = 2; while (PAL[k]) k = n + ' ' + i++; PAL[k] = h; };
+            ents.forEach(e => put(e.name, e.hex)); put('Ink', ink); put('Bone', bone); put('Accent', accent); put('White', '#ffffff');
+        }
+        const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const WORDS = /\b(thin|hairline|extra\s*light|extralight|light|regular|book|medium|semi\s*bold|semibold|demibold|extra\s*bold|bold|black|heavy|italic|oblique)\b/gi;
+        const baseName = f => String(f).replace(WORDS, '').replace(/\s+/g, ' ').trim() || String(f);
+        const genericOf = f => /georgia|times|palatino|garamond|baskerville|didot|bodoni|caslon|playfair|copperplate|cormorant|lora|merriweather|serif/i.test(f) && !/sans/i.test(f) ? 'serif' : 'sans-serif';
+        function stackFor(f) {
+            const b = baseName(f), g = genericOf(f), u = UF.find(x => norm(x.family) === norm(b) || norm(x.family) === norm(f));
+            if (u) return `"${u.family}",${g}`;
+            if (/helvetica/i.test(f)) return '"Helvetica Neue",Helvetica,Arial,sans-serif';
+            if (/georgia/i.test(f)) return 'Georgia,"Times New Roman",serif';
+            return `"${b}",${g === 'serif' ? 'Georgia,"Times New Roman",serif' : '"Helvetica Neue",Arial,sans-serif'}`;
+        }
+        function brandFonts(b) {
+            const fams = [...new Set([...(b.typography && b.typography.families || []), ...((b.typography && b.typography.scale || []).map(s => s.family))])].filter(f => f && !/wordmark|artwork|logo/i.test(f));
+            const up = fams.filter(f => UF.some(u => norm(u.family) === norm(baseName(f)) || norm(u.family) === norm(f)));
+            const d = up[0] || fams[0] || 'Georgia', bd = up[1] || up[0] || fams[1] || fams[0] || 'Helvetica Neue';
+            return { display: stackFor(d), body: stackFor(bd) };
+        }
+        async function loadFonts() {
+            try { const d = await jget(API + '/fonts'); for (const f of (d && d.fonts) || []) { if (!f.family || !f.url) continue; try { const ff = new FontFace(f.family, `url("${f.url}")`, { weight: '100 1000' }); await ff.load(); document.fonts.add(ff); UF.push(f); } catch { } } } catch { }
+        }
+        const loadImg = src => { if (!IMG.has(src)) IMG.set(src, new Promise((res, rej) => { const i = new Image(), t = setTimeout(() => rej(new Error('timeout')), 9000); i.crossOrigin = 'anonymous'; i.onload = () => { clearTimeout(t); res(i); }; i.onerror = () => { clearTimeout(t); rej(new Error('load')); }; i.src = src; })); return IMG.get(src); };
+        function trimImg(img) {
+            const w = img.naturalWidth || 300, h = img.naturalHeight || 100, c = document.createElement('canvas'); c.width = w; c.height = h;
+            const x = c.getContext('2d'); x.drawImage(img, 0, 0, w, h);
+            try {
+                const d = x.getImageData(0, 0, w, h).data; let x0 = w, y0 = h, x1 = -1, y1 = -1;
+                for (let y = 0; y < h; y++) for (let xx = 0; xx < w; xx++) if (d[(y * w + xx) * 4 + 3] > 8) { if (xx < x0) x0 = xx; if (xx > x1) x1 = xx; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+                if (x1 < 0) return c; const o = document.createElement('canvas'); o.width = x1 - x0 + 1; o.height = y1 - y0 + 1; o.getContext('2d').drawImage(c, x0, y0, o.width, o.height, 0, 0, o.width, o.height); return o;
+            } catch { return c; }
+        }
+        async function brandLogos(b) {
+            if (b._logos) return b._logos;
+            const logos = (b.logos || []).filter(l => l && l.url), plate = l => /plate|presentation/i.test(l.name || '') || l.presentation;
+            const wm = logos.find(l => (l.kind === 'wordmark' || l.kind === 'logo') && !plate(l)) || logos.find(l => l.kind === 'wordmark');
+            const mk = logos.find(l => l.kind === 'mark' && !plate(l)), out = {};
+            await Promise.all([['wordmark', wm], ['mark', mk]].map(async ([k, l]) => { if (!l) return; try { out[k] = { canvas: trimImg(await loadImg(l.url)) }; } catch { } }));
+            b._logos = out; return out;
+        }
+        async function brandPhotos(b) {
+            if (b._photos) return b._photos;
+            const urls = (b.photography || []).map(p => p && p.url).filter(Boolean).slice(0, 9);
+            b._photos = (await Promise.all(urls.map(u => loadImg(u).catch(() => null)))).filter(Boolean); return b._photos;
+        }
+
+        function brandTemplateCategory(template) {
+            const id = template.id.toLowerCase();
+            if (id === 'menu') return 'menu';
+            if (id === 'flyer') return 'flyer';
+            if (id === 'voucher') return 'voucher';
+            if (id.startsWith('business-card')) return 'bizcard';
+            if (id === 'table-card') return 'tablecard';
+            if (id === 'display-screen' || id === 'digital-menu-board') return 'signage';
+            if (template.channel === 'print') return 'flyer';
+            if (template.channel === 'instore') return 'tablecard';
+            return 'social';
+        }
+        function brandTemplateDefaults(composition) {
+            const values = Object.fromEntries((composition.variables || [])
+                .filter(variable => variable.kind === 'text')
+                .map(variable => [variable.id, variable.defaultValue ?? '']));
+            (composition.layers || []).forEach(layer => {
+                if (layer.type === 'text' && !layer.bindings?.text && String(layer.text || '').trim()) {
+                    values[`layer:${layer.id}`] = layer.text;
+                }
+            });
+            return values;
+        }
+        async function loadBrandTemplates(brand) {
+            const grouped = Object.fromEntries(Object.keys(window.AssetCategories).map(id => [id, []]));
+            const entries = window.StudioBrand.templateCatalog(brand);
+            const templates = entries.map(entry => {
+                const composition = window.StudioBrand.createTemplateComposition({
+                    packId: P.id,
+                    packName: P.name,
+                    portfolio: P.portfolio,
+                    brand,
+                    templateId: entry.id
+                });
+                const category = brandTemplateCategory(entry);
+                const template = {
+                    id: entry.id,
+                    n: entry.label,
+                    t: brandTemplateDefaults(composition),
+                    brandComposition: true,
+                    composition,
+                    channel: entry.channel,
+                    category,
+                    profile: ['social', 'digital', 'display', 'video'].includes(entry.channel) ? 'screen' : 'print',
+                    widthMm: entry.widthMm,
+                    heightMm: entry.heightMm,
+                    dpi: entry.dpi
+                };
+                if (grouped[category]) grouped[category].push(template);
+                return template;
+            });
+            const urls = new Set(templates.flatMap(template => [
+                ...(template.composition.variables || [])
+                    .filter(variable => variable.kind === 'image' && variable.defaultValue)
+                    .map(variable => variable.defaultValue),
+                ...(template.composition.layers || [])
+                    .filter(layer => layer.type !== 'text' && layer.url)
+                    .map(layer => layer.url)
+            ]));
+            const loaded = await Promise.all([...urls].map(async url => {
+                try { return [url, await loadImg(url)]; }
+                catch { return [url, null]; }
+            }));
+            BRAND_TEMPLATES = grouped;
+            BRAND_TEMPLATE_IMAGES = new Map(loaded.filter(([, image]) => image));
+            const failures = loaded.filter(([, image]) => !image).length;
+            if (failures) toast(`${failures} brand-template image${failures === 1 ? '' : 's'} could not be loaded; affected designs may look incomplete.`, true);
+        }
+
+        /* ---------- brand copy ---------- */
+        const contact = f => { const e = ((B.guidelines && B.guidelines.contact) || []).find(c => String(c.field || '').toLowerCase() === f.toLowerCase()); return e && e.value || ''; };
+        const siteOf = () => String(contact('Website') || B.url || '').replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+        const firstSentence = t => { t = String(t || '').replace(/\s+/g, ' ').trim(); const cut = t.split(/(?<=[.!?])\s/)[0] || ''; return cut.length <= 90 ? cut : cut.slice(0, cut.slice(0, 90).lastIndexOf(' ')).replace(/[\s,;:.\-–—]+$/, '') + '…'; };
+        function brandify(v) {
+            if (typeof v !== 'string' || !B) return v;
+            const site = siteOf(), addr = contact('Address'), ig = contact('Instagram'), mail = contact('Email');
+            let r = v.replace(/the adamson\s*\|\s*THE PHYSICIAN/gi, B.name).replace(/THE PHYSICIAN/g, B.name.toUpperCase()).replace(/The Physician/g, B.name).replace(/the physician/gi, B.name)
+                .replace(/www\.thephysician\.bar/gi, site).replace(/www\.theadamson\.com/gi, site).replace(/www\.hatchstandrews\.com/gi, site)
+                .replace(/@thephysician_standrews/gi, ig).replace(/@theadamsonstandrews/gi, ig).replace(/@hatch_standrews/gi, ig);
+            if (!addr || !r.includes(addr)) r = r.replace(/12[79] South Street, St Andrews(?:,?\s*KY16\s*9UH)?/gi, addr);
+            return r.replace(/reservations@theadamson\.com/gi, mail).replace(/\s*·\s*·\s*/g, ' · ').replace(/^\s*·\s*/, '').replace(/\s*·\s*$/, '');
+        }
+        const baseText = (s = S) => { const o = {}; Object.entries(tplOf(s).t || {}).forEach(([k, v]) => { o[k] = brandify(v); }); return o; };
+        const textOf = (s = S) => ({ ...baseText(s), ...s.t });
+        function copyOptions() {
+            const c = (B.content && B.content.copy) || {}, pos = String((B.guidelines && B.guidelines.positioning) || ''), f = firstSentence(pos), site = siteOf(), u = a => [...new Set(a.filter(Boolean))];
+            return {
+                head: u([c.headline, B.tagline, f, B.name, 'Welcome to ' + B.name, 'Discover ' + B.name]),
+                sub: u([c.subhead, f, B.tagline, B.name]), cta: u([c.cta, site && 'Visit ' + site, 'Find out more', 'Get in touch']), body: u([c.body, pos.slice(0, 220), f])
+            };
+        }
+        const roleOf = k => { k = k.toLowerCase(); return /head|title|name|h1/.test(k) ? 'head' : /sub|tag|line|kicker|eyebrow/.test(k) ? 'sub' : /cta|button|action|book|url|web/.test(k) ? 'cta' : /body|desc|copy|text|detail|note/.test(k) ? 'body' : 'other'; };
+
+        /* ---------- engine bridge ---------- */
+        function palOf(s = S) {
+            if (s.pal) return s.pal;
+            try {
+                const template = tplOf(s);
+                const id = template?.brandComposition ? template.id
+                    : s.cat === 'bizcard' ? 'business-card-front'
+                        : s.cat === 'tablecard' ? 'table-card'
+                            : s.cat === 'social' ? 'social-post'
+                                : (['flyer', 'menu', 'voucher'].includes(s.cat) ? s.cat : 'flyer');
+                const r = window.StudioBrand.paletteRoles(B, id);
+                if (r && r.ground && r.ink && r.accent && r.ground.hex) return { paper: r.ground.hex, ink: r.ink.hex, accent: r.accent.hex };
+            } catch { }
+            return { paper: TH.bone, ink: TH.ink, accent: TH.accent };
+        }
+        function engState(s) {
+            const L = (B && B._logos) || {};
+            return {
+                t: textOf(s), slideIndex: 0, slideCount: 1, pal: palOf(s), fonts: { display: BF.display, serif: BF.body, sans: BF.body }, photos: (B && B._photos) || [], sel: 0, qr: '', boxes: [],
+                motif: s.motif || 'auto', motifOn: s.motifOn !== false, motifScale: s.motifScale || 1, motifX: s.motifX || 0, motifY: s.motifY || 0,
+                logoWordmark: L.wordmark ? L.wordmark.canvas : null, logoMark: L.mark ? L.mark.canvas : null, logoScale: s.logoScale || 1, logoOn: s.logoOn !== false, logoX: 0, logoY: 0,
+                brandWordmark: (B && (B.wordmark || B.name)) || 'Brand', typeProfile: null, titleWeight: 700, defaultQr: (B && (B.url || (siteOf() ? 'https://' + siteOf() : ''))) || ''
+            };
+        }
+        function resolveBrandComposition(template, s = S) {
+            const source = template.composition;
+            const text = textOf(s);
+            const variables = (source.variables || []).map(variable => (
+                Object.prototype.hasOwnProperty.call(text, variable.id)
+                    ? { ...variable, defaultValue: text[variable.id] }
+                    : variable
+            ));
+            const composition = { ...source, variables };
+            const size = sizeOf(s);
+            const format = size.format || null;
+            const original = source.meta?.palette || {};
+            const palette = palOf(s);
+            const colors = new Map([
+                [String(original.ground || '').toLowerCase(), palette.paper],
+                [String(original.ink || '').toLowerCase(), palette.ink],
+                [String(original.accent || '').toLowerCase(), palette.accent]
+            ].filter(([from]) => from));
+            const layers = (source.layers || []).map(layer => {
+                let resolved = window.StudioCore.resolveLayer(layer, { composition, format });
+                if (layer.type === 'text' && !layer.bindings?.text && text[`layer:${layer.id}`] !== undefined) {
+                    resolved = { ...resolved, text: text[`layer:${layer.id}`] };
+                }
+                if (resolved.color && colors.has(String(resolved.color).toLowerCase())) {
+                    resolved = { ...resolved, color: colors.get(String(resolved.color).toLowerCase()) };
+                }
+                if (resolved.recolorEnabled) {
+                    const color = colors.get(String(resolved.recolorColor || '').toLowerCase());
+                    if (color) resolved = { ...resolved, recolorColor: color };
+                }
+                if (resolved.type === 'text') {
+                    const family = String(resolved.font?.family || '');
+                    const role = Number(resolved.font?.weight || 400) >= 600 ? 'display' : 'body';
+                    resolved = { ...resolved, font: { ...resolved.font, family: s.fonts?.[role] || BF[role] || family } };
+                }
+                return resolved;
+            });
+            return { composition, size, layers, palette };
+        }
+        function drawBrandLayer(context, layer, size, scaleX, scaleY, palette) {
+            const x = Number(layer.x || 0) / 100 * size.w;
+            const y = Number(layer.y || 0) / 100 * size.h;
+            const width = Number(layer.w || 0) / 100 * size.w;
+            const height = Number(layer.h || 0) / 100 * size.h;
+            if (!(width > 0 && height > 0)) return;
+            context.save();
+            context.scale(scaleX, scaleY);
+            context.globalAlpha = Math.max(0, Math.min(1, Number(layer.opacity ?? 1)));
+            if (layer.rotation) {
+                context.translate(x + width / 2, y + height / 2);
+                context.rotate(Number(layer.rotation) * Math.PI / 180);
+                context.translate(-width / 2, -height / 2);
+            } else {
+                context.translate(x, y);
+            }
+            if (layer.type === 'text') {
+                const layout = window.StudioCore.layoutText({
+                    text: layer.text || '',
+                    font: layer.font || {},
+                    boxWidthPx: width,
+                    boxHeightPx: height,
+                    formatHeightPx: size.h,
+                    align: layer.align,
+                    verticalAlign: layer.verticalAlign,
+                    overflow: layer.overflow,
+                    measureFactory: options => window.StudioCore.buildTextMetrics(context, options)
+                });
+                context.fillStyle = layer.color || palette.ink;
+                context.textAlign = 'left';
+                context.textBaseline = 'alphabetic';
+                layout.lines.forEach(line => context.fillText(line.text, line.x, line.baselineY, Math.max(1, width - line.x)));
+            } else {
+                const image = BRAND_TEMPLATE_IMAGES.get(layer.url);
+                if (image) {
+                    context.beginPath();
+                    context.rect(0, 0, width, height);
+                    context.clip();
+                    const imageWidth = image.naturalWidth || image.width;
+                    const imageHeight = image.naturalHeight || image.height;
+                    const fit = layer.fit === 'contain' ? 'contain' : 'cover';
+                    const scale = fit === 'contain'
+                        ? Math.min(width / imageWidth, height / imageHeight)
+                        : Math.max(width / imageWidth, height / imageHeight);
+                    const drawWidth = imageWidth * scale;
+                    const drawHeight = imageHeight * scale;
+                    if (layer.recolorEnabled) {
+                        const tinted = document.createElement('canvas');
+                        tinted.width = imageWidth;
+                        tinted.height = imageHeight;
+                        const tintedContext = tinted.getContext('2d');
+                        tintedContext.drawImage(image, 0, 0, imageWidth, imageHeight);
+                        tintedContext.globalCompositeOperation = 'source-in';
+                        tintedContext.fillStyle = layer.recolorColor || '#ffffff';
+                        tintedContext.fillRect(0, 0, imageWidth, imageHeight);
+                        context.drawImage(tinted, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
+                    } else {
+                        context.drawImage(image, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
+                    }
+                }
+            }
+            context.restore();
+        }
+        function renderBrandComposition(canvas, template, s = S, targetWidth = null, capture = false, backgroundOnly = false) {
+            const { composition, size, layers, palette } = resolveBrandComposition(template, s);
+            const width = Math.max(1, Math.round(targetWidth || size.w));
+            const height = Math.max(1, Math.round(width * size.h / size.w));
+            canvas.width = width;
+            canvas.height = height;
+            const context = canvas.getContext('2d');
+            context.fillStyle = palette.paper || composition.meta?.palette?.ground || '#ffffff';
+            context.fillRect(0, 0, width, height);
+            const scaleX = width / size.w;
+            const scaleY = height / size.h;
+            const elements = [];
+            if (!backgroundOnly) layers.filter(layer => layer.visible !== false).sort((a, b) => a.z - b.z).forEach(layer => {
+                if (layer.type !== 'text' && !layer.url) return;
+                drawBrandLayer(context, layer, size, scaleX, scaleY, palette);
+                if (!capture) return;
+                const layerCanvas = document.createElement('canvas');
+                layerCanvas.width = width;
+                layerCanvas.height = height;
+                drawBrandLayer(layerCanvas.getContext('2d'), layer, size, scaleX, scaleY, palette);
+                const key = layer.type === 'text'
+                    ? (layer.bindings?.text || (!layer.bindings?.text ? `layer:${layer.id}` : null))
+                    : null;
+                elements.push({
+                    id: layer.id,
+                    kind: layer.type === 'text' ? 'text' : 'image',
+                    name: layer.name || (layer.type === 'text' ? 'Text' : 'Image'),
+                    x: Number(layer.x || 0) / 100,
+                    y: Number(layer.y || 0) / 100,
+                    w: Number(layer.w || 0) / 100,
+                    h: Number(layer.h || 0) / 100,
+                    key: key && Object.prototype.hasOwnProperty.call(textOf(s), key) ? key : null,
+                    canvas: layerCanvas
+                });
+            });
+            return { width, height, elements };
+        }
+        function draw(canvas, s, target) {
+            const template = tplOf(s);
+            if (template?.brandComposition) renderBrandComposition(canvas, template, s, target);
+            else window.AssetEngine.render(canvas, sizeOf(s), template, engState(s), target);
+        }
+        /* ----- element capture: the visible render doubles as the capture pass ----- */
+        function hookBoxes(st, ctx2, runs, logos) {
+            const hook = arr => {
+                const push = arr.push.bind(arr);
+                arr.push = function (bx) {
+                    try {
+                        if (bx && bx.kind === 'text' && (bx.side || 'f') === 'f') {
+                            const m = /([0-9.]+)px/.exec(ctx2.font), sz = m ? +m[1] : bx.h / 1.18; let ls = 0;
+                            try { const nat = ctx2.measureText(bx.text).width; ls = Math.max(-.2, Math.min(1, (bx.w - nat) / Math.max(1, [...bx.text].length) / sz)); } catch { }
+                            runs.push({ text: bx.text, x: bx.x, y: bx.y, w: bx.w, h: bx.h, size: sz, font: ctx2.font, color: String(ctx2.fillStyle), ls: +ls.toFixed(3) });
+                        } else if (bx && /logo/i.test(String(bx.kind)) && (bx.side || 'f') === 'f') logos.push({ x: bx.x, y: bx.y, w: bx.w, h: bx.h });
+                    } catch { }
+                    return push(bx);
+                };
+                return arr;
+            };
+            let arr = hook(Array.isArray(st.boxes) ? st.boxes : []);
+            Object.defineProperty(st, 'boxes', { configurable: true, get() { return arr; }, set(v) { arr = hook(Array.isArray(v) ? v : []); } });
+        }
+        function groupRuns(runs) {
+            const out = [];
+            runs.forEach(b => {
+                const p = out[out.length - 1];
+                if (p && p.font === b.font && p.color === b.color && Math.abs(p.x - b.x) < 2 && b.y >= p.lastY && b.y - p.lastY < b.size * 1.9 && b.y - p.lastY > b.size * .7) { p.lines.push(b.text); p.runs.push(b); p.lastY = b.y; p.h = b.y + b.h - p.y; p.w = Math.max(p.w, b.w); }
+                else out.push({ x: b.x, y: b.y, w: b.w, h: b.h, font: b.font, color: b.color, size: b.size, lines: [b.text], runs: [b], lastY: b.y });
+            });
+            return out;
+        }
+        function matchKey(el, s) {
+            const n = v => String(v || '').toLowerCase().replace(/\s+/g, ' ').trim(), a = n(el.lines.join(' ')); if (!a) return null;
+            const ents = Object.entries(textOf(s)).map(([k, v]) => [k, n(v)]).filter(([, v]) => v);
+            const exact = ents.find(([, v]) => v === a); if (exact) return exact[0];
+            const part = ents.find(([, v]) => v.includes(a) || (v.length > 2 && a.includes(v))); return part ? part[0] : null;
+        }
+        function extractEls(s, canvas, runs, logos) {
+            const W = canvas.width, H = canvas.height, els = [];
+            groupRuns(runs).forEach((g, i) => els.push({ id: 't' + (i + 1), kind: 'text', name: 'Text · ' + g.lines[0].replace(/\s+/g, ' ').slice(0, 24), x: g.x / W, y: g.y / H, w: g.w / W, h: g.h / H, lines: g.lines, runs: g.runs, key: null }));
+            logos.forEach((l, i) => els.push({ id: i ? 'logo' + (i + 1) : 'logo', kind: 'logo', name: i ? 'Logo ' + (i + 1) : 'Logo', x: l.x / W, y: l.y / H, w: l.w / W, h: l.h / H }));
+            els.forEach(e => { if (e.kind === 'text') e.key = matchKey(e, s); });
+            return els;
+        }
+        const findEl = id => id === 'art' ? ART : (TL.els.find(e => e.id === id) || null);
+        const hasAnim = () => Object.keys(S.anim || {}).some(id => id === 'art' || TL.els.some(e => e.id === id));
+        const useComposite = () => TL.open && hasAnim() && (TL.playing || TL.T < DUR);
+
+        function renderPreview(s = S) {
+            if (!B || !s) return;
+            const size = sizeOf(s), target = Math.min(size.w, 1100);
+            try {
+                const template = tplOf(s);
+                if (template.brandComposition) {
+                    const rendered = renderBrandComposition(preview, template, s, target, true);
+                    TL.els = rendered.elements;
+                } else {
+                    const c2 = preview.getContext('2d'), runs = [], logos = [], st = engState(s);
+                    hookBoxes(st, c2, runs, logos);
+                    window.AssetEngine.render(preview, size, template, st, target);
+                    TL.els = extractEls(s, preview, runs, logos);
+                }
+                preview.style.maxWidth = '100%'; preview.style.height = 'auto';
+                TL.target = target; TL.shown = 'f';
+                if (SEL && SEL !== 'art' && !TL.els.some(e => e.id === SEL)) SEL = null;
+            } catch (e) { console.error(e); toast('Could not render this design: ' + e.message, true); }
+            placeOverlay(); drawOverlay();
+            if (s === S) { if (useComposite()) drawFrame(TL.T); tlBuild(); }
+        }
+
+        /* ----- selection overlay ----- */
+        function placeOverlay() {
+            const o = $('#selLayer'), st = o.parentElement, c = preview.getBoundingClientRect(), r = st.getBoundingClientRect();
+            o.style.left = (c.left - r.left) + 'px'; o.style.top = (c.top - r.top) + 'px'; o.style.width = c.width + 'px'; o.style.height = c.height + 'px';
+        }
+        function drawOverlay() {
+            const o = $('#selLayer'); o.innerHTML = '';
+            const mk = (e, cls) => {
+                const d = document.createElement('div'); d.className = 'sel-box ' + cls + (e.kind === 'art' ? ' art' : '');
+                if (e.kind === 'art') Object.assign(d.style, { left: '0', top: '0', width: '100%', height: '100%' });
+                else Object.assign(d.style, { left: e.x * 100 + '%', top: e.y * 100 + '%', width: e.w * 100 + '%', height: e.h * 100 + '%' });
+                if (cls === 'on') { const ch = document.createElement('span'); ch.className = 'chip' + (e.kind !== 'art' && e.y < .06 ? ' below' : ''); ch.textContent = e.name; d.appendChild(ch); }
+                o.appendChild(d);
+            };
+            if (HOV && HOV !== SEL && HOV !== 'art') { const e = findEl(HOV); if (e) mk(e, 'hover'); }
+            if (SEL) { const e = findEl(SEL); if (e) mk(e, 'on'); }
+        }
+        function hit(fx, fy) {
+            const pad = .006; let best = null, ba = 9;
+            TL.els.forEach(e => { if (fx >= e.x - pad && fx <= e.x + e.w + pad && fy >= e.y - pad && fy <= e.y + e.h + pad) { const a = e.w * e.h; if (a < ba) { ba = a; best = e; } } });
+            return best ? best.id : 'art';
+        }
+        function animCard(e, p, start) { return { title: `${presetLabel(p)} · ${e.name}`, why: p === 'pulse' ? 'Draws the eye; loops gently.' : `Starts at ${(start / 1000).toFixed(1)}s.`, cmds: [{ t: 'anim', id: e.id, preset: p, start, duration: presetDur(p) }] }; }
+        function elCards(e) {
+            if (e.kind === 'text') return [...(e.key ? [{ title: 'Rewrite it', why: 'Show copy options for this text.', cmds: [], ask: 'Rewrite it' }] : []), animCard(e, 'fadeIn', 300), animCard(e, 'slideUp', 300)];
+            if (e.kind === 'logo') return [animCard(e, 'fadeIn', 300), animCard(e, 'zoomIn', 300), animCard(e, 'pulse', 2400)];
+            return [animCard(e, 'zoom', 0), animCard(e, 'drift', 0)];
+        }
+        function selectEl(id, quiet) {
+            SEL = id; const e = id && findEl(id);
+            focusKey = e && e.kind === 'text' && e.key ? e.key : null;
+            if (e) TAB = e.kind === 'text' ? 'content' : 'style';
+            drawOverlay(); tlBuild(); buildControls(); ctx();
+            if (focusKey) { const lab = document.querySelector('#controlBody label[data-k="' + CSS.escape(focusKey) + '"]'); if (lab) lab.scrollIntoView({ block: 'nearest' }); }
+            if (e && !quiet) say('agent', `Selected <b>${esc(e.name)}</b>. Here’s what I’d try:`, elCards(e));
+        }
+        function ctxSel() {
+            const e = findEl(SEL), box = $('#agCtx');
+            box.innerHTML = `Selected: <b>${esc(e.name)}</b> <button id="agCx" aria-label="Clear selection">✕</button>`;
+            $('#agCx').onclick = () => selectEl(null, true);
+            const q = e.kind === 'text' ? ['Rewrite it', 'Shorter', 'Fade in', 'Slide up'] : e.kind === 'logo' ? ['Logo bigger', 'Logo smaller', 'Animate it', 'Hide logo'] : ['Slow zoom', 'Drift', 'Dark version', 'No motif'];
+            const w = $('#agQp'); w.innerHTML = ''; q.forEach(t => { const b = document.createElement('button'); b.type = 'button'; b.textContent = t; b.onclick = () => ask(t); w.appendChild(b); });
+        }
+
+        /* ----- animation engine ----- */
+        const ease = t => 1 - Math.pow(1 - t, 3);
+        function animAt(a, t) {
+            const id = { a: 1, dx: 0, dy: 0, s: 1 }; if (!a) return id;
+            const p = clamp((t - a.start) / a.duration, 0, 1), e = ease(p);
+            switch (a.preset) {
+                case 'fadeIn': return { a: e, dx: 0, dy: 0, s: 1 };
+                case 'slideUp': return { a: e, dx: 0, dy: (1 - e) * .04, s: 1 };
+                case 'slideLeft': return { a: e, dx: (1 - e) * .06, dy: 0, s: 1 };
+                case 'zoomIn': return { a: e, dx: 0, dy: 0, s: .85 + .15 * e };
+                case 'pulse': { if (t < a.start) return id; const ph = ((t - a.start) / a.duration) * Math.PI * 2; return { a: 1, dx: 0, dy: 0, s: 1 + .06 * (.5 - .5 * Math.cos(ph)) }; }
+                case 'zoom': return { a: 1, dx: 0, dy: 0, s: 1 + .08 * p };
+                case 'drift': return { a: 1, dx: -.02 * p, dy: -.012 * p, s: 1.06 };
+                default: return id;
+            }
+        }
+        function buildArt() {
+            const s = S, size = sizeOf(s), target = TL.target || Math.min(size.w, 1100);
+            const key = JSON.stringify([B.id, s.cat, s.tpl, s.size, s.t, s.pal, s.motif, s.motifOn, s.motifScale, s.motifX, s.motifY, s.logoScale, target]);
+            if (TL.art && TL.artKey === key) return TL.art;
+            const cv = document.createElement('canvas'), template = tplOf(s);
+            if (template.brandComposition) renderBrandComposition(cv, template, s, target, false, true);
+            else {
+                cv.getContext('2d').fillText = () => { };
+                window.AssetEngine.render(cv, size, template, engState({ ...s, logoOn: false }), target);
+            }
+            TL.art = cv; TL.artKey = key; return cv;
+        }
+        function drawText(c, e) {
+            c.textBaseline = 'middle'; c.textAlign = 'left';
+            e.runs.forEach(r => { c.font = r.font; c.fillStyle = r.color; try { c.letterSpacing = (r.ls * r.size) + 'px'; } catch { } c.fillText(r.text, r.x, r.y + r.h / 2); });
+            try { c.letterSpacing = '0px'; } catch { }
+        }
+        function drawLogo(c, e, W, H) {
+            const L = (B && B._logos) || {}, bw = e.w * W, bh = e.h * H, asp = bw / bh, cand = [L.wordmark, L.mark].filter(Boolean);
+            if (!cand.length) { c.textBaseline = 'middle'; c.textAlign = 'left'; c.font = `700 ${bh * .6}px ${BF.display}`; c.fillStyle = palOf().ink; c.fillText(String((B && (B.wordmark || B.name)) || '').toUpperCase(), e.x * W, e.y * H + bh / 2); return; }
+            const pick = cand.sort((a, b) => Math.abs(a.canvas.width / a.canvas.height - asp) - Math.abs(b.canvas.width / b.canvas.height - asp))[0].canvas;
+            const k = Math.min(bw / pick.width, bh / pick.height), dw = pick.width * k, dh = pick.height * k;
+            c.drawImage(pick, e.x * W + (bw - dw) / 2, e.y * H + (bh - dh) / 2, dw, dh);
+        }
+        function drawFrame(t) {
+            const art = buildArt(), W = art.width, H = art.height;
+            if (preview.width !== W || preview.height !== H) { preview.width = W; preview.height = H; }
+            const c = preview.getContext('2d'); c.clearRect(0, 0, W, H);
+            const withAnim = (id, box, fn) => {
+                const f = animAt((S.anim || {})[id], t); if (f.a <= 0) return;
+                c.save(); c.globalAlpha = f.a; const cx = (box.x + box.w / 2) * W, cy = (box.y + box.h / 2) * H;
+                c.translate(cx + f.dx * W, cy + f.dy * H); c.scale(f.s, f.s); c.translate(-cx, -cy); fn(); c.restore();
+            };
+            withAnim('art', { x: 0, y: 0, w: 1, h: 1 }, () => c.drawImage(art, 0, 0));
+            TL.els.forEach(e => withAnim(e.id, e, () => {
+                if (tplOf().brandComposition) c.drawImage(e.canvas, 0, 0);
+                else if (e.kind === 'text') drawText(c, e);
+                else if (e.kind === 'logo') drawLogo(c, e, W, H);
+            }));
+            TL.shown = 'c';
+        }
+        function tlSync() {
+            $('#tlScrub').value = TL.T; $('#tlTime').textContent = (TL.T / 1000).toFixed(2) + ' / ' + (DUR / 1000).toFixed(2) + ' s';
+            const inner = $('#tlInner'); if (inner) inner.style.setProperty('--p', TL.T / DUR);
+        }
+        function seek(t) {
+            TL.T = clamp(t, 0, DUR); tlSync();
+            if (useComposite()) drawFrame(TL.T); else if (TL.shown === 'c') renderPreview();
+        }
+        function stopP() { TL.playing = false; cancelAnimationFrame(TL.raf); const b = $('#tlPlay'); if (b) b.textContent = '▶ Play'; }
+        function play(from = TL.T) {
+            if (!hasAnim()) { toast('Add an animation first: select an element, then use “Animate selected”.'); return; }
+            stopP(); if (from >= DUR) from = 0; TL.playing = true; $('#tlPlay').textContent = '❚❚ Pause';
+            const s0 = performance.now() - from;
+            const f = n => { seek(n - s0); if (TL.T < DUR && TL.playing) TL.raf = requestAnimationFrame(f); else { stopP(); seek(TL.T); const cb = TL.onEnd; TL.onEnd = null; if (cb) cb(); } };
+            TL.raf = requestAnimationFrame(f);
+        }
+        function openTimeline(on) {
+            TL.open = on; $('#timeline').hidden = !on;
+            const b = $('#timelineBtn'); b.setAttribute('aria-pressed', String(on)); b.classList.toggle('is-active', on);
+            if (on) tlBuild(); else { stopP(); TL.T = DUR; renderPreview(); }
+            placeOverlay();
+        }
+        const posBar = (a, bar) => { bar.style.left = a.start / DUR * 100 + '%'; bar.style.width = Math.max(.8, a.duration / DUR * 100) + '%'; };
+        function barDown(ev, e, bar) {
+            ev.stopPropagation(); ev.preventDefault();
+            const a = S.anim[e.id], tr = bar.parentNode.getBoundingClientRect(), edge = ev.clientX > bar.getBoundingClientRect().right - 9, sx = ev.clientX, s0 = a.start, d0 = a.duration; let moved = false;
+            const mv = m => {
+                if (!moved) { hist.push(clone(S)); moved = true; }
+                const dt = Math.round((m.clientX - sx) / tr.width * DUR / 100) * 100;
+                if (edge) a.duration = clamp(d0 + dt, 100, DUR - s0); else a.start = clamp(s0 + dt, 0, DUR - a.duration);
+                posBar(a, bar); seek(TL.T);
+            };
+            const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); if (moved) saveState(); };
+            addEventListener('pointermove', mv); addEventListener('pointerup', up);
+        }
+        function tlBuild() {
+            if (!TL.open) return;
+            const body = $('#tlBody'); body.innerHTML = '';
+            const inner = document.createElement('div'); inner.className = 'tl-inner'; inner.id = 'tlInner'; body.appendChild(inner);
+            const ruler = document.createElement('div'); ruler.className = 'tl-row tl-ruler';
+            ruler.innerHTML = `<div class="n"></div><div class="tl-track" style="cursor:pointer">${[...Array(9)].map((_, i) => `<small style="left:${i / 8 * 100}%">${i}s</small>`).join('')}</div>`; inner.appendChild(ruler);
+            const rtk = ruler.querySelector('.tl-track'), go = ev => { const r = rtk.getBoundingClientRect(); stopP(); seek((ev.clientX - r.left) / r.width * DUR); };
+            rtk.onpointerdown = ev => { go(ev); const up = () => { removeEventListener('pointermove', go); removeEventListener('pointerup', up); }; addEventListener('pointermove', go); addEventListener('pointerup', up); };
+            [ART, ...[...TL.els].sort((a, b) => a.y - b.y)].forEach(e => {
+                const row = document.createElement('div'); row.className = 'tl-row'; row.dataset.on = e.id === SEL ? 1 : 0;
+                row.innerHTML = `<div class="n" title="${esc(e.name)}">${esc(e.name)}</div><div class="tl-track"></div>`;
+                row.querySelector('.n').onclick = () => selectEl(e.id === SEL ? null : e.id, true);
+                const tr = row.querySelector('.tl-track');
+                tr.ondblclick = ev => { if (ev.target !== tr) return; const r = tr.getBoundingClientRect(), p = $('#tlPreset').value, t = Math.round((ev.clientX - r.left) / r.width * DUR / 100) * 100; commit([{ t: 'anim', id: e.id, preset: p, start: t, duration: presetDur(p) }]); };
+                const a = S.anim && S.anim[e.id];
+                if (a) { const bar = document.createElement('div'); bar.className = 'tl-bar'; bar.innerHTML = `<span>${esc(presetLabel(a.preset))}</span>`; posBar(a, bar); bar.onpointerdown = ev => barDown(ev, e, bar); tr.appendChild(bar); }
+                inner.appendChild(row);
+            });
+            const ph = document.createElement('div'); ph.className = 'tl-ph'; inner.appendChild(ph);
+            $('#tlAdd').disabled = !SEL; tlSync();
+        }
+        function record() {
+            if (!hasAnim()) { toast('Add an animation first.', true); return; }
+            if (!window.MediaRecorder || !preview.captureStream) { toast('This browser cannot record the canvas.', true); return; }
+            stopP(); const btn = $('#tlRec'); btn.disabled = true; btn.textContent = 'Recording…';
+            const mime = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find(t => MediaRecorder.isTypeSupported(t)), chunks = [];
+            const rec = new MediaRecorder(preview.captureStream(30), mime ? { mimeType: mime, videoBitsPerSecond: 8e6 } : undefined);
+            rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+            rec.onstop = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(chunks, { type: 'video/webm' })); a.download = fname('webm'); document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); btn.disabled = false; btn.textContent = 'Record WebM'; $('#exportNote').textContent = 'Exported animation (WebM)'; };
+            rec.start(); TL.onEnd = () => setTimeout(() => rec.stop(), 250); play(0);
+        }
+        const schedule = () => { clearTimeout(rt); rt = setTimeout(() => { renderPreview(); saveState(); }, 40); };
+
+        /* ---------- commands (the agent's language) ---------- */
+        function run(s, cmds) {
+            for (const c of cmds) {
+                if (c.t === 'text') { s.t[c.key] = c.value; }
+                else if (c.t === 'pal') { s.pal = c.pal ? { ...c.pal } : null; }
+                else if (c.t === 'palRole') { s.pal = { ...palOf(s), [c.role]: c.hex }; }
+                else if (c.t === 'motif') { s.motif = c.id; s.motifOn = c.id !== 'none'; }
+                else if (c.t === 'motifScale') { s.motifScale = clamp(c.v, .3, 2.5); }
+                else if (c.t === 'motifPos') { s.motifX = clamp(c.x ?? s.motifX, -.45, .45); s.motifY = clamp(c.y ?? s.motifY, -.45, .45); }
+                else if (c.t === 'logo') { if (c.on != null) s.logoOn = c.on; if (c.scale != null) s.logoScale = clamp(c.scale, .3, 2.5); }
+                else if (c.t === 'cat') { s.cat = c.id; s.tpl = 0; s.size = 0; s.t = {}; s.anim = {}; }
+                else if (c.t === 'tpl') { s.tpl = clamp(c.i, 0, cat(s).tpls.length - 1); s.size = Math.min(s.size, sizesOf(s).length - 1); s.t = {}; s.anim = {}; }
+                else if (c.t === 'anim') { s.anim = s.anim || {}; const st = clamp(c.start ?? 0, 0, DUR - 100); s.anim[c.id] = { preset: c.preset, start: st, duration: clamp(c.duration ?? presetDur(c.preset), 100, DUR - st) }; }
+                else if (c.t === 'clearAnim') { if (c.id === 'all') s.anim = {}; else if (s.anim) delete s.anim[c.id]; }
+                else if (c.t === 'size') { s.size = clamp(c.i, 0, sizesOf(s).length - 1); }
+                else if (c.t === 'reset') { Object.assign(s, { t: {}, pal: null, motif: 'auto', motifOn: true, motifScale: 1, motifX: 0, motifY: 0, logoOn: true, logoScale: 1, anim: {} }); }
+            }
+            return s;
+        }
+        function commit(cmds) {
+            hist.push(clone(S)); run(S, cmds); afterChange(true);
+            if (cmds.some(c => c.t === 'anim')) { openTimeline(true); setTimeout(() => play(0), 60); }
+        }
+        function afterChange(full) { if (full) { buildAll(); } renderPreview(); saveState(); }
+
+        /* ---------- UI: topbar, category nav, designs ---------- */
+        function buildGroupSelect() { const g = $('#groupSelect'); g.innerHTML = ''; PACKS.forEach(p => g.append(new Option(p.name || p.id, p.id))); g.value = P ? P.id : ''; g.disabled = !PACKS.length; }
+        function buildBrandPills() {
+            const w = $('#brandSwitch'); w.innerHTML = '';
+            (P.brands || []).forEach(b => {
+                const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'brand-chip'; btn.dataset.id = b.id; btn.title = b.tagline || b.name; btn.setAttribute('aria-pressed', String(B && b.id === B.id));
+                const dot = document.createElement('i'); dot.style.cssText = 'display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;background:' + ((b.palette && ((b.palette[1] && b.palette[1].hex) || (b.palette[0] && b.palette[0].hex))) || '#999');
+                btn.append(dot, document.createTextNode(b.name)); btn.onclick = () => { if (!B || b.id !== B.id) selectBrand(b.id).catch(error => toast('Could not load that brand: ' + error.message, true)); }; w.appendChild(btn);
+            });
+        }
+        function buildCategoryNav() {
+            const nav = $('#categoryNav'); nav.innerHTML = '';
+            Object.keys(window.AssetCategories).forEach(id => {
+                const b = document.createElement('button'); b.type = 'button'; b.className = 'category-tab'; b.textContent = catLabel(id); b.setAttribute('aria-pressed', String(id === S.cat));
+                if (id === S.cat) b.classList.add('is-active');
+                b.onclick = () => { if (id !== S.cat) commit([{ t: 'cat', id }]); }; nav.appendChild(b);
+            });
+        }
+        function buildDesigns() {
+            const g = $('#designGrid'), c = cat(); g.innerHTML = '';
+            $('#designMeta').textContent = `${c.tpls.length} for ${catLabel(S.cat)}`;
+            c.tpls.forEach((t, i) => {
+                const b = document.createElement('button'); b.type = 'button'; b.className = 'design-card sel-card' + (i === S.tpl ? ' is-selected' : '') + (t.brandComposition ? ' is-brand-template' : ''); b.title = t.n;
+                const cv = document.createElement('canvas'), sp = document.createElement('span'); sp.textContent = t.n; b.append(cv, sp);
+                try {
+                    if (t.brandComposition) renderBrandComposition(cv, t, { ...S, tpl: i, t: {} }, 160);
+                    else window.AssetEngine.renderThumb(cv, (c.sizes || []).find(z => !t.sizes || t.sizes.includes(z.n)) || sizeOf(), t, engState({ ...S, tpl: i, t: {} }), 160);
+                } catch { cv.width = 160; cv.height = 160; }
+                b.onclick = () => { if (i !== S.tpl) commit([{ t: 'tpl', i }]); }; g.appendChild(b);
+            });
+        }
+        function buildHeader() {
+            const size = sizeOf(), t = tplOf();
+            $('#previewBrand').textContent = B.name; $('#previewTitle').textContent = t.n;
+            $('#previewFormat').textContent = `${catLabel(S.cat)} · ${size.n}`; $('#previewSize').textContent = `${size.w}×${size.h}px`;
+            document.title = `${B.name} · Asset Studio Agent`;
+            const q = encodeURIComponent(B.id), pk = P ? encodeURIComponent(P.id) : '';
+            $('#lnkClassic').href = `asset-studio.html?brand=${q}&pack=${pk}`; $('#lnkLib').href = `library.html?brandId=${q}&packId=${pk}`;
+            document.querySelectorAll('#brandSwitch button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.id === B.id)));
+            $('#groupSelect').value = P ? P.id : '';
+        }
+
+        /* ---------- UI: controls (Content / Style / Layout) ---------- */
+        let TAB = 'content';
+        function buildControls() {
+            const tabs = $('#controlTabs'); tabs.innerHTML = '';
+            [['content', 'Content'], ['style', 'Style'], ['layout', 'Layout']].forEach(([k, t]) => {
+                const b = document.createElement('button'); b.type = 'button'; b.className = 'control-tab'; b.textContent = t; b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', String(TAB === k)); if (TAB === k) b.classList.add('is-active');
+                b.onclick = () => { TAB = k; buildControls(); }; tabs.appendChild(b);
+            });
+            const body = $('#controlBody'); body.innerHTML = '';
+            if (TAB === 'content') controlContent(body); else if (TAB === 'style') controlStyle(body); else controlLayout(body);
+        }
+        function controlContent(body) {
+            const base = baseText(), keys = Object.keys(base);
+            if (!keys.length) { body.innerHTML = '<p class="hint">This design has no editable text fields.</p>'; return; }
+            const wrap = document.createElement('div'); wrap.className = 'field-list';
+            keys.forEach(k => {
+                const val = S.t[k] != null ? S.t[k] : base[k], long = String(val).length > 48 || /\n/.test(val);
+                const lab = document.createElement('label'); lab.dataset.k = k; if (focusKey === k) lab.classList.add('is-focus');
+                lab.innerHTML = `<span>${esc(k.replace(/[_-]/g, ' '))}</span>`;
+                const inp = document.createElement(long ? 'textarea' : 'input'); if (long) inp.rows = Math.min(5, Math.max(2, String(val).split('\n').length + 1)); inp.value = val;
+                inp.onfocus = () => { focusKey = k; const el = TL.els.find(x => x.key === k); if (el) SEL = el.id; else if (SEL && SEL !== 'art') SEL = null; ctx(); drawOverlay(); tlBuild(); wrap.querySelectorAll('label').forEach(l => l.classList.toggle('is-focus', l === lab)); };
+                let pushed = false;
+                inp.oninput = () => { if (!pushed) { hist.push(clone(S)); pushed = true; } S.t[k] = inp.value; schedule(); };
+                inp.onchange = () => { pushed = false; };
+                lab.appendChild(inp); wrap.appendChild(lab);
+            });
+            body.appendChild(wrap);
+        }
+        let ROLE = 'accent';
+        function controlStyle(body) {
+            const pal = palOf(), h = document.createElement('div');
+            h.innerHTML = `<p class="hint">Colour role</p><div class="role-row">${[['paper', 'Background'], ['ink', 'Text'], ['accent', 'Accent']].map(([r, l]) => `<button type="button" data-r="${r}" aria-pressed="${ROLE === r}"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${pal[r]};margin-right:5px;border:1px solid #0003"></span>${l}</button>`).join('')}</div>
+            <div class="sw-row">${Object.entries(PAL).map(([n, hex]) => `<button type="button" data-h="${hex}" title="${esc(n)} ${hex}" aria-label="${esc(n)}" style="background:${hex}"></button>`).join('')}</div>
+            <div class="role-row"><button type="button" id="palReset">Brand colours</button><button type="button" id="palNight">Dark</button><button type="button" id="palAcc">Accent ground</button></div>`;
+            body.appendChild(h);
+            h.querySelectorAll('[data-r]').forEach(b => b.onclick = () => { ROLE = b.dataset.r; buildControls(); });
+            h.querySelectorAll('[data-h]').forEach(b => b.onclick = () => commit([{ t: 'palRole', role: ROLE, hex: b.dataset.h }]));
+            h.querySelector('#palReset').onclick = () => commit([{ t: 'pal', pal: null }]);
+            h.querySelector('#palNight').onclick = () => commit([variantCmd('night')]);
+            h.querySelector('#palAcc').onclick = () => commit([variantCmd('accent')]);
+            if (tplOf().brandComposition) {
+                body.appendChild(Object.assign(document.createElement('p'), {
+                    className: 'hint',
+                    textContent: 'This brand template keeps its authored imagery and layout. Edit its copy and colours here, or select a layer to animate it.'
+                }));
+                return;
+            }
+            const slot = window.AssetEngine.templateUsesMotif(tplOf()), cur = S.motifOn === false ? 'none' : (S.motif || 'auto');
+            const mids = [...(slot ? ['auto'] : []), 'logo', ...window.AssetEngine.VECTORS.filter(i => i !== 'none'), 'none'];
+            const m = document.createElement('div');
+            m.innerHTML = `<p class="hint">Motif</p><div class="mt-row">${mids.map(id => `<button type="button" data-m="${esc(id)}" aria-pressed="${id === cur}"><canvas data-mv="${esc(id)}" style="background:${esc(pal.paper)}"></canvas><span>${esc(id === 'auto' ? 'Auto' : id === 'none' ? 'None' : id[0].toUpperCase() + id.slice(1))}</span></button>`).join('')}</div>`;
+            body.appendChild(m);
+            m.querySelectorAll('canvas[data-mv]').forEach(cv => {
+                const id = cv.dataset.mv;
+                if (id === 'auto' || id === 'logo' || id === 'none') { cv.width = 80; cv.height = 68; const x = cv.getContext('2d'); x.fillStyle = pal.ink; x.font = '600 20px Helvetica,Arial,sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(id === 'auto' ? 'A' : id === 'none' ? '∅' : '◆', 40, 34); return; }
+                try { window.AssetEngine.drawVectorPreview(cv, id, pal, 40, 34); } catch { }
+            });
+            m.querySelectorAll('[data-m]').forEach(b => b.onclick = () => commit([{ t: 'motif', id: b.dataset.m }]));
+            const sl = (k, label, v, min, max, step, f) => `<div class="sl-row"><label for="sl-${k}">${label}<output id="so-${k}">${f(v)}</output></label><input type="range" id="sl-${k}" data-k="${k}" min="${min}" max="${max}" step="${step}" value="${v}"></div>`;
+            const pc = v => v + '%', sg = v => (v > 0 ? '+' : '') + v + '%';
+            const s = document.createElement('div');
+            s.innerHTML = sl('ms', 'Motif size', Math.round(S.motifScale * 100), 30, 250, 5, pc) + sl('mx', 'Motif horizontal', Math.round(S.motifX * 100), -45, 45, 1, sg) + sl('my', 'Motif vertical', Math.round(S.motifY * 100), -45, 45, 1, sg) + sl('ls', 'Logo size', Math.round(S.logoScale * 100), 30, 250, 5, pc) +
+                `<label class="print-check"><input type="checkbox" id="logoOn"${S.logoOn !== false ? ' checked' : ''}> Show logo</label>`;
+            body.appendChild(s);
+            s.querySelectorAll('input[data-k]').forEach(inp => {
+                inp.onpointerdown = () => hist.push(clone(S));
+                inp.oninput = () => {
+                    const k = inp.dataset.k, v = +inp.value; s.querySelector('#so-' + k).textContent = (k === 'ms' || k === 'ls') ? v + '%' : (v > 0 ? '+' : '') + v + '%';
+                    if (k === 'ms') S.motifScale = v / 100; else if (k === 'mx') S.motifX = v / 100; else if (k === 'my') S.motifY = v / 100; else S.logoScale = v / 100; schedule();
+                };
+            });
+            s.querySelector('#logoOn').onchange = e => commit([{ t: 'logo', on: e.target.checked }]);
+        }
+        function controlLayout(body) {
+            const cats = Object.keys(window.AssetCategories), sizes = sizesOf();
+            body.innerHTML = `<p class="hint">Design type</p><select class="mini-select" id="lyCat">${cats.map(id => `<option value="${esc(id)}"${id === S.cat ? ' selected' : ''}>${esc(catLabel(id))}</option>`).join('')}</select>
+            <p class="hint">Size</p><select class="mini-select" id="lySize">${sizes.map((z, i) => `<option value="${i}"${i === S.size ? ' selected' : ''}>${esc(z.n)}${z.d ? ' · ' + esc(z.d) : ''}</option>`).join('')}</select>`;
+            body.querySelector('#lyCat').onchange = e => commit([{ t: 'cat', id: e.target.value }]);
+            body.querySelector('#lySize').onchange = e => commit([{ t: 'size', i: +e.target.value }]);
+        }
+        function buildAll() { buildCategoryNav(); buildDesigns(); buildHeader(); buildControls(); ctx(); }
+
+        /* ---------- agent ---------- */
+        const chat = $('#agChat');
+        function say(who, html, cards = []) {
+            const m = document.createElement('div'); m.className = 'ag-m' + (who === 'user' ? ' u' : ''); m.innerHTML = html; chat.appendChild(m);
+            if (cards.length) {
+                const w = document.createElement('div'); w.className = 'ag-cards';
+                cards.forEach(c => {
+                    const d = document.createElement('div'); d.className = 'ag-card';
+                    d.innerHTML = `<b>${esc(c.title)}</b><p>${esc(c.why)}</p><div class="r"><small>${c.cmds.length} change${c.cmds.length === 1 ? '' : 's'} · hover to preview</small><button data-a${c.cmds.length || c.ask ? '' : ' disabled'}>Apply</button></div>`;
+                    d.onmouseenter = () => { if (!c.cmds.length || d.classList.contains('done')) return; try { renderPreview(run(clone(S), c.cmds)); } catch { } };
+                    d.onmouseleave = () => renderPreview();
+                    d.querySelector('[data-a]').onclick = e => { if (c.ask) return ask(c.ask); commit(c.cmds); d.classList.add('done'); e.target.textContent = 'Applied ✓'; e.target.disabled = true; };
+                    w.appendChild(d);
+                });
+                chat.appendChild(w);
+            }
+            chat.scrollTop = chat.scrollHeight;
+        }
+        function ctx() {
+            if (SEL && findEl(SEL)) { ctxSel(); return; }
+            const k = focusKey && Object.prototype.hasOwnProperty.call(baseText(), focusKey) ? focusKey : null; if (!k) focusKey = null;
+            $('#agCtx').innerHTML = k ? `Focus: <b>${esc(k.replace(/[_-]/g, ' '))}</b> <button id="agCx" aria-label="Clear focus">✕</button>` : `Focus: <b>whole asset</b> · click a text field to focus me`;
+            if (k) $('#agCx').onclick = () => { focusKey = null; buildControls(); ctx(); };
+            const q = k ? ['Rewrite it', 'Shorter', 'Uppercase'] : ['Ideas', 'Dark version', 'Try another design', 'No motif'];
+            const w = $('#agQp'); w.innerHTML = ''; q.forEach(t => { const b = document.createElement('button'); b.type = 'button'; b.textContent = t; b.onclick = () => ask(t); w.appendChild(b); });
+        }
+        function variantCmd(v) {
+            const base = { paper: TH.bone, ink: TH.ink, accent: TH.accent };
+            if (v === 'night') return { t: 'pal', pal: { paper: TH.ink, ink: TH.bone, accent: TH.accent } };
+            if (v === 'accent') { const on = cr(rgb('#ffffff'), rgb(TH.accent)) >= cr(rgb(TH.ink), rgb(TH.accent)) ? '#ffffff' : TH.ink; return { t: 'pal', pal: { paper: TH.accent, ink: on, accent: on } }; }
+            if (v === 'light') return { t: 'pal', pal: base };
+            return { t: 'pal', pal: null };
+        }
+        const findColour = m => {
+            const hexM = /#[0-9a-f]{3,6}\b/i.exec(m); if (hexM && hx(hexM[0])) return { hex: hx(hexM[0]), name: hexM[0] };
+            const n = Object.keys(PAL).sort((a, b) => b.length - a.length).find(n => m.includes(n.toLowerCase())); return n ? { hex: PAL[n], name: n } : null;
+        };
+        const roleFrom = m => /background|paper|ground|backdrop/.test(m) ? 'paper' : /\btext\b|\bink\b|type|font colou?r/.test(m) ? 'ink' : /accent|highlight/.test(m) ? 'accent' : null;
+        const fieldFrom = m => {
+            const keys = Object.keys(baseText());
+            let k = keys.find(k => m.includes(k.toLowerCase().replace(/[_-]/g, ' ')) || m.includes(k.toLowerCase())); if (k) return k;
+            const want = /head|title|name/.test(m) ? 'head' : /sub|tag|kicker/.test(m) ? 'sub' : /cta|button|action/.test(m) ? 'cta' : /body|description|copy|paragraph/.test(m) ? 'body' : null;
+            return want ? keys.find(k => roleOf(k) === want) || null : null;
+        };
+        function suggest(msg) {
+            const m = msg.toLowerCase().trim(), out = [], add = (title, why, cmds, ask) => out.push({ title, why, cmds, ask }), has = (...w) => w.some(x => m.includes(x));
+            const base = baseText(), keys = Object.keys(base), CO = copyOptions(), pal = palOf();
+            /* explicit text edit: change the headline to "..." */
+            const te = /(?:change|set|make|rewrite|replace|update)\s+(?:the\s+)?([\w\s-]+?)\s+(?:to|say|says|into|:)\s*["“']?(.+?)["”']?\s*$/i.exec(msg);
+            if (te) { const k = fieldFrom(te[1].toLowerCase()) || (focusKey && te[1].toLowerCase().includes('it') ? focusKey : null); if (k) add(`${k.replace(/[_-]/g, ' ')} → “${te[2].length > 40 ? te[2].slice(0, 39) + '…' : te[2]}”`, 'Your wording, applied exactly.', [{ t: 'text', key: k, value: te[2] }]); }
+            /* focus-aware text help */
+            const k = fieldFrom(m) || focusKey, cur = k ? (S.t[k] != null ? S.t[k] : base[k]) : '';
+            if (k && has('rewrite', 'alternative', 'wording', 'copy', 'ideas') && roleOf(k) !== 'other') { (CO[roleOf(k)] || []).filter(t => t !== cur).slice(0, 3).forEach(t => add(`“${t.length > 48 ? t.slice(0, 47) + '…' : t}”`, 'Taken from this brand’s own fields; no new facts.', [{ t: 'text', key: k, value: t }])); }
+            if (k && has('shorter', 'trim', 'concise')) { const w = String(cur).split(/\s+/); if (w.length > 2) add('Shorter', `Keeps the first ${Math.max(2, Math.ceil(w.length / 2))} words.`, [{ t: 'text', key: k, value: w.slice(0, Math.max(2, Math.ceil(w.length / 2))).join(' ') }]); }
+            if (k && has('uppercase', 'caps', 'upper case')) add('Uppercase', 'Reads as a label.', [{ t: 'text', key: k, value: String(cur).toUpperCase() }]);
+            if (k && has('lowercase', 'title case', 'sentence')) add('Sentence case', 'Softer tone.', [{ t: 'text', key: k, value: String(cur).toLowerCase().replace(/(^\s*\w|[.!?]\s+\w)/g, c => c.toUpperCase()) }]);
+            if (k && has('clear', 'remove text', 'empty')) add('Clear this text', 'Blank field, undoable.', [{ t: 'text', key: k, value: '' }]);
+            /* colour */
+            const col = findColour(m), role = roleFrom(m);
+            if (col && (has('colour', 'color', 'use', 'make', 'change', 'set', 'background', 'text', 'accent') || role)) add(`${role === 'paper' ? 'Background' : role === 'ink' ? 'Text' : 'Accent'} → ${col.name}`, `Applies ${col.hex}.`, [{ t: 'palRole', role: role || 'accent', hex: col.hex }]);
+            if (has('dark', 'night')) add('Dark version', 'Brand ink ground with light type.', [variantCmd('night')]);
+            if (has('light version', 'bright', 'reset colo', 'brand colo', 'default colo')) add('Brand colours', 'Back to the brand’s own palette.', [variantCmd('reset')]);
+            if (has('accent poster', 'accent background', 'accent ground', 'bold')) add('Accent ground', 'Accent-colour background with high-contrast type.', [variantCmd('accent')]);
+            /* motif / logo */
+            if (!tplOf().brandComposition) {
+                if (has('no motif', 'remove motif', 'hide motif', 'without motif')) add('No motif', 'Removes the decorative motif.', [{ t: 'motif', id: 'none' }]);
+                if (has('motif') && has('bigger', 'larger', 'increase')) add('Motif +25%', 'More presence.', [{ t: 'motifScale', v: S.motifScale * 1.25 }]);
+                if (has('motif') && has('smaller', 'reduce')) add('Motif −20%', 'Gives text more room.', [{ t: 'motifScale', v: S.motifScale * .8 }]);
+                if (has('motif') && has('left')) add('Motif left', 'Shifts 10%.', [{ t: 'motifPos', x: S.motifX - .1 }]);
+                if (has('motif') && has('right')) add('Motif right', 'Shifts 10%.', [{ t: 'motifPos', x: S.motifX + .1 }]);
+                if (has('motif') && has('up', 'higher')) add('Motif up', 'Shifts 10%.', [{ t: 'motifPos', y: S.motifY - .1 }]);
+                if (has('motif') && has('down', 'lower')) add('Motif down', 'Shifts 10%.', [{ t: 'motifPos', y: S.motifY + .1 }]);
+                if (has('motif') && !out.length) window.AssetEngine.VECTORS.filter(i => i !== 'none').slice(0, 4).forEach(id => add(`Motif: ${id}`, 'Swap the decorative motif.', [{ t: 'motif', id }]));
+                if (has('hide logo', 'remove logo', 'no logo')) add('Hide logo', 'Removes the logo.', [{ t: 'logo', on: false }]);
+                if (has('show logo', 'add logo')) add('Show logo', 'Brings the logo back.', [{ t: 'logo', on: true }]);
+                if (has('logo') && has('bigger', 'larger', 'increase')) add('Logo +25%', 'More brand presence.', [{ t: 'logo', scale: S.logoScale * 1.25 }]);
+                if (has('logo') && has('smaller', 'reduce')) add('Logo −20%', 'Quieter signature.', [{ t: 'logo', scale: S.logoScale * .8 }]);
+            }
+            /* animation */
+            const animWords = ['animat', 'fade', 'slide', 'zoom', 'pulse', 'drift', 'stagger', 'entrance', 'appear', 'motion'], clearWords = ['clear anim', 'remove anim', 'no anim', 'stop anim'];
+            if (has(...animWords) || has(...clearWords)) {
+                const wholeWords = /everything|\ball\b|whole|stagger|entrance/.test(m);
+                const tgt = wholeWords ? null : /logo/.test(m) ? (TL.els.find(e => e.kind === 'logo') || null) : (/background|motif|artwork/.test(m) ? ART : ((() => { const fk = fieldFrom(m); const e = fk && TL.els.find(x => x.key === fk); return e || (SEL ? findEl(SEL) : null); })()));
+                const pre = /fade|appear/.test(m) ? 'fadeIn' : /slide.*(left|in\b)/.test(m) ? 'slideLeft' : /slide/.test(m) ? 'slideUp' : /zoom in|scale in/.test(m) ? 'zoomIn' : /pulse/.test(m) ? 'pulse' : /drift|parallax/.test(m) ? 'drift' : /zoom/.test(m) ? 'zoom' : null;
+                const order = [...TL.els].sort((a, b) => a.y - b.y);
+                if (has(...clearWords)) add(tgt ? `Clear animation · ${tgt.name}` : 'Clear all animation', 'Removes the timeline bars.', [{ t: 'clearAnim', id: tgt ? tgt.id : 'all' }]);
+                else if (!tgt) {
+                    if (pre && pre !== 'zoom' && pre !== 'drift') add(`${presetLabel(pre)} · everything`, 'Staggered, top to bottom.', order.map((e, i) => ({ t: 'anim', id: e.id, preset: pre, start: 300 + i * 350, duration: presetDur(pre) })));
+                    add('Staggered entrance', 'Background drifts in, elements slide up one after another.', [{ t: 'anim', id: 'art', preset: 'zoom', start: 0, duration: DUR }, ...order.map((e, i) => ({ t: 'anim', id: e.id, preset: e.kind === 'logo' ? 'fadeIn' : 'slideUp', start: 300 + i * 350, duration: 900 }))]);
+                    const cta = TL.els.find(e => e.key && roleOf(e.key) === 'cta'); if (cta) add(`Pulse · ${cta.name}`, 'Draws the eye to the call to action.', [{ t: 'anim', id: cta.id, preset: 'pulse', start: 2800, duration: 2400 }]);
+                } else if (pre) { const c2 = animCard(tgt, pre, tgt.kind === 'art' ? 0 : 300); add(c2.title, c2.why, c2.cmds); }
+                else elCards(tgt).filter(c2 => c2.cmds.length).forEach(c2 => add(c2.title, c2.why, c2.cmds));
+            }
+            /* design / size / category */
+            const c = cat();
+            if (has('next design', 'another design', 'different design', 'try another', 'next template')) add('Next design', c.tpls[(S.tpl + 1) % c.tpls.length].n, [{ t: 'tpl', i: (S.tpl + 1) % c.tpls.length }]);
+            if (has('previous design', 'prev design', 'last design')) add('Previous design', c.tpls[(S.tpl - 1 + c.tpls.length) % c.tpls.length].n, [{ t: 'tpl', i: (S.tpl - 1 + c.tpls.length) % c.tpls.length }]);
+            const ti = c.tpls.findIndex(t => t.n && m.includes(t.n.toLowerCase())); if (ti > -1 && ti !== S.tpl) add(`Design: ${c.tpls[ti].n}`, 'Switches the template; text resets to the brand’s defaults.', [{ t: 'tpl', i: ti }]);
+            const zi = sizesOf().findIndex(z => z.n && m.includes(z.n.toLowerCase())); if (zi > -1 && zi !== S.size) add(`Size: ${sizesOf()[zi].n}`, 'Re-lays out at the new size.', [{ t: 'size', i: zi }]);
+            const ci = Object.keys(window.AssetCategories).find(id => id !== S.cat && (m.includes(catLabel(id).toLowerCase()) || m.includes(id.toLowerCase()))); if (ci && has('make', 'switch', 'change', 'turn', 'show', 'create', 'new')) add(`Switch to ${catLabel(ci)}`, 'Opens the first design in that category.', [{ t: 'cat', id: ci }]);
+            if (has('reset', 'start over')) add('Reset design', 'Back to brand defaults for this design.', [{ t: 'reset' }]);
+            /* generic ideas */
+            if (!out.length) {
+                add('Dark version', 'Brand ink ground with light type.', [variantCmd('night')]);
+                add('Accent ground', 'Accent-colour background.', [variantCmd('accent')]);
+                if (c.tpls.length > 1) add('Try another design', c.tpls[(S.tpl + 1) % c.tpls.length].n, [{ t: 'tpl', i: (S.tpl + 1) % c.tpls.length }]);
+                if (keys.length) { const h = keys.find(k => roleOf(k) === 'head'); if (h && CO.head[0] && CO.head[0] !== (S.t[h] != null ? S.t[h] : base[h])) add('Brand headline', `Sets “${CO.head[0].slice(0, 40)}”.`, [{ t: 'text', key: h, value: CO.head[0] }]); }
+            }
+            return out;
+        }
+        function ask(t) {
+            say('user', esc(t));
+            if (/^undo\b/i.test(t.trim())) { undo(); say('agent', 'Undone.'); return; }
+            setTimeout(() => {
+                const c = suggest(t);
+                say('agent', c.length ? (c.length === 1 ? 'Here’s what I’d do:' : `Here are ${c.length} options. Hover to preview, then apply:`) : 'I couldn’t map that to a change yet. Try “make the headline to …”, “use Vermilion for the background”, “dark version”, “no motif”, “logo bigger” or “next design”.', c);
+            }, 200);
+        }
+        function greet() {
+            chat.innerHTML = '';
+            const capabilities = tplOf().brandComposition ? 'copy, colours, design and size' : 'copy, colours, motif, logo, design and size';
+            say('agent', `Hi, I’m the Studio agent. I can edit this <b>${esc(B.name)}</b> ${esc(catLabel(S.cat).toLowerCase())} — ${capabilities}. Click a text field to focus me on it, or just tell me what to change. Some starting points:`, suggest('ideas').slice(0, 3));
+        }
+        function undo() { if (!hist.length) { toast('Nothing to undo.'); return; } S = hist.pop(); afterChange(true); }
+
+        /* ---------- export + persistence ---------- */
+        const fname = ext => `${norm(B.name)}-${norm(tplOf().n)}-${norm(sizeOf().n)}.${ext}`;
+        function download(type) {
+            try {
+                const size = sizeOf(), cv = document.createElement('canvas'); draw(cv, S, size.w);
+                cv.toBlob(b => { if (!b) return toast('Could not export this asset.', true); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = fname(type === 'image/jpeg' ? 'jpg' : 'png'); document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); $('#exportNote').textContent = `Exported ${size.w}×${size.h}px`; }, type, .95);
+            } catch (e) { toast('Export failed: ' + e.message, true); }
+        }
+        const stateKey = () => `assetStudioAgent.v1:${B && B.id}:${S && S.cat}:${S && S.tpl}`;
+        function saveState() { if (!B || !S) return; LS.set(stateKey(), S); LS.set('assetStudioAgent.last.v1', { packId: P && P.id, brandId: B.id, cat: S.cat, tpl: S.tpl, size: S.size }); }
+        function saveAsset() { saveState(); const lib = LS.get('assetStudioAgent.saved.v1', []); lib.unshift({ at: Date.now(), brand: B.id, name: `${B.name} · ${tplOf().n}`, state: clone(S) }); LS.set('assetStudioAgent.saved.v1', lib.slice(0, 40)); toast('Saved this asset.'); }
+
+        /* ---------- selection flow ---------- */
+        async function selectBrand(id, restore) {
+            const b = (P.brands || []).find(x => x.id === id); if (!b) return; const tok = ++selTok;
+            document.querySelectorAll('#brandSwitch button').forEach(x => x.disabled = true);
+            B = b; BRAND_TEMPLATES = {}; BRAND_TEMPLATE_IMAGES = new Map(); deriveTheme(b); BF = brandFonts(b); hist = []; focusKey = null;
+            try {
+                await Promise.all([brandLogos(b), brandPhotos(b), loadBrandTemplates(b), document.fonts && document.fonts.ready].filter(Boolean));
+            } catch (error) {
+                document.querySelectorAll('#brandSwitch button').forEach(x => x.disabled = false);
+                throw error;
+            }
+            if (tok !== selTok) return;
+            S = blank(); if (restore) { const c = window.AssetCategories[restore.cat]; if (c) { S.cat = restore.cat; S.tpl = clamp(restore.tpl | 0, 0, categoryDesigns(restore.cat).length - 1); S.size = clamp(Math.max(0, restore.size | 0), 0, sizesOf(S).length - 1); const saved = LS.get(stateKey(), null); if (saved && saved.cat === S.cat) S = { ...S, ...saved }; } }
+            document.querySelectorAll('#brandSwitch button').forEach(x => x.disabled = false);
+            buildBrandPills(); buildAll(); renderPreview(); greet();
+            LS.set('assetStudioAgent.lastBrands.v1', { ...LS.get('assetStudioAgent.lastBrands.v1', {}), [P.id]: B.id });
+            try { const u = new URL(location.href); u.searchParams.set('pack', P.id); u.searchParams.set('brand', B.id); history.replaceState(null, '', u); } catch { }
+        }
+        const packFull = async id => { if (packCache.has(id)) return packCache.get(id); const d = await jget(`${API}/brand-packs/${encodeURIComponent(id)}`), p = d && d.pack; if (!p || !(p.brands || []).length) throw new Error('The brand group contains no brands.'); packCache.set(id, p); return p; };
+        async function selectPack(id) {
+            if (!id) return; const g = $('#groupSelect'); g.disabled = true;
+            try { P = await packFull(id); buildGroupSelect(); B = null; const last = LS.get('assetStudioAgent.lastBrands.v1', {})[id]; await selectBrand(P.brands.some(b => b.id === last) ? last : P.brands[0].id); toast(`${P.name || id} · ${P.brands.length} brand${P.brands.length === 1 ? '' : 's'}`); }
+            catch (e) { toast('Could not load that group: ' + e.message, true); g.value = P ? P.id : ''; }
+            finally { g.disabled = false; }
+        }
+
+        /* ---------- wiring ---------- */
+        $('#groupSelect').onchange = e => selectPack(e.target.value);
+        $('#undoBtn').onclick = undo;
+        $('#resetBtn').onclick = () => commit([{ t: 'reset' }]);
+        $('#downloadBtn').onclick = () => download('image/png');
+        $('#jpgBtn').onclick = () => download('image/jpeg');
+        $('#saveBtn').onclick = saveAsset;
+        $('#timelineBtn').onclick = () => openTimeline(!TL.open);
+        PRESETS.forEach(p => $('#tlPreset').append(new Option(p[1], p[0])));
+        $('#tlPlay').onclick = () => { if (TL.playing) stopP(); else play(); };
+        $('#tlScrub').oninput = e => { stopP(); seek(+e.target.value); };
+        $('#tlAdd').onclick = () => {
+            if (!SEL) { toast('Select an element on the canvas first.'); return; }
+            const p = $('#tlPreset').value; commit([{ t: 'anim', id: SEL, preset: p, start: SEL === 'art' ? 0 : 300, duration: presetDur(p) }]);
+        };
+        $('#tlClear').onclick = () => { if (!hasAnim() && !(S.anim && Object.keys(S.anim).length)) { toast('No animation to clear.'); return; } commit([{ t: 'clearAnim', id: SEL || 'all' }]); };
+        $('#tlRec').onclick = record;
+        const ov = $('#selLayer'), frac = ev => { const r = ov.getBoundingClientRect(); return [(ev.clientX - r.left) / r.width, (ev.clientY - r.top) / r.height]; };
+        ov.addEventListener('pointermove', ev => { const id = hit(...frac(ev)); if (id !== HOV) { HOV = id; drawOverlay(); } });
+        ov.addEventListener('pointerleave', () => { HOV = null; drawOverlay(); });
+        ov.addEventListener('click', ev => { const id = hit(...frac(ev)); selectEl(id === SEL ? null : id); });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape' && SEL && !/INPUT|TEXTAREA|SELECT/.test((e.target || {}).tagName || '')) selectEl(null, true); });
+        if (window.ResizeObserver) new ResizeObserver(() => placeOverlay()).observe(preview);
+        $('#agClear').onclick = () => { chat.innerHTML = ''; };
+        $('#agForm').onsubmit = e => { e.preventDefault(); const v = $('#agIn').value.trim(); if (v) { $('#agIn').value = ''; ask(v); } };
+        document.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !/INPUT|TEXTAREA|SELECT/.test((e.target || {}).tagName || '')) { e.preventDefault(); undo(); } });
+
+        async function boot() {
+            try {
+                if (!window.AssetEngine || !window.AssetCategories || !window.StudioCore || !window.StudioBrand) throw new Error('The Asset Studio template engine did not load.');
+                const [d] = await Promise.all([jget(API + '/brand-packs'), loadFonts()]);
+                PACKS = (d && d.packs) || []; if (!PACKS.length) throw new Error('No brand packs are available.');
+                const q = new URLSearchParams(location.search), last = LS.get('assetStudioAgent.last.v1', {}), rb = q.get('brand') || q.get('brandId'), rp = q.get('pack') || q.get('packId');
+                const byBrand = rb && PACKS.find(p => (p.brands || []).some(b => b.id === rb)), has = id => id && PACKS.some(p => p.id === id);
+                const packId = (byBrand && byBrand.id) || (has(rp) ? rp : null) || (has(last.packId) ? last.packId : null) || PACKS[0].id;
+                P = await packFull(packId); buildGroupSelect();
+                const lm = LS.get('assetStudioAgent.lastBrands.v1', {}), want = [rb, last.packId === packId ? last.brandId : null, lm[packId]].find(x => x && P.brands.some(b => b.id === x)) || P.brands[0].id;
+                await selectBrand(want, last.brandId === want ? last : null);
+                $('#boot').hidden = true; $('#studio').hidden = false; renderPreview();
+            } catch (e) {
+                $('#bootMsg').innerHTML = `<strong>Asset Studio could not load your brands.</strong><br>${esc(/fetch|network|failed|load/i.test(String(e.message)) ? 'Start the local studio server with `node server.js`, then reload.' : e.message)}`;
+            }
+        }
+        addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => renderPreview(), 120); });
+        boot();
+    })();
+    </script>
+</body>
+
+</html>

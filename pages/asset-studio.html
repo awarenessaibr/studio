@@ -30,6 +30,7 @@
                 <a class="ghost" href="voice.html" title="Speak brand copy or design a voice">Voice</a>
                 <a class="ghost" href="social.html" title="Read the business social profile">Social</a>
                 <button type="button" class="ghost" id="brandInfoBtn" aria-haspopup="dialog">Brand identity</button>
+                <button type="button" class="ghost" id="brandTemplatesBtn" aria-haspopup="dialog">Brand templates</button>
                 <a class="ghost" href="studio-v2.html" title="Open the full layer studio for advanced composition editing">Studio V2</a>
             </div>
         </header>
@@ -120,6 +121,21 @@
         <div id="drawerBody" class="drawer-body"></div>
     </aside>
 
+    <div id="brandTemplatesDialog" class="modal" hidden>
+        <div class="modal-backdrop" id="brandTemplatesBackdrop"></div>
+        <section class="modal-panel template-library-panel" role="dialog" aria-modal="true" aria-labelledby="brandTemplatesTitle">
+            <header class="gate-head">
+                <div>
+                    <p class="eyebrow">Brand identity</p>
+                    <h2 id="brandTemplatesTitle">Brand templates</h2>
+                    <p id="brandTemplatesHint" class="hint"></p>
+                </div>
+                <button type="button" class="icon-btn" id="brandTemplatesClose" aria-label="Close brand templates">×</button>
+            </header>
+            <div id="brandTemplateGrid" class="brand-template-grid"></div>
+        </section>
+    </div>
+
 
     <div id="printDialog" class="modal" hidden>
         <div class="modal-backdrop" id="printBackdrop"></div>
@@ -190,6 +206,7 @@
 
     <script src="/src/client/asset-studio/vendor/qrcode.min.js"></script>
     <script src="/src/shared/asset-intel.js"></script>
+    <script src="/src/shared/studio-core.js"></script>
     <script src="/src/shared/brand-pack.js"></script>
     <script src="/src/client/asset-studio/engine.js"></script>
     <script src="/src/client/asset-studio/categories.js"></script>

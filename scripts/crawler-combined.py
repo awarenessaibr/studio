@@ -2578,22 +2578,22 @@ def render_js_site(start_urls, visited, text_pages):
         return result
     seed = start_urls[0]
     shell_html = _page_cache.get(seed) or fetch_text_cached(seed) or ""
-    if not shell_html:
-        return result
+    if shell_html:
+        bundle_assets = harvest_bundle_assets(shell_html, seed)
+        if bundle_assets:
+            print(f"Bundle assets: {len(bundle_assets)} media URLs referenced by JS/CSS")
+            result['media'].update(bundle_assets)
 
-    bundle_assets = harvest_bundle_assets(shell_html, seed)
-    if bundle_assets:
-        print(f"Bundle assets: {len(bundle_assets)} media URLs referenced by JS/CSS")
-        result['media'].update(bundle_assets)
-
-    if not looks_like_js_shell(shell_html):
-        return result
-    print("Client-rendered page detected (no server HTML) — rendering with browser")
+        if not looks_like_js_shell(shell_html):
+            return result
+        print("Client-rendered page detected (no server HTML) — rendering with browser")
+    else:
+        print("No HTML fetched over HTTP — trying the browser")
 
     browser = Browser()
     if not browser.available():
-        print("  ! browser unavailable; the page is JS-only — re-run without "
-              "--no-browser to capture it")
+        print("  ! browser unavailable; cannot render the page — enable Playwright "
+              "and do not use --no-browser")
         return result
 
     routes, queued = [], set()

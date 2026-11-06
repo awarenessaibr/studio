@@ -859,3 +859,139 @@ test('brand-pack and asset-intel share one provenance vocabulary', () => {
     assert.equal(blank.provenance.kind, 'unknown');
     assert.equal(blank.brands[0].provenance.kind, 'unknown');
 });
+
+// ---------------------------------------------------------------------------
+// Boardwalk social set (the ten designs from the Cawley Boardwalk social pack)
+// ---------------------------------------------------------------------------
+
+const boardwalkInput = () => ({
+    id: 'boardwalk',
+    name: 'Boardwalk',
+    tagline: 'Stylish, all day dining.',
+    url: 'https://boardwalkfalkirk.co.uk',
+    palette: [
+        { name: 'Boardwalk Teal', hex: '#055768', role: 'Header band, buttons, links' },
+        { name: 'Paper', hex: '#ffffff', role: 'Page ground, type on teal' },
+        { name: 'Ink', hex: '#3d3e3e', role: 'Body copy' },
+    ],
+    typography: {
+        families: ['Mulish 300', 'Mulish 400'],
+        scale: [
+            { id: 'title', family: 'Mulish 300', px: 64, size: '64 px' },
+            { id: 'body-m', family: 'Mulish 400', px: 16, size: '16 px' },
+        ],
+    },
+    logos: [
+        {
+            name: 'boardwalk wordmark white', kind: 'wordmark', variant: 'light', format: 'png',
+            url: '/api/brand-packs/test-pack/files/boardwalk/assets/logos/boardwalk-wordmark-white.png',
+        },
+        {
+            name: 'boardwalk wordmark ink', kind: 'wordmark', variant: 'dark', format: 'png',
+            url: '/api/brand-packs/test-pack/files/boardwalk/assets/logos/boardwalk-wordmark-ink.png',
+        },
+    ],
+    guidelines: { facts: [{ field: 'Group', value: 'Cawley Hotels & Restaurants' }] },
+});
+
+const boardwalkPortfolio = () => ({
+    name: 'Portfolio brand overview',
+    assets: [{
+        name: 'cawley wordmark white',
+        path: 'assets/cawley-wordmark-white.png',
+        url: '/api/brand-packs/test-pack/files/portfolio/assets/cawley-wordmark-white.png',
+    }],
+});
+
+const BW_TEMPLATE_IDS = [
+    'bw-dessert', 'bw-sweets-menu', 'bw-a-la-carte', 'bw-good-morning', 'bw-seasons',
+    'bw-event-post', 'bw-announcement', 'bw-from-the-sea', 'bw-banner', 'bw-group-banner',
+];
+
+test('the Boardwalk social set is offered only to Boardwalk', () => {
+    const boardwalk = Brand.normalizeBrand(boardwalkInput(), 0);
+    const ids = Brand.templateCatalog(boardwalk).map((entry) => entry.id);
+    BW_TEMPLATE_IDS.forEach((id) => assert.ok(ids.includes(id), id));
+    const plain = Brand.normalizeBrand({ id: 'plain', name: 'Plain', palette: [{ name: 'Ink', hex: '#111111' }] }, 0);
+    const plainIds = Brand.templateCatalog(plain).map((entry) => entry.id);
+    BW_TEMPLATE_IDS.forEach((id) => assert.ok(!plainIds.includes(id), id));
+    assert.strictEqual(ids.length, plainIds.length + BW_TEMPLATE_IDS.length);
+});
+
+test('every Boardwalk social template builds a clean v3 composition', () => {
+    const boardwalk = Brand.normalizeBrand(boardwalkInput(), 0);
+    BW_TEMPLATE_IDS.forEach((templateId) => {
+        const composition = Brand.createTemplateComposition({
+            packId: 'test-pack',
+            packName: 'Test pack',
+            portfolio: boardwalkPortfolio(),
+            brand: boardwalk,
+            templateId,
+            projectId: 'p',
+        });
+        assert.strictEqual(composition.version, 3, templateId);
+        assert.ok(composition.layers.length >= 5, templateId);
+        assert.ok(composition.variables.length > 0, templateId);
+        assert.deepStrictEqual(composition.formats[0].safeZone, { top: 0.04, right: 0.04, bottom: 0.04, left: 0.04 }, templateId);
+        // The art direction's colours join the kit so the off-palette guardrail
+        // does not flag artwork the template itself introduced.
+        const kitHex = new Set(composition.brandKit.palette.map((entry) => entry.hex));
+        ['#0890ce', '#00969e', '#bee2de', '#feef00', '#e8641a'].forEach((hex) => {
+            assert.ok(kitHex.has(hex), `${templateId} kit is missing ${hex}`);
+        });
+        // Inline SVG art has to stay under the shared 2 KB asset-URL cap.
+        composition.layers.forEach((layer) => {
+            if (layer.type !== 'image') return;
+            const url = String(layer.url);
+            assert.ok(url.length <= 2048, `${templateId}/${layer.id}`);
+            // An SVG without width/height rasterises at the 300×150 default and
+            // breaks in the canvas export path, so every generated graphic
+            // declares its intrinsic size.
+            if (url.startsWith('data:image/svg+xml;base64,')) {
+                const svg = Buffer.from(url.slice('data:image/svg+xml;base64,'.length), 'base64').toString('utf8');
+                assert.match(svg, /<svg[^>]+width="\d+"/, `${templateId}/${layer.id} width`);
+                assert.match(svg, /<svg[^>]+height="\d+"/, `${templateId}/${layer.id} height`);
+            }
+        });
+        // The contrast pass run at build time must not have swapped type to a
+        // neutral that is off the art direction.
+        composition.layers.filter((layer) => layer.type === 'text').forEach((layer) => {
+            assert.notStrictEqual(layer.color, '#000000', `${templateId}/${layer.id}`);
+        });
+        assert.deepStrictEqual(Core.safeZoneViolations(composition, { format: composition.formats[0] }), [], templateId);
+    });
+});
+
+test('photo slots are image variables and the group lockup comes from the portfolio', () => {
+    const boardwalk = Brand.normalizeBrand(boardwalkInput(), 0);
+    const dessert = Brand.createTemplateComposition({
+        packId: 'test-pack', packName: 'Test pack', portfolio: boardwalkPortfolio(),
+        brand: boardwalk, templateId: 'bw-dessert',
+    });
+    const photo = dessert.variables.find((variable) => variable.id === 'bw_dessert_photo');
+    assert.ok(photo);
+    assert.strictEqual(photo.kind, 'image');
+    const photoLayer = dessert.layers.find((layer) => layer.id === 'bw-dessert-photo');
+    assert.strictEqual(photoLayer.bindings.url, 'bw_dessert_photo');
+    assert.ok(String(photoLayer.url).startsWith('data:image/svg+xml'));
+
+    const morning = Brand.createTemplateComposition({
+        packId: 'test-pack', packName: 'Test pack', portfolio: boardwalkPortfolio(),
+        brand: boardwalk, templateId: 'bw-good-morning',
+    });
+    const lockup = morning.layers.find((layer) => layer.id === 'bw-gm-lockup');
+    assert.ok(lockup);
+    assert.match(lockup.url, /cawley-wordmark-white\.png$/);
+    // Without a portfolio the template still builds, just without the group mark.
+    const bare = Brand.createTemplateComposition({ brand: boardwalk, templateId: 'bw-good-morning' });
+    assert.ok(!bare.layers.some((layer) => layer.id === 'bw-gm-lockup'));
+    const bareDessert = Brand.createTemplateComposition({ brand: boardwalk, templateId: 'bw-dessert' });
+    const wordmark = bareDessert.layers.find((layer) => layer.id === 'bw-dessert-wordmark');
+    assert.ok(wordmark && /boardwalk-wordmark-white\.png$/.test(wordmark.url));
+    // The light-ground card tints the single white wordmark blue rather than
+    // shipping a second raster cut.
+    const sea = Brand.createTemplateComposition({ brand: boardwalk, templateId: 'bw-from-the-sea' });
+    const seaWordmark = sea.layers.find((layer) => layer.id === 'bw-sea-wordmark');
+    assert.strictEqual(seaWordmark.recolorEnabled, true);
+    assert.strictEqual(seaWordmark.recolorColor, '#0890ce');
+});
