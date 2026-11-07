@@ -455,3 +455,148 @@ test('python crawler helpers: browser fallback when HTTP returns no HTML', (t) =
     assert.equal(probeP3.data.cached_html, true,
         'rendered HTML is cached for downstream brand and social extraction');
 });
+
+const PROBE_NETWORK_FIXES = `
+import importlib.util, json, os, shutil, sys, tempfile, time
+spec = importlib.util.spec_from_file_location("crawler", sys.argv[1])
+mod = importlib.util.module_from_spec(spec)
+sys.modules["crawler"] = mod
+spec.loader.exec_module(mod)
+
+mod.configure_site("http://www.example.test/")
+calls = []
+def request(url, **kwargs):
+    calls.append(url)
+    if url.startswith("http://www.example.test/"):
+        raise mod.requests.exceptions.SSLError("certificate host mismatch")
+    response = mod.requests.Response()
+    response.status_code = 200
+    response.url = url
+    response.headers["content-type"] = "text/html; charset=utf-8"
+    response._content = b"<html>ok</html>"
+    return response
+
+original_request = mod.requests.get
+mod.requests.get = request
+try:
+    fallback = mod.get("http://www.example.test/")
+finally:
+    mod.requests.get = original_request
+
+out = {
+    "fallback_url": fallback.url if fallback else None,
+    "request_urls": calls,
+    "canonical": mod.normalize_candidate_url(
+        "http://www.example.test/assets/logo.png", "https://example.test/about"),
+    "retry_after": mod.retry_after_seconds("120"),
+    "follower_display": {
+        "unknown": mod.format_social_followers({
+            "totals": {"followers": 0, "followers_reported": 0},
+            "matrix": [{"followers": None}],
+        }),
+        "measured_zero": mod.format_social_followers({
+            "totals": {"followers": 0, "followers_reported": 1},
+        }),
+    },
+}
+
+class LimitedResponse:
+    status_code = 429
+    headers = {"Retry-After": "120"}
+    url = "https://restaurantguru.com/one"
+    text = "rate limited"
+
+class Session:
+    def __init__(self):
+        self.calls = 0
+    def get(self, url, **kwargs):
+        self.calls += 1
+        response = LimitedResponse()
+        response.url = url
+        return response
+
+session = Session()
+mod.State.sessions["restaurantguru"] = session
+mod.State.page_cache.clear()
+mod.State.rate_limit_cooldowns.clear()
+mod.State.use_cache = False
+mod.throttle = lambda _platform: None
+first = mod.fetch("https://restaurantguru.com/one", platform="restaurantguru")
+second = mod.fetch("https://restaurantguru.com/two", platform="restaurantguru")
+out["rate_limit"] = {
+    "first_status": first.status,
+    "second_status": second.status,
+    "network_calls": session.calls,
+    "cooldown_seconds": round(mod.State.rate_limit_cooldowns["restaurantguru.com"] - time.time()),
+}
+
+out["crawl_keys"] = [
+    mod.crawl_url_key("http://www.example.test/?utm_source=mail"),
+    mod.crawl_url_key("https://example.test/"),
+    mod.crawl_url_key("https://example.test/about/?fbclid=tracker"),
+    mod.crawl_url_key("http://www.example.test/about"),
+]
+
+mod.configure_site("http://www.example.test/")
+mod.TEXT_DIR = tempfile.mkdtemp()
+temp_text_dir = mod.TEXT_DIR
+mod.ENABLE_CRAWL_CHECKPOINT = False
+mod.WEB_REQUEST_DELAY = 0
+os.environ["CRAWLER_RENDER_JS"] = "0"
+crawl_calls = []
+def crawl_request(url, **kwargs):
+    crawl_calls.append(url)
+    response = mod.requests.Response()
+    response.status_code = 200
+    response.url = "https://example.test" + ("/about" if "about" in url else "/")
+    response.headers["content-type"] = "text/html; charset=utf-8"
+    response._content = (
+        b'<html><body>Page text <a href="http://www.example.test/?utm_source=mail">home</a>'
+        b'<a href="https://example.test/about/">about</a>'
+        b'<a href="http://example.test/about?fbclid=tracker">about tracking</a>'
+        b'</body></html>'
+    )
+    return response
+
+original_get = mod.get
+mod.get = crawl_request
+try:
+    _media, _text, _videos, crawl_visited = mod.crawl_pages(["http://www.example.test/"])
+finally:
+    mod.get = original_get
+    shutil.rmtree(temp_text_dir)
+out["crawl_aliases"] = {
+    "calls": crawl_calls,
+    "visited": sorted(crawl_visited),
+}
+print(json.dumps(out))
+`;
+
+const networkFixesProbe = runProbe(PROBE_NETWORK_FIXES);
+
+test('python crawler retries broken www TLS via the apex and suppresses rate-limited repeats', (t) => {
+    if (networkFixesProbe.skip) {
+        t.skip(networkFixesProbe.skip);
+        return;
+    }
+    assert.equal(networkFixesProbe.error, undefined, networkFixesProbe.error);
+    assert.equal(networkFixesProbe.data.fallback_url, 'https://example.test/');
+    assert.deepEqual(networkFixesProbe.data.request_urls, [
+        'http://www.example.test/',
+        'https://example.test/',
+    ]);
+    assert.equal(networkFixesProbe.data.canonical, 'https://example.test/assets/logo.png');
+    assert.equal(networkFixesProbe.data.retry_after, 120);
+    assert.equal(networkFixesProbe.data.follower_display.unknown, 'unavailable');
+    assert.equal(networkFixesProbe.data.follower_display.measured_zero, '0');
+    assert.deepEqual(networkFixesProbe.data.crawl_keys[0], networkFixesProbe.data.crawl_keys[1]);
+    assert.equal(networkFixesProbe.data.crawl_keys[2], networkFixesProbe.data.crawl_keys[3]);
+    assert.equal(networkFixesProbe.data.crawl_aliases.calls.length, 2,
+        'www, apex, scheme, slash and tracking-query aliases are each fetched once');
+    assert.equal(networkFixesProbe.data.crawl_aliases.visited.length, 2);
+    assert.equal(networkFixesProbe.data.rate_limit.first_status, 429);
+    assert.equal(networkFixesProbe.data.rate_limit.second_status, 429);
+    assert.equal(networkFixesProbe.data.rate_limit.network_calls, 1,
+        'a rate-limited host is not requested again during its Retry-After window');
+    assert.ok(networkFixesProbe.data.rate_limit.cooldown_seconds > 110);
+});

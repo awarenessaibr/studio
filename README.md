@@ -16,7 +16,7 @@ runs unchanged under Node for tests.
 
 | Surface | URL (after `npm start`) | What it is for | Doc |
 |---|---|---|---|
-| **Layer Studio v2** | `/` or `/studio-v2.html` | Compose, animate and export layered scenes and templates. Segments, keyframes, presets, text, formats, variables, characters, AI animation ideas. | [layer-studio.md](docs/layer-studio.md) |
+| **Layer Studio v2** | `/` or `/studio-v2.html` | Compose, animate and export layered scenes and templates. Segments, keyframes, presets, bundled layered animations, text, formats, variables, characters and AI animation ideas. | [layer-studio.md](docs/layer-studio.md) |
 | **Asset Studio** | `/asset-studio.html` | Produce final, on-brand artwork fast: flyers, menus, vouchers, cards, social, signage, packaging and compliance labels, with print- and screen-ready output. | [asset-studio.md](docs/asset-studio.md) |
 | **Asset Studio Agent** | `/studio-agent.html` | Edit final brand artwork with an agent and use its short preset-animation timeline. | [asset-studio-animation.md](docs/asset-studio-animation.md) |
 | **Brand identity** | sidebar of the studio | Import a brand-kit ZIP, read the Word guides, browse palette/type/logos/guidelines, create print and digital templates, and publish edited scenes back as reusable brand templates with GIF/MP4 export. Also available as a drawer inside Asset Studio. | [brand-packs.md](docs/brand-packs.md) |

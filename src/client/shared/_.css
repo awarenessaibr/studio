@@ -227,6 +227,11 @@
     border-color: var(--ls-accent);
 }
 
+.layer-sidebar-actions button:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
 .layer-list {
     display: grid;
     flex: 1;

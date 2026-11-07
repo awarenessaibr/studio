@@ -158,6 +158,11 @@
         #layerOllamaModelControls { display: grid; gap: 5px; }
         #layerOllamaModelControls[hidden] { display: none; }
         #layerAnimationProviderStatus { margin: 0; color: var(--ls-muted); font-size: 10px; line-height: 1.4; }
+        .layered-animation-content { padding: 10px 12px; }
+        .layered-animation-content .layer-hint { margin: 0 0 9px; font-size: 11px; line-height: 1.45; }
+        .layered-animation-content .layer-proposals-actions { display: grid; gap: 6px; }
+        .layered-animation-content .layer-proposals-actions button { width: 100%; }
+        #layeredAnimationStatus:empty { display: none; }
         .segment-texture-preview { display: flex; align-items: center; gap: 12px; color: var(--ls-muted); font-size: 12px; }
         .segment-texture-preview[hidden] { display: none; }
         .segment-texture-preview img { width: 88px; height: 72px; border: 1px solid var(--ls-line); border-radius: 6px; background: var(--ls-bg); object-fit: contain; }
@@ -207,6 +212,9 @@
                         <label class="layer-project-picker">Project
                             <select id="layerProjectSelect"><option value="">Choose a project…</option></select>
                         </label>
+                        <button type="button" id="layerArchiveProject" data-action="archive-project" disabled>Archive project</button>
+                        <button type="button" id="layerToggleArchivedProjects" data-action="toggle-archived-projects"
+                            aria-pressed="false">Show archived</button>
                         <button type="button" data-action="import-archive">Import ZIP + image</button>
                         <button type="button" data-action="open-saved">Saved projects</button>
                         <button type="button" data-action="import-files">Add images</button>
@@ -266,6 +274,29 @@
                     </div>
                     <p id="layerProposalContext" class="layer-proposal-context"></p>
                     <div id="layerProposalList" class="layer-proposal-list" aria-live="polite"></div>
+                </div>
+            </section>
+
+            <section class="layer-proposals" id="layeredAnimationsPanel" aria-label="Animations">
+                <header class="layer-proposals-header">
+                    <div>
+                        <button type="button" class="layer-section-toggle" data-action="toggle-section" data-section="animations"
+                            aria-expanded="true" aria-controls="layeredAnimationContent">
+                            <span>Animations</span><i class="fas fa-chevron-down" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                </header>
+                <div id="layeredAnimationContent" class="layer-section-content layered-animation-content" data-section-content="animations">
+                    <p class="layer-hint">Add the pig and butterfly motion as editable layers and keyframes. Existing scene layers stay in place.</p>
+                    <div class="layer-proposals-actions">
+                        <button type="button" id="layerAddButterflyPig">
+                            <i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i> Add Butterfly Chase
+                        </button>
+                        <button type="button" id="layerAddCyclistRide">
+                            <i class="fas fa-bicycle" aria-hidden="true"></i> Add Cyclist Ride
+                        </button>
+                    </div>
+                    <p id="layeredAnimationStatus" class="layer-hint" role="status" aria-live="polite"></p>
                 </div>
             </section>
 
@@ -882,11 +913,13 @@
 
     <script src="/src/shared/studio-core.js"></script>
     <script src="/src/client/asset-studio/animation.js"></script>
+    <script src="/src/client/asset-studio/scene-animation.js"></script>
     <script src="/src/shared/agent-commands.js"></script>
     <script src="/src/shared/brand-pack.js"></script>
     <script src="/src/client/shared/_.js"></script>
     <script src="/src/client/brand/brand-identity.js"></script>
     <script src="/src/client/studio/studio-minimal/studio-minimal.js"></script>
+    <script src="/src/client/studio/layered-animation.js"></script>
     <script src="/src/client/studio/studio-v2.js"></script>
 </body>
 

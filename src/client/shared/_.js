@@ -1641,6 +1641,7 @@
             this.projectMeta = null;
             this.repositorySource = null;
             this.projectCatalog = [];
+            this.showArchivedProjects = false;
             this._saveTimer = null;
             this._savePromise = null;
             this._saveQueued = false;
@@ -1679,6 +1680,8 @@
                 inspector: root.querySelector('#layerInspector'),
                 name: root.querySelector('#layerCompositionName'),
                 projectSelect: root.querySelector('#layerProjectSelect'),
+                archiveProject: root.querySelector('#layerArchiveProject'),
+                toggleArchivedProjects: root.querySelector('#layerToggleArchivedProjects'),
                 compositionSelect: root.querySelector('#layerCompositionSelect'),
                 size: root.querySelector('#layerCanvasSize'),
                 locale: root.querySelector('#layerLocale'),
@@ -4323,6 +4326,12 @@
                 case 'save-project':
                     this.saveProject();
                     break;
+                case 'archive-project':
+                    this.toggleProjectArchived();
+                    break;
+                case 'toggle-archived-projects':
+                    this.toggleArchivedProjectsView();
+                    break;
                 case 'apply-canvas-size': {
                     const width = Number(this.el.canvasWidth.value);
                     const height = Number(this.el.canvasHeight.value);
@@ -4736,6 +4745,7 @@
             }
             if (event.target === this.el.projectSelect) {
                 this.selectProject(event.target.value);
+                this.syncProjectArchiveControls();
                 return;
             }
             if (event.target === this.el.compositionSelect) {
@@ -5157,7 +5167,7 @@
                 rotation: clamp(over.rotation ?? base.rotation, -3600, 3600),
                 opacity: clamp(over.opacity ?? base.opacity, 0, 1),
             });
-            if (SharedAnimation?.PRESETS.some(([id]) => id === presetName)) {
+            if (presetName !== 'flicker' && SharedAnimation?.PRESETS.some(([id]) => id === presetName)) {
                 const group = SharedAnimation.groupOf(presetName);
                 const animationDuration = group === 'loop'
                     ? dur
@@ -8222,7 +8232,33 @@
             if (!file) return;
             try {
                 const parsed = JSON.parse(await file.text());
-                this.openComposition(parsed.composition || parsed);
+                if (parsed?.type === 'studio-scene-animation') {
+                    if (!window.StudioSceneAnimation) {
+                        throw new Error('The scene animation loader did not load.');
+                    }
+                    if (parsed.scene && parsed.animation) {
+                        this.openComposition(window.StudioSceneAnimation.applyManifest(parsed.scene, parsed.animation));
+                    } else {
+                        const catalog = await this.requestBackend('api/projects');
+                        const projectId = `repo-${parsed.projectId || ''}`;
+                        const project = catalog.projects?.find((item) => item.id === projectId);
+                        const source = project?.compositions?.find(
+                            (item) => item.kind === 'repository' && item.id === parsed.sceneId,
+                        );
+                        if (!project || !source) {
+                            throw new Error(`The scene animation's project or base scene is not available (${parsed.projectId || 'unknown project'}/${parsed.sceneId || 'unknown scene'}).`);
+                        }
+                        const baseScene = await this.requestBackend(
+                            `api/projects/${encodeURIComponent(project.id)}/compositions/${encodeURIComponent(source.id)}`,
+                        );
+                        const composition = window.StudioSceneAnimation.applyManifest(baseScene, parsed);
+                        this.openComposition(composition, {
+                            repositorySource: { projectId: project.id, compositionId: source.id },
+                        });
+                    }
+                } else {
+                    this.openComposition(parsed.composition || parsed);
+                }
                 this.setStatus(`Opened ${file.name}.`);
             } catch (error) {
                 console.error('[layer-studio] project import failed:', error);
@@ -8254,22 +8290,81 @@
             try {
                 const data = await this.requestBackend('api/projects');
                 this.projectCatalog = Array.isArray(data?.projects) ? data.projects : [];
-                const options = [new Option('Choose a project…', '')];
-                this.projectCatalog.forEach((project) => {
-                    options.push(new Option(project.name || project.id, project.id));
-                });
-                this.el.projectSelect.replaceChildren(...options);
-                if (selectProjectId && this.projectCatalog.some((project) => project.id === selectProjectId)) {
-                    this.el.projectSelect.value = selectProjectId;
-                    this.populateCompositions(selectProjectId, 'main');
-                } else if (selectProjectId) {
-                    this.populateCompositions('', '');
-                }
+                this.renderProjectCatalog(selectProjectId);
             } catch (error) {
                 console.error('[layer-studio] project catalog load failed:', error);
                 this.el.projectSelect.replaceChildren(new Option('Projects unavailable', ''));
                 this.populateCompositions('', '');
+                this.syncProjectArchiveControls();
                 this.setStatus(error.message || 'Could not load repository projects.', true);
+            }
+        }
+
+        renderProjectCatalog(selectProjectId = null) {
+            const previousId = this.el.projectSelect.value;
+            const visibleProjects = this.projectCatalog.filter((project) =>
+                this.showArchivedProjects || !project.archived);
+            const options = [new Option('Choose a project…', '')];
+            visibleProjects.forEach((project) => {
+                const label = project.archived
+                    ? `${project.name || project.id} (Archived)`
+                    : (project.name || project.id);
+                options.push(new Option(label, project.id));
+            });
+            this.el.projectSelect.replaceChildren(...options);
+            const nextId = selectProjectId || previousId;
+            if (nextId && visibleProjects.some((project) => project.id === nextId)) {
+                this.el.projectSelect.value = nextId;
+                this.populateCompositions(nextId, 'main');
+            } else {
+                this.el.projectSelect.value = '';
+                if (nextId) this.populateCompositions('', '');
+            }
+            this.syncProjectArchiveControls();
+        }
+
+        syncProjectArchiveControls() {
+            const project = this.projectCatalog.find((item) => item.id === this.el.projectSelect?.value);
+            if (this.el.archiveProject) {
+                this.el.archiveProject.disabled = !project;
+                this.el.archiveProject.textContent = project?.archived ? 'Restore project' : 'Archive project';
+                this.el.archiveProject.title = project?.archived
+                    ? 'Restore this project to the project picker'
+                    : 'Hide this project from the project picker; it can be restored later';
+            }
+            if (this.el.toggleArchivedProjects) {
+                this.el.toggleArchivedProjects.textContent = this.showArchivedProjects
+                    ? 'Hide archived'
+                    : 'Show archived';
+                this.el.toggleArchivedProjects.setAttribute('aria-pressed', String(this.showArchivedProjects));
+            }
+        }
+
+        toggleArchivedProjectsView() {
+            this.showArchivedProjects = !this.showArchivedProjects;
+            this.renderProjectCatalog();
+        }
+
+        async toggleProjectArchived() {
+            const project = this.projectCatalog.find((item) => item.id === this.el.projectSelect?.value);
+            if (!project) return;
+            const archived = !project.archived;
+            try {
+                await this.requestBackend(`api/projects/${encodeURIComponent(project.id)}/archive`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ archived }),
+                });
+                project.archived = archived;
+                this.renderProjectCatalog(archived ? null : project.id);
+                this.setStatus(archived
+                    ? (this.showArchivedProjects
+                        ? `Archived "${project.name}". Choose Restore project to return it to the picker.`
+                        : `Archived "${project.name}". Use Show archived to restore it.`)
+                    : `Restored "${project.name}" to the project picker.`);
+            } catch (error) {
+                console.error('[layer-studio] project archive update failed:', error);
+                this.setStatus(error.message || 'Could not update the project archive status.', true);
             }
         }
 
@@ -8314,11 +8409,19 @@
                 const value = await this.requestBackend(
                     `api/projects/${encodeURIComponent(project.id)}/compositions/${encodeURIComponent(composition.id)}`,
                 );
+                const scene = value?.type === 'studio-scene-animation'
+                    ? window.StudioSceneAnimation.applyManifest(value.scene, value.animation)
+                    : value;
                 const importId = project.id.startsWith('import-') ? project.id.slice('import-'.length) : null;
-                this.openComposition(value, importId
+                const repositoryCompositionId = composition.sceneId || composition.id;
+                this.openComposition(scene, importId
                     ? { projectId: importId, projectMeta: value.meta || null }
-                    : { repositorySource: { projectId: project.id, compositionId: composition.id } });
-                this.setStatus(`Opened "${this.composition.name}".`);
+                    : { repositorySource: { projectId: project.id, compositionId: repositoryCompositionId } });
+                this.setStatus(composition.kind === 'animation' && composition.sceneId
+                    ? `Opened "${composition.name}" on "${this.composition.name}".`
+                    : composition.kind === 'animation'
+                        ? `Opened animation scene "${composition.name}".`
+                    : `Opened "${this.composition.name}".`);
             } catch (error) {
                 console.error('[layer-studio] repository composition open failed:', error);
                 this.setStatus(error.message || 'Could not open the selected composition.', true);

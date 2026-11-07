@@ -1064,6 +1064,126 @@ window.addEventListener('DOMContentLoaded', () => {
         if (event.target === organizerDialog) organizerDialog.close();
     });
 
+    const addButterflyPigButton = $('layerAddButterflyPig');
+    const layeredAnimationStatus = $('layeredAnimationStatus');
+    addButterflyPigButton?.addEventListener('click', async () => {
+        if (addButterflyPigButton.disabled) return;
+        addButterflyPigButton.disabled = true;
+        layeredAnimationStatus.textContent = 'Loading animation tracks…';
+        try {
+            if (!window.LayeredAnimation) throw new Error('The layered animation importer did not load.');
+            const response = await fetch('/src/client/studio/animations/butterfly-pig/motion-tracks.json');
+            if (!response.ok) throw new Error(`Could not load the animation tracks (${response.status}).`);
+            const tracks = await response.json();
+            const composition = studio.composition;
+            const highestZ = composition.layers.reduce((highest, layer) => {
+                const z = Number(layer.z);
+                return Number.isFinite(z) ? Math.max(highest, z) : highest;
+            }, -1);
+            const suffix = window.crypto?.randomUUID
+                ? window.crypto.randomUUID().replace(/-/g, '').slice(0, 10)
+                : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+            const imported = window.LayeredAnimation.createLayeredAnimation(
+                tracks,
+                { width: composition.width, height: composition.height },
+                { zStart: Math.min(1000, highestZ + 1), idPrefix: `butterfly-pig-${suffix}` },
+            );
+            if (composition.layers.length + imported.layers.length > 500) {
+                throw new Error('There is not enough room in this composition for all 15 animation subjects.');
+            }
+
+            studio.stopPlayback();
+            composition.layers.push(...imported.layers);
+            composition.duration = Math.max(Number(composition.duration) || 0, imported.duration);
+            studio.selectedLayerId = imported.layers.find(
+                (layer) => layer.segmentGroup === 'Pig' && layer.opacity > 0,
+            )?.id || null;
+            studio.animation.currentTime = 0;
+            studio.render();
+            studio.scheduleSave();
+            const message = `Added the pig and ${tracks.butterflies.length} butterflies as ${imported.layers.length} editable layers (${(imported.duration / 1000).toFixed(1)} seconds).`;
+            layeredAnimationStatus.textContent = message;
+            studio.setStatus(message);
+        } catch (error) {
+            console.error('[layer-studio] layered animation import failed:', error);
+            layeredAnimationStatus.textContent = error.message || 'Could not add the layered animation.';
+            studio.setStatus(layeredAnimationStatus.textContent, true);
+        } finally {
+            addButterflyPigButton.disabled = false;
+        }
+    });
+
+    const addCyclistRideButton = $('layerAddCyclistRide');
+    addCyclistRideButton?.addEventListener('click', async () => {
+        if (addCyclistRideButton.disabled) return;
+        addCyclistRideButton.disabled = true;
+        layeredAnimationStatus.textContent = 'Loading cyclist motion…';
+        try {
+            if (!window.LayeredAnimation) throw new Error('The layered animation importer did not load.');
+            const response = await fetch('/src/client/studio/animations/cyclist/motion-tracks.json');
+            if (!response.ok) throw new Error(`Could not load the cyclist animation (${response.status}).`);
+            const source = await response.json();
+            const composition = studio.composition;
+            const existing = source.layers.map((sourceLayer) => composition.layers.find(
+                (layer) => layer.name === sourceLayer.name && layer.segmentGroup === sourceLayer.segmentGroup,
+            ));
+            if (existing.every((layer) => layer?.keyframes?.length)) {
+                const message = 'This scene already has the cyclist ride animation.';
+                layeredAnimationStatus.textContent = message;
+                studio.setStatus(message);
+                return;
+            }
+            if (existing.some((layer) => layer?.keyframes?.length)) {
+                throw new Error('Some cyclist layers already have animation. Remove those layers before adding the complete ride.');
+            }
+
+            const highestZ = composition.layers.reduce((highest, layer) => {
+                const z = Number(layer.z);
+                return Number.isFinite(z) ? Math.max(highest, z) : highest;
+            }, -1);
+            const suffix = window.crypto?.randomUUID
+                ? window.crypto.randomUUID().replace(/-/g, '').slice(0, 10)
+                : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+            const imported = window.LayeredAnimation.createCyclistAnimation(
+                source,
+                { width: composition.width, height: composition.height },
+                { zStart: highestZ + 1, idPrefix: `cyclist-ride-${suffix}` },
+            );
+            const additions = [];
+            imported.layers.forEach((layer) => {
+                const match = composition.layers.find(
+                    (item) => item.name === layer.name && item.segmentGroup === layer.segmentGroup,
+                );
+                if (match) {
+                    Object.assign(match, layer, { id: match.id, z: match.z });
+                } else {
+                    additions.push(layer);
+                }
+            });
+            if (composition.layers.length + additions.length > 500) {
+                throw new Error('There is not enough room in this composition for the cyclist animation.');
+            }
+            studio.stopPlayback();
+            composition.layers.push(...additions);
+            composition.duration = Math.max(Number(composition.duration) || 0, imported.duration);
+            studio.selectedLayerId = composition.layers.find(
+                (layer) => layer.name === 'cyclist-torso' && layer.segmentGroup === 'Cyclist',
+            )?.id || imported.layers[0]?.id || null;
+            studio.animation.currentTime = 0;
+            studio.render();
+            studio.scheduleSave();
+            const message = `Added the sidewalk-aligned cyclist ride as ${imported.layers.length} editable layers (${(imported.duration / 1000).toFixed(1)} seconds).`;
+            layeredAnimationStatus.textContent = message;
+            studio.setStatus(message);
+        } catch (error) {
+            console.error('[layer-studio] cyclist animation import failed:', error);
+            layeredAnimationStatus.textContent = error.message || 'Could not add the cyclist animation.';
+            studio.setStatus(layeredAnimationStatus.textContent, true);
+        } finally {
+            addCyclistRideButton.disabled = false;
+        }
+    });
+
     // _.js re-renders its hidden list on every change; use that as the redraw signal.
     let queued = false;
     new MutationObserver(() => {

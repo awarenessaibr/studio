@@ -360,7 +360,15 @@
                 ]),
                 h('span', { class: 'status-pill', dataset: { status: 'checking' }, text: '…' }),
                 h('div', { class: 'platform-detail' }, [
-                    h('input', { type: 'url', placeholder: `Paste a ${platform.label} URL`, 'data-platform': platform.key, disabled: true }),
+                    h('input', {
+                        id: `profile-${platform.key}`,
+                        name: `profiles[${platform.key}]`,
+                        type: 'url',
+                        placeholder: `Paste a ${platform.label} URL`,
+                        'aria-label': `${platform.label} URL`,
+                        'data-platform': platform.key,
+                        disabled: true,
+                    }),
                     h('small', { text: 'Checking…' }),
                 ]),
             ]));
@@ -452,6 +460,8 @@
             const status = url ? 'found' : row.status;
             const detail = h('div', { class: 'platform-detail' }, [
                 h('input', {
+                    id: `profile-${platform.key}`,
+                    name: `profiles[${platform.key}]`,
                     type: 'url',
                     value: url,
                     placeholder: `Paste a ${platform.label} URL`,

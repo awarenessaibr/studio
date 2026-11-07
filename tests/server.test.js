@@ -194,6 +194,66 @@ test('projectPublicFile exposes generated project images only', () => {
     assert.strictEqual(server.projectPublicFile('/data/projects/demo/images/page.html'), null);
 });
 
+test('studio project archive status persists and can be restored', async () => {
+    const catalog = await server.listStudioProjects();
+    const project = catalog.find((item) => item.id === 'repo-Butterfly-The-Stairs');
+    assert.ok(project, 'Butterfly-The-Stairs repository project is listed');
+    const originalStatus = project.archived;
+    try {
+        await server.setStudioProjectArchived(project.id, !originalStatus);
+        const archived = (await server.listStudioProjects()).find((item) => item.id === project.id);
+        assert.equal(archived.archived, !originalStatus);
+    } finally {
+        await server.setStudioProjectArchived(project.id, originalStatus);
+    }
+    const restored = (await server.listStudioProjects()).find((item) => item.id === project.id);
+    assert.equal(restored.archived, originalStatus);
+});
+
+test('repository scene animations are listed and loaded with their referenced scene', async () => {
+    const catalog = await server.listStudioProjects();
+    const project = catalog.find((item) => item.id === 'repo-Butterfly-The-Stairs');
+    assert.ok(project, 'Butterfly-The-Stairs repository project is listed');
+    const variants = project.compositions.filter((item) => item.kind === 'animation'
+        && item.id.startsWith('ambient-'));
+    assert.deepStrictEqual(
+        variants.map((item) => item.id).sort(),
+        ['ambient-lighting-and-movement'],
+    );
+    variants.forEach((variant) => {
+        assert.equal(variant.sceneId, 'Butterfly-The-Stairs');
+    });
+
+    const loaded = await server.readStudioComposition(project.id, 'ambient-lighting-and-movement');
+    assert.equal(loaded.type, 'studio-scene-animation');
+    assert.equal(loaded.scene.id, 'Butterfly-The-Stairs');
+    assert.equal(loaded.animation.id, 'ambient-lighting-and-movement');
+});
+
+test('repository animation folder accepts complete composition JSON variants', async () => {
+    const catalog = await server.listStudioProjects();
+    const project = catalog.find((item) => item.id === 'repo-Butterfly-The-Stairs');
+    const variants = project.compositions.filter((item) => item.id.startsWith('Butterfly-Stairs-'));
+    assert.deepStrictEqual(
+        variants.map((item) => item.id).sort(),
+        [
+            'Butterfly-Stairs-A-gallery-reveal',
+            'Butterfly-Stairs-B-warm-light-and-dust',
+            'Butterfly-Stairs-C-parallax-push-in',
+        ],
+    );
+    variants.forEach((variant) => assert.equal(variant.kind, 'animation'));
+
+    const loaded = await server.readStudioComposition(
+        project.id,
+        'Butterfly-Stairs-C-parallax-push-in',
+    );
+    assert.equal(loaded.id, 'Butterfly-The-Stairs-parallax');
+    assert.equal(loaded.duration, 9000);
+    assert.equal(loaded.layers.length, 85);
+    assert.ok(loaded.layers.some((layer) => layer.keyframes.length > 0));
+});
+
 test('transcodeVideoToMp4 yields an H.264 MP4 when ffmpeg is installed', async (t) => {
     const ffmpeg = process.env.STUDIO_FFMPEG || 'ffmpeg';
     const ffprobe = process.env.STUDIO_FFPROBE || 'ffprobe';

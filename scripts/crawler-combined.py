@@ -83,6 +83,8 @@ script or in the working directory)
 
 LIMITS (observed, not speculative)
 ----------------------------------
+  * HTTP 429/503 responses honor Retry-After (capped at 15 minutes) and pause
+    further requests to that host for the cooldown window.
   * Google Maps renders only ~5 unique reviews to anonymous browsers. Rating,
     count, distribution and topics are complete; set GOOGLE_PLACES_API_KEY or
     SERPAPI_KEY for full review coverage.
@@ -114,6 +116,7 @@ import gzip
 import hashlib
 import io
 import contextlib
+from email.utils import parsedate_to_datetime
 import json
 import math
 import mimetypes
@@ -671,7 +674,8 @@ def fix_response_encoding(resp):
     return resp
 
 
-def get(url, stream=False, retries=3, log_errors=True, allow_redirects=True):
+def get(url, stream=False, retries=3, log_errors=True, allow_redirects=True,
+        _allow_www_fallback=True):
     current_headers = HEADERS.copy()
     for attempt in range(retries):
         try:
@@ -709,6 +713,30 @@ def get(url, stream=False, retries=3, log_errors=True, allow_redirects=True):
             return resp
 
         except requests.exceptions.SSLError:
+            parsed = urlparse(url)
+            host = (parsed.hostname or "").lower()
+            if (_allow_www_fallback and host.startswith("www.")
+                    and not parsed.username and not parsed.password):
+                port = parsed.port
+                fallback_netloc = host[4:]
+                if port not in (None, 80, 443):
+                    fallback_netloc += f":{port}"
+                fallback = parsed._replace(
+                    scheme="https",
+                    netloc=fallback_netloc,
+                ).geturl()
+                if log_errors:
+                    print(f"TLS verification failed for {url}; retrying {fallback}")
+                response = get(
+                    fallback,
+                    stream=stream,
+                    retries=retries,
+                    log_errors=log_errors,
+                    allow_redirects=allow_redirects,
+                    _allow_www_fallback=False,
+                )
+                if response:
+                    return response
             if log_errors:
                 print(f"SSL error for {url} (permanent, skipping)")
             PERMANENTLY_FAILED.add(url)
@@ -1028,7 +1056,45 @@ def normalize_candidate_url(raw, current_url):
     value = value.replace('\\/', '/')
     absolute = urljoin(current_url, value)
     absolute = absolute.split('#')[0].strip().rstrip(".,;)")
+    parsed = urlparse(absolute)
+    reference = urlparse(current_url)
+    parsed_host = (parsed.hostname or "").lower()
+    reference_host = (reference.hostname or "").lower()
+    try:
+        same_port = parsed.port == reference.port
+    except ValueError:
+        same_port = False
+    if (parsed_host.removeprefix("www.") == reference_host.removeprefix("www.")
+            and same_port and reference.scheme):
+        absolute = parsed._replace(
+            scheme=reference.scheme,
+            netloc=reference.netloc,
+        ).geturl()
     return absolute or None
+
+
+def crawl_url_key(url):
+    """Canonical key for crawl deduplication across host and URL aliases."""
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower().removeprefix("www.")
+    try:
+        port = parsed.port
+    except ValueError:
+        port = None
+    if port not in (None, 80, 443):
+        host = f"{host}:{port}"
+
+    tracking_keys = {
+        "fbclid", "gclid", "dclid", "msclkid", "mc_cid", "mc_eid",
+        "_ga", "_gl",
+    }
+    query = [
+        (key, value)
+        for key, value in up.parse_qsl(parsed.query, keep_blank_values=True)
+        if not key.lower().startswith("utm_") and key.lower() not in tracking_keys
+    ]
+    path = (parsed.path or "/").rstrip("/") or "/"
+    return up.urlunsplit(("", host, path, up.urlencode(sorted(query)), ""))
 
 
 def extract_srcset_urls(srcset_value):
@@ -2177,7 +2243,7 @@ def parse_sitemap(sitemap_url):
     urls = set()
     if sitemap_url in PERMANENTLY_FAILED:
         return urls
-    resp = get(sitemap_url)
+    resp = get(sitemap_url, log_errors=False)
     if not resp:
         return urls
     try:
@@ -2188,11 +2254,14 @@ def parse_sitemap(sitemap_url):
     ns = {'sm': 'http://www.sitemaps.org/schemas/sitemap/0.9'}
     for url_elem in root.findall('url/loc') or root.findall('.//sm:loc', ns):
         if url_elem is not None and url_elem.text:
-            urls.add(url_elem.text.strip())
+            normalized = normalize_candidate_url(url_elem.text.strip(), resp.url or sitemap_url)
+            if normalized:
+                urls.add(normalized)
     for sitemap_elem in root.findall('sitemap/loc') or root.findall('.//sm:sitemap/sm:loc', ns):
         if sitemap_elem is not None and sitemap_elem.text:
-            sub_url = sitemap_elem.text.strip()
-            urls.update(parse_sitemap(sub_url))
+            sub_url = normalize_candidate_url(sitemap_elem.text.strip(), resp.url or sitemap_url)
+            if sub_url:
+                urls.update(parse_sitemap(sub_url))
     return urls
 
 
@@ -2438,21 +2507,31 @@ def crawl_pages(start_urls):
             print(f"Resuming checkpoint: {len(visited)} visited, {len(to_visit)} queued, "
                   f"{len(media_urls)} media, {len(text_pages)} text pages")
 
+    visited_keys = {crawl_url_key(url) for url in visited}
+    queued_keys = {crawl_url_key(url) for url in to_visit}
+    to_visit = list(dict.fromkeys(to_visit))
+    queued_keys = {crawl_url_key(url) for url in to_visit}
     for seed in start_urls:
-        if seed and seed not in visited and seed not in to_visit and seed not in PERMANENTLY_FAILED:
+        seed_key = crawl_url_key(seed) if seed else ""
+        if (seed and seed_key not in visited_keys and seed_key not in queued_keys
+                and seed not in PERMANENTLY_FAILED):
             if len(to_visit) < MAX_PAGE_CRAWL:
                 to_visit.append(seed)
+                queued_keys.add(seed_key)
 
     pages_since_checkpoint = 0
+    pages_completed = 0
     os.makedirs(TEXT_DIR, exist_ok=True)
 
     def queue_links(found_links):
         for href in found_links:
-            if href in visited or href in to_visit:
+            href_key = crawl_url_key(href)
+            if href_key in visited_keys or href_key in queued_keys:
                 continue
             if len(to_visit) >= MAX_PAGE_CRAWL:
                 continue
             to_visit.append(href)
+            queued_keys.add(href_key)
 
     def handle_page_html(url, html):
         found_media, found_links, found_embeds = harvest_document(html, url)
@@ -2463,38 +2542,59 @@ def crawl_pages(start_urls):
     with ThreadPoolExecutor(max_workers=WEB_MAX_WORKERS) as executor:
         futures = {}
         while to_visit and len(visited) < MAX_PAGE_CRAWL:
-            while to_visit and len(futures) < WEB_MAX_WORKERS * 2:
+            while (to_visit and len(futures) < WEB_MAX_WORKERS * 2
+                   and len(visited) < MAX_PAGE_CRAWL):
                 url = to_visit.pop(0)
-                if url in visited or url in PERMANENTLY_FAILED:
+                url_key = crawl_url_key(url)
+                queued_keys.discard(url_key)
+                if url_key in visited_keys or url in PERMANENTLY_FAILED:
                     continue
                 visited.add(url)
+                visited_keys.add(url_key)
                 pages_since_checkpoint += 1
                 futures[executor.submit(get, url)] = url
 
             for future in as_completed(futures):
                 url = futures.pop(future)
+                pages_completed += 1
                 try:
                     resp = future.result()
                     if resp and resp.status_code == 200:
+                        page_url = resp.url or url
+                        if not is_same_domain(page_url):
+                            page_url = url
+                        elif page_url != url:
+                            final_key = crawl_url_key(page_url)
+                            source_key = crawl_url_key(url)
+                            if final_key != source_key:
+                                visited.discard(url)
+                                visited_keys.discard(source_key)
+                                visited.add(page_url)
+                                visited_keys.add(final_key)
+                        _page_cache[url] = resp.text
+                        _page_cache[page_url] = resp.text
                         ctype = (resp.headers.get('content-type') or '').lower()
                         if 'html' in ctype or not ctype:
-                            _page_cache[url] = resp.text
-                            if url not in text_pages:
+                            if page_url not in text_pages:
                                 try:
                                     text = extract_page_text(resp.text)
                                     if text.strip():
-                                        txt_path = os.path.join(TEXT_DIR, text_safe_filename(url))
+                                        txt_path = os.path.join(TEXT_DIR, text_safe_filename(page_url))
                                         with open(txt_path, 'w', encoding='utf-8') as f:
                                             f.write(text)
-                                        text_pages.add(url)
+                                        text_pages.add(page_url)
                                 except Exception as e:
-                                    print(f"Text extraction error for {url}: {e}")
+                                    print(f"Text extraction error for {page_url}: {e}")
                             try:
-                                handle_page_html(url, resp.text)
+                                handle_page_html(page_url, resp.text)
                             except Exception as e:
-                                print(f"Link extraction error for {url}: {e}")
+                                print(f"Link extraction error for {page_url}: {e}")
                 except Exception as e:
                     print(f"Error crawling {url}: {e}")
+                if pages_completed == 1 or pages_completed % 5 == 0:
+                    print(f"Page crawl progress: {pages_completed} fetched, "
+                          f"{len(visited)} visited, {len(to_visit)} queued.",
+                          flush=True)
                 time.sleep(WEB_REQUEST_DELAY)
 
             if ENABLE_CRAWL_CHECKPOINT and pages_since_checkpoint >= CRAWL_CHECKPOINT_SAVE_EVERY:
@@ -4380,6 +4480,8 @@ class State:
     cookies = {}
     tokens = {}
     last_hit = {}
+    rate_limit_cooldowns = {}
+    rate_limit_statuses = {}
     page_cache = {}
     search_cache = {}
     browser = None
@@ -4745,6 +4847,28 @@ def throttle(platform):
     State.last_hit[host] = time.time()
 
 
+def retry_after_seconds(value):
+    """Parse Retry-After as either delta-seconds or an HTTP date."""
+    if not value:
+        return None
+    try:
+        return max(0.0, float(value))
+    except (TypeError, ValueError):
+        pass
+    try:
+        retry_at = parsedate_to_datetime(str(value))
+        if retry_at.tzinfo is None:
+            retry_at = retry_at.replace(tzinfo=timezone.utc)
+        return max(0.0, (retry_at - datetime.now(timezone.utc)).total_seconds())
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def rate_limit_host(url, platform):
+    host = PLATFORM_DOMAIN.get(platform) or urlparse(url).hostname or platform
+    return host.lower().removeprefix("www.")
+
+
 # ---- HTTP fetch layer ---------------------------------------------------
 class FetchResult:
     __slots__ = ("ok", "status", "url", "text", "headers", "via", "error",
@@ -4828,7 +4952,7 @@ def _cache_write(path, result):
 
 def fetch(url, platform="default", retries=HTTP_RETRIES, stream=False,
           json_response=False, use_cache=True, referer=None, params=None,
-          extra_headers=None):
+          extra_headers=None, log_http_errors=True):
     """Tier-2 fetch: requests with retries, jitter, caching and honest status."""
     if not url:
         return FetchResult(error="empty url")
@@ -4848,6 +4972,19 @@ def fetch(url, platform="default", retries=HTTP_RETRIES, stream=False,
             State.page_cache[url] = hit
             return hit
 
+    host_key = rate_limit_host(url, platform)
+    cooldown_until = State.rate_limit_cooldowns.get(host_key, 0)
+    if cooldown_until > time.time():
+        remaining = max(1, int(cooldown_until - time.time()))
+        status = State.rate_limit_statuses.get(host_key, 429)
+        result = FetchResult(False, status, url, "", {}, "http",
+                             f"host cooling down for {remaining}s")
+        if not params:
+            State.page_cache[url] = result
+        log(f"skipping {platform} request during {host_key} rate-limit cooldown "
+            f"({remaining}s remaining)", "debug")
+        return result
+
     session = _session(platform)
     headers = dict(extra_headers or {})
     if referer:
@@ -4865,12 +5002,29 @@ def fetch(url, platform="default", retries=HTTP_RETRIES, stream=False,
             if not stream and not json_response:
                 fix_response_encoding(resp)
 
-            if resp.status_code in (429, 503) or resp.status_code == 403 and "rate" in resp.text.lower()[:2000]:
-                wait = min(60, REQUEST_DELAY.get(platform, 1.0) * (attempt + 1) * 4)
-                log(f"rate limited ({resp.status_code}) on {platform}; sleeping {wait:.0f}s", "warn")
-                time.sleep(wait + random.uniform(0, 1))
-                last_error = f"HTTP {resp.status_code}"
-                continue
+            rate_limited = resp.status_code in (429, 503) or (
+                resp.status_code == 403 and "rate" in resp.text.lower()[:2000]
+            )
+            if rate_limited:
+                retry_after = retry_after_seconds(resp.headers.get("Retry-After"))
+                default_cooldown = 300 if resp.status_code in (429, 403) else 60
+                cooldown = min(900, max(1, retry_after if retry_after is not None
+                                        else default_cooldown))
+                cooldown_until = time.time() + cooldown
+                if cooldown_until >= State.rate_limit_cooldowns.get(host_key, 0):
+                    State.rate_limit_cooldowns[host_key] = cooldown_until
+                    State.rate_limit_statuses[host_key] = resp.status_code
+                status_label = "rate limited" if resp.status_code in (429, 403) else "temporarily unavailable"
+                log(f"{status_label} (HTTP {resp.status_code}) on {platform}; "
+                    f"pausing requests to {host_key} for {cooldown:.0f}s", "warn")
+                result = FetchResult(False, resp.status_code, resp.url,
+                                     "" if stream else resp.text,
+                                     dict(resp.headers), "http",
+                                     f"HTTP {resp.status_code}; retry after {cooldown:.0f}s",
+                                     elapsed)
+                if not params:
+                    State.page_cache[url] = result
+                return result
 
             if json_response:
                 try:
@@ -4893,7 +5047,7 @@ def fetch(url, platform="default", retries=HTTP_RETRIES, stream=False,
                                  resp.text, dict(resp.headers), "http", None, elapsed)
             if result.ok and cache_file:
                 _cache_write(cache_file, result)
-            if not result.ok:
+            if not result.ok and log_http_errors:
                 log(f"HTTP {resp.status_code} [{platform}] {url[:110]}", "warn")
             if not params:
                 State.page_cache[url] = result
@@ -8526,7 +8680,7 @@ def fetch_website(ctx):
                     tech.append(name)
             result["metrics"]["page_size_kb"] = round(len(page.text) / 1024, 1)
             sitemap = fetch(up.urljoin(result["url"], "/sitemap.xml"), platform="default",
-                            use_cache=True)
+                            use_cache=True, log_http_errors=False)
             if sitemap.ok and "<urlset" in sitemap.text.lower():
                 result["metrics"]["sitemap_urls"] = sitemap.text.lower().count("<loc>")
     result["metrics"]["tech"] = tech
@@ -8989,7 +9143,8 @@ def _latest_post_date(posts):
 
 def analyze_social(results):
     matrix = []
-    totals = {"followers": 0, "platforms_present": 0, "platforms_configured": 0}
+    totals = {"followers": 0, "followers_reported": 0,
+              "platforms_present": 0, "platforms_configured": 0}
     completeness_fields = ("name", "bio", "profile_pic_url", "handle", "external_url")
     completeness = {}
     handles = {}
@@ -9009,6 +9164,8 @@ def analyze_social(results):
         if present:
             totals["platforms_present"] += 1
         followers = profile.get("followers")
+        if followers is not None:
+            totals["followers_reported"] += 1
         if followers:
             totals["followers"] += followers
         latest = _latest_post_date(data.get("posts"))
@@ -9632,6 +9789,20 @@ def format_number(value):
     return str(value)
 
 
+def format_social_followers(social):
+    """Do not present an uncollected follower count as a measured zero."""
+    totals = (social or {}).get("totals") or {}
+    reported = totals.get("followers_reported")
+    if reported is None:
+        reported = sum(
+            row.get("followers") is not None
+            for row in (social or {}).get("matrix") or []
+        )
+        if not reported and totals.get("followers"):
+            reported = 1
+    return format_number(totals.get("followers")) if reported else "unavailable"
+
+
 def write_reviews_csv(path, reviews):
     columns = ["source", "date", "rating", "author", "title", "text",
                "sentiment", "language", "owner_response", "photos", "url"]
@@ -9668,7 +9839,7 @@ def write_insights_md(path, profile, reviews):
               f"{format_number(rep['collected_raw'])})"
               if rep.get("duplicates_merged") else "")],
          ["Sources present", ", ".join(rep["sources"]) or "—"],
-         ["Combined social followers", format_number(social["totals"]["followers"])],
+         ["Combined social followers", format_social_followers(social)],
          ["Platforms present", f"{social['totals']['platforms_present']} of "
                                 f"{social['totals']['platforms_configured']}"],
          ["Last social activity", social.get("latest_activity") or "unknown"],
@@ -9937,7 +10108,7 @@ def write_report_html(path, profile, reviews):
     parts.append('<div class="cards">')
     parts.append(f'<div class="card"><div class="n">{format_number(rep["consensus_rating"])}<span class="small">/5</span></div><div class="l">Consensus rating</div></div>')
     parts.append(f'<div class="card"><div class="n">{format_number(rep["total_reviews"])}</div><div class="l">Reviews (all sources)</div></div>')
-    parts.append(f'<div class="card"><div class="n">{format_number(social["totals"]["followers"])}</div><div class="l">Combined followers</div></div>')
+    parts.append(f'<div class="card"><div class="n">{format_social_followers(social)}</div><div class="l">Combined followers</div></div>')
     parts.append(f'<div class="card"><div class="n">{format_number(rep["collected_reviews"])}</div><div class="l">Reviews analysed</div></div>')
     parts.append('</div>')
 
@@ -10492,6 +10663,7 @@ def run_business(business, index=1, total=1):
         "collected_reviews": profile["reputation"]["collected_reviews"],
         "sources": profile["reputation"]["sources_present"],
         "followers": profile["social"]["totals"]["followers"],
+        "followers_reported": profile["social"]["totals"].get("followers_reported", 0),
         "platforms_present": profile["social"]["totals"]["platforms_present"],
         "scores": profile["scores"],
         "red_flags": len(profile["reputation"]["red_flags"]),
@@ -10500,7 +10672,7 @@ def run_business(business, index=1, total=1):
     }
     log(f"done · rating {format_number(summary['consensus_rating'])} · "
         f"{format_number(summary['total_reviews'])} reviews · "
-        f"{format_number(summary['followers'])} followers · "
+        f"{format_social_followers(profile['social'])} followers · "
         f"score {summary['scores']['overall']}", "ok")
     return summary
 
@@ -10588,7 +10760,7 @@ def write_group_report(summaries, profiles, out_dir=None):
             profile["business"]["name"],
             format_number(rep.get("consensus_rating")),
             format_number(rep.get("total_reviews")),
-            format_number((social.get("totals") or {}).get("followers")),
+            format_social_followers(social),
             format_number((social.get("totals") or {}).get("platforms_present")),
             (profile.get("scores") or {}).get("overall"),
             (profile.get("scores") or {}).get("reputation"),
@@ -10818,6 +10990,7 @@ def summary_from_profile(profile, out_dir):
         "collected_reviews": rep.get("collected_reviews"),
         "sources": rep.get("sources_present") or [],
         "followers": social.get("followers"),
+        "followers_reported": social.get("followers_reported"),
         "platforms_present": social.get("platforms_present"),
         "scores": profile.get("scores") or {},
         "red_flags": len(rep.get("red_flags") or []),
@@ -10981,6 +11154,7 @@ def entry_metrics(entry):
     return {
         "rating": rep.get("consensus_rating"), "reviews": rep.get("total_reviews"),
         "followers": social.get("followers"),
+        "followers_display": format_social_followers(profile.get("social") or {}),
         "platforms": social.get("platforms_present"),
         "overall": (profile.get("scores") or {}).get("overall"),
     }
@@ -10993,7 +11167,7 @@ def write_group_readme(group_dir, entries, failures):
         if entry.get("profile"):
             m = entry_metrics(entry)
             line += (f" · rating {format_number(m['rating'])} from {format_number(m['reviews'])} reviews"
-                     f" · {format_number(m['followers'])} followers · score {format_number(m['overall'])}/100")
+                     f" · {m['followers_display']} followers · score {format_number(m['overall'])}/100")
         else:
             line += " · no social data"
         lines.append(line)
@@ -11019,7 +11193,7 @@ def write_portfolio_outputs(portfolio_dir, entries, failures):
         m = entry_metrics(entry)
         rows.append([entry["name"], entry["website"], entry["folder"],
                      format_number(m["rating"]), format_number(m["reviews"]),
-                     format_number(m["followers"]), format_number(m["overall"])])
+                     m["followers_display"], format_number(m["overall"])])
     filename = re.sub(r"[^A-Za-z0-9_.-]+", "-", BRAND_PACK_GROUP_NAME).strip("-") + "-Overview.docx"
     write_docx(
         os.path.join(portfolio_dir, filename), BRAND_PACK_GROUP_NAME,
@@ -11296,6 +11470,8 @@ def configure_run(args):
     State.only = ({s.strip().lower() for s in args.only.split(",") if s.strip()}
                   if args.only else None)
     State.skip = {s.strip().lower() for s in (args.skip or "").split(",") if s.strip()}
+    State.rate_limit_cooldowns.clear()
+    State.rate_limit_statuses.clear()
     MAX_POSTS_PER_PROFILE = max(1, args.max_posts)
     KEEP_RAW_HTML = bool(args.keep_raw)
     DOWNLOAD_ASSETS = not args.no_assets

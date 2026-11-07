@@ -63,6 +63,7 @@
         ['wobble', 'Wobble', 900, 'emph'],
         ['tada', 'Tada', 1000, 'emph'],
         ['flash', 'Flash', 800, 'emph'],
+        ['flicker', 'Flicker', 900, 'emph'],
         ['rubber', 'Rubber band', 900, 'emph'],
         ['hop', 'Hop', 900, 'emph'],
         ['spin', 'Spin', 1000, 'emph'],
@@ -219,6 +220,11 @@
                 return frame({ s: 1 + .1 * env, r: Math.sin(p * Math.PI * 8) * .05 * env });
             }
             case 'flash': return frame({ a: .15 + .85 * (.5 + .5 * Math.cos(p * Math.PI * 4)) });
+            case 'flicker': {
+                const pulse = Math.sin(elapsed / dur * TAU * 5) * .16
+                    + Math.sin(elapsed / dur * TAU * 11) * .08;
+                return frame({ a: clamp(.86 + pulse, .55, 1) });
+            }
             case 'rubber': {
                 const k = Math.sin(p * Math.PI * 5) * (1 - p);
                 return frame({ sx: 1 + .25 * k, sy: 1 - .25 * k });

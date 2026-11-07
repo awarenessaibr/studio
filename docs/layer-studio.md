@@ -38,6 +38,7 @@ For finished brand artwork (a flyer, a menu, a printable voucher) use
 │ Project       ├──────────────────────────────────────────────────────┤
 │ Brand identity│                                                      │
 │ Animation ideas│              CANVAS (zoom, drag, resize)            │
+│ Animations    │                                                      │
 │ Layers (tree) │                                                      │
 │ Variables     ├──────────────────────────────────────────────────────┤
 │ Save / Hide   │  ▶ Play   0 ms ──────●───────────── 3000 ms          │
@@ -57,10 +58,54 @@ only *Layers* expanded by default. Panels and the sidebar are resizable
 
 ### Project picker
 `Project ▾` lists repository projects (compositions under
-`data/projects/<project>/compositions/`) and saved ZIP imports. Choosing a
-project fills the `Composition ▾` picker. A repository composition opens
+`data/projects/<project>/compositions/`, plus named animations under
+`data/projects/<project>/animations/`) and saved ZIP imports. Choosing a
+project fills the `Composition ▾` picker. The base composition stays first; a
+named animation loads that scene with its cues applied. A repository composition opens
 read-only-ish: **Save project** creates an editable import copy, after which
 edits autosave.
+
+Use **Archive project** to hide the selected project from the picker without
+deleting it. **Show archived** reveals archived projects; select one and choose
+**Restore project** to return it to the regular list. Archive status is stored
+in `data/settings/studio-project-archive.json`.
+
+Repository projects can also provide named scene animations in
+`data/projects/<project>/animations/*.animation.json`. The picker lists each
+animation alongside its base composition. Selecting one loads the referenced
+composition and applies the cues as editable keyframes on a separate copy;
+the checked-in scene stays unchanged. An `.animation.json` may instead contain
+a complete composition document; the picker opens that scene directly, which
+is useful for variants that already have per-layer keyframes. A JSON scene can
+also be opened directly with **Import project** (or the JSON export can be
+round-tripped).
+
+Scene animation manifest format (version 1):
+
+```json
+{
+  "version": 1,
+  "type": "studio-scene-animation",
+  "id": "architectural-reveal",
+  "projectId": "Butterfly-The-Stairs",
+  "name": "Architectural Reveal",
+  "sceneId": "Butterfly-The-Stairs",
+  "duration": 3000,
+  "cues": [
+    { "layerId": "layer-architecture-stair-treads", "preset": "wipeRight", "duration": 1000, "delay": 500 }
+  ]
+}
+```
+
+`projectId` identifies the repository project and `sceneId` must match a
+composition ID in that project. Cues target existing layer IDs and supported
+preset IDs; `duration` and `delay` are milliseconds.
+`loop: true` repeats a cue for the manifest's full timeline. Invalid references,
+presets or timing are reported instead of silently skipped. Multiple cues for
+one layer are combined into one keyframe track, including overlapping cues.
+Both scene composition JSON and animation manifest JSON can be opened through
+**Import project**; a manifest resolves its base scene by `projectId` and
+`sceneId`.
 
 ### Add images / Add folder
 A file picker. Each image becomes a layer, ordered by size and filename.
@@ -199,6 +244,23 @@ loud.
 ---
 
 ## 6. Animation
+
+### Add a layered animation
+
+Sidebar → **Animations** → **Add Butterfly Chase** adds the bundled
+pig-and-butterflies sequence to the current composition. It creates editable
+image layers for all 15 moving subjects (left- and right-facing sprite layers
+per subject), imports their motion as native keyframes, fits them to the
+composition, and extends the timeline to 24.6 seconds. Existing scene layers
+are kept; the imported layers can be moved, renamed, hidden or removed like
+other layers, then saved and exported normally.
+
+**Add Cyclist Ride** imports the six bicycle and cyclist cutouts as native
+keyframed layers. It reuses matching static cutouts when the scene already has
+them, fits the ride to the canvas, and lowers the initial path onto the
+sidewalk, easing that correction out as the rider approaches. The bundled
+8-second path follows the sidewalk through the scene; existing animated
+cyclist layers are not duplicated.
 
 ### Presets
 

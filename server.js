@@ -52,6 +52,7 @@ const BRAND_PACKS_DIR = path.join(DATA_DIR, 'brand-packs');
 const SETTINGS_DIR = path.join(DATA_DIR, 'settings');
 const GROUP_SETTINGS_FILE = path.join(SETTINGS_DIR, 'groups.json');
 const STUDIO_ANIMATION_LIBRARY_FILE = path.join(SETTINGS_DIR, 'studio-animation-library.json');
+const STUDIO_PROJECT_ARCHIVE_FILE = path.join(SETTINGS_DIR, 'studio-project-archive.json');
 // The management UI is a developer surface. With a key configured, every
 // admin call must present it; without one, only loopback callers are allowed.
 const ADMIN_KEY = String(process.env.STUDIO_ADMIN_KEY || '').trim();
@@ -1368,6 +1369,7 @@ async function listImports() {
 }
 
 async function listStudioProjects() {
+    const archivedProjects = await readStudioProjectArchive();
     const projects = [];
     await fsp.mkdir(PROJECTS_DIR, { recursive: true });
     const entries = await fsp.readdir(PROJECTS_DIR, { withFileTypes: true });
@@ -1382,11 +1384,13 @@ async function listStudioProjects() {
             throw error;
         }
         const compositions = [];
+        const compositionIds = new Set();
         for (const file of files) {
             const match = file.isFile() && file.name.match(/^([A-Za-z0-9_-]{1,80})\.composition\.json$/);
             if (!match) continue;
             try {
                 const composition = JSON.parse(await fsp.readFile(path.join(compositionsDir, file.name), 'utf8'));
+                compositionIds.add(match[1]);
                 compositions.push({
                     id: match[1],
                     name: composition.name || match[1],
@@ -1396,12 +1400,54 @@ async function listStudioProjects() {
                 console.warn(`[studio] could not read composition ${entry.name}/${file.name}:`, error.message);
             }
         }
+        const animationsDir = path.join(PROJECTS_DIR, entry.name, 'animations');
+        let animationFiles = [];
+        try {
+            animationFiles = await fsp.readdir(animationsDir, { withFileTypes: true });
+        } catch (error) {
+            if (error.code !== 'ENOENT') throw error;
+        }
+        for (const file of animationFiles) {
+            const match = file.isFile() && file.name.match(/^([A-Za-z0-9_-]{1,80})\.animation\.json$/);
+            if (!match || compositionIds.has(match[1])) continue;
+            try {
+                const animationFile = path.join(animationsDir, file.name);
+                const manifest = JSON.parse(await fsp.readFile(animationFile, 'utf8'));
+                if (isStudioCompositionDocument(manifest)) {
+                    compositions.push({
+                        id: match[1],
+                        name: manifest.name || match[1],
+                        kind: 'animation',
+                    });
+                    continue;
+                }
+                if (manifest.version !== 1
+                    || manifest.type !== 'studio-scene-animation'
+                    || manifest.id !== match[1]
+                    || manifest.projectId !== entry.name
+                    || typeof manifest.name !== 'string'
+                    || !/^[A-Za-z0-9_-]{1,80}$/.test(manifest.sceneId || '')
+                    || !compositionIds.has(manifest.sceneId)) {
+                    throw new Error('invalid scene animation manifest header or scene reference');
+                }
+                compositions.push({
+                    id: manifest.id,
+                    name: manifest.name,
+                    kind: 'animation',
+                    sceneId: manifest.sceneId,
+                });
+            } catch (error) {
+                console.warn(`[studio] could not read scene animation ${entry.name}/${file.name}:`, error.message);
+            }
+        }
         if (compositions.length) {
-            compositions.sort((a, b) => a.name.localeCompare(b.name));
+            compositions.sort((a, b) => Number(a.kind === 'animation') - Number(b.kind === 'animation')
+                || a.name.localeCompare(b.name));
             projects.push({
                 id: `repo-${entry.name}`,
                 name: entry.name.replace(/[-_]+/g, ' '),
                 compositions,
+                archived: archivedProjects.has(`repo-${entry.name}`),
             });
         }
     }
@@ -1412,20 +1458,86 @@ async function listStudioProjects() {
             id: `import-${project.id}`,
             name: project.name,
             compositions: [{ id: 'main', name: project.name, kind: 'import' }],
+            archived: archivedProjects.has(`import-${project.id}`),
         });
     });
     projects.sort((a, b) => a.name.localeCompare(b.name));
     return projects;
 }
 
+async function readStudioProjectArchive() {
+    try {
+        const archivedIds = JSON.parse(await fsp.readFile(STUDIO_PROJECT_ARCHIVE_FILE, 'utf8'));
+        if (!Array.isArray(archivedIds)
+            || archivedIds.some((id) => typeof id !== 'string' || !/^(?:repo|import)-[A-Za-z0-9_-]{1,80}$/.test(id))) {
+            throw new Error('The studio project archive file has an invalid format.');
+        }
+        return new Set(archivedIds);
+    } catch (error) {
+        if (error.code === 'ENOENT') return new Set();
+        throw error;
+    }
+}
+
+async function setStudioProjectArchived(projectId, archived) {
+    const projects = await listStudioProjects();
+    if (!projects.some((project) => project.id === projectId)) {
+        throw httpError(404, 'Studio project not found.');
+    }
+    const archivedIds = await readStudioProjectArchive();
+    if (archived) archivedIds.add(projectId);
+    else archivedIds.delete(projectId);
+    await fsp.mkdir(SETTINGS_DIR, { recursive: true });
+    await writeFileAtomic(
+        STUDIO_PROJECT_ARCHIVE_FILE,
+        JSON.stringify([...archivedIds].sort(), null, 2),
+    );
+    return { id: projectId, archived };
+}
+
 async function readStudioComposition(projectId, compositionId) {
     const repoMatch = projectId.match(/^repo-([A-Za-z0-9_-]{1,80})$/);
     if (repoMatch && /^[A-Za-z0-9_-]{1,80}$/.test(compositionId)) {
-        const file = path.join(PROJECTS_DIR, repoMatch[1], 'compositions', `${compositionId}.composition.json`);
         try {
-            return JSON.parse(await fsp.readFile(file, 'utf8'));
+            const compositionFile = path.join(
+                PROJECTS_DIR,
+                repoMatch[1],
+                'compositions',
+                `${compositionId}.composition.json`,
+            );
+            try {
+                return JSON.parse(await fsp.readFile(compositionFile, 'utf8'));
+            } catch (error) {
+                if (error.code !== 'ENOENT') throw error;
+            }
+
+            const animationFile = path.join(
+                PROJECTS_DIR,
+                repoMatch[1],
+                'animations',
+                `${compositionId}.animation.json`,
+            );
+            const manifest = JSON.parse(await fsp.readFile(animationFile, 'utf8'));
+            if (isStudioCompositionDocument(manifest)) return manifest;
+            if (manifest.version !== 1
+                || manifest.type !== 'studio-scene-animation'
+                || manifest.id !== compositionId
+                || manifest.projectId !== repoMatch[1]
+                || typeof manifest.sceneId !== 'string'
+                || !/^[A-Za-z0-9_-]{1,80}$/.test(manifest.sceneId)) {
+                throw httpError(400, 'The repository scene animation manifest is invalid.');
+            }
+            const sceneFile = path.join(
+                PROJECTS_DIR,
+                repoMatch[1],
+                'compositions',
+                `${manifest.sceneId}.composition.json`,
+            );
+            const scene = JSON.parse(await fsp.readFile(sceneFile, 'utf8'));
+            return { type: 'studio-scene-animation', scene, animation: manifest };
         } catch (error) {
             if (error.code === 'ENOENT') throw httpError(404, 'Repository composition not found.');
+            if (error.status) throw error;
             throw httpError(500, `Could not read the repository composition: ${error.message}`);
         }
     }
@@ -1435,6 +1547,20 @@ async function readStudioComposition(projectId, compositionId) {
         return readSavedComposition(importMatch[1]);
     }
     throw httpError(404, 'Project composition not found.');
+}
+
+function isStudioCompositionDocument(value) {
+    return Boolean(value
+        && typeof value === 'object'
+        && !Array.isArray(value)
+        && typeof value.id === 'string'
+        && /^[A-Za-z0-9_-]{1,80}$/.test(value.id)
+        && typeof value.name === 'string'
+        && Array.isArray(value.layers)
+        && value.layers.length <= 500
+        && Number.isFinite(value.width)
+        && Number.isFinite(value.height)
+        && Number.isFinite(value.duration));
 }
 
 async function readSavedComposition(id) {
@@ -5546,6 +5672,24 @@ async function handleApi(req, res, pathname) {
         return;
     }
 
+    const projectArchiveMatch = pathname.match(
+        /^\/api\/projects\/((?:repo|import)-[A-Za-z0-9_-]{1,80})\/archive$/,
+    );
+    if (projectArchiveMatch && req.method === 'PATCH') {
+        const body = await readBody(req);
+        let payload;
+        try {
+            payload = JSON.parse(body.toString('utf8'));
+        } catch {
+            throw httpError(400, 'The project archive request must be valid JSON.');
+        }
+        if (typeof payload?.archived !== 'boolean') {
+            throw httpError(400, 'The project archive request must include a boolean "archived" value.');
+        }
+        sendJson(res, 200, await setStudioProjectArchived(projectArchiveMatch[1], payload.archived));
+        return;
+    }
+
     // Repository project assets are deliberately not served from /data (that
     // tree also holds imports, brand packs and secrets). This route exposes
     // only data/projects/<project>/assets/ so a checked-in composition can
@@ -5908,6 +6052,9 @@ module.exports = {
     normalizeProposalCharacters,
     safeRelativePath,
     resolveProjectAssetPath,
+    listStudioProjects,
+    setStudioProjectArchived,
+    readStudioComposition,
     createImport,
     createCharacterImport,
     listImports,
