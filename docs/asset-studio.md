@@ -108,9 +108,10 @@ The Designs panel includes both the original layouts and the active brand's
 catalog templates in the relevant category tabs. Brand templates are marked in
 the grid, and can be edited in Asset Studio with the *Colours, Type, Image,
 Text,* and *Size* controls, then saved or exported like other designs.
-**Brand templates** is a catalog browser with previews; **Open in Designs**
-jumps to that template in the category grid. **Edit layers in Studio V2**
-remains available for advanced composition editing.
+**Brand templates** browses both the brand's initial catalog and its published
+snapshots; published cards are labeled **Published**. **Open in Designs**
+jumps to that template in the category grid. Catalog templates also offer
+**Edit layers in Studio V2** for advanced composition editing.
 
 ---
 

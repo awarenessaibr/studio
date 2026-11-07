@@ -64,14 +64,27 @@ async function main() {
 
         const { packs = [] } = await fetch(`${BASE}/api/brand-packs`).then(response => response.json());
         let target = null;
+        let fallback = null;
         for (const summary of packs) {
             const { pack } = await fetch(`${BASE}/api/brand-packs/${encodeURIComponent(summary.id)}`).then(response => response.json());
-            const brand = (pack?.brands || []).find(entry => templateCatalog(entry).length);
-            if (brand) {
-                target = { packId: pack.id, brandId: brand.id };
-                break;
+            for (const brand of pack?.brands || []) {
+                if (!templateCatalog(brand).length) continue;
+                const library = await fetch(`${BASE}/api/brand-packs/${encodeURIComponent(pack.id)}/templates?brandId=${encodeURIComponent(brand.id)}`)
+                    .then(response => response.json());
+                const candidate = {
+                    packId: pack.id,
+                    brandId: brand.id,
+                    published: library.templates || [],
+                };
+                if (!fallback) fallback = candidate;
+                if (candidate.published.length) {
+                    target = candidate;
+                    break;
+                }
             }
+            if (target) break;
         }
+        target ||= fallback;
         if (!target) throw new Error('no brand with catalog templates is available for the Studio Agent test');
 
         const query = new URLSearchParams(target);
@@ -82,18 +95,59 @@ async function main() {
             const brand = pack?.brands?.find(entry => entry.id === brandId);
             return brand ? window.StudioBrand.templateCatalog(brand).length : 0;
         }, target);
+        const totalExpected = expected + target.published.length;
 
         await page.locator('#brandTemplatesBtn').click();
         await page.waitForFunction(() => !document.getElementById('brandTemplatesDialog').hidden);
         const templateCards = page.locator('#brandTemplateGrid .asset-brand-template');
-        check(await templateCards.count() === expected, `brand-template library lists all ${expected} templates`);
-        check(await page.locator('#brandTemplateGrid canvas').count() === expected, 'brand-template library renders a canvas preview for each card');
-        check(await page.locator('#brandTemplateGrid a[href*="brandTemplateId="]').count() === expected, 'every template links to its editable Studio V2 composition');
+        check(await templateCards.count() === totalExpected, `brand-template library lists all ${expected} catalog and ${target.published.length} published templates`);
+        check(await page.locator('#brandTemplateGrid canvas').count() === totalExpected, 'brand-template library renders a canvas preview for each card');
+        check(await page.locator('#brandTemplateGrid a[href*="brandTemplateId="]').count() === expected, 'catalog templates link to their editable Studio V2 compositions');
+        check(await page.locator('#brandTemplateGrid [data-published="true"]').count() === target.published.length, 'published templates are labeled and included in the library');
         const firstTemplateName = await templateCards.first().locator('h3').innerText();
         await templateCards.first().getByRole('button', { name: 'Edit this template' }).click();
         await page.waitForFunction(() => document.getElementById('brandTemplatesDialog').hidden);
         await page.waitForFunction(name => document.getElementById('previewTitle').textContent === name, firstTemplateName);
         check(await page.locator('#designGrid .is-brand-template.is-selected').count() === 1, 'opening a library card selects its design in the matching category');
+        if (target.published.length) {
+            const publishedName = target.published[0].name;
+            const publishedId = target.published[0].id;
+            await page.locator('#brandTemplatesBtn').click();
+            await page.locator(`#brandTemplateGrid [data-published="true"][data-template-id="${publishedId}"]`)
+                .getByRole('button', { name: 'Edit this template' }).click();
+            await page.waitForFunction(name => document.getElementById('previewTitle').textContent === name, publishedName);
+            check(true, 'a published snapshot opens as an editable Studio Agent design');
+
+            const assetPage = await browser.newPage({ viewport: { width: 1600, height: 1100 } });
+            assetPage.on('pageerror', error => errors.push(error.message));
+            const assetQuery = new URLSearchParams({ pack: target.packId, brand: target.brandId });
+            await assetPage.goto(`${BASE}/asset-studio.html?${assetQuery}`, { waitUntil: 'domcontentloaded' });
+            await assetPage.waitForFunction(() => !document.getElementById('studio').hidden, null, { timeout: 20000 });
+            await assetPage.locator('#brandTemplatesBtn').click();
+            const publishedCard = assetPage.locator(
+                `#brandTemplateGrid [data-published="true"][data-template-id="${publishedId}"]`,
+            );
+            await publishedCard.waitFor({ state: 'visible' });
+            check(await publishedCard.count() === 1, 'the same published snapshot appears in Asset Studio');
+            await publishedCard.getByRole('button', { name: 'Open in Designs' }).click();
+            await assetPage.waitForFunction(name => document.getElementById('previewTitle').textContent === name, publishedName);
+            const openedSavedDesign = await assetPage.evaluate(() => ({
+                selected: [...document.querySelectorAll('#designGrid .design-tile[aria-pressed="true"]')]
+                    .map(card => card.textContent.trim()),
+                previewTitle: document.getElementById('previewTitle')?.textContent,
+                designMeta: document.getElementById('designMeta')?.textContent,
+            }));
+            check(openedSavedDesign.selected.length === 1
+                && openedSavedDesign.selected[0].includes(publishedName)
+                && openedSavedDesign.previewTitle === publishedName,
+                `the published snapshot opens in the Asset Studio design editor (${JSON.stringify(openedSavedDesign)})`);
+            await assetPage.close();
+
+            await page.locator('#brandTemplatesBtn').click();
+            await page.locator('#brandTemplateGrid .asset-brand-template').first()
+                .getByRole('button', { name: 'Edit this template' }).click();
+            await page.waitForFunction(name => document.getElementById('previewTitle').textContent === name, firstTemplateName);
+        }
 
         const lookTarget = await page.evaluate(async ({ packId, brandId }) => {
             const { pack } = await fetch(`/api/brand-packs/${encodeURIComponent(packId)}`).then(response => response.json());
@@ -114,7 +168,14 @@ async function main() {
                 const movableText = composition.layers.find(layer => layer.type === 'text'
                     && /sub|kicker/i.test(String(layer.bindings?.text || layer.name || '')));
                 const imageLayers = composition.layers.filter(layer => layer.type === 'image')
-                    .map(layer => ({ id: layer.id, name: layer.name || 'Image' }));
+                    .map(layer => ({
+                        id: layer.id,
+                        name: layer.name || 'Image',
+                        x: layer.x,
+                        y: layer.y,
+                        w: layer.w,
+                        h: layer.h
+                    }));
                 return {
                     id: entry.id,
                     label: entry.label,
@@ -305,6 +366,23 @@ async function main() {
                 await layerPicker.selectOption(lookTarget.imageTemplate.imageLayers[0].id);
                 check(await page.locator('#controlBody button').filter({ hasText: 'Upload image' }).count() === 1,
                     'selected template image layer can be replaced by uploading an image');
+                const imageLayer = lookTarget.imageTemplate.imageLayers[0];
+                await page.locator('#timelineBtn').click();
+                await page.locator('#tlInner .tl-row:not(.tl-ruler) .n').filter({ hasText: imageLayer.name }).first().click();
+                await page.waitForFunction(id => {
+                    const inspector = document.getElementById('layerInspector');
+                    return !inspector.hidden && inspector.dataset.layerId === id;
+                }, imageLayer.id);
+                await page.locator('#timelineBtn').click();
+                await page.locator('#controlTabs .control-tab').filter({ hasText: 'Image' }).click();
+                await page.locator('#controlBody select[aria-label="Template image layer"]').selectOption(imageLayer.id);
+                const imageInspector = page.locator('#layerInspector');
+                const imageShape = imageInspector.locator('[data-layer-prop="imageShape"]');
+                const cornerRadius = imageInspector.locator('[data-layer-prop="cornerRadius"]');
+                check(await imageShape.count() === 1
+                    && (await imageShape.locator('option').allTextContents()).join(', ') === 'Rectangle, Square, Circle, Rounded rectangle'
+                    && await cornerRadius.count() === 1,
+                'selected image layers expose frame shapes and editable corner radius');
                 const brandPhoto = page.locator('#controlBody .photo-tile[title$="Brand photo"][aria-pressed="false"]').first();
                 if (await brandPhoto.count()) {
                     const photoTitle = await brandPhoto.getAttribute('title');
@@ -319,6 +397,31 @@ async function main() {
                     const afterReplace = await page.locator('#previewCanvas').evaluate(canvas => canvas.toDataURL());
                     check(afterReplace !== beforeReplace, 'choosing brand photography replaces the selected template image');
                     check(Boolean(photoTitle), 'the replacement is selected from the brand photography collection');
+                    const rectangleRender = await page.locator('#previewCanvas').evaluate(canvas => canvas.toDataURL());
+                    check(await cornerRadius.isDisabled(), 'corner radius is disabled for non-rounded image shapes');
+                    await imageShape.selectOption('square');
+                    await page.waitForTimeout(100);
+                    const squareRender = await page.locator('#previewCanvas').evaluate(canvas => canvas.toDataURL());
+                    check(squareRender !== rectangleRender, 'square image shape crops the selected image layer');
+                    await imageShape.selectOption('circle');
+                    await page.waitForTimeout(100);
+                    const circleRender = await page.locator('#previewCanvas').evaluate(canvas => canvas.toDataURL());
+                    check(circleRender !== squareRender, 'circle image shape clips the selected image layer');
+                    await imageShape.selectOption('rounded');
+                    await page.waitForTimeout(100);
+                    const roundedDefaultRender = await page.locator('#previewCanvas').evaluate(canvas => canvas.toDataURL());
+                    check(!await cornerRadius.isDisabled(), 'corner radius is enabled for rounded image shapes');
+                    await cornerRadius.fill('32');
+                    await page.waitForTimeout(100);
+                    const roundedCustomRender = await page.locator('#previewCanvas').evaluate(canvas => canvas.toDataURL());
+                    check(roundedCustomRender !== roundedDefaultRender, 'editing corner radius changes the rounded image shape');
+                    const storedImageStyle = await page.evaluate(({ brandId, layerId }) => Object.keys(localStorage)
+                        .filter(key => key.startsWith(`assetStudioAgent.v1:${brandId}:`))
+                        .map(key => JSON.parse(localStorage.getItem(key)))
+                        .find(state => state?.layerStyles?.[layerId])?.layerStyles?.[layerId],
+                    { brandId: target.brandId, layerId: imageLayer.id });
+                    check(storedImageStyle?.imageShape === 'rounded' && storedImageStyle.cornerRadius === 32,
+                        'image shape and corner radius persist in the design');
                     await page.locator('#controlBody button').filter({ hasText: 'Reset image' }).click();
                     check(await page.locator('#controlBody button').filter({ hasText: 'Reset image' }).count() === 0,
                         'reset restores the template image after replacement');
@@ -367,7 +470,7 @@ async function main() {
             }
         }
         const total = categoryResults.reduce((sum, entry) => sum + entry.count, 0);
-        check(expected > 0 && total === expected, `all ${expected} catalog templates appear in their design categories`);
+        check(expected > 0 && total === totalExpected, `all ${expected} catalog and ${target.published.length} published templates appear in their design categories`);
 
         await page.locator('.category-tab').filter({ hasText: 'Menu' }).first().click();
         const firstMenuTemplate = page.locator('#designGrid .is-brand-template').first();

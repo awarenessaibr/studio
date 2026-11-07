@@ -31,6 +31,7 @@ const Crawler = require('./src/server/crawler-service.js');
 const AssetStore = require('./src/server/asset-store.js');
 const AssetService = require('./src/server/asset-service.js');
 const SocialStore = require('./src/server/social-store.js');
+const { generateSegmentTexture } = require('./src/server/segment-texture.js');
 
 // Load local API keys (SERPAPI_KEY, GOOGLE_PLACES_API_KEY, …) from .env.
 // The crawler children inherit process.env, so this is the only place keys
@@ -62,6 +63,7 @@ const MAX_ZIP = 220 * 1024 * 1024;
 const MAX_REFERENCE = 60 * 1024 * 1024;
 const MAX_EXTRACTED = 640 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 80 * 1024 * 1024;
+const MAX_SEGMENT_TEXTURE_BODY = Math.ceil(MAX_IMAGE_BYTES * 4 / 3) * 2 + 1024 * 1024;
 const MAX_COMPOSITION_BYTES = 24 * 1024 * 1024;
 const MAX_FONT_BYTES = 2 * 1024 * 1024;
 const MAX_BRIEF_BYTES = 8 * 1024 * 1024;
@@ -5452,6 +5454,12 @@ async function handleApi(req, res, pathname) {
             throw httpError(400, 'The segment-organization request must be valid JSON.');
         }
         sendJson(res, 200, await organizeSegments(payload || {}));
+        return;
+    }
+
+    if (pathname === '/api/segments/texture' && req.method === 'POST') {
+        const payload = await readJsonRequest(req, MAX_SEGMENT_TEXTURE_BODY);
+        sendJson(res, 200, { image: await generateSegmentTexture(payload || {}) });
         return;
     }
 

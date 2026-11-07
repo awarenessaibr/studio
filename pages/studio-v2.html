@@ -63,6 +63,9 @@
         .seg-row:hover, .seg-row[data-hot="true"] { background: var(--ls-raised); }
         .seg-row[data-selected="true"] { background: #2a2933; box-shadow: inset 0 0 0 1px var(--ls-line-hi); }
         .seg-row[data-hidden="true"] .seg-name, .seg-row[data-hidden="true"] img { opacity: .4; }
+        .seg-row[draggable="true"] { cursor: grab; }
+        .seg-row[data-dragging="true"] { opacity: .45; }
+        .seg-row[data-drop-target="true"] { box-shadow: inset 0 0 0 1px var(--ls-accent); }
 
         .seg-dot {
             width: 16px; height: 16px; border: 1.5px solid var(--ls-muted); border-radius: 50%;
@@ -76,6 +79,10 @@
         .seg-row[data-child="false"] .seg-thumb { height: 34px; }
         .seg-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
         .seg-sub { display: block; color: var(--ls-muted); font-size: 10px; }
+        .seg-rename-input {
+            width: 100%; min-width: 0; padding: 3px 5px; border: 1px solid var(--ls-accent);
+            border-radius: 4px; background: var(--ls-bg); color: var(--ls-text); font: inherit;
+        }
 
         .seg-acts { display: none; align-items: center; gap: 2px; }
         .seg-row:hover .seg-acts, .seg-row[data-selected="true"] .seg-acts, .seg-row:focus-within .seg-acts { display: flex; }
@@ -151,6 +158,9 @@
         #layerOllamaModelControls { display: grid; gap: 5px; }
         #layerOllamaModelControls[hidden] { display: none; }
         #layerAnimationProviderStatus { margin: 0; color: var(--ls-muted); font-size: 10px; line-height: 1.4; }
+        .segment-texture-preview { display: flex; align-items: center; gap: 12px; color: var(--ls-muted); font-size: 12px; }
+        .segment-texture-preview[hidden] { display: none; }
+        .segment-texture-preview img { width: 88px; height: 72px; border: 1px solid var(--ls-line); border-radius: 6px; background: var(--ls-bg); object-fit: contain; }
 
         /* Canvas highlight: matches the white box + name chip of the reference segment editor */
         .layer-item.ls-hover {
@@ -605,6 +615,41 @@
             </div>
         </dialog>
 
+        <dialog id="segmentTextureDialog" class="layer-dialog" aria-labelledby="segmentTextureTitle">
+            <div class="layer-dialog-form">
+                <header class="layer-dialog-header">
+                    <div>
+                        <h2 id="segmentTextureTitle">Generate texture variant</h2>
+                        <p>Keep this segment's shape and placement; change its surface texture</p>
+                    </div>
+                    <button type="button" class="layer-icon-btn" id="segmentTextureClose" aria-label="Close texture generator">
+                        <i class="fas fa-xmark" aria-hidden="true"></i>
+                    </button>
+                </header>
+                <p class="layer-dialog-copy">
+                    The segment and selected texture image are sent to ComfyUI. The generated image is added as a new layer in this segment's group.
+                </p>
+                <label class="layer-dialog-field">Texture image
+                    <input id="segmentTextureFile" type="file" accept="image/png,image/jpeg,image/webp">
+                </label>
+                <div id="segmentTexturePreview" class="segment-texture-preview" hidden>
+                    <img id="segmentTexturePreviewImage" alt="">
+                    <span id="segmentTextureFileName"></span>
+                </div>
+                <label class="layer-dialog-field">Texture name
+                    <input id="segmentTextureName" type="text" maxlength="120" placeholder="e.g. Blue ground">
+                </label>
+                <label class="layer-dialog-field">Additional instructions (optional)
+                    <textarea id="segmentTexturePrompt" rows="3" maxlength="1000" placeholder="Describe any details about how to apply the texture"></textarea>
+                </label>
+                <p id="segmentTextureStatus" class="layer-dialog-status" role="status"></p>
+                <div class="layer-dialog-actions">
+                    <button type="button" id="segmentTextureGenerate">Generate texture</button>
+                    <button type="button" id="segmentTextureCancel">Cancel</button>
+                </div>
+            </div>
+        </dialog>
+
         <dialog id="layerBriefDialog" class="layer-dialog layer-dialog-wide" aria-labelledby="layerBriefTitle">
             <div class="layer-dialog-form">
                 <header class="layer-dialog-header">
@@ -832,9 +877,11 @@
         <input id="layerFolderInput" type="file" accept="image/*" webkitdirectory multiple hidden>
         <input id="layerProjectInput" type="file" accept="application/json,.json" hidden>
         <input id="brandPackZipInput" type="file" accept=".zip,application/zip,application/x-zip-compressed" hidden>
+        <input id="segmentReplaceInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" hidden>
     </div>
 
     <script src="/src/shared/studio-core.js"></script>
+    <script src="/src/client/asset-studio/animation.js"></script>
     <script src="/src/shared/agent-commands.js"></script>
     <script src="/src/shared/brand-pack.js"></script>
     <script src="/src/client/shared/_.js"></script>

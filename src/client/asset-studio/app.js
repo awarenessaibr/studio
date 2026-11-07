@@ -764,9 +764,40 @@ Chocolate hazelnut spread | Deez Nuts`,
             if (grouped[categoryId]) grouped[categoryId].push(template);
             return template;
         });
-        const imageUrls = new Set(templates.flatMap((template) => template.composition.layers
-            .filter((layer) => layer.type !== 'text' && layer.url)
-            .map((layer) => layer.url)));
+        const published = await fetchJson(
+            `${API}/brand-packs/${encodeURIComponent(state.pack.id)}/templates?brandId=${encodeURIComponent(brand.id)}`,
+        );
+        (published.templates || []).forEach((entry) => {
+            if (!entry.composition) return;
+            const categoryId = assetCategoryForBrandTemplate(entry);
+            const composition = entry.composition;
+            const formats = composition.formats?.length ? composition.formats : [composition];
+            const template = {
+                id: entry.id,
+                n: entry.name,
+                t: brandTemplateDefaults({ composition }),
+                brandComposition: true,
+                composition,
+                brandTemplateCategoryId: categoryId,
+                profile: ['social', 'digital', 'display', 'video'].includes(entry.channel) ? 'screen' : 'print',
+                ph: composition.layers.some((layer) => layer.type !== 'text' && (layer.bindings?.url
+                    || /photo|image/i.test(layer.name || ''))),
+                spec: `${entry.width}×${entry.height}px`,
+                description: `${entry.layerCount} layers · ${entry.variableCount} variables`,
+                formats,
+                channel: entry.channel,
+                published: true,
+            };
+            if (grouped[categoryId]) grouped[categoryId].push(template);
+        });
+        const imageUrls = new Set(Object.values(grouped).flat().flatMap((template) => [
+            ...(template.composition.variables || [])
+                .filter((variable) => variable.kind === 'image' && variable.defaultValue)
+                .map((variable) => variable.defaultValue),
+            ...(template.composition.layers || [])
+                .filter((layer) => layer.type !== 'text' && layer.url)
+                .map((layer) => layer.url),
+        ]));
         const loaded = await Promise.all([...imageUrls].map(async (url) => {
             try {
                 return [url, await loadImage(url)];
@@ -4266,29 +4297,23 @@ Chocolate hazelnut spread | Deez Nuts`,
     const renderBrandTemplateLibrary = () => {
         const brand = state.brand;
         if (!brand || !state.pack) return;
-        const templates = window.StudioBrand.templateCatalog(brand);
+        const templates = Object.values(state.brandTemplates).flat();
         el.brandTemplatesTitle.textContent = `${brand.name} templates`;
         el.brandTemplatesHint.textContent = `${state.pack.name} · ${templates.length} brand templates`;
         clear(el.brandTemplateGrid);
         templates.forEach((template) => {
             let preview;
             try {
-                const composition = window.StudioBrand.createTemplateComposition({
-                    packId: state.pack.id,
-                    packName: state.pack.name,
-                    portfolio: state.pack.portfolio,
-                    brand,
-                    templateId: template.id,
-                });
-                preview = renderBrandTemplatePreview(composition);
+                preview = renderBrandTemplatePreview(template.composition);
             } catch (error) {
                 preview = make('div', 'template-preview');
                 preview.append(make('p', 'template-preview-error', `Preview unavailable: ${error.message}`));
             }
             const card = make('article', 'asset-brand-template');
+            card.dataset.templateId = template.id;
             card.append(
                 preview,
-                make('h3', null, template.label),
+                make('h3', null, template.n),
                 make('p', 'template-spec', `${template.spec} · ${template.channel}`),
                 make('p', 'template-description', template.description),
             );
@@ -4298,7 +4323,7 @@ Chocolate hazelnut spread | Deez Nuts`,
                 const assetTemplate = (state.brandTemplates[assetCategoryForBrandTemplate(template)] || [])
                     .find((entry) => entry.id === template.id);
                 if (!assetTemplate) {
-                    toast(`“${template.label}” is not available in the active brand’s design list.`, true);
+                    toast(`“${template.n}” is not available in the active brand’s design list.`, true);
                     return;
                 }
                 if (state.categoryId !== assetTemplate.brandTemplateCategoryId) {
@@ -4308,15 +4333,22 @@ Chocolate hazelnut spread | Deez Nuts`,
                 selectTemplate(index);
             });
             const create = document.createElement('a');
-            create.className = 'btn primary';
-            create.target = '_blank';
-            create.rel = 'noopener';
-            create.href = `studio-v2.html?brandPackId=${encodeURIComponent(state.pack.id)}`
-                + `&brandId=${encodeURIComponent(brand.id)}`
-                + `&brandTemplateId=${encodeURIComponent(template.id)}`;
-            create.textContent = 'Edit layers in Studio V2';
-            actions.append(openDesign, create);
+            actions.append(openDesign);
+            if (!template.published) {
+                create.className = 'btn primary';
+                create.target = '_blank';
+                create.rel = 'noopener';
+                create.href = `studio-v2.html?brandPackId=${encodeURIComponent(state.pack.id)}`
+                    + `&brandId=${encodeURIComponent(brand.id)}`
+                    + `&brandTemplateId=${encodeURIComponent(template.id)}`;
+                create.textContent = 'Edit layers in Studio V2';
+                actions.append(create);
+            }
             card.append(actions);
+            if (template.published) {
+                card.dataset.published = 'true';
+                card.append(make('span', 'brand-template-badge brand-template-badge-saved', 'Published'));
+            }
             el.brandTemplateGrid.append(card);
         });
         el.brandTemplatesDialog.hidden = false;

@@ -220,6 +220,33 @@ async function main() {
         if (inspectorShape.textarea && inspectorShape.upload) ok('copy and the font upload are reachable from the inspector');
         else fail('the text inspector is missing the copy field or the font upload');
 
+        const presetCoverage = await page.evaluate(() => {
+            const canonical = window.AssetStudioAnimation.PRESETS;
+            const studio = window.layerStudio;
+            const available = new Set(window.LayerStudio.PRESET_NAMES);
+            const buttons = [...document.querySelectorAll('#layerInspector .layer-preset-grid button')];
+            const layer = studio.getLayer(studio.selectedLayerId);
+            const originalKeyframes = structuredClone(layer.keyframes || []);
+            const missing = canonical.filter(([id]) => !available.has(id) || !buttons.some(button => button.title === id));
+            const invalid = [];
+            canonical.forEach(([id]) => {
+                studio.applyPreset(id);
+                if (!Array.isArray(layer.keyframes) || layer.keyframes.length < 2
+                    || layer.keyframes.some(frame => !Number.isFinite(frame.time)
+                        || !['x', 'y', 'w', 'h', 'rotation', 'opacity'].every(property => Number.isFinite(frame[property])))) {
+                    invalid.push(id);
+                }
+            });
+            layer.keyframes = originalKeyframes;
+            studio.applyAnimationTime(0);
+            return { canonicalCount: canonical.length, buttonCount: buttons.length, missing, invalid };
+        });
+        if (!presetCoverage.missing.length && !presetCoverage.invalid.length) {
+            ok(`all ${presetCoverage.canonicalCount} Studio Agent presets appear in Studio V2 and generate valid keyframes`);
+        } else {
+            fail(`Studio V2 preset coverage failed: ${JSON.stringify(presetCoverage)}`);
+        }
+
         // System families are seeded, so the export gate must not block.
         const gate = await page.evaluate(() => {
             const studio = window.layerStudio;
@@ -953,6 +980,168 @@ async function main() {
         }
         if (legacy.variables === 0) ok('a legacy composition gains an empty variables list');
         else fail('legacy variables migration failed');
+
+        console.log('\nPhase 6 — segment organization');
+        const segmentIds = await page.evaluate(() => {
+            const studio = window.layerStudio;
+            const first = studio.composition.layers.find((layer) => layer.type === 'text');
+            if (!first) throw new Error('the smoke composition has no text layer for the segment test');
+            first.name = 'First segment';
+            first.segmentGroup = 'First group';
+            studio.addTextLayer();
+            const second = studio.getLayer(studio.selectedLayerId);
+            second.name = 'Second segment';
+            second.segmentGroup = 'Second group';
+            const imageUrl = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="#f00"/></svg>')}`;
+            studio.composition.layers.push({
+                id: 'replace-image-fixture',
+                type: 'image',
+                name: 'Image segment',
+                url: imageUrl,
+                frames: [imageUrl],
+                x: 31,
+                y: 42,
+                w: 17,
+                h: 19,
+                z: 50,
+                rotation: 0,
+                opacity: 1,
+                visible: true,
+                segmentGroup: 'First group',
+                keyframes: [],
+            });
+            studio.render();
+            return { first: first.id, second: second.id, image: 'replace-image-fixture' };
+        });
+        await page.waitForSelector('.seg-row[data-act="group"][data-key="first group"]', { state: 'attached' });
+        await page.click('#segExpand');
+        await page.waitForSelector(`.seg-row[data-id="${segmentIds.second}"]`);
+        await page.waitForSelector(`.seg-row[data-id="${segmentIds.image}"]`);
+
+        await page.locator(`.seg-row[data-id="${segmentIds.first}"]`).hover();
+        await page.locator(`[data-act="rename-layer"][data-id="${segmentIds.first}"]`).click();
+        await page.locator('.seg-rename-input').fill('Renamed segment');
+        await page.locator('.seg-rename-input').press('Enter');
+        const renamedSegment = await page.evaluate(
+            (id) => window.layerStudio.getLayer(id).name,
+            segmentIds.first,
+        );
+        if (renamedSegment === 'Renamed segment') ok('a segment can be renamed from its tree row');
+        else fail(`segment rename failed: ${renamedSegment}`);
+
+        await page.locator('.seg-row[data-act="group"][data-key="first group"]').hover();
+        await page.locator('[data-act="rename-group"][data-key="first group"]').click();
+        await page.locator('.seg-rename-input').fill('Renamed group');
+        await page.locator('.seg-rename-input').press('Enter');
+        const renamedGroup = await page.evaluate(
+            (id) => window.layerStudio.getLayer(id).segmentGroup,
+            segmentIds.first,
+        );
+        if (renamedGroup === 'Renamed group') ok('renaming a group updates its member layers');
+        else fail(`group rename failed: ${renamedGroup}`);
+
+        await page.locator(`.seg-row[data-id="${segmentIds.first}"]`)
+            .dragTo(page.locator('.seg-row[data-act="group"][data-key="second group"]'));
+        const movedGroup = await page.evaluate(
+            (id) => window.layerStudio.getLayer(id).segmentGroup,
+            segmentIds.first,
+        );
+        if (movedGroup === 'Second group') ok('dragging a segment onto a group moves it there');
+        else fail(`moving a segment to another group failed: ${movedGroup}`);
+
+        await page.locator(`.seg-row[data-id="${segmentIds.first}"]`)
+            .dragTo(page.locator(`.seg-row[data-id="${segmentIds.second}"]`), { targetPosition: { x: 8, y: 1 } });
+        const reordered = await page.evaluate(({ first, second }) => ({
+            first: window.layerStudio.getLayer(first).z,
+            second: window.layerStudio.getLayer(second).z,
+        }), segmentIds);
+        if (reordered.first > reordered.second) ok('dragging a segment above another changes its layer order');
+        else fail(`segment reordering failed: ${JSON.stringify(reordered)}`);
+
+        await page.evaluate((id) => { window.layerStudio.getLayer(id).z = 1000; }, segmentIds.image);
+        await page.locator(`.seg-row[data-id="${segmentIds.image}"]`).hover();
+        await page.locator(`[data-act="duplicate-layer"][data-id="${segmentIds.image}"]`).click();
+        const duplicateId = await page.evaluate(() => window.layerStudio.selectedLayerId);
+        const duplicate = await page.evaluate((id) => {
+            const layer = window.layerStudio.getLayer(id);
+            return {
+                name: layer.name,
+                segmentGroup: layer.segmentGroup,
+                url: layer.url,
+                x: layer.x,
+                y: layer.y,
+                w: layer.w,
+                h: layer.h,
+                z: layer.z,
+                selected: window.layerStudio.selectedLayerId === id,
+            };
+        }, duplicateId);
+        const originalForDuplicate = await page.evaluate((id) => {
+            const layer = window.layerStudio.getLayer(id);
+            return {
+                name: layer.name,
+                segmentGroup: layer.segmentGroup,
+                url: layer.url,
+                x: layer.x,
+                y: layer.y,
+                w: layer.w,
+                h: layer.h,
+                z: layer.z,
+            };
+        }, segmentIds.image);
+        if (duplicateId !== segmentIds.image
+            && duplicate.name === 'Image segment 2'
+            && duplicate.segmentGroup === originalForDuplicate.segmentGroup
+            && duplicate.selected
+            && duplicate.z > originalForDuplicate.z
+            && ['url', 'x', 'y', 'w', 'h'].every((key) => duplicate[key] === originalForDuplicate[key])) {
+            ok('duplicating a segment copies its properties into the same group with a sequential name and selects it');
+        } else {
+            fail(`segment duplication failed: ${JSON.stringify({ duplicateId, duplicate, originalForDuplicate })}`);
+        }
+        await page.locator(`.seg-row[data-id="${duplicateId}"]`).hover();
+        await page.locator(`[data-act="duplicate-layer"][data-id="${duplicateId}"]`).click();
+        const thirdName = await page.evaluate(
+            () => window.layerStudio.getLayer(window.layerStudio.selectedLayerId).name,
+        );
+        if (thirdName === 'Image segment 3') ok('repeated duplication increments the segment name sequence');
+        else fail(`repeated duplication did not increment the name: ${thirdName}`);
+
+        const beforeReplace = await page.evaluate((id) => {
+            const layer = window.layerStudio.getLayer(id);
+            return { x: layer.x, y: layer.y, w: layer.w, h: layer.h, z: layer.z, url: layer.url };
+        }, segmentIds.image);
+        await page.locator(`.seg-row[data-id="${segmentIds.image}"]`).hover();
+        await page.locator(`[data-act="replace-image"][data-id="${segmentIds.image}"]`).click();
+        await page.locator('#segmentReplaceInput').setInputFiles({
+            name: 'replacement.svg',
+            mimeType: 'image/svg+xml',
+            buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><circle cx="10" cy="10" r="10" fill="#00f"/></svg>'),
+        });
+        await page.waitForFunction(
+            ({ id, previousUrl }) => window.layerStudio.getLayer(id)?.url !== previousUrl,
+            { id: segmentIds.image, previousUrl: beforeReplace.url },
+        );
+        const afterReplace = await page.evaluate((id) => {
+            const layer = window.layerStudio.getLayer(id);
+            return {
+                x: layer.x,
+                y: layer.y,
+                w: layer.w,
+                h: layer.h,
+                z: layer.z,
+                url: layer.url,
+                frames: layer.frames,
+            };
+        }, segmentIds.image);
+        if (afterReplace.url !== beforeReplace.url
+            && afterReplace.frames.length === 1
+            && afterReplace.frames[0] === afterReplace.url
+            && ['x', 'y', 'w', 'h', 'z'].every((key) => afterReplace[key] === beforeReplace[key])) {
+            ok('replacing a segment image preserves its size, position, and stacking order');
+        } else {
+            fail(`segment image replacement changed geometry or did not replace the source: ${JSON.stringify({ beforeReplace, afterReplace })}`);
+        }
 
         // Leave the toolbar closed for a clean final screenshot.
         await page.keyboard.press('Escape');

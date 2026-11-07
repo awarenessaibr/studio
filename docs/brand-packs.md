@@ -284,6 +284,9 @@ shows two extra sections:
   the brand and whose `meta.source` is `brand-template`. These are the scenes
   already generated for that business; open one, keep editing, then publish.
 
+Published snapshots are also listed in the **Brand templates** libraries in
+Studio Agent and Asset Studio, where they can be opened as editable designs.
+
 ### Publishing every template at once
 `npm run publish:templates` snapshots every built-in template for every brand
 in every pack, using the same `saveBrandTemplate` path as the Studio's

@@ -111,6 +111,17 @@ The Layers section is a tree, not a flat list:
 - **Search** (`Find a segment`) filters by name/group.
 - **Expand** toggles every group.
 - **Organize with AI** proposes names/groups/roles (see §10).
+- Use the edit buttons to rename a segment or its group.
+- Use a segment's duplicate button to create a copy in the same group, with the
+  next sequential name and directly above the original in layer order.
+- Use a segment's image button to replace its artwork without changing its
+  size, position, or stacking order.
+- Use a segment's texture button to choose a texture reference and generate a
+  variant with ComfyUI. The generated layer keeps the source segment's transform
+  and group, and its name includes the texture name.
+- Drag a segment onto a group to move it there, or onto another segment to
+  reorder it. The resulting layer order and group assignment are saved with the
+  composition.
 - **Download all ZIP** packages every segment image into one ZIP with a
   folder per layer group.
 - Per-group download exports **two PNGs**: the group on transparency, and

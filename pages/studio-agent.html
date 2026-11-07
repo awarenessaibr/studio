@@ -646,6 +646,24 @@
                 if (grouped[category]) grouped[category].push(template);
                 return template;
             });
+            const published = await jget(`${API}/brand-packs/${encodeURIComponent(P.id)}/templates?brandId=${encodeURIComponent(brand.id)}`);
+            (published.templates || []).forEach(entry => {
+                if (!entry.composition) return;
+                const category = brandTemplateCategory(entry);
+                const template = {
+                    id: entry.id,
+                    n: entry.name,
+                    t: brandTemplateDefaults(entry.composition),
+                    brandComposition: true,
+                    composition: entry.composition,
+                    channel: entry.channel,
+                    category,
+                    spec: `${entry.width}×${entry.height}px`,
+                    description: `${entry.layerCount} layers · ${entry.variableCount} variables`,
+                    published: true
+                };
+                if (grouped[category]) grouped[category].push(template);
+            });
             const urls = new Set(templates.flatMap(template => [
                 ...(template.composition.variables || [])
                     .filter(variable => variable.kind === 'image' && variable.defaultValue)
@@ -654,6 +672,14 @@
                     .filter(layer => layer.type !== 'text' && layer.url)
                     .map(layer => layer.url)
             ]));
+            Object.values(grouped).flat().filter(template => template.published).forEach(template => {
+                (template.composition.variables || [])
+                    .filter(variable => variable.kind === 'image' && variable.defaultValue)
+                    .forEach(variable => urls.add(variable.defaultValue));
+                (template.composition.layers || [])
+                    .filter(layer => layer.type !== 'text' && layer.url)
+                    .forEach(layer => urls.add(layer.url));
+            });
             const loaded = await Promise.all([...urls].map(async url => {
                 try { return [url, await loadImg(url)]; }
                 catch { return [url, null]; }
@@ -789,6 +815,8 @@
                         ...(layerStyle.overflow ? { overflow: layerStyle.overflow } : {}),
                         ...(layerStyle.rotation != null ? { rotation: layerStyle.rotation } : {}),
                         ...(layerStyle.fit ? { fit: layerStyle.fit } : {}),
+                        ...(layerStyle.imageShape ? { imageShape: layerStyle.imageShape } : {}),
+                        ...(layerStyle.cornerRadius != null ? { cornerRadius: layerStyle.cornerRadius } : {}),
                         ...(layerStyle.fontFamily || layerStyle.fontSizePct != null || layerStyle.fontWeight != null || layerStyle.lineHeight != null || layerStyle.letterSpacingEm != null
                             ? { font: {
                                 ...resolved.font,
@@ -840,8 +868,20 @@
             } else {
                 const image = BRAND_TEMPLATE_IMAGES.get(layer.url);
                 if (image) {
+                    const imageShape = ['square', 'circle', 'rounded'].includes(layer.imageShape) ? layer.imageShape : 'rect';
                     context.beginPath();
-                    context.rect(0, 0, width, height);
+                    if (imageShape === 'circle') {
+                        const radius = Math.min(width, height) / 2;
+                        context.arc(width / 2, height / 2, radius, 0, Math.PI * 2);
+                    } else if (imageShape === 'square') {
+                        const side = Math.min(width, height);
+                        context.rect((width - side) / 2, (height - side) / 2, side, side);
+                    } else if (imageShape === 'rounded') {
+                        const radius = Math.min(width, height) * clamp(Number(layer.cornerRadius ?? 10), 0, 50) / 100;
+                        context.roundRect(0, 0, width, height, radius);
+                    } else {
+                        context.rect(0, 0, width, height);
+                    }
                     context.clip();
                     const imageWidth = image.naturalWidth || image.width;
                     const imageHeight = image.naturalHeight || image.height;
@@ -1048,7 +1088,7 @@
                 if (template.brandComposition) {
                     TL.els = renderBrandComposition(preview, template, s, target, true).elements;
                 } else {
-                    const c2 = preview.getContext('2d'), runs = [], logos = [], st = engState(s);
+                    const c2 = preview.getContext('2d', { willReadFrequently: true }), runs = [], logos = [], st = engState(s);
                     hookBoxes(st, c2, runs, logos);
                     window.AssetEngine.render(preview, size, template, st, target);
                     TL.els = extractEls(s, preview, runs, logos);
@@ -1436,6 +1476,7 @@
             templates.forEach(template => {
                 const card = document.createElement('article');
                 card.className = 'asset-brand-template';
+                card.dataset.templateId = template.id;
                 const preview = document.createElement('div');
                 preview.className = 'template-preview';
                 const canvas = document.createElement('canvas');
@@ -1473,18 +1514,28 @@
                         ? [{ t: 'tpl', i: templateIndex }]
                         : [{ t: 'cat', id: category }, { t: 'tpl', i: templateIndex }], { focus: true });
                 };
-                const editLayers = document.createElement('a');
-                editLayers.className = 'btn';
-                editLayers.target = '_blank';
-                editLayers.rel = 'noopener';
-                editLayers.href = `studio-v2.html?brandPackId=${encodeURIComponent(P.id)}`
-                    + `&brandId=${encodeURIComponent(B.id)}`
-                    + `&brandTemplateId=${encodeURIComponent(template.id)}`;
-                editLayers.textContent = 'Edit layers in Studio V2';
-                actions.append(openDesign, editLayers);
+                actions.append(openDesign);
+                if (!template.published) {
+                    const editLayers = document.createElement('a');
+                    editLayers.className = 'btn';
+                    editLayers.target = '_blank';
+                    editLayers.rel = 'noopener';
+                    editLayers.href = `studio-v2.html?brandPackId=${encodeURIComponent(P.id)}`
+                        + `&brandId=${encodeURIComponent(B.id)}`
+                        + `&brandTemplateId=${encodeURIComponent(template.id)}`;
+                    editLayers.textContent = 'Edit layers in Studio V2';
+                    actions.append(editLayers);
+                }
                 card.append(preview, Object.assign(document.createElement('h3'), { textContent: template.n }),
                     Object.assign(document.createElement('p'), { className: 'template-spec', textContent: spec }),
                     description, actions);
+                if (template.published) {
+                    card.dataset.published = 'true';
+                    card.querySelector('h3').append(' ', Object.assign(document.createElement('span'), {
+                        className: 'brand-template-badge brand-template-badge-saved',
+                        textContent: 'Published'
+                    }));
+                }
                 grid.append(card);
             });
             $('#brandTemplatesDialog').hidden = false;
@@ -1625,6 +1676,15 @@
                 field('Fit', 'fit', 'select', layer.fit === 'contain' ? 'contain' : 'cover', {
                     values: [['Cover', 'cover'], ['Contain', 'contain']]
                 });
+                field('Image shape', 'imageShape', 'select', layer.imageShape || 'rect', {
+                    values: [['Rectangle', 'rect'], ['Square', 'square'], ['Circle', 'circle'], ['Rounded rectangle', 'rounded']]
+                });
+                field('Corner radius (%)', 'cornerRadius', 'number', layer.cornerRadius ?? 10, { min: 0, max: 50, step: 1 });
+                const imageShape = fields.querySelector('[data-layer-prop="imageShape"]');
+                const cornerRadius = fields.querySelector('[data-layer-prop="cornerRadius"]');
+                const syncCornerRadius = () => { cornerRadius.disabled = imageShape.value !== 'rounded'; };
+                imageShape.addEventListener('change', syncCornerRadius);
+                syncCornerRadius();
             }
             field('Opacity', 'opacity', 'number', layer.opacity ?? 1, { min: 0, max: 1, step: 0.05 });
             field('Rotation (degrees)', 'rotation', 'number', layer.rotation ?? 0, { min: -180, max: 180, step: 1 });

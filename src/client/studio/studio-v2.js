@@ -18,11 +18,18 @@ window.addEventListener('DOMContentLoaded', () => {
     const stage = canvas.closest('.layer-stage');
     const PRESETS = (window.LayerStudio && window.LayerStudio.PRESET_NAMES)
                 || ['breathe', 'idle', 'sway', 'walk', 'float', 'flicker', 'drift', 'pulse', 'fadeIn', 'parallax'];
+    const PRESET_LABELS = (window.LayerStudio && window.LayerStudio.PRESET_LABELS) || {};
     const open = new Set();
+    let editingRename = null;
     let organizerModels = [];
     let organizerSuggestions = [];
     let organizerThumbnails = new Map();
     let organizerTargetComposition = null;
+    let textureTargetLayer = null;
+    let textureTargetComposition = null;
+    let textureFile = null;
+    let texturePreviewObjectUrl = null;
+    let textureBusy = false;
     let filter = '';
     let allOpen = false;
     let zoom = 1;
@@ -123,8 +130,377 @@ window.addEventListener('DOMContentLoaded', () => {
         return b;
     }
 
+    function beginRename(kind, id, label) {
+        editingRename = { kind, id, value: label };
+        render();
+        const input = tree.querySelector('[data-rename-input]');
+        input?.focus();
+        input?.select();
+    }
+
+    function finishRename(save) {
+        if (!editingRename) return;
+        const edit = editingRename;
+        const input = tree.querySelector('[data-rename-input]');
+        const value = input?.value.trim() || '';
+        if (!save) {
+            editingRename = null;
+            render();
+            return;
+        }
+        const maxLength = edit.kind === 'group' ? 80 : 160;
+        if (!value || value.length > maxLength) {
+            studio.setStatus(`Enter a ${edit.kind === 'group' ? 'group' : 'segment'} name between 1 and ${maxLength} characters.`, true);
+            input?.focus();
+            return;
+        }
+        if (edit.kind === 'group') {
+            const group = model().groups.find((item) => item.key === edit.id);
+            if (!group) {
+                editingRename = null;
+                render();
+                return;
+            }
+            if (model().groups.some((item) => item.key !== edit.id && item.label.toLowerCase() === value.toLowerCase())) {
+                studio.setStatus('A group with that name already exists.', true);
+                input?.focus();
+                return;
+            }
+            group.items.forEach((layer) => { layer.segmentGroup = value; });
+            open.add(value.toLowerCase());
+            studio.setStatus(`Renamed group to "${value}".`);
+        } else {
+            const layer = studio.getLayer(edit.id);
+            if (!layer) {
+                editingRename = null;
+                render();
+                return;
+            }
+            layer.name = value;
+            studio.setStatus(`Renamed segment to "${value}".`);
+        }
+        editingRename = null;
+        studio.render();
+        render();
+        studio.scheduleSave();
+    }
+
+    function nameControl(label, subtitle, kind, id) {
+        const name = el('span', { className: 'seg-name' });
+        if (editingRename?.kind === kind && editingRename.id === id) {
+            const input = el('input', { className: 'seg-rename-input', value: editingRename.value });
+            input.dataset.renameInput = 'true';
+            input.setAttribute('aria-label', `Rename ${kind === 'group' ? 'group' : 'segment'}`);
+            name.append(input);
+        } else {
+            name.append(document.createTextNode(label));
+        }
+        if (subtitle) name.append(el('small', { className: 'seg-sub', textContent: subtitle }));
+        return name;
+    }
+
+    function renameControls(kind, id, label) {
+        if (editingRename?.kind === kind && editingRename.id === id) {
+            return [
+                button('fa-check', `Save ${kind} name`, 'save-rename'),
+                button('fa-times', 'Cancel rename', 'cancel-rename'),
+            ];
+        }
+        return [button('fa-pen', `Rename ${kind === 'group' ? 'group ' : ''}${label}`, `rename-${kind}`, {
+            [kind === 'group' ? 'key' : 'id']: id,
+        })];
+    }
+
+    function moveLayer(id, targetId, after, groupLabel) {
+        const layer = studio.getLayer(id);
+        const target = studio.getLayer(targetId);
+        if (!layer || !target || layer === target || target.rig === true) return false;
+        const comp = studio.composition;
+        const ordered = comp.layers
+            .filter((item) => item.rig !== true)
+            .sort((a, b) => b.z - a.z);
+        const from = ordered.indexOf(layer);
+        ordered.splice(from, 1);
+        const targetIndex = ordered.indexOf(target);
+        ordered.splice(targetIndex + (after ? 1 : 0), 0, layer);
+        if (groupLabel) layer.segmentGroup = groupLabel;
+        ordered.forEach((item, index) => { item.z = ordered.length - index; });
+        studio.render();
+        render();
+        studio.scheduleSave();
+        studio.setStatus(`Moved "${layer.name}".`);
+        return true;
+    }
+
+    function duplicateLayer(id) {
+        const layer = studio.getLayer(id);
+        if (!layer || layer.rig === true || layer.id === studio.composition.referenceLayerId) return;
+        if (studio.composition.layers.length >= 500) {
+            studio.setStatus('You can add up to 500 layers to one composition.', true);
+            return;
+        }
+        const originalBase = layer.name.replace(/[\s_-]*\d+$/, '').trim() || layer.name;
+        const baseName = originalBase.slice(0, 150).trimEnd() || 'Segment';
+        const escapedBase = baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const sequence = new RegExp(`^${escapedBase}[\\s_-]+(\\d+)$`, 'i');
+        let next = 1;
+        studio.composition.layers.forEach((item) => {
+            if (item.name.toLowerCase() === originalBase.toLowerCase()) {
+                next = Math.max(next, 1);
+                return;
+            }
+            const match = sequence.exec(item.name);
+            if (match) next = Math.max(next, Number(match[1]) || 1);
+        });
+        const duplicate = structuredClone(layer);
+        do {
+            duplicate.id = `layer-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+        } while (studio.getLayer(duplicate.id));
+        const suffix = ` ${next + 1}`;
+        duplicate.name = `${baseName.slice(0, 160 - suffix.length).trimEnd()}${suffix}`;
+        if (layer.z >= 1000) {
+            studio.composition.layers
+                .filter((item) => item.rig !== true && item.z >= 1000)
+                .forEach((item) => { item.z = 999.99; });
+            duplicate.z = 1000;
+        } else {
+            duplicate.z = layer.z + 1;
+        }
+        studio.composition.layers.push(duplicate);
+        (studio.composition.formats || []).forEach((format) => {
+            const override = format.layerOverrides?.[layer.id];
+            if (override) format.layerOverrides[duplicate.id] = structuredClone(override);
+        });
+        studio.selectedLayerId = duplicate.id;
+        studio.render();
+        render();
+        studio.scheduleSave();
+        studio.setStatus(`Duplicated "${layer.name}" as "${duplicate.name}" in the same group.`);
+    }
+
+    async function replaceLayerImage(id, file) {
+        const layer = studio.getLayer(id);
+        if (!layer || layer.type !== 'image') {
+            studio.setStatus('Select an image segment to replace.', true);
+            return;
+        }
+        if (!file || !/^image\/(?:png|jpe?g|webp|gif|svg\+xml)$/i.test(file.type)) {
+            studio.setStatus('Choose a PNG, JPEG, WebP, GIF, or SVG image.', true);
+            return;
+        }
+        try {
+            const url = await studio.readFileAsDataURL(file);
+            if (!/^data:image\/(?:png|jpe?g|webp|gif|svg\+xml);/i.test(url)) {
+                throw new Error('The selected file is not a supported image.');
+            }
+            layer.url = url;
+            layer.frames = [url];
+            studio.render();
+            render();
+            studio.scheduleSave();
+            studio.setStatus(`Replaced the image in "${layer.name}". Its size and position were preserved.`);
+        } catch (error) {
+            console.error('[layer-studio] segment image replacement failed:', error);
+            studio.setStatus(error.message || 'Could not replace the segment image.', true);
+        }
+    }
+
+    function setTextureStatus(message, { error = false, busy = false } = {}) {
+        const status = $('segmentTextureStatus');
+        status.textContent = message;
+        status.dataset.error = String(error);
+        status.dataset.busy = String(busy);
+    }
+
+    function openTextureDialog(id) {
+        const layer = studio.getLayer(id);
+        if (!layer || layer.type !== 'image' || layer.id === studio.composition.referenceLayerId) {
+            studio.setStatus('Choose an image segment to generate a texture variant.', true);
+            return;
+        }
+        textureTargetLayer = layer;
+        textureTargetComposition = studio.composition;
+        textureFile = null;
+        $('segmentTextureFile').value = '';
+        $('segmentTextureName').value = '';
+        $('segmentTexturePrompt').value = '';
+        $('segmentTexturePreview').hidden = true;
+        $('segmentTexturePreviewImage').removeAttribute('src');
+        $('segmentTextureFileName').textContent = '';
+        $('segmentTextureGenerate').disabled = false;
+        $('segmentTextureCancel').disabled = false;
+        $('segmentTextureClose').disabled = false;
+        setTextureStatus('');
+        $('segmentTextureDialog').showModal();
+    }
+
+    function loadImageElement(url, label) {
+        return new Promise((resolve, reject) => {
+            const image = new Image();
+            image.onload = () => resolve(image);
+            image.onerror = () => reject(new Error(`Could not load "${label}".`));
+            if (!String(url).startsWith('data:')) image.crossOrigin = 'anonymous';
+            image.src = url;
+        });
+    }
+
+    async function loadImageDataUrl(url, label, width, height, alphaMaskUrl = null) {
+        const image = await loadImageElement(url, label);
+        const outputWidth = width || image.naturalWidth;
+        const outputHeight = height || image.naturalHeight;
+        const canvas = document.createElement('canvas');
+        canvas.width = outputWidth;
+        canvas.height = outputHeight;
+        const context = canvas.getContext('2d');
+        if (!context) throw new Error(`Could not prepare "${label}" for ComfyUI.`);
+        try {
+            context.drawImage(image, 0, 0, outputWidth, outputHeight);
+            if (alphaMaskUrl) {
+                const mask = await loadImageElement(alphaMaskUrl, `${label} silhouette`);
+                context.globalCompositeOperation = 'destination-in';
+                context.drawImage(mask, 0, 0, outputWidth, outputHeight);
+            }
+            return {
+                dataUrl: canvas.toDataURL('image/png'),
+                width: outputWidth,
+                height: outputHeight,
+            };
+        } catch (error) {
+            throw new Error(`Could not read "${label}". Make sure the image is available and can be accessed by this studio.`);
+        }
+    }
+
+    function textureVariantName(layer, textureName) {
+        const base = `${layer.name} - ${textureName}`.slice(0, 160).trim();
+        const names = new Set(studio.composition.layers.map((item) => item.name.toLowerCase()));
+        if (!names.has(base.toLowerCase())) return base;
+        for (let index = 2; index < 1000; index += 1) {
+            const suffix = ` ${index}`;
+            const candidate = `${base.slice(0, 160 - suffix.length).trimEnd()}${suffix}`;
+            if (!names.has(candidate.toLowerCase())) return candidate;
+        }
+        throw new Error('Could not create a unique name for the generated texture layer.');
+    }
+
+    function addTextureVariant(layer, imageUrl, textureName) {
+        const composition = studio.composition;
+        if (composition.layers.length >= 500) {
+            throw new Error('You can add up to 500 layers to one composition.');
+        }
+        const variant = structuredClone(layer);
+        do {
+            variant.id = `layer-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+        } while (studio.getLayer(variant.id));
+        variant.name = textureVariantName(layer, textureName);
+        variant.url = imageUrl;
+        variant.frames = [imageUrl];
+        delete variant.frameUrl;
+        const group = model().groups.find((item) => item.items.some((entry) => entry.id === layer.id));
+        if (group) variant.segmentGroup = group.label;
+        if (layer.z >= 1000) {
+            composition.layers
+                .filter((item) => item.rig !== true && item.z >= 1000)
+                .forEach((item) => { item.z = 999.99; });
+            variant.z = 1000;
+        } else {
+            variant.z = layer.z + 1;
+        }
+        composition.layers.push(variant);
+        (composition.formats || []).forEach((format) => {
+            const override = format.layerOverrides?.[layer.id];
+            if (override) format.layerOverrides[variant.id] = structuredClone(override);
+        });
+        studio.selectedLayerId = variant.id;
+        studio.render();
+        render();
+        studio.scheduleSave();
+        return variant;
+    }
+
+    async function generateTextureVariant() {
+        if (textureBusy) return;
+        if (!textureFile) {
+            setTextureStatus('Choose a texture image first.', { error: true });
+            return;
+        }
+        const layer = textureTargetLayer;
+        const composition = textureTargetComposition;
+        const textureName = $('segmentTextureName').value.trim();
+        if (!textureName) {
+            setTextureStatus('Enter a name for this texture.', { error: true });
+            return;
+        }
+        if (studio.composition !== composition || studio.getLayer(layer?.id) !== layer) {
+            setTextureStatus('The open project or segment changed. Close this dialog and try again.', { error: true });
+            return;
+        }
+        if (composition.layers.length >= 500) {
+            setTextureStatus('This project already has the maximum of 500 layers.', { error: true });
+            return;
+        }
+        textureBusy = true;
+        $('segmentTextureGenerate').disabled = true;
+        $('segmentTextureCancel').disabled = true;
+        $('segmentTextureClose').disabled = true;
+        $('segmentTextureFile').disabled = true;
+        $('segmentTextureName').disabled = true;
+        $('segmentTexturePrompt').disabled = true;
+        try {
+            setTextureStatus('Preparing the segment and texture images…', { busy: true });
+            const [segment, textureDataUrl] = await Promise.all([
+                loadImageDataUrl(layer.url, layer.name),
+                studio.readFileAsDataURL(textureFile),
+            ]);
+            const texture = await loadImageDataUrl(textureDataUrl, textureName);
+            if (studio.composition !== composition || studio.getLayer(layer.id) !== layer) {
+                throw new Error('The open project or segment changed while preparing the images.');
+            }
+            setTextureStatus('Sending the workflow to ComfyUI…', { busy: true });
+            const result = await studio.requestBackend('api/segments/texture', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    segmentImage: segment.dataUrl,
+                    textureImage: texture.dataUrl,
+                    textureName,
+                    prompt: $('segmentTexturePrompt').value.trim(),
+                }),
+            });
+            if (studio.composition !== composition || studio.getLayer(layer.id) !== layer) {
+                throw new Error('The open project or segment changed while ComfyUI was generating. Nothing was added.');
+            }
+            if (typeof result.image !== 'string' || !result.image.startsWith('data:image/png;base64,')) {
+                throw new Error('ComfyUI did not return a valid PNG image.');
+            }
+            setTextureStatus('Resizing the result to match the original segment…', { busy: true });
+            const generated = await loadImageDataUrl(
+                result.image,
+                'generated texture',
+                segment.width,
+                segment.height,
+                segment.dataUrl,
+            );
+            const variant = addTextureVariant(layer, generated.dataUrl, textureName);
+            $('segmentTextureDialog').close();
+            studio.setStatus(`Generated "${variant.name}" in the "${variant.segmentGroup || model().groups.find((item) => item.items.some((entry) => entry.id === variant.id))?.label || 'Segments'}" group.`);
+        } catch (error) {
+            console.error('[layer-studio] segment texture generation failed:', error);
+            setTextureStatus(error.message || 'Could not generate the texture variant.', { error: true });
+        } finally {
+            textureBusy = false;
+            $('segmentTextureGenerate').disabled = false;
+            $('segmentTextureCancel').disabled = false;
+            $('segmentTextureClose').disabled = false;
+            $('segmentTextureFile').disabled = false;
+            $('segmentTextureName').disabled = false;
+            $('segmentTexturePrompt').disabled = false;
+        }
+    }
+
     function leafRow(layer, child) {
         const row = el('div', { className: 'seg-row', role: 'treeitem', tabIndex: 0 });
+        row.draggable = true;
+        row.title = 'Drag to reorder or move to another group';
         row.dataset.child = String(child);
         row.dataset.act = 'select';
         row.dataset.id = layer.id;
@@ -132,9 +508,15 @@ window.addEventListener('DOMContentLoaded', () => {
         row.dataset.selected = String(layer.id === studio.selectedLayerId);
         row.dataset.hidden = String(!layer.visible);
         row.setAttribute('aria-selected', row.dataset.selected);
-        const name = el('span', { className: 'seg-name', textContent: layer.name });
-        if (layer.type === 'text') name.append(el('small', { className: 'seg-sub', textContent: 'Text' }));
-        if (!layer.positionConfirmed) name.append(el('small', { className: 'seg-sub', textContent: 'Needs review' }));
+        const name = nameControl(
+            layer.name,
+            layer.type === 'text' ? 'Text' : (!layer.positionConfirmed ? 'Needs review' : ''),
+            'layer',
+            layer.id,
+        );
+        if (layer.type === 'text' && !layer.positionConfirmed) {
+            name.append(el('small', { className: 'seg-sub', textContent: 'Needs review' }));
+        }
         const activeFormat = studio.activeFormat();
         if (activeFormat && !activeFormat.isMaster
             && activeFormat.layerOverrides
@@ -145,6 +527,10 @@ window.addEventListener('DOMContentLoaded', () => {
             name.append(pin);
         }
         const acts = el('span', { className: 'seg-acts' },
+            ...renameControls('layer', layer.id, layer.name),
+            button('fa-copy', `Duplicate ${layer.name}`, 'duplicate-layer', { id: layer.id }),
+            ...(layer.type === 'image' ? [button('fa-image', `Replace image for ${layer.name}`, 'replace-image', { id: layer.id })] : []),
+            ...(layer.type === 'image' ? [button('fa-wand-magic-sparkles', `Generate a new texture for ${layer.name}`, 'texture-image', { id: layer.id })] : []),
             button(layer.visible ? 'fa-eye' : 'fa-eye-slash', `${layer.visible ? 'Hide' : 'Show'} ${layer.name}`, 'eye', { ids: layer.id }),
             button('fa-download', `Download ${layer.name}`, 'download', { id: layer.id }),
             button('fa-trash', `Delete ${layer.name}`, 'delete', { id: layer.id }));
@@ -166,8 +552,7 @@ window.addEventListener('DOMContentLoaded', () => {
         row.dataset.partial = String(selected);
         row.dataset.hidden = String(group.items.every((layer) => !layer.visible));
         row.setAttribute('aria-expanded', String(isOpen));
-        const name = el('span', { className: 'seg-name', textContent: group.label });
-        name.append(el('small', { className: 'seg-sub', textContent: `${group.items.length} segments` }));
+        const name = nameControl(group.label, `${group.items.length} segments`, 'group', group.key);
         const activeFormat = studio.activeFormat();
         const pinnedCount = activeFormat && !activeFormat.isMaster && activeFormat.layerOverrides
             ? group.items.filter((layer) => activeFormat.layerOverrides[layer.id]).length
@@ -181,12 +566,17 @@ window.addEventListener('DOMContentLoaded', () => {
         const select = el('select', { title: `Animate all ${group.label}` });
         select.dataset.key = group.key;
         select.setAttribute('aria-label', `Animate all ${group.label}`);
-        select.append(new Option('Animate…', ''), ...PRESETS.map((p) => new Option(p, p)));
+        select.append(new Option('Animate…', ''), ...PRESETS.map((p) => new Option(PRESET_LABELS[p] || p, p)));
         const acts = el('span', { className: 'seg-acts' },
-            select,
-            button(group.items.every((layer) => layer.visible) ? 'fa-eye' : 'fa-eye-slash', `Toggle ${group.label}`, 'eye', { ids: ids.join(' ') }),
-            button('fa-download', `Download ${group.label} as transparent and with-final images`, 'download-group', { key: group.key }),
-            button('fa-chevron-down seg-caret', `${isOpen ? 'Collapse' : 'Expand'} ${group.label}`, 'group', { key: group.key }));
+            ...(editingRename?.kind === 'group' && editingRename.id === group.key
+                ? renameControls('group', group.key, group.label)
+                : [
+                    select,
+                    ...renameControls('group', group.key, group.label),
+                    button(group.items.every((layer) => layer.visible) ? 'fa-eye' : 'fa-eye-slash', `Toggle ${group.label}`, 'eye', { ids: ids.join(' ') }),
+                    button('fa-download', `Download ${group.label} as transparent and with-final images`, 'download-group', { key: group.key }),
+                    button('fa-chevron-down seg-caret', `${isOpen ? 'Collapse' : 'Expand'} ${group.label}`, 'group', { key: group.key }),
+                ]));
         row.append(el('span', { className: 'seg-dot' }), thumb(group.items[0]), name, acts);
         frag.append(row);
         if (isOpen) group.items.forEach((layer) => frag.append(leafRow(layer, true)));
@@ -277,6 +667,22 @@ window.addEventListener('DOMContentLoaded', () => {
         const target = event.target.closest('[data-act]');
         if (!target) return;
         const { act } = target.dataset;
+        if (act === 'rename-layer') return beginRename('layer', target.dataset.id, studio.getLayer(target.dataset.id)?.name || '');
+        if (act === 'rename-group') {
+            const group = model().groups.find((item) => item.key === target.dataset.key);
+            if (group) beginRename('group', group.key, group.label);
+            return;
+        }
+        if (act === 'save-rename') return finishRename(true);
+        if (act === 'cancel-rename') return finishRename(false);
+        if (act === 'duplicate-layer') return duplicateLayer(target.dataset.id);
+        if (act === 'replace-image') {
+            const input = $('segmentReplaceInput');
+            input.dataset.layerId = target.dataset.id;
+            input.click();
+            return;
+        }
+        if (act === 'texture-image') return openTextureDialog(target.dataset.id);
         if (act === 'select') return select(target.dataset.id);
         if (act === 'download-group') {
             studio.exportSegmentGroup(target.dataset.key).catch((error) => {
@@ -307,6 +713,122 @@ window.addEventListener('DOMContentLoaded', () => {
             select(target.dataset.id);
             studio.removeSelected();
         }
+    });
+
+    tree.addEventListener('keydown', (event) => {
+        if (!event.target.matches('[data-rename-input]')) return;
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            finishRename(true);
+        } else if (event.key === 'Escape') {
+            event.preventDefault();
+            finishRename(false);
+        }
+    });
+
+    $('segmentReplaceInput').addEventListener('change', (event) => {
+        const input = event.currentTarget;
+        const id = input.dataset.layerId;
+        const file = input.files?.[0];
+        delete input.dataset.layerId;
+        input.value = '';
+        if (file) replaceLayerImage(id, file);
+    });
+
+    $('segmentTextureFile').addEventListener('change', (event) => {
+        const file = event.currentTarget.files?.[0] || null;
+        if (texturePreviewObjectUrl) URL.revokeObjectURL(texturePreviewObjectUrl);
+        texturePreviewObjectUrl = null;
+        textureFile = null;
+        if (!file) {
+            $('segmentTexturePreview').hidden = true;
+            setTextureStatus('');
+            return;
+        }
+        if (!/^image\/(?:png|jpeg|webp)$/i.test(file.type)) {
+            event.currentTarget.value = '';
+            $('segmentTexturePreview').hidden = true;
+            setTextureStatus('Choose a PNG, JPEG, or WebP texture image.', { error: true });
+            return;
+        }
+        textureFile = file;
+        texturePreviewObjectUrl = URL.createObjectURL(file);
+        $('segmentTexturePreviewImage').src = texturePreviewObjectUrl;
+        $('segmentTextureFileName').textContent = file.name;
+        $('segmentTexturePreview').hidden = false;
+        const suggestedName = file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim();
+        $('segmentTextureName').value = suggestedName;
+        setTextureStatus('');
+    });
+
+    const textureDialog = $('segmentTextureDialog');
+    $('segmentTextureGenerate').addEventListener('click', generateTextureVariant);
+    $('segmentTextureClose').addEventListener('click', () => {
+        if (!textureBusy) textureDialog.close();
+    });
+    $('segmentTextureCancel').addEventListener('click', () => {
+        if (!textureBusy) textureDialog.close();
+    });
+    textureDialog.addEventListener('cancel', (event) => {
+        if (textureBusy) event.preventDefault();
+    });
+    textureDialog.addEventListener('close', () => {
+        if (texturePreviewObjectUrl) URL.revokeObjectURL(texturePreviewObjectUrl);
+        texturePreviewObjectUrl = null;
+        textureFile = null;
+        textureTargetLayer = null;
+        textureTargetComposition = null;
+    });
+    textureDialog.addEventListener('click', (event) => {
+        if (event.target === textureDialog && !textureBusy) textureDialog.close();
+    });
+
+    tree.addEventListener('dragstart', (event) => {
+        const row = event.target.closest('.seg-row[data-id]');
+        if (!row || !event.dataTransfer) return;
+        event.dataTransfer.setData('text/plain', row.dataset.id);
+        event.dataTransfer.effectAllowed = 'move';
+        row.dataset.dragging = 'true';
+    });
+    tree.addEventListener('dragend', (event) => {
+        const row = event.target.closest('.seg-row[data-id]');
+        if (row) delete row.dataset.dragging;
+        tree.querySelectorAll('[data-drop-target="true"]').forEach((item) => {
+            delete item.dataset.dropTarget;
+        });
+    });
+    tree.addEventListener('dragover', (event) => {
+        const target = event.target.closest('.seg-row[data-act="group"], .seg-row[data-id]');
+        if (!target || target.dataset.id === event.dataTransfer?.getData('text/plain')) return;
+        event.preventDefault();
+        if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+        tree.querySelectorAll('[data-drop-target="true"]').forEach((item) => {
+            if (item !== target) delete item.dataset.dropTarget;
+        });
+        target.dataset.dropTarget = 'true';
+    });
+    tree.addEventListener('dragleave', (event) => {
+        const target = event.target.closest('[data-drop-target="true"]');
+        if (target && !target.contains(event.relatedTarget)) delete target.dataset.dropTarget;
+    });
+    tree.addEventListener('drop', (event) => {
+        const sourceId = event.dataTransfer?.getData('text/plain');
+        const target = event.target.closest('.seg-row[data-act="group"], .seg-row[data-id]');
+        if (!sourceId || !target) return;
+        event.preventDefault();
+        if (target.dataset.act === 'group') {
+            const group = model().groups.find((item) => item.key === target.dataset.key);
+            const last = group?.items.at(-1);
+            if (group && last) moveLayer(sourceId, last.id, true, group.label);
+        } else {
+            const targetLayer = studio.getLayer(target.dataset.id);
+            const group = model().groups.find((item) => item.items.some((item) => item.id === targetLayer?.id));
+            const rect = target.getBoundingClientRect();
+            moveLayer(sourceId, target.dataset.id, event.clientY >= rect.top + rect.height / 2, group?.label);
+        }
+        tree.querySelectorAll('[data-drop-target="true"]').forEach((item) => {
+            delete item.dataset.dropTarget;
+        });
     });
 
     tree.addEventListener('keydown', (event) => {

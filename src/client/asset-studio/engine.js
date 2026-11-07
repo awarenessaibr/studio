@@ -1204,7 +1204,7 @@ function render(canvas, size, template, state, targetWidth, options = {}) {
     const shape = options.clipShape === false ? null : (size.shape || null);
     canvas.width = width;
     canvas.height = height;
-    X = canvas.getContext('2d');
+    X = canvas.getContext('2d', { willReadFrequently: true });
     // Preview keeps a neutral stage behind a die-cut shape; PNG export asks
     // for a transparent backdrop instead.
     if (options.backdrop === false) X.clearRect(0, 0, width, height);

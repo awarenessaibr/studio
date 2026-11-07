@@ -1369,6 +1369,19 @@ img { max-width: 100%; }
     font: 400 19px/1.15 Georgia, "Times New Roman", serif;
 }
 
+.asset-brand-template .brand-template-badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 2px 6px;
+    border: 1px solid rgb(232 128 58 / 45%);
+    border-radius: 999px;
+    color: var(--accent);
+    font: 700 9px/1.2 sans-serif;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    vertical-align: middle;
+}
+
 .asset-brand-template .template-spec {
     color: var(--muted);
     font-size: 10px;

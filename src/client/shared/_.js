@@ -9,6 +9,7 @@
     if (!Core) {
         throw new Error('studio-core.js must be loaded before _.js.');
     }
+    const SharedAnimation = typeof window !== 'undefined' ? window.AssetStudioAnimation : null;
     const {
         layoutText,
         getActiveFormat,
@@ -89,11 +90,16 @@
         'easeOutBack', 'easeInBack',
         'stepStart', 'stepEnd',
     ];
-    const PRESET_NAMES = [
-        'breathe', 'idle', 'sway', 'walk', 'float', 'flicker',
-        'drift', 'pulse', 'fadeIn', 'parallax',
-        'fadeOut', 'zoom', 'spin', 'shake', 'hop', 'swing', 'orbit', 'nod', 'blinkIn',
-    ];
+    const LEGACY_PRESETS = ['walk', 'flicker', 'nod', 'blinkIn'];
+    const SHARED_PRESETS = SharedAnimation?.PRESETS || [];
+    const PRESET_NAMES = [...new Set([
+        ...SHARED_PRESETS.map(([id]) => id),
+        ...LEGACY_PRESETS,
+    ])];
+    const PRESET_LABELS = Object.fromEntries([
+        ...SHARED_PRESETS.map(([id, label]) => [id, label]),
+        ...LEGACY_PRESETS.map((id) => [id, id.replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase())]),
+    ]);
     function easeValue(kind, t) {
         switch (kind || 'linear') {
             case 'easeIn':          return t * t;
@@ -2513,7 +2519,8 @@
             PRESET_NAMES.forEach((name) => {
                 const btn = document.createElement('button');
                 btn.type = 'button';
-                btn.textContent = name;
+                btn.textContent = PRESET_LABELS[name] || name;
+                btn.title = name;
                 btn.addEventListener('click', () => this.applyPreset(name));
                 presetsGrid.appendChild(btn);
             });
@@ -5150,6 +5157,53 @@
                 rotation: clamp(over.rotation ?? base.rotation, -3600, 3600),
                 opacity: clamp(over.opacity ?? base.opacity, 0, 1),
             });
+            if (SharedAnimation?.PRESETS.some(([id]) => id === presetName)) {
+                const group = SharedAnimation.groupOf(presetName);
+                const animationDuration = group === 'loop'
+                    ? dur
+                    : Math.min(dur, SharedAnimation.durationFor(presetName));
+                const animation = { preset: presetName, start: 0, duration: animationDuration };
+                const samples = Math.min(240, Math.max(2, Math.ceil(animationDuration / 40)));
+                const frames = [];
+                for (let index = 0; index <= samples; index += 1) {
+                    const time = Math.round(animationDuration * index / samples);
+                    const motion = SharedAnimation.at(animation, time);
+                    const frameScaleX = finite(motion.s, 1) * finite(motion.sx, 1);
+                    const frameScaleY = finite(motion.s, 1) * finite(motion.sy, 1);
+                    let x = base.x + (base.w - base.w * frameScaleX) / 2 + finite(motion.dx, 0) * 100;
+                    let y = base.y + (base.h - base.h * frameScaleY) / 2 + finite(motion.dy, 0) * 100;
+                    let w = base.w * frameScaleX;
+                    let h = base.h * frameScaleY;
+                    if (motion.wipe) {
+                        const progress = clamp(finite(motion.wipe.p, 1), 0, 1);
+                        if (motion.wipe.d === 'r') w = base.w * progress;
+                        else if (motion.wipe.d === 'l') {
+                            w = base.w * progress;
+                            x = base.x + base.w - w;
+                        } else if (motion.wipe.d === 'd') h = base.h * progress;
+                        else if (motion.wipe.d === 'u') {
+                            h = base.h * progress;
+                            y = base.y + base.h - h;
+                        }
+                    }
+                    frames.push(kf(time, {
+                        x,
+                        y,
+                        w,
+                        h,
+                        rotation: base.rotation + finite(motion.r, 0) * 180 / Math.PI,
+                        opacity: base.opacity * clamp(finite(motion.a, 1), 0, 1),
+                    }));
+                }
+                if (animationDuration < dur) {
+                    frames.push({ ...frames[frames.length - 1], time: dur });
+                }
+                layer.keyframes = normalizeKeyframes(frames);
+                this.applyAnimationTime(0);
+                this.setStatus(`Preset "${PRESET_LABELS[presetName] || presetName}" applied to ${layer.name} (${layer.keyframes.length} keyframes).`);
+                this.scheduleSave();
+                return;
+            }
             const amp  = finite(params.amplitude, 2);
             const tilt = finite(params.tilt, 3);
             // Seeded so flicker stays identical across renders and exports.
@@ -10118,6 +10172,7 @@
     // Exposed so page modules (studio-v2.js) offer the same preset vocabulary
     // as the inspector instead of keeping a stale copy.
     LayerStudio.PRESET_NAMES = PRESET_NAMES;
+    LayerStudio.PRESET_LABELS = PRESET_LABELS;
     window.layerStudioShowView = layerStudioShowView;
     window.layerStudioHideView = layerStudioHideView;
 

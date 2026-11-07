@@ -25,6 +25,7 @@ PORT=8010 HOST=127.0.0.1 node server.js
 | `STUDIO_DEEPSEEK_API_KEY` | — | Server-side API key for DeepSeek animation ideas |
 | `STUDIO_DEEPSEEK_MODEL` | — | DeepSeek model id (for example `deepseek-flash`) |
 | `STUDIO_DEEPSEEK_BASE_URL` | `https://api.deepseek.com/v1` | DeepSeek-compatible chat-completions endpoint |
+| `COMFYUI_URL` | `http://127.0.0.1:8188` | ComfyUI server used by segment texture generation |
 | `STUDIO_PYTHON` | `.venv/bin/python` → `python3` | Interpreter used by the intake crawler |
 
 The server serves the pages and the repository-project asset route, and
@@ -98,6 +99,18 @@ retried once, then fails with a reason.
 | `POST` | `/api/segments/organize` | `{ provider?, model, layers: [{ id, name, image }], reference? }` → suggested name/group/role per segment |
 
 Thumbnails are capped at 220 KB each; the request body at 32 MB.
+
+### Segment texture generation
+
+| Method | Path | Body / result |
+|---|---|---|
+| `POST` | `/api/segments/texture` | `{ segmentImage, textureImage, textureName, prompt? }` → `{ image }` |
+
+`segmentImage` and `textureImage` are PNG, JPEG, or WebP base64 data URLs.
+The server uploads both to ComfyUI, fills the checked-in Qwen Image Edit
+workflow, waits up to 15 minutes, and returns the generated PNG as a data URL.
+Each input and output image is limited to 80 MB. The Studio adds the result as
+a new layer in the source segment's group, retaining its transform and sizing.
 
 ### Briefs
 
