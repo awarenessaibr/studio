@@ -93,7 +93,9 @@ async function main() {
         // The newest pack (Okja) may be active first; choose the Dalton group
         // explicitly so this regression suite keeps exercising the original
         // three identities.
-        await page.locator('.group-tab').filter({ hasText: 'Dalton family venues' }).click();
+        // Two Dalton packs can be on disk (an original and a re-import), so
+        // take the first tab rather than failing strict mode.
+        await page.locator('.group-tab').filter({ hasText: 'Dalton family venues' }).first().click();
         await page.waitForTimeout(1800);
         const gateCards = await page.locator('.gate-card').count();
         if (gateCards === 3) ok('the Dalton group exposes all three brand identities');

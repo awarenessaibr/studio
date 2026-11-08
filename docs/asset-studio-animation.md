@@ -80,6 +80,26 @@ groups, and captured logos. Individual motif parts and arbitrary template
 shapes are not separate targets. Exporting PNG/JPG renders the static design;
 **Record WebM** records the 8-second animated preview.
 
+## Changing the image on an animated design
+
+The animated preview does not re-render the whole design every frame: it
+renders the artwork once into `TL.art`, then draws text and logo elements over
+it with their preset transforms. That cached artwork must be invalidated by
+every input it depends on, including the media:
+
+- `buildArt()` keys on `photoUrl`, `photoUploads`, `layerImages`,
+  `imageVariable` and the number of loaded brand photos, plus `TL.artGen`, a
+  generation counter bumped by every media change (`invalidateArt()`).
+- A photo chosen by URL is resolved through `IMG_OK` (decoded images). `IMG`
+  holds the in-flight promise per URL, and handing a promise to the engine made
+  a chosen photo render as the no-photo wash.
+- Restoring a session or a saved asset preloads every image the design
+  references (`preloadStateMedia`) before the first render, so a design reopens
+  with the photo it was saved with.
+- A video file is accepted in the Image tab: its first frame becomes the
+  design image and the video is ingested into the asset library. The still is
+  what the engine can draw; the video stays in the library as the source.
+
 ## Guidelines for adding a preset
 
 1. Add an entry to `PRESETS` in `src/client/asset-studio/animation.js` with a

@@ -82,6 +82,9 @@ const accentTextColor = () => {
 };
 
 const T = (key) => {
+    // Remember which field is being drawn: a plain put() then belongs to it,
+    // which is what lets the entrance plan address elements by field name.
+    if (S) S._field = key;
     const value = S?.t?.[key];
     return value == null ? '' : String(value);
 };
@@ -119,7 +122,98 @@ function wrap(text, font, tracking, maxWidth) {
     return lines;
 }
 
-function put(text, x, y, font, tracking, align, color) {
+// ─── animation ───────────────────────────────────────────────────────
+// A design can carry a per-element entrance plan (`template.animate`). The
+// studio renders the same draw() at any time, so the still and the animation
+// come from one layout instead of two.
+const ANIM_EFFECTS = {
+    rise: { dy: 0.018, scale: 1, alpha: 0 },
+    fade: { dy: 0, scale: 1, alpha: 0 },
+    pop: { dy: 0, scale: 0.55, alpha: 0, spring: true },
+    drop: { dy: -0.02, scale: 1, alpha: 0 },
+    slide: { dx: -0.06, scale: 1, alpha: 0 },
+};
+
+function animTime() {
+    if (!S || S.playAt == null) return null;
+    return Math.max(0, Number(S.playAt) || 0) / 1000;
+}
+
+// `phase(start, duration)` is 1 for a still render, so every draw can use it
+// for geometry (curtains, wipes, camera moves) without a second code path.
+function phase(start, duration) {
+    const t = animTime();
+    if (t == null) return 1;
+    const span = Math.max(0.001, Number(duration) || 0.001);
+    return Math.min(1, Math.max(0, (t - (Number(start) || 0)) / span));
+}
+
+const easeOut = p => 1 - Math.pow(1 - p, 3);
+const easeInOut = p => (p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2);
+
+function animPlan() {
+    if (!S || !S.animate || typeof S.animate !== 'object') return null;
+    return S.animate;
+}
+
+// How far through its own entrance an element is, and what that looks like.
+function elementState(key) {
+    const plan = animPlan();
+    const t = animTime();
+    if (!plan || t == null || !key) return null;
+    const spec = plan[key];
+    if (spec == null) return null;
+    const config = typeof spec === 'object' ? spec : { at: spec };
+    const at = Number(config.at) || 0;
+    const dur = Math.max(0.05, Number(config.dur) || 0.55);
+    const effect = ANIM_EFFECTS[config.fx || 'rise'] || ANIM_EFFECTS.rise;
+    if (t < at) return { alpha: 0, dx: 0, dy: 0, scale: 1, done: false };
+    const raw = Math.min(1, (t - at) / dur);
+    const eased = effect.spring ? Math.min(1, raw * 1.08) : easeOut(raw);
+    const overshoot = effect.spring && raw < 1 ? Math.sin(raw * Math.PI) * 0.18 : 0;
+    return {
+        alpha: raw >= 1 ? 1 : Math.min(1, raw * 2.4),
+        dx: (effect.dx || 0) * (1 - eased),
+        dy: (effect.dy || 0) * (1 - eased),
+        scale: 1 + (effect.scale - 1) * (1 - eased) + overshoot,
+        done: raw >= 1,
+    };
+}
+
+function withElement(key, draw) {
+    const state = elementState(key);
+    // Already inside one element (a stack item drawing its own lines): do not
+    // apply the same transform twice.
+    if (!state || (S && S._inElement)) { draw(); return true; }
+    if (state.alpha <= 0.001) return false;
+    X.save();
+    if (S) S._inElement = true;
+    X.globalAlpha *= state.alpha;
+    if (state.dx || state.dy || state.scale !== 1) {
+        const cx = (S._W || 0) / 2, cy = (S._H || 0) / 2;
+        if (state.scale !== 1) {
+            X.translate(cx, cy);
+            X.scale(state.scale, state.scale);
+            X.translate(-cx, -cy);
+        }
+        X.translate(state.dx * (S._W || 0), state.dy * (S._H || 0));
+    }
+    draw();
+    if (S) S._inElement = false;
+    X.restore();
+    return true;
+}
+
+function put(text, x, y, font, tracking, align, color, key) {
+    const field = key || (S && S._field) || '';
+    if (field && animPlan() && !(S && S._inElement)) {
+        withElement(field, () => putRaw(text, x, y, font, tracking, align, color));
+        return;
+    }
+    putRaw(text, x, y, font, tracking, align, color);
+}
+
+function putRaw(text, x, y, font, tracking, align, color) {
     X.font = font;
     X.fillStyle = color;
     X.textBaseline = 'middle';
@@ -856,6 +950,9 @@ function stack(rect, items, options = {}) {
         const item = box.item;
         const color = C(item.c || 'ink');
         const centerX = align === 'c' ? x + width / 2 : align === 'r' ? x + width : x;
+        // Each stack item is one element: the entrance plan addresses it by
+        // its field key, and a hidden item keeps its space so nothing jumps.
+        const paint = () => {
         if (item.bar) {
             const barWidth = item.w ? (item.w <= 1 ? item.w * width : item.w * U * factor) : width;
             X.fillStyle = color;
@@ -882,9 +979,12 @@ function stack(rect, items, options = {}) {
                     box.tracking,
                     align,
                     color,
+                    item.k,
                 );
             });
         }
+        };
+        if (item.k) withElement(item.k, paint); else paint();
         cursorY += box.height;
     });
     return cursorY;

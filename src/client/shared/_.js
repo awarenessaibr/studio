@@ -446,6 +446,24 @@
     ];
     const GRIPS = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
 
+    function normalizeVideoSettings(value) {
+        const source = value && typeof value === 'object' ? value : {};
+        const autoplay = source.autoplay === true || source.videoAutoplay === true || source.playMode === 'scene';
+        const muted = source.muted === true || source.videoMuted === true;
+        const loop = source.loop !== false && source.videoLoop !== false && source.playMode !== 'once';
+        const playMode = ['scene', 'loop', 'once'].includes(source.playMode)
+            ? source.playMode
+            : (['scene', 'loop', 'once'].includes(source.mode) ? source.mode : 'scene');
+        const startTime = Number.isFinite(Number(source.startTime)) ? Number(source.startTime) : (Number.isFinite(Number(source.videoStartTime)) ? Number(source.videoStartTime) : 0);
+        return {
+            autoplay: autoplay || playMode === 'scene',
+            loop: loop || playMode === 'loop',
+            playMode,
+            muted,
+            startTime: clamp(Math.abs(startTime), 0, 3600),
+        };
+    }
+
     /** Offered in the locale switcher; any locale already present is added too. */
     const LOCALE_PRESETS = [
         'en', 'pt-BR', 'pt-PT', 'es', 'de', 'fr', 'it', 'nl', 'sv', 'da', 'fi',
@@ -460,10 +478,18 @@
             : `layer-${Date.now().toString(36)}-${index.toString(36)}`;
         const type = source.type === 'text' ? 'text' : 'image';
 
+        const videoSettings = normalizeVideoSettings(source.videoSettings || source);
         const layer = {
             id,
             type,
             url: '',
+            videoUrl: typeof source.videoUrl === 'string' ? source.videoUrl : '',
+            videoSettings,
+            videoAutoplay: videoSettings.autoplay,
+            videoLoop: videoSettings.loop,
+            videoPlayMode: videoSettings.playMode,
+            videoStartTime: videoSettings.startTime,
+            videoMuted: videoSettings.muted,
             frames: [],
             spriteFps: clamp(finite(source.spriteFps, 8), 1, 30),
             spriteMode: ['loop', 'pingpong', 'once'].includes(source.spriteMode) ? source.spriteMode : 'loop',
@@ -505,11 +531,14 @@
         } else {
             const rawUrl = typeof source.url === 'string' ? source.url : '';
             const validFrames = Array.isArray(source.frames)
-                ? source.frames.filter((u) => typeof u === 'string' && safeImageUrl(u)).slice(0, 60)
+                ? source.frames.filter((u) => typeof u === 'string' && safeMediaUrl(u)).slice(0, 60)
                 : [];
             const frames = validFrames.length ? validFrames : (rawUrl ? [rawUrl] : []);
             layer.frames = frames;
             layer.url = frames[0] || rawUrl;
+            if (!layer.url && typeof source.videoUrl === 'string' && source.videoUrl.trim()) {
+                layer.url = source.videoUrl;
+            }
         }
 
         layer.keyframes = normalizeKeyframes(source.keyframes);
@@ -634,14 +663,77 @@
         }).filter(Boolean);
     }
 
-    function safeImageUrl(value) {
+    function safeMediaUrl(value) {
         if (typeof value !== 'string') return false;
-        if (IMAGE_DATA_URL.test(value)) return true;
+        if (IMAGE_DATA_URL.test(value) || /^data:video\//i.test(value)) return true;
         try {
             const url = new URL(value, window.location.href);
-            return url.protocol === 'https:' || url.protocol === 'http:';
+            return url.protocol === 'https:' || url.protocol === 'http:' || url.protocol === 'blob:';
         } catch {
             return false;
+        }
+    }
+
+    function safeImageUrl(value) {
+        return safeMediaUrl(value);
+    }
+
+    async function readVideoPosterDataUrl(file) {
+        if (!file || (!file.type.startsWith('video/') && !/\.(mp4|webm|mov|m4v|mkv|ogv)$/i.test(file.name || ''))) return null;
+        const url = URL.createObjectURL(file);
+        try {
+            const video = document.createElement('video');
+            video.preload = 'auto';
+            video.muted = true;
+            video.playsInline = true;
+            video.src = url;
+            await new Promise((resolve, reject) => {
+                const cleanup = () => {
+                    video.removeEventListener('loadeddata', onLoaded);
+                    video.removeEventListener('error', onError);
+                };
+                const onLoaded = () => {
+                    cleanup();
+                    resolve();
+                };
+                const onError = () => {
+                    cleanup();
+                    reject(new Error(`Could not read the video preview for ${file.name}.`));
+                };
+                video.addEventListener('loadeddata', onLoaded, { once: true });
+                video.addEventListener('error', onError, { once: true });
+            });
+            const width = video.videoWidth || 1;
+            const height = video.videoHeight || 1;
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const context = canvas.getContext('2d');
+            if (!context) return null;
+            if (Number.isFinite(video.duration) && video.duration > 0) {
+                const time = Math.min(video.duration * 0.1, Math.max(0, video.duration - 0.05));
+                video.currentTime = time;
+                await new Promise((resolve, reject) => {
+                    const cleanup = () => {
+                        video.removeEventListener('seeked', onSeeked);
+                        video.removeEventListener('error', onError);
+                    };
+                    const onSeeked = () => {
+                        cleanup();
+                        resolve();
+                    };
+                    const onError = () => {
+                        cleanup();
+                        reject(new Error(`Could not read the video preview for ${file.name}.`));
+                    };
+                    video.addEventListener('seeked', onSeeked, { once: true });
+                    video.addEventListener('error', onError, { once: true });
+                }).catch(() => {});
+            }
+            context.drawImage(video, 0, 0, width, height);
+            return canvas.toDataURL('image/jpeg', 0.82);
+        } finally {
+            URL.revokeObjectURL(url);
         }
     }
 
@@ -1164,8 +1256,8 @@
                 throw new Error(`Layer ${index + 1} is not a valid layer object.`);
             }
             const isText = item.type === 'text';
-            if (!isText && !safeImageUrl(item.url)) {
-                throw new Error(`Layer ${index + 1} has an unsupported or missing image URL.`);
+            if (!isText && !safeMediaUrl(item.url) && !(typeof item.videoUrl === 'string' && item.videoUrl.trim())) {
+                throw new Error(`Layer ${index + 1} has an unsupported or missing media URL.`);
             }
             const layer = makeLayer(item, index);
             if (ids.has(layer.id)) layer.id = `layer-${Date.now().toString(36)}-${index.toString(36)}`;
@@ -1956,10 +2048,30 @@
                     this.applyTextNodeScale(node, state);
                     return;
                 }
-                const img = node.querySelector('img');
-                if (img && state.frameUrl && img.dataset.frame !== state.frameUrl) {
-                    img.src = state.frameUrl;
-                    img.dataset.frame = state.frameUrl;
+                const media = node.querySelector('video, img');
+                if (media instanceof HTMLVideoElement) {
+                    const playTime = Number(layer.videoStartTime || 0) + Number(this.animation.currentTime || 0) / 1000;
+                    media.loop = Boolean(layer.videoLoop || layer.videoPlayMode === 'loop');
+                    media.muted = Boolean(layer.videoMuted) || this.animation.isPlaying;
+                    media.playsInline = true;
+                    media.poster = layer.url || '';
+                    if (Number.isFinite(media.duration) && media.duration > 0) {
+                        const total = Math.max(0.05, media.duration);
+                        const target = layer.videoLoop || layer.videoPlayMode === 'loop'
+                            ? ((playTime % total) + total) % total
+                            : Math.min(playTime, total);
+                        if (Math.abs(media.currentTime - target) > 0.12) media.currentTime = target;
+                    }
+                    if (layer.videoAutoplay && this.animation.isPlaying) {
+                        media.play().catch(() => {});
+                    } else {
+                        media.pause();
+                    }
+                    return;
+                }
+                if (media instanceof HTMLImageElement && state.frameUrl && media.dataset.frame !== state.frameUrl) {
+                    media.src = state.frameUrl;
+                    media.dataset.frame = state.frameUrl;
                 }
             });
             this.renderAnimationControls();
@@ -2262,6 +2374,20 @@
                         node.appendChild(clipped);
                         node.dataset.textClipped = 'true';
                     }
+                } else if (layer.videoUrl) {
+                    const video = document.createElement('video');
+                    video.src = layer.videoUrl;
+                    video.muted = Boolean(layer.videoMuted) || true;
+                    video.loop = Boolean(layer.videoLoop || layer.videoPlayMode === 'loop');
+                    video.playsInline = true;
+                    video.preload = 'auto';
+                    video.poster = initialState.frameUrl || layer.url;
+                    video.dataset.frame = video.poster;
+                    video.alt = layer.name;
+                    video.draggable = false;
+                    video.setAttribute('aria-label', layer.name);
+                    if (hasLayerEffects(layer)) video.style.filter = `url(#${layerFilterId(layer)})`;
+                    node.appendChild(video);
                 } else {
                     const image = document.createElement('img');
                     image.src = initialState.frameUrl || layer.url;
@@ -2480,7 +2606,7 @@
             typeLine.className = 'layer-type-line';
             typeLine.textContent = isText
                 ? `Text layer · ${layer.font.sizePct}% of the format height`
-                : 'Image layer';
+                : (layer.videoUrl ? 'Video layer' : 'Image layer');
             this.el.inspector.appendChild(typeLine);
 
             // --- Role ---
@@ -2489,6 +2615,28 @@
                 ['foreground', 'Foreground'], ['character', 'Character'],
                 ['character-part', 'Character part'], ['prop', 'Prop'], ['effect', 'Effect'],
             ], layer.role || 'prop'));
+
+            // --- Video controls ---
+            if (!isText && layer.videoUrl) {
+                const videoGroup = document.createElement('fieldset');
+                videoGroup.className = 'layer-effect-group';
+                const videoLegend = document.createElement('legend');
+                videoLegend.textContent = 'Video';
+                videoGroup.appendChild(videoLegend);
+                videoGroup.appendChild(this.makeToggle('Play with scene', 'videoAutoplay', Boolean(layer.videoAutoplay)));
+                videoGroup.appendChild(this.makeToggle('Loop video', 'videoLoop', Boolean(layer.videoLoop)));
+                videoGroup.appendChild(this.makeToggle('Mute audio', 'videoMuted', Boolean(layer.videoMuted)));
+                const startField = this.makeField('Start time (s)', 'videoStartTime', Number(layer.videoStartTime || 0), 'number');
+                const startInput = startField.querySelector('input');
+                startInput.min = '0';
+                startInput.max = '3600';
+                startInput.step = '0.1';
+                videoGroup.appendChild(startField);
+                videoGroup.appendChild(this.makeSelect('Playback', 'videoPlayMode', [
+                    ['scene', 'Sync to scene'], ['loop', 'Loop'], ['once', 'Play once'],
+                ], layer.videoPlayMode || 'scene'));
+                this.el.inspector.appendChild(videoGroup);
+            }
 
             // --- Sprite controls (image layers with multiple frames only) ---
             if (!isText && Array.isArray(layer.frames) && layer.frames.length > 1) {
@@ -4992,6 +5140,46 @@
                     const role = enumValue(['background', 'midground', 'ground', 'foreground', 'character', 'character-part', 'prop', 'effect']);
                     if (role) layer.role = role;
                     refreshInspector = true;
+                    break;
+                }
+                case 'videoAutoplay':
+                    if (layer.videoUrl) {
+                        layer.videoAutoplay = input.checked;
+                        layer.videoSettings = normalizeVideoSettings({ ...layer.videoSettings, autoplay: layer.videoAutoplay, playMode: layer.videoPlayMode || 'scene' });
+                    }
+                    break;
+                case 'videoLoop':
+                    if (layer.videoUrl) {
+                        layer.videoLoop = input.checked;
+                        layer.videoSettings = normalizeVideoSettings({ ...layer.videoSettings, loop: layer.videoLoop, playMode: layer.videoPlayMode || 'scene' });
+                    }
+                    break;
+                case 'videoMuted':
+                    if (layer.videoUrl) {
+                        layer.videoMuted = input.checked;
+                        layer.videoSettings = normalizeVideoSettings({ ...layer.videoSettings, muted: layer.videoMuted, playMode: layer.videoPlayMode || 'scene' });
+                    }
+                    break;
+                case 'videoStartTime': {
+                    if (layer.videoUrl) {
+                        const value = Number(input.value);
+                        if (Number.isFinite(value)) {
+                            layer.videoStartTime = clamp(Math.abs(value), 0, 3600);
+                            layer.videoSettings = normalizeVideoSettings({ ...layer.videoSettings, startTime: layer.videoStartTime, playMode: layer.videoPlayMode || 'scene' });
+                        }
+                    }
+                    break;
+                }
+                case 'videoPlayMode': {
+                    if (layer.videoUrl) {
+                        const mode = enumValue(['scene', 'loop', 'once']);
+                        if (mode) {
+                            layer.videoPlayMode = mode;
+                            layer.videoAutoplay = mode === 'scene' || layer.videoAutoplay;
+                            layer.videoLoop = mode === 'loop' || mode === 'scene' ? true : layer.videoLoop;
+                            layer.videoSettings = normalizeVideoSettings({ ...layer.videoSettings, playMode: mode, autoplay: layer.videoAutoplay, loop: layer.videoLoop, muted: layer.videoMuted, startTime: layer.videoStartTime });
+                        }
+                    }
                     break;
                 }
                 case 'spriteFps': {
@@ -8137,21 +8325,26 @@
         }
 
         async importFiles(files, { center = false, pasted = false } = {}) {
-            const images = files.filter((file) => file.type.startsWith('image/'));
-            if (!images.length) {
-                this.setStatus('No image files were selected.', true);
+            const mediaFiles = files.filter((file) => {
+                const type = file?.type || '';
+                return type.startsWith('image/') || type.startsWith('video/') || /\.(mp4|webm|mov|m4v|mkv|ogv)$/i.test(file?.name || '');
+            });
+            if (!mediaFiles.length) {
+                this.setStatus('No image or video files were selected.', true);
                 return;
             }
-            if (this.composition.layers.length + images.length > MAX_LAYERS) {
+            if (this.composition.layers.length + mediaFiles.length > MAX_LAYERS) {
                 this.setStatus(`You can add up to ${MAX_LAYERS} layers to one composition.`, true);
                 return;
             }
             try {
-                for (const file of images.sort((a, b) => a.name.localeCompare(b.name))) {
-                    const url = await this.readFileAsDataURL(file);
-                    if (!safeImageUrl(url)) throw new Error(`Unsupported image type: ${file.name}`);
+                for (const file of mediaFiles.sort((a, b) => a.name.localeCompare(b.name))) {
+                    const dataUrl = await this.readFileAsDataURL(file);
+                    if (!safeMediaUrl(dataUrl)) throw new Error(`Unsupported media type: ${file.name}`);
+                    const isVideo = file.type.startsWith('video/');
+                    const url = isVideo ? (await readVideoPosterDataUrl(file)) || dataUrl : dataUrl;
                     const index = this.composition.layers.length;
-                    const image = center ? await loadImage(url) : null;
+                    const image = center && !isVideo ? await loadImage(url) : null;
                     const scale = image
                         ? Math.min(1, this.composition.width / image.naturalWidth, this.composition.height / image.naturalHeight)
                         : 1;
@@ -8159,6 +8352,7 @@
                     const height = image ? image.naturalHeight * scale : null;
                     const layer = makeLayer({
                         url,
+                        videoUrl: isVideo ? dataUrl : '',
                         name: file.name.replace(/\.[^.]+$/, ''),
                         x: image ? (this.composition.width - width) / 2 / this.composition.width * 100 : 20 + index * 2,
                         y: image ? (this.composition.height - height) / 2 / this.composition.height * 100 : 20 + index * 2,
@@ -8171,12 +8365,12 @@
                 }
                 this.render();
                 this.setStatus(pasted
-                    ? `${images.length} pasted image${images.length === 1 ? '' : 's'} added as centered layer${images.length === 1 ? '' : 's'}.`
-                    : `${images.length} image${images.length === 1 ? '' : 's'} added.`);
+                    ? `${mediaFiles.length} pasted media file${mediaFiles.length === 1 ? '' : 's'} added as centered layer${mediaFiles.length === 1 ? '' : 's'}.`
+                    : `${mediaFiles.length} media file${mediaFiles.length === 1 ? '' : 's'} added.`);
                 this.scheduleSave();
             } catch (error) {
-                console.error('[layer-studio] image import failed:', error);
-                this.setStatus(error.message || 'Could not read the selected image files.', true);
+                console.error('[layer-studio] media import failed:', error);
+                this.setStatus(error.message || 'Could not read the selected media files.', true);
             }
         }
 

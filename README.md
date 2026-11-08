@@ -79,6 +79,8 @@ the browser's own MP4/WebM recording is used. Application modules: none.
 | Brief ingestion | One CSV/XLSX row per creative → N exports | Tools → *Brief…* or CLI | [api-and-cli.md](docs/api-and-cli.md#5-briefs-in-detail) |
 | New business intake | A name needs a complete brand pack, not a hand-built ZIP | Brand intake | [crawler.md](docs/crawler.md) |
 | Existing business assets | A team already owns logos, photos, menus and documents and needs to find, verify and reuse them | Asset library | [asset-library.md](docs/asset-library.md) |
+| Menus, prices and venue hire | A brand's dishes, set menus, dates, hire fees and Christmas offer should be draggable onto a canvas instead of retyped | Asset Studio / Agent Studio → *Menus* | [menus.md](docs/menus.md) |
+| One dish, one finished post | A menu item should become a formatted feed post, one of twelve 9:16 reel layouts, or a storytelling collab — with its caption, hashtags, motion idea **and a playing animation** that matches the reference | Asset Studio → *Post Ideas* / *Reel Ideas* / *Story Reels* | [asset-studio.md](docs/asset-studio.md#post-ideas--2-designs) |
 | A spoken brand line | Copy needs a voice, or a voice needs to be designed from a description | Voice Studio | [voice-studio.md](docs/voice-studio.md) |
 | What the public says | Channels, reviews, themes and voice need to be read together, with the gaps visible | Social intelligence | [social-intelligence.md](docs/social-intelligence.md) |
 | Brand packs + guides | You have a scraped brand-kit ZIP with Word guides | Brand identity | [brand-packs.md](docs/brand-packs.md) |
@@ -143,7 +145,7 @@ studio-layers/
 │
 ├── scripts/                ← Python crawler + asset-intel sidecar
 ├── docs/                   ← documentation; briefs in docs/briefs/
-├── tests/                  ← Node suites + Chromium harnesses
+├── tests/                  ← Node suites + Chromium harnesses (menus.js covers the Menus tab)
 ├── tools/                  ← one-off asset/rig/preview pipelines
 ├── _dev/                   ← research, plans, screenshots (not shipped)
 └── data/                   ← local studio state (git-ignored)

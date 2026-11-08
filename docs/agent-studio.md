@@ -822,9 +822,33 @@ Variants:
 | Tab | Label | Content |
 |---|---|---|
 | `brand` | Brand | logo cuts × 3 tones, pack photography |
+| `menu` | `Menus (n)` | the brand's structured menus, sections, dishes and venue offers (only when the brand has menus) |
 | `lib` | Library or `Library (n)` | business asset library with filters |
 | `tmpl` | Templates | engine panel if `hasEngine()`, otherwise the fallback catalogue |
 | `el` | Elements | scrim, rule, badge, text block |
+
+The **Menus** tab is a projection of the brand pack, not a second source of
+truth: `StudioBrand.contentAssets(brand, {branch})` returns the menus a branch
+may use, their sections, every dish and the venue's offers, each with a stable
+id. A **Branch** selector filters the list, so a menu written for Garnethill
+disappears when Merchant City is chosen. See [menus.md](menus.md) for the data
+model and the one-line dish format.
+
+Dragging a row creates an *ordinary text layer* with `format` set, so text
+editing, geometry, animation and export all keep working:
+
+| Dropped | `format` | Default box | Drawn as |
+|---|---|---|---|
+| dish | `menu-item` | 48 % × 9.5 % | dish + price flush right + description |
+| section | `menu-list` | 52 % × 32 % | heading, dishes, prices, section note |
+| whole menu | `menu-list` | 54 % × 64 % | every section |
+| venue offer | `offer` | 46 % × 11 % | title + accent price + detail |
+
+`paintMenuBlock` paints the block for the canvas/export and `menuBlockHTML`
+builds the same block in CSS for the DOM preview; both shrink the type to the
+layer and drop the descriptions below ~55 % of the requested size. The layer's
+`text` stays `Name | Description | Price` with `#` headings, so the inspector's
+text field remains the place to retype a dish.
 
 `assets()` rebuilds the tab strip and panel HTML on every call, re-wraps
 sections, then:
@@ -842,6 +866,7 @@ sections, then:
 | `logo:<wordmark\|mark>:<white\|ink\|accent>` | Brand tab | camera-ready logo cut |
 | `photo:<index>` | Brand tab | `B.photography[index]`; drag adds it to the stage |
 | `lib:<ast_id>` | Library tab | library asset record |
+| `ma:<content_asset_id>` | Menus tab | dish (`menu-<menu>-s<i>-i<j>`), section (`…-s<i>`), menu (`menu-<menu>`) or offer (`venue-<id>`) |
 | `template:<id>` | fallback Templates | template card (text layer) |
 | `size:<id>` | fallback Templates | switch format |
 | `format:<id>` | fallback Templates | switch format (`FMTS` id) |
@@ -1527,7 +1552,7 @@ The page never reads `data/` directly; `server.js` blocks static access to it.
 | `lnkLib` | `<a>` | `chrome` | Library deep link |
 | `undo` | button | toolbar | pop history |
 | `reset` | button | toolbar | delete saved scene + rebuild |
-| `atabs` | tablist | `assets` | Brand/Library/Templates/Elements |
+| `atabs` | tablist | `assets` | Brand/Menus/Library/Templates/Elements |
 | `apanel` | tabpanel | `assets` | panel body |
 | `swh` | `<small>` | — | palette heading hint (static) |
 | `sw` | `<div>` | `chrome` | palette swatches |
@@ -1576,6 +1601,7 @@ The page never reads `data/` directly; `server.js` blocks static access to it.
 | `fmt` | fallback Templates | template choice select (unreachable) |
 | `libCls` | Library tab | asset class filter |
 | `libVer` | Library tab | verified checkbox |
+| `menuBranch` | Menus tab | branch filter (`AS.menuBranch`) |
 
 ### 14.6 `localStorage` index
 

@@ -11,6 +11,27 @@ window.addEventListener('DOMContentLoaded', () => {
     const studio = window.layerStudio;
     if (!studio) return;
 
+    const assetTemplate = (() => {
+        try {
+            const raw = sessionStorage.getItem('assetStudio.openTemplate');
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            if (parsed && Array.isArray(parsed.layers)) return parsed;
+            return null;
+        } catch {
+            return null;
+        }
+    })();
+    if (assetTemplate) {
+        try {
+            sessionStorage.removeItem('assetStudio.openTemplate');
+            studio.openComposition(assetTemplate, { projectMeta: assetTemplate.meta || null });
+            studio.setStatus(`Opened “${assetTemplate.name}” from Asset Studio as an editable foundation template.`);
+        } catch (error) {
+            console.warn('[studio-v2] asset template failed to open:', error);
+        }
+    }
+
     const $ = (id) => document.getElementById(id);
     const tree = $('segTree');
     const canvas = $('layerCanvas');
@@ -278,30 +299,86 @@ window.addEventListener('DOMContentLoaded', () => {
         studio.setStatus(`Duplicated "${layer.name}" as "${duplicate.name}" in the same group.`);
     }
 
+    async function createVideoPosterDataUrl(file) {
+        if (!file || (!file.type.startsWith('video/') && !/\.(mp4|webm|mov|m4v|mkv|ogv)$/i.test(file.name || ''))) return null;
+        const objectUrl = URL.createObjectURL(file);
+        try {
+            const video = document.createElement('video');
+            video.preload = 'auto';
+            video.muted = true;
+            video.playsInline = true;
+            video.src = objectUrl;
+            await new Promise((resolve, reject) => {
+                const onLoaded = () => {
+                    video.removeEventListener('error', onError);
+                    resolve();
+                };
+                const onError = () => {
+                    video.removeEventListener('loadeddata', onLoaded);
+                    reject(new Error(`Could not load the video preview for ${file.name}.`));
+                };
+                video.addEventListener('loadeddata', onLoaded, { once: true });
+                video.addEventListener('error', onError, { once: true });
+            });
+            const width = video.videoWidth || 1;
+            const height = video.videoHeight || 1;
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const context = canvas.getContext('2d');
+            if (!context) return null;
+            if (Number.isFinite(video.duration) && video.duration > 0) {
+                video.currentTime = Math.min(video.duration * 0.1, Math.max(0, video.duration - 0.05));
+                await new Promise((resolve) => {
+                    const onSeeked = () => {
+                        video.removeEventListener('error', onError);
+                        resolve();
+                    };
+                    const onError = () => {
+                        video.removeEventListener('seeked', onSeeked);
+                        resolve();
+                    };
+                    video.addEventListener('seeked', onSeeked, { once: true });
+                    video.addEventListener('error', onError, { once: true });
+                });
+            }
+            context.drawImage(video, 0, 0, width, height);
+            return canvas.toDataURL('image/jpeg', 0.82);
+        } finally {
+            URL.revokeObjectURL(objectUrl);
+        }
+    }
+
     async function replaceLayerImage(id, file) {
         const layer = studio.getLayer(id);
         if (!layer || layer.type !== 'image') {
             studio.setStatus('Select an image segment to replace.', true);
             return;
         }
-        if (!file || !/^image\/(?:png|jpe?g|webp|gif|svg\+xml)$/i.test(file.type)) {
-            studio.setStatus('Choose a PNG, JPEG, WebP, GIF, or SVG image.', true);
+        const isVideo = file && (file.type.startsWith('video/') || /\.(mp4|webm|mov|m4v|mkv|ogv)$/i.test(file.name || ''));
+        if (!file || (!/^image\/(?:png|jpe?g|webp|gif|svg\+xml)$/i.test(file.type) && !isVideo)) {
+            studio.setStatus('Choose a PNG, JPEG, WebP, GIF, SVG image, or MP4/WebM video.', true);
             return;
         }
         try {
-            const url = await studio.readFileAsDataURL(file);
-            if (!/^data:image\/(?:png|jpe?g|webp|gif|svg\+xml);/i.test(url)) {
+            const dataUrl = await studio.readFileAsDataURL(file);
+            const posterUrl = isVideo ? (await createVideoPosterDataUrl(file)) || dataUrl : dataUrl;
+            if (!isVideo && !/^data:image\/(?:png|jpe?g|webp|gif|svg\+xml);/i.test(dataUrl)) {
                 throw new Error('The selected file is not a supported image.');
             }
-            layer.url = url;
-            layer.frames = [url];
+            if (isVideo && !/^data:video\//i.test(dataUrl)) {
+                throw new Error('The selected file is not a supported video.');
+            }
+            layer.url = posterUrl;
+            layer.videoUrl = isVideo ? dataUrl : '';
+            layer.frames = [posterUrl];
             studio.render();
             render();
             studio.scheduleSave();
-            studio.setStatus(`Replaced the image in "${layer.name}". Its size and position were preserved.`);
+            studio.setStatus(`Replaced the media in "${layer.name}". Its size and position were preserved.`);
         } catch (error) {
-            console.error('[layer-studio] segment image replacement failed:', error);
-            studio.setStatus(error.message || 'Could not replace the segment image.', true);
+            console.error('[layer-studio] segment media replacement failed:', error);
+            studio.setStatus(error.message || 'Could not replace the segment media.', true);
         }
     }
 

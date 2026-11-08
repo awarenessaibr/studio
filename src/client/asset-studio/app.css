@@ -1730,6 +1730,17 @@ img { max-width: 100%; }
     background: #fff;
     object-fit: contain;
 }
+.business-library-tile .library-tile-kind {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 5px;
+    background: var(--surface-2, #eee);
+    color: var(--muted);
+    font: 700 10px/1 var(--font-ui, system-ui);
+    letter-spacing: .08em;
+}
 .library-tile-name { overflow: hidden; font-size: 9px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .library-tile-meta { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 8px; text-transform: capitalize; }
 .library-state { width: 5px; height: 5px; flex: 0 0 auto; border-radius: 50%; background: var(--warn, #b28a3d); }

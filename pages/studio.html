@@ -403,6 +403,115 @@ h3[data-sec]:focus-visible {
 .asset .st[data-s="approved"] { background: var(--ok); }
 .asset .st[data-s="rejected"] { background: var(--err); }
 
+/* Menus tab: dish and offer chips that drop onto the canvas as designed
+   blocks, plus the section and whole-menu variants that group them. */
+.menu-panel { padding: 0 0 10px; }
+.menu-panel .flt { padding: 0 10px 8px; }
+.menu-group { margin: 0 0 10px; }
+.menu-group h3 { display: flex; align-items: baseline; gap: 6px; }
+.menu-group h3 small { font-weight: 400; color: var(--mu); font-size: 10px; }
+.menu-group > .note { margin: 0 10px 6px; }
+.menu-source {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 10px 6px;
+  padding: 7px 9px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: var(--rai);
+  cursor: grab;
+  font-size: 11px;
+  color: var(--mu);
+}
+.menu-source b {
+  color: var(--tx);
+  font: 700 11px/1.3 Georgia, serif;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.menu-source:hover { border-color: var(--ac); }
+.menu-post {
+  display: inline-block;
+  margin: 0 10px 6px;
+  color: var(--ac);
+  font-size: 11px;
+  text-decoration: none;
+}
+.menu-post:hover { text-decoration: underline; }
+.menu-sec {
+  margin: 0 10px 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--rai);
+  overflow: hidden;
+}
+.menu-sec > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 9px;
+  cursor: pointer;
+  font-size: 11px;
+  list-style: none;
+}
+.menu-sec > summary::-webkit-details-marker { display: none; }
+.menu-sec > summary::before {
+  content: "▸";
+  color: var(--mu);
+  font-size: 9px;
+  line-height: 1;
+}
+.menu-sec[open] > summary::before { content: "▾"; }
+.menu-sec > summary b { font-weight: 600; }
+.menu-sec > summary span { margin-left: auto; color: var(--mu); font-size: 10px; white-space: nowrap; }
+.menu-sec .menu-drop {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 3px;
+  padding: 2px 6px 6px;
+}
+.menu-chip {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 5px 7px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: grab;
+  font-size: 11px;
+  text-align: left;
+}
+.menu-chip:hover { border-color: var(--ac); background: var(--hi); }
+.menu-chip .mc-n {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.menu-chip .mc-p { color: var(--mu); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.menu-chip .mc-d {
+  display: none;
+  flex-basis: 100%;
+  color: var(--mu);
+  font-size: 10px;
+  line-height: 1.35;
+}
+.menu-chip:hover .mc-d { display: block; }
+.menu-chip .mc-tag {
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--hi);
+  color: var(--mu);
+  font-size: 9px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.menu-offer { border-left: 3px solid var(--ac); }
+.menu-empty { padding: 0 12px 10px; color: var(--mu); font-size: 11px; }
+
 .eng-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -657,6 +766,39 @@ main {
   pointer-events: none;
   white-space: nowrap;
 }
+/* A dropped menu dish or venue offer. The layer stays a text layer; this is
+   the same block paintMenuBlock draws for export, in CSS. */
+.L.mb-host { align-items: stretch; }
+.mb {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: .16em .2em;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  text-align: left;
+}
+.mb-sec {
+  font-size: .74em;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--ac);
+  border-bottom: 1px solid color-mix(in srgb, var(--ac) 30%, transparent);
+  padding-bottom: .12em;
+  margin-bottom: .34em;
+}
+.mb-sec:not(:first-child) { margin-top: .72em; }
+.mb-item + .mb-item { margin-top: .62em; }
+.mb-row { display: flex; align-items: baseline; gap: .7em; }
+.mb-n { flex: 1 1 auto; min-width: 0; overflow-wrap: break-word; }
+.mb-p { flex: 0 0 auto; font-weight: 700; font-size: .92em; white-space: nowrap; }
+.mb-d { font-size: .56em; line-height: 1.34; opacity: .68; margin-top: .06em; }
+.mb-offer .mb-n { font-weight: 700; }
+.mb-offer .mb-p { color: var(--ac); }
+.mb-offer .mb-d { font-size: .62em; }
+.mb-tight .mb-d { display: none; }
 .safe .stage::after {
   content: "";
   position: absolute;
@@ -1591,7 +1733,7 @@ function setLayerSelection(ids,primary){
 }
 function clearLayerSelection(){setLayerSelection([],null)}
 const packCache=new Map(),IMG=new Map(),PXC=new Map(),TINT=new Map();
-const AS={tab:'brand',lib:{status:'idle',items:[],cls:'',verified:false,err:''},saved:{status:'idle',items:[],err:''},savedActive:null};
+const AS={tab:'brand',menuBranch:'',lib:{status:'idle',items:[],cls:'',verified:false,err:''},saved:{status:'idle',items:[],err:''},savedActive:null};
 const templateFallback=[
  {id:'hero-flyer',label:'Hero flyer',summary:'Print-led hero composition',category:'Flyers',format:'A4 portrait'},
  {id:'social-post',label:'Social post',summary:'Square social layout',category:'Social',format:'Square'},
@@ -1789,7 +1931,12 @@ function render(sc=scene,tgt=stage){tgt.innerHTML='';
   if(l.type==='text'){e.classList.add('T');const f=l.font;e.style.justifyContent=l.align==='center'?'center':l.align==='right'?'flex-end':'flex-start';if(l.align)e.style.textAlign=l.align;
    Object.assign(e.style,{color:l.color,fontFamily:f.family,fontWeight:f.weight,fontSize:f.sizePct+'cqh',lineHeight:f.lineHeight,letterSpacing:f.letterSpacingEm+'em',textTransform:f.transform});
    if(l.bg){e.style.background=l.bg;e.style.borderRadius=(l.radius||0)+'cqh';e.style.justifyContent='center'}
-   if(l.nowrap)e.style.whiteSpace='pre';e.textContent=l.text}
+   if(l.format==='menu-item'||l.format==='menu-list'||l.format==='offer'){
+    // Same block the canvas painter draws, rebuilt in CSS so the preview
+    // matches the export. The font-size is fitted after insertion.
+    e.classList.add('mb-host');e.dataset.menu=String(f.sizePct);e.innerHTML=menuBlockHTML(l);
+   }else{
+    if(l.nowrap)e.style.whiteSpace='pre';e.textContent=l.text}}
   const animations=timelineAnims(l),kfEvent=animations.find(a=>a.keyframes);
   if(kfEvent){e.dataset.kf=1;applyKf(e,l,tgt===stage?T:DUR,kfEvent.keyframes)}
   const cssAnimations=animations.filter(a=>!a.keyframes);
@@ -1810,7 +1957,10 @@ function render(sc=scene,tgt=stage){tgt.innerHTML='';
     if(tgt.clientWidth*l.w/100<18)e.classList.add('tiny-w');
     for(const h of HANDLES){const g=document.createElement('span');g.className='hnd';g.dataset.h=h;g.onpointerdown=ev=>resizeLayer(ev,l,h,e);e.appendChild(g)}}
   }
-  e.onpointerdown=ev=>down(ev,l.id);tgt.appendChild(e)}}
+  e.onpointerdown=ev=>down(ev,l.id);tgt.appendChild(e)}
+ // Menus are measured after they are in the DOM: shrink the block until it
+ // fits the layer it was dropped on, the same fit paintMenuBlock applies.
+ tgt.querySelectorAll('[data-menu]').forEach(fitMenuLayer)}
 function down(ev,id){if(ev.button)return;const l=scene.find(q=>q.id===id);if(!l||l.type==='fill')return;ev.preventDefault();if(!selectedLayers.has(id))select(id);
  const moving=[...selectedLayers].map(layerId=>scene.find(layer=>layer.id===layerId)).filter(layer=>layer&&layer.type!=='fill'&&!layer.hidden);
  const r=stage.getBoundingClientRect(),sx=ev.clientX,sy=ev.clientY,originals=new Map(moving.map(layer=>[layer.id,{x:layer.x,y:layer.y}]));let moved=false;
@@ -2322,6 +2472,7 @@ function compositionLayer(l,i){
  if(l.type==='text'||(!url&&typeof l.text==='string')){
   const f=l.font||{};
   return {...base,type:'text',text:String(l.text||''),color:l.color||TH.ink,align:['center','right'].includes(l.align)?l.align:'left',
+   ...(['menu-item','menu-list','offer'].includes(l.format)?{format:l.format}:{}),
    font:{family:f.family||BF.body,weight:+f.weight||400,sizePct:+clamp(num(f.sizePct,2),.4,30).toFixed(2),lineHeight:+num(f.lineHeight,1.2).toFixed(2),letterSpacingEm:+num(f.letterSpacingEm,0).toFixed(3),transform:f.transform||'none'}};
  }
  if(!url)return null;
@@ -2441,11 +2592,80 @@ async function loadSavedTemplates(b){
  if(AS.tab==='tmpl')assets();
 }
 
+/* ---------- menus tab ----------
+   The brand's structured menus (extracted from its PDFs) as draggable
+   content: one dish, one section, the whole menu, or a venue offer. Every
+   drop becomes a normal text layer with `format` set, so it can still be
+   edited, moved, animated and exported like any other layer. */
+function menuCatalog(b,branch){
+ try{return (b&&window.StudioBrand&&window.StudioBrand.contentAssets)?window.StudioBrand.contentAssets(b,{branch:branch||''}):null}
+ catch(error){console.warn('Menus unavailable',error);return null}
+}
+function menuAsset(b,id){
+ const cat=menuCatalog(b,AS.menuBranch||'');
+ return cat&&cat.assets.find(asset=>asset.id===id)||null;
+}
+function menuChip(asset,extra){
+ const detail=asset.detail||'';
+ return `<div class="menu-chip${extra||''}" draggable="true" data-k="ma:${esc(asset.id)}" title="${esc(detail||asset.label)}">
+  <span class="mc-n">${esc(asset.label)}</span>${asset.price?`<span class="mc-p">${esc(asset.price)}</span>`:''}
+  ${detail?`<span class="mc-d">${esc(detail)}</span>`:''}</div>`;
+}
+function menuPanel(){
+ const b=B,cat=menuCatalog(b,AS.menuBranch||'');
+ const locations=(window.StudioBrand&&window.StudioBrand.branchesOfBrand)?window.StudioBrand.branchesOfBrand(b):[];
+ if(!cat||!cat.assets.length){
+  return `<div class="note">This brand has no menus yet. Add them to the brand’s content file (<code>files/&lt;brand&gt;/content/&lt;brand&gt;.json</code>) and run <code>node scripts/sync-brand-content.js</code> — see <a href="docs/menus.md">docs/menus.md</a>.</div>`;
+ }
+ const menus=(window.StudioBrand&&window.StudioBrand.menusFor)?window.StudioBrand.menusFor(b,AS.menuBranch||''):[];
+ const byId=new Map(cat.assets.map(asset=>[asset.id,asset]));
+ let h=`<div class="menu-panel">`;
+ if(locations.length){
+  h+=`<div class="flt"><label for="menuBranch">Branch</label><select id="menuBranch" aria-label="Branch"><option value="">All branches</option>${locations.map(location=>`<option value="${esc(location.id)}"${location.id===AS.menuBranch?' selected':''}>${esc(location.name)}</option>`).join('')}</select></div>`;
+ }
+ h+=`<p class="note">Drag a dish, a whole section or a venue offer onto the canvas — the type, price alignment and spacing come with it. The layer stays a text layer, so you can retype the dish or move it afterwards.</p>`;
+ menus.forEach(menu=>{
+  const where=(window.StudioBrand&&window.StudioBrand.branchesOfBrand)
+   ?(menu.branches||[]).map(id=>locations.find(location=>location.id===id)?.name||id).join(' & ')
+   :'';
+  const count=menu.sections.reduce((sum,section)=>sum+(section.items?.length||0),0);
+  h+=`<div class="menu-group"><h3>${esc(menu.name)}<small>${esc([where,menu.availability,count?`${count} items`:''].filter(Boolean).join(' · '))}</small></h3>`;
+  if(menu.summary)h+=`<div class="note">${esc(menu.summary)}</div>`;
+  const whole=byId.get(`menu-${menu.id}`);
+  if(whole){
+   const firstItem=(()=>{for(let s=0;s<menu.sections.length;s+=1){if(menu.sections[s].items&&menu.sections[s].items.length)return`menu-${menu.id}-s${s}-i0`}return''})();
+   const postHref=`asset-studio.html?brand=${encodeURIComponent(b.id)}&category=postidea${firstItem?`&item=${encodeURIComponent(firstItem)}`:''}`;
+   h+=`<div class="menu-source" draggable="true" data-k="ma:${esc(whole.id)}" title="Drag the whole ${esc(menu.name.toLowerCase())} onto the canvas"><b>${esc(menu.name)}</b><span>· whole menu, ${count} dishes</span></div>`;
+   h+=`<a class="menu-post" href="${postHref}" title="Open Post Ideas with this menu's first dish">Post idea from this menu →</a>`;
+  }
+  (menu.packages||[]).forEach((pack,index)=>{
+   const asset=byId.get(`menu-${menu.id}-pack-${index}`);
+   if(asset)h+=`<div class="menu-drop">${menuChip(asset,' menu-offer')}</div>`;
+  });
+  menu.sections.forEach((section,sectionIndex)=>{
+   const asset=byId.get(`menu-${menu.id}-s${sectionIndex}`);
+   if(!asset)return;
+   const itemAssets=(section.items||[]).map((item,itemIndex)=>byId.get(`menu-${menu.id}-s${sectionIndex}-i${itemIndex}`)).filter(Boolean);
+   h+=`<details class="menu-sec"><summary draggable="true" data-k="ma:${esc(asset.id)}" title="Drag the ${esc(section.name||'section')} section onto the canvas"><b>${esc(section.name||'Section')}</b><span>${esc([section.price,itemAssets.length?`${itemAssets.length} items`:''].filter(Boolean).join(' · '))}</span></summary>`;
+   h+=`<div class="menu-drop">${itemAssets.map(item=>menuChip(item)).join('')}</div></details>`;
+  });
+  h+=`</div>`;
+ });
+ if(cat.offers.length){
+  h+=`<div class="menu-group"><h3>Venue &amp; functions<small>${esc((cat.venue&&cat.venue.name)||'')}</small></h3><div class="note">Hire fees, set menus, cakes and entertainment — drag one on to make an offer card.</div><div class="menu-drop" style="padding:0 10px 4px">${cat.offers.map(asset=>menuChip(asset,' menu-offer')).join('')}</div></div>`;
+ }
+ h+=`<p class="note"><a href="library.html?brandId=${encodeURIComponent(b.id)}">See the source documents in the library →</a></p></div>`;
+ return h;
+}
 function assets(){
  const tabs=$('#atabs'),n=AS.lib.items.length;
- tabs.innerHTML='';[['brand','Brand'],['lib',n?`Library (${n})`:'Library'],['tmpl','Templates'],['el','Elements']].forEach(([k,t])=>{const b=document.createElement('button');b.textContent=t;b.setAttribute('role','tab');b.setAttribute('aria-selected',String(AS.tab===k));b.onclick=()=>{AS.tab=k;assets()};tabs.appendChild(b)});
+ const menuCount=(()=>{const cat=menuCatalog(B,AS.menuBranch||'');return cat?cat.assets.length:0})();
+ tabs.innerHTML='';[['brand','Brand'],...(menuCount?[['menu',`Menus (${menuCount})`]]:[]),['lib',n?`Library (${n})`:'Library'],['tmpl','Templates'],['el','Elements']].forEach(([k,t])=>{const b=document.createElement('button');b.textContent=t;b.setAttribute('role','tab');b.setAttribute('aria-selected',String(AS.tab===k));b.onclick=()=>{AS.tab=k;assets()};tabs.appendChild(b)});
  const p=$('#apanel');let h='';
- if(AS.tab==='brand'){
+ if(AS.tab==='menu'){
+  h+=menuPanel();
+ }
+ else if(AS.tab==='brand'){
   const L=B._logos||{},kinds=['wordmark',...(L.mark?['mark']:[])];
   h+=`<h3>Logos · drag onto canvas</h3>`;
   if(!L.wordmark&&!L.mark)h+=`<div class="note">No logo files in this brand pack — the logo layer falls back to the brand name in its display type.</div>`;
@@ -2480,6 +2700,13 @@ function assets(){
  }
  else h+=`<h3>Elements · drag onto canvas</h3><div class="assets">${ELS.map(a=>`<div class="asset" draggable="true" data-k="el:${a.k}"><div class="th" style="${a.st()}">${a.t||''}</div>${a.n}</div>`).join('')}</div>`;
  p.innerHTML=h;wrapSections(p);
+ if(AS.tab==='menu'){
+  const branch=$('#menuBranch');
+  if(branch)branch.onchange=()=>{AS.menuBranch=branch.value;assets()};
+  p.querySelectorAll('[data-k]:not(.asset)').forEach(el=>{
+   el.ondragstart=e=>{e.dataTransfer.setData('k',el.dataset.k);e.dataTransfer.effectAllowed='copy'};
+  });
+ }
  if(AS.tab==='tmpl'){bindSaved(p);if(hasEngine())engBind(p)}
  buildFormats();
  bindFormatSelectors();
@@ -2527,6 +2754,17 @@ async function addAsset(k,px,py){
  else if(kind==='logo'){const asp=(B._logos&&B._logos[a]&&B._logos[a].aspect)||4,[w,h]=box(asp,24);Ly={...at(w,h),name:a==='mark'?'Mark':'Logo',type:'logo',which:a,tone:b2}}
  else if(kind==='lib'){const it=AS.lib.items.find(x=>x.id===a);if(!it)return;const asp=it.width&&it.height?it.width/it.height:await aspOf(it.sourceUrl),[w,h]=box(asp,50),logoish=/logo|icon|mark|badge/i.test(`${it.class} ${it.role}`);
   Ly={...at(w,h),name:it.name,type:'image',src:it.sourceUrl,assetId:it.id,fit:logoish?'contain':'cover'};recordUsage(it)}
+ else if(kind==='ma'){
+  const it=menuAsset(B,a);if(!it)return;
+  const size=it.kind==='item'?{w:48,h:9.5,size:2.5,weight:600}
+   :it.kind==='offer'?{w:46,h:11,size:2.2,weight:700}
+   :it.kind==='package'?{w:50,h:12,size:2,weight:700}
+   :it.kind==='section'?{w:58,h:40,size:1.9,weight:600}
+   :{w:60,h:70,size:1.25,weight:600};
+  Ly={...at(size.w,size.h),name:it.label,type:'text',format:it.format,text:it.text,
+   font:F(BF.display,size.weight,size.size,it.format==='menu-list'?1.16:1.2),color:TH.ink};
+  $('#status').textContent=`Added ${it.label} from ${it.groupLabel||'the menu'}.`;
+ }
  else if(kind==='template'){const tpl=getTemplateCatalog().find(t=>t.id===a)||getTemplateCatalog()[0];if(tpl){applyTemplateChoice(tpl);return;} }
  else if(kind==='size'){const size=getSizeCatalog().find(s=>s.id===a);if(size){const map={a4:'a4',square:'sq','story-916':'story',landscape:'land','portrait-45':'a4'};const id=map[a]||'a4';const next=FMTS.find(f=>f.id===id)||FMTS[0];setFormat(next.id);toast(`Format changed to ${next.n}.`);return;}Ly={...at(40,6),name:'Size',type:'text',text:'Size',font:F(BF.display,BF.dW,2.4,1.2),color:TH.ink};}
  else if(kind==='format'){const next=FMTS.find(f=>f.id===a) || FMTS[0];setFormat(next.id);toast(`Format changed to ${next.n}.`);return;}
@@ -2992,6 +3230,185 @@ function paintText(ctx,l,x,y,w,h,H){
  ctx.restore();
 }
 
+/* ---------- menus, venue offers and other dropped content ----------
+   A menu line is plain text, so the layer stays editable: `Name | Description
+   | £Price`, `#` for a section heading. The renderer owns the typography —
+   dish in the brand's display face, price set flush right, description in the
+   body face — and scales the whole block down to the box it was dropped on,
+   so a dish never arrives unstyled or spilling out of its layer. */
+function parseMenuRows(value){
+ const out=[];
+ String(value==null?'':value).split('\n').forEach(raw=>{
+  const line=raw.trim();
+  if(!line)return;
+  if(line.startsWith('#')){out.push({section:line.replace(/^#+\s*/,'')});return}
+  const parts=line.split(/\s*\|\s*/);
+  let name=parts[0]||'',description='',price='';
+  if(parts.length===1){/* name only */}
+  else if(parts.length===2){
+   if(/^[£$€]?\s*\d/.test(parts[1]))price=parts[1];
+   else description=parts[1];
+  }else{
+   const last=parts[parts.length-1];
+   if(/^[£$€]?\s*\d/.test(last)||/^(?:free|poa|on request)$/i.test(last)){price=last;description=parts.slice(1,-1).join(' | ')}
+   else description=parts.slice(1).join(' | ');
+  }
+  out.push({name:name.trim(),description:description.trim(),price:price.trim()});
+ });
+ return out;
+}
+/* The preview side of paintMenuBlock: same rows, same emphasis, in CSS. */
+function menuBlockHTML(l){
+ const rows=parseMenuRows(l.text);
+ const bodyFamily=String(BF.body||(l.font&&l.font.family)||'inherit');
+ const block=rows.map(row=>{
+  if(row.section)return `<div class="mb-sec">${esc(row.section)}</div>`;
+  const price=row.price?`<span class="mb-p">${esc(row.price)}</span>`:'';
+  const description=row.description
+   ?`<div class="mb-d" style="font-family:${esc(bodyFamily)}">${esc(row.description)}</div>`:'';
+  return `<div class="mb-item"><div class="mb-row"><span class="mb-n">${esc(row.name)}</span>${price}</div>${description}</div>`;
+ }).join('');
+ return `<div class="mb${l.format==='offer'?' mb-offer':''}">${block}</div>`;
+}
+function fitMenuLayer(el){
+ const inner=el.firstElementChild;
+ if(!inner)return;
+ const base=parseFloat(el.dataset.menu)||2.2;
+ const boxH=el.clientHeight,boxW=el.clientWidth;
+ if(!boxH||!boxW)return;
+ const shrink=()=>{
+  let pct=parseFloat(el.style.fontSize)||base;
+  el.classList.remove('mb-tight');
+  for(let pass=0;pass<5;pass+=1){
+   const contentH=inner.scrollHeight,contentW=inner.scrollWidth;
+   if(contentH<=boxH+1&&contentW<=boxW+1)break;
+   const ratio=Math.min(contentH>boxH+1?boxH/contentH:1,contentW>boxW+1?boxW/contentW:1);
+   pct=Math.max(.25,pct*Math.min(ratio,.98));
+   el.style.fontSize=pct+'cqh';
+  }
+  return pct;
+ };
+ el.style.fontSize=base+'cqh';
+ let pct=shrink();
+ // Same trade as the canvas painter: once the block is this small the
+ // descriptions would print at two pixels high, so they are dropped.
+ if(pct<base*.55){
+  el.classList.add('mb-tight');
+  el.style.fontSize=base+'cqh';
+  pct=shrink();
+  el.classList.add('mb-tight');
+ }
+}
+function wrapCanvasText(ctx,value,maxWidth){
+ const words=String(value||'').split(/\s+/).filter(Boolean),lines=[];
+ if(!words.length)return lines;
+ let line='';
+ words.forEach(word=>{
+  const next=line?line+' '+word:word;
+  if(!line||ctx.measureText(next).width<=maxWidth)line=next;
+  else{lines.push(line);line=word}
+ });
+ if(line)lines.push(line);
+ return lines;
+}
+function paintMenuBlock(ctx,l,x,y,w,h,H){
+ const rows=parseMenuRows(l.text);
+ if(!rows.length)return;
+ // `font.family` is a CSS stack (`"Caprasimo","Helvetica Neue",Arial`).
+ // Quoting it again makes the whole assignment invalid and the canvas falls
+ // back to 10px sans-serif, so the stack goes in as it is.
+ const stack=value=>{const raw=String(value||'').trim();return raw?`${raw}, Georgia, serif`:'Georgia, serif'};
+ const f=l.font||{},family=stack(f.family||BF.display);
+ const bodyFamily=stack(BF.body||f.family);
+ const ink=l.color||TH.ink;
+ const accent=TH.accent||ink;
+ const base=Math.max(1,(+f.sizePct||2.2)/100*H);
+ const isOffer=l.format==='offer';
+ const pad=Math.min(w*.035,h*.06);
+ const availW=Math.max(8,w-pad*2),availH=Math.max(8,h-pad*2);
+ const lineH=+f.lineHeight||1.18;
+ const layout=(scale,withDescriptions=true)=>{
+  const nameSize=base*scale,descSize=nameSize*(isOffer?.62:.56),secSize=nameSize*.74;
+  const items=[];
+  let total=0;
+  rows.forEach((row,index)=>{
+   if(row.section){
+    const top=index===0?0:nameSize*.72,headH=secSize*1.5;
+    items.push({row,kind:'section',top,headH,nameSize,descSize,secSize,lines:[]});
+    total+=top+headH+nameSize*.28;
+    return;
+   }
+   const top=index===0||rows[index-1]?.section?0:nameSize*.62;
+   ctx.font=`${+f.weight||600} ${nameSize}px ${family}`;
+   const priceW=row.price?ctx.measureText(row.price).width:0;
+   const nameMax=Math.max(20,availW-priceW-(row.price?nameSize*.7:0));
+   const nameLines=wrapCanvasText(ctx,row.name,nameMax);
+   ctx.font=`400 ${descSize}px ${bodyFamily}`;
+   const descLines=withDescriptions?wrapCanvasText(ctx,row.description,availW):[];
+   const nameH=nameLines.length*nameSize*lineH,descH=descLines.length*descSize*1.34;
+   items.push({row,kind:'item',top,nameH,descH,nameSize,descSize,secSize,nameLines,descLines,priceW});
+   total+=top+nameH+descH;
+  });
+  return {items,total,nameSize,descSize,secSize};
+ };
+ let plan=layout(1,true);
+ if(plan.total>availH&&plan.total>0)plan=layout(Math.max(.05,availH/plan.total),true);
+ // A menu shrunk to fit a small layer stops being readable long before it
+ // stops fitting: below this size the descriptions are dropped rather than
+ // printed at two pixels high.
+ if(plan.nameSize<base*.55){
+  const tight=layout(1,false);
+  plan=tight.total>availH&&tight.total>0?layout(Math.max(.05,availH/tight.total),false):tight;
+ }
+ let cursor=y+pad+Math.max(0,availH-plan.total)/2;
+ ctx.save();
+ ctx.beginPath();ctx.rect(x,y,w,h);ctx.clip();
+ ctx.textBaseline='middle';
+ plan.items.forEach(entry=>{
+  cursor+=entry.top;
+  if(entry.kind==='section'){
+   const size=entry.secSize;
+   ctx.font=`700 ${size}px ${family}`;
+   try{ctx.letterSpacing=(size*.07)+'px'}catch{}
+   ctx.fillStyle=accent;
+   ctx.textAlign='left';
+   ctx.fillText(applyTextTransform(entry.row.section||'','uppercase'),x+pad,cursor+size*.72,availW);
+   try{ctx.letterSpacing='0px'}catch{}
+   ctx.fillStyle=rgba(accent,.3);
+   ctx.fillRect(x+pad,cursor+size*1.28,availW,Math.max(1,H*.0016));
+   cursor+=entry.headH;
+   return;
+  }
+  const nameSize=entry.nameSize,descSize=entry.descSize;
+  ctx.font=`${+f.weight||600} ${nameSize}px ${family}`;
+  try{ctx.letterSpacing=((+f.letterSpacingEm||0)*nameSize)+'px'}catch{}
+  ctx.fillStyle=ink;
+  ctx.textAlign='left';
+  let lineY=cursor+nameSize*lineH/2;
+  entry.nameLines.forEach(line=>{ctx.fillText(line,x+pad,lineY,availW);lineY+=nameSize*lineH});
+  try{ctx.letterSpacing='0px'}catch{}
+  if(entry.row.price){
+   ctx.font=`700 ${nameSize*.92}px ${family}`;
+   ctx.fillStyle=isOffer?accent:ink;
+   ctx.textAlign='right';
+   ctx.fillText(entry.row.price,x+w-pad,cursor+nameSize*lineH/2,availW);
+  }
+  if(entry.descLines.length){
+   ctx.font=`400 ${descSize}px ${bodyFamily}`;
+   ctx.fillStyle=rgba(ink,.68);
+   ctx.textAlign='left';
+   let dy=cursor+entry.nameH+descSize*.72;
+   entry.descLines.forEach(line=>{ctx.fillText(line,x+pad,dy,availW);dy+=descSize*1.34});
+  }
+  cursor+=entry.nameH+entry.descH;
+ });
+ if(isOffer){
+  ctx.fillStyle=rgba(accent,.55);
+  ctx.fillRect(x+pad,cursor+Math.min(pad*.4,H*.006),availW,Math.max(1,H*.0018));
+ }
+ ctx.restore();
+}
+
 async function paintImageLayer(ctx,l,x,y,w,h){
  const src=l.src?absUrl(l.src):'';
  if(!src){
@@ -3067,7 +3484,8 @@ async function paintLayer(ctx,l,W,H,t){
  }else if(l.type==='logo'){
   await paintLogoLayer(ctx,l,x,y,w,h,H);
  }else if(l.type==='text'){
-  paintText(ctx,l,x,y,w,h,H);
+  if(l.format==='menu-item'||l.format==='menu-list'||l.format==='offer')paintMenuBlock(ctx,l,x,y,w,h,H);
+  else paintText(ctx,l,x,y,w,h,H);
  }
  ctx.restore();
 }
@@ -3169,6 +3587,7 @@ async function compositionFromScene(name){
    const f=l.font||{};
    layers.push({...base,type:'text',text:String(l.text==null?'':l.text),color:l.color||TH.ink,
     align:['center','right'].includes(l.align)?l.align:'left',
+    ...(['menu-item','menu-list','offer'].includes(l.format)?{format:l.format}:{}),
     ...(l.bg?{bg:l.bg,radius:+clamp(+l.radius||0,0,50).toFixed(2)}:{}),
     font:{family:f.family||BF.body,weight:+f.weight||400,
      sizePct:+clamp(+f.sizePct||2,.4,40).toFixed(2),
@@ -3775,16 +4194,27 @@ function toggleExportMenu(force){
 /* ==========================================================================
    Import a composition — Studio Layers projects, imports, a link or JSON
    ========================================================================== */
-// Checked-in compositions address their PNGs as /data/projects/<p>/assets/…,
-// which is not served; /api/projects/<p>/assets/… exposes the same files.
+// Checked-in compositions can point at artwork in /data/projects/... and
+// /data/imports/...; those paths are not directly readable by the browser.
+// Rewrite them to the API-served equivalents before the imported scene is used.
 const serveableUrl=url=>{
- const match=/^\/data\/projects\/([^/]+)\/(.+)$/.exec(String(url||''));
- return match?`${API}/projects/${match[1]}/${match[2]}`:url;
+ const value=String(url||'').trim();
+ if(!value||/^data:|^blob:|^(?:[a-z]+:)?\/\//i.test(value))return value;
+ const match=/^\/data\/(projects|imports)\/([^/]+)\/(.+)$/.exec(value);
+ return match?`${API}/${match[1]}/${match[2]}/${match[3]}`:value;
 };
 function importedScene(composition){
- const layers=compositionToScene({composition:{...composition,layers:(composition.layers||[]).map(l=>({
-  ...l,url:serveableUrl(l&&l.url),frames:Array.isArray(l&&l.frames)?l.frames.map(serveableUrl):l&&l.frames,
- }))}});
+ const safeLayers=Array.isArray(composition&&composition.layers)
+  ? composition.layers.filter(layer=>layer&&typeof layer==='object')
+  : [];
+ const layers=compositionToScene({composition:{...composition,layers:safeLayers.map(layer=>{
+  const next={...layer};
+  const frameList=Array.isArray(layer.frames)?layer.frames:typeof layer.frames==='string'?[layer.frames]:[];
+  const frames=frameList.map(serveableUrl).filter(value=>typeof value==='string'&&value.length);
+  next.frames=frames;
+  next.url=serveableUrl(layer.url||frames[0]||'');
+  return next;
+ })}});
  const source=new Map((composition.layers||[]).map(l=>[String(l&&l.id),l]));
  layers.forEach(layer=>{
   const from=source.get(layer.id);

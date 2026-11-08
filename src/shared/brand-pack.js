@@ -555,22 +555,289 @@
         return Object.keys(out).length ? out : null;
     }
 
+    // ---------------------------------------------------------------------
+    // Menus, venue hire and the content assets built from them
+    // ---------------------------------------------------------------------
+
+    const MENU_KINDS = ['food', 'drinks', 'kids', 'functions', 'christmas', 'desserts', 'canapes', 'buffet', 'other'];
+    const DIETARY_MARKS = ['V', 'Ve', 'GFi', 'GF', 'DF', 'Vg'];
+    const MAX_MENUS = 12;
+    const MAX_MENU_SECTIONS = 16;
+    const MAX_MENU_ITEMS = 60;
+
+    // A brand can carry documents as well as images; the same no-`..` rule
+    // applies, but PDFs, Office files and text are allowed where an image
+    // would not be.
+    function normalizeDocPath(value) {
+        if (typeof value !== 'string') return '';
+        const file = value.trim().slice(0, 240);
+        if (!file || file.split('/').includes('..') || file.startsWith('http')) return '';
+        return /^[A-Za-z0-9._~%()+,@\-/ ]+\.(?:pdf|docx?|xlsx?|csv|txt|md)$/i.test(file) ? file : '';
+    }
+
+    // A menu is dated material: prices and dishes change, and a poster that
+    // quotes a retired price is worse than no poster. `validFrom`/`validTo`
+    // stay on the menu so the studio can say how old a price is.
+    function normalizeMenuDate(value) {
+        const entry = text(value, 20);
+        return /^\d{4}-\d{2}(?:-\d{2})?$/.test(entry) ? entry : '';
+    }
+
+    function normalizeDietary(value) {
+        const list = Array.isArray(value)
+            ? value
+            : (typeof value === 'string' ? value.split(/[,/|]\s*/) : []);
+        const seen = [];
+        list.forEach((entry) => {
+            const mark = text(entry, 12);
+            if (!mark) return;
+            const canonical = DIETARY_MARKS.find((code) => code.toLowerCase() === mark.toLowerCase())
+                || (/^(?:gf|gluten.?free)$/i.test(mark) ? 'GFi'
+                    : (/^(?:v|veggie|vegetarian)$/i.test(mark) ? 'V'
+                        : (/^(?:ve|vegan)$/i.test(mark) ? 'Ve' : '')));
+            if (canonical && !seen.includes(canonical)) seen.push(canonical);
+        });
+        return seen.slice(0, 6);
+    }
+
+    function normalizeMenuItems(value) {
+        if (!Array.isArray(value)) return [];
+        return value.slice(0, MAX_MENU_ITEMS).map((item) => {
+            const entry = item && typeof item === 'object' ? item : {};
+            return {
+                name: text(entry.name, 140),
+                description: text(entry.description, 260),
+                price: text(entry.price, 40),
+                note: text(entry.note, 160),
+                dietary: normalizeDietary(entry.dietary),
+            };
+        }).filter((item) => item.name);
+    }
+
+    function normalizeMenuSections(value) {
+        if (!Array.isArray(value)) return [];
+        return value.slice(0, MAX_MENU_SECTIONS).map((section) => {
+            const entry = section && typeof section === 'object' ? section : {};
+            const items = normalizeMenuItems(entry.items);
+            return {
+                name: text(entry.name, 80),
+                note: text(entry.note, 240),
+                price: text(entry.price, 60),
+                items,
+            };
+        }).filter((section) => section.items.length || section.name);
+    }
+
+    function normalizeMenuPackages(value) {
+        if (!Array.isArray(value)) return [];
+        return value.slice(0, 12).map((pack) => {
+            const entry = pack && typeof pack === 'object' ? pack : {};
+            return {
+                name: text(entry.name, 80),
+                description: text(entry.description, 320),
+                price: text(entry.price, 60),
+                unit: text(entry.unit, 40),
+                minOrder: text(entry.minOrder, 60),
+                includes: normalizeStringList(entry.includes, 120, 10),
+            };
+        }).filter((pack) => pack.name);
+    }
+
+    function normalizeMenu(value, index) {
+        const entry = value && typeof value === 'object' ? value : {};
+        const sections = normalizeMenuSections(entry.sections);
+        const packages = normalizeMenuPackages(entry.packages);
+        if (!sections.length && !packages.length) return null;
+        const name = text(entry.name || entry.title, 80) || `Menu ${index + 1}`;
+        const source = entry.source && typeof entry.source === 'object' ? entry.source : {};
+        return {
+            id: slugId(entry.id || name, `menu-${index + 1}`).slice(0, 60),
+            name,
+            kind: MENU_KINDS.includes(entry.kind) ? entry.kind : 'food',
+            branches: normalizeStringList(entry.branches, 40, 8),
+            summary: text(entry.summary, 300),
+            availability: text(entry.availability, 160),
+            serves: normalizeStringList(entry.serves, 40, 8),
+            validFrom: normalizeMenuDate(entry.validFrom),
+            validTo: normalizeMenuDate(entry.validTo),
+            priceNote: text(entry.priceNote, 120),
+            dietaryKey: normalizeStringList(entry.dietaryKey, 200, 6),
+            notes: normalizeStringList(entry.notes, 240, 8),
+            source: {
+                document: normalizeDocPath(source.document),
+                page: Number.isFinite(Number(source.page)) ? Math.max(1, Math.round(Number(source.page))) : null,
+                note: text(source.note, 200),
+            },
+            sections,
+            packages,
+        };
+    }
+
+    /**
+     * A brand's menus. `menus` is the full list; the older single `menu` /
+     * `drinks` blocks are still honoured and folded into the same list so a
+     * crawler pack written before this shape keeps working. The projections
+     * back to `menu` / `drinks` happen in normalizeContent, which is what
+     * Asset Studio and the template builders already read.
+     */
+    function normalizeMenus(value) {
+        const menus = [];
+        const add = (entry) => {
+            const menu = normalizeMenu(entry, menus.length);
+            if (menu && !menus.some((existing) => existing.id === menu.id)) menus.push(menu);
+        };
+        (Array.isArray(value) ? value : []).forEach(add);
+        return menus.slice(0, MAX_MENUS);
+    }
+
+    function normalizeVenue(value) {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+        const source = value;
+        const hire = source.hire && typeof source.hire === 'object' ? source.hire : {};
+        const faqs = (Array.isArray(source.faqs) ? source.faqs : []).slice(0, 20).map((faq) => {
+            const entry = faq && typeof faq === 'object' ? faq : {};
+            return { q: text(entry.q || entry.question, 200), a: text(entry.a || entry.answer, 800) };
+        }).filter((faq) => faq.q && faq.a);
+        const entertainment = (Array.isArray(source.entertainment) ? source.entertainment : [])
+            .slice(0, 10).map((entry) => {
+                const item = entry && typeof entry === 'object' ? entry : {};
+                return {
+                    name: text(item.name, 100),
+                    detail: text(item.detail, 300),
+                    price: text(item.price, 80),
+                };
+            }).filter((item) => item.name);
+        const offers = (Array.isArray(source.offers) ? source.offers : []).slice(0, 16).map((entry) => {
+            const item = entry && typeof entry === 'object' ? entry : {};
+            return {
+                id: slugId(item.id || item.title, 'offer').slice(0, 60),
+                title: text(item.title, 80),
+                detail: text(item.detail, 220),
+                price: text(item.price, 60),
+                branches: normalizeStringList(item.branches, 40, 8),
+                menuId: text(item.menuId, 60),
+            };
+        }).filter((item) => item.title);
+        // `hire.*` is the nested shape a hand-written file may use; the flat
+        // fields are what this function writes back. Reading both keeps a
+        // saved pack idempotent — re-normalising it must not drop the fee.
+        const pick = (field, limit, flat) => text(hire[field] || source[field] || flat, limit);
+        const out = {
+            name: text(source.name, 120),
+            hireFee: pick('fee', 60, source.hireFee),
+            hireFeeNote: pick('note', 240, source.hireFeeNote),
+            minimumSpend: pick('minimumSpend', 60, source.minimumSpend),
+            deposit: pick('deposit', 60, source.deposit),
+            minGuests: pick('minGuests', 40, source.minGuests),
+            maxGuests: pick('maxGuests', 40, source.maxGuests),
+            minCatering: pick('minCatering', 40, source.minCatering),
+            exclusiveUse: pick('exclusiveUse', 160, source.exclusiveUse),
+            setupFrom: pick('setupFrom', 60, source.setupFrom),
+            arrivalFrom: pick('arrivalFrom', 60, source.arrivalFrom),
+            lastOrders: pick('lastOrders', 60, source.lastOrders),
+            closes: pick('closes', 60, source.closes),
+            capacityNote: text(source.capacityNote, 300),
+            accessibility: text(source.accessibility, 500),
+            parking: text(source.parking, 500),
+            decorations: text(source.decorations, 500),
+            music: text(source.music, 500),
+            drinks: text(source.drinks, 500),
+            catering: normalizeStringList(source.catering, 200, 10),
+            occasions: normalizeStringList(source.occasions, 80, 12),
+            terms: normalizeStringList(source.terms, 300, 24),
+            notes: normalizeStringList(source.notes, 300, 10),
+            faqs,
+            entertainment,
+            offers,
+        };
+        const filled = Object.values(out).some((entry) => (
+            Array.isArray(entry) ? entry.length > 0 : typeof entry === 'string' ? entry.length > 0 : false
+        ));
+        return filled ? out : null;
+    }
+
+    function normalizeLocations(value) {
+        if (!Array.isArray(value)) return [];
+        return value.slice(0, 8).map((entry, index) => {
+            const item = entry && typeof entry === 'object' ? entry : {};
+            const name = text(item.name, 80);
+            const id = slugId(item.id || name, `location-${index + 1}`).slice(0, 60);
+            if (!name) return null;
+            const hours = {};
+            if (item.hours && typeof item.hours === 'object' && !Array.isArray(item.hours)) {
+                Object.entries(item.hours).slice(0, 7).forEach(([day, label]) => {
+                    const value = text(label, 60);
+                    if (value) hours[text(day, 12)] = value;
+                });
+            }
+            return {
+                id,
+                name,
+                address: text(item.address, 200),
+                postcode: text(item.postcode, 20),
+                email: text(item.email, 120),
+                phone: text(item.phone, 40),
+                mapUrl: normalizeAssetUrl(item.mapUrl),
+                hours: Object.keys(hours).length ? hours : null,
+            };
+        }).filter(Boolean);
+    }
+
+    function normalizeDocuments(value) {
+        if (!Array.isArray(value)) return [];
+        return value.slice(0, 24).map((entry) => {
+            const item = entry && typeof entry === 'object' ? entry : {};
+            const path = normalizeDocPath(item.path);
+            const title = text(item.title, 160);
+            if (!path || !title) return null;
+            return {
+                title,
+                path,
+                kind: text(item.kind, 40) || 'document',
+                pages: Number.isFinite(Number(item.pages)) ? Math.max(1, Math.round(Number(item.pages))) : null,
+                updated: normalizeMenuDate(item.updated),
+                branch: text(item.branch, 60),
+                note: text(item.note, 240),
+                menuIds: normalizeStringList(item.menuIds, 60, 12),
+            };
+        }).filter(Boolean);
+    }
+
     function normalizeContent(value) {
         if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
         const out = {};
-        for (const key of ['menu', 'drinks']) {
-            const menu = value[key];
-            if (!menu || typeof menu !== 'object' || !Array.isArray(menu.sections)) continue;
-            const sections = menu.sections.slice(0, 12).map((section) => ({
-                name: text(section?.name, 80),
-                items: (Array.isArray(section?.items) ? section.items : []).slice(0, 60).map((item) => ({
-                    name: text(item?.name, 140),
-                    price: text(item?.price, 40),
-                    description: text(item?.description, 220),
-                })).filter((item) => item.name),
-            })).filter((section) => section.items.length);
-            if (sections.length) out[key] = { title: text(menu.title, 80), sections };
+        // One menus list, fed by both the rich `menus` array and the older
+        // single `menu` / `drinks` blocks (a crawler pack writes those).
+        const menus = normalizeMenus(value.menus);
+        // Fold the older blocks in only when the full list is absent: a saved
+        // pack carries both, and re-normalizing it must not duplicate them.
+        if (!menus.length) {
+            [['menu', 'food'], ['drinks', 'drinks']].forEach(([key, kind]) => {
+                const legacy = value[key];
+                if (!legacy || typeof legacy !== 'object' || !Array.isArray(legacy.sections)) return;
+                const folded = normalizeMenu({
+                    id: key,
+                    name: legacy.title || (kind === 'drinks' ? 'Drinks' : 'Menu'),
+                    kind,
+                    sections: legacy.sections,
+                }, menus.length);
+                if (folded && !menus.some((menu) => menu.id === folded.id)) menus.push(folded);
+            });
         }
+        if (menus.length) {
+            out.menus = menus;
+            // Projections for the readers that predate the menus list.
+            const primary = menus.find((menu) => menu.kind === 'food') || menus[0];
+            const drinks = menus.find((menu) => menu.kind === 'drinks');
+            if (primary) out.menu = { title: primary.name, sections: primary.sections };
+            if (drinks) out.drinks = { title: drinks.name, sections: drinks.sections };
+        }
+        const venue = normalizeVenue(value.venue);
+        if (venue) out.venue = venue;
+        const locations = normalizeLocations(value.locations);
+        if (locations.length) out.locations = locations;
+        const documents = normalizeDocuments(value.documents);
+        if (documents.length) out.documents = documents;
         if (value.hours && typeof value.hours === 'object' && !Array.isArray(value.hours)) {
             const hours = {};
             Object.entries(value.hours).slice(0, 7).forEach(([day, hoursText]) => {
@@ -584,6 +851,219 @@
         const copy = normalizeCopy(value.copy);
         if (copy) out.copy = copy;
         return Object.keys(out).length ? out : null;
+    }
+
+    // ---------------------------------------------------------------------
+    // Menus as draggable content assets
+    // ---------------------------------------------------------------------
+    //
+    // The studio panel, Asset Studio and the library all want the same thing
+    // from a menu: one line per dish that a design can take without more
+    // parsing. These helpers own that format so the surfaces cannot drift:
+    //
+    //   Name | Description | £Price      one dish, currency trailing
+    //   # Section name                   a heading in the same text block
+
+    const MENU_ITEM_SEPARATOR = ' | ';
+
+    function menuDietaryLabel(item) {
+        const marks = Array.isArray(item?.dietary) ? item.dietary : [];
+        return marks.length ? ` (${marks.join(', ')})` : '';
+    }
+
+    function menuItemLine(item) {
+        if (!item || !item.name) return '';
+        const description = [item.description, menuDietaryLabel(item)].filter(Boolean).join('').trim();
+        return [item.name, description, item.price || ''].join(MENU_ITEM_SEPARATOR).trim();
+    }
+
+    function menuSectionHeading(section) {
+        const name = text(section?.name, 80);
+        if (!name) return '';
+        return section?.price ? `# ${name} · ${text(section.price, 60)}` : `# ${name}`;
+    }
+
+    function menuSectionText(section) {
+        if (!section) return '';
+        const lines = [];
+        const heading = menuSectionHeading(section);
+        if (heading) lines.push(heading);
+        (Array.isArray(section.items) ? section.items : []).forEach((item) => {
+            const line = menuItemLine(item);
+            if (line) lines.push(line);
+        });
+        if (section.note) lines.push(section.note);
+        return lines.join('\n');
+    }
+
+    function menuText(menu) {
+        if (!menu) return '';
+        return (Array.isArray(menu.sections) ? menu.sections : [])
+            .map(menuSectionText)
+            .filter(Boolean)
+            .join('\n');
+    }
+
+    /**
+     * The menus a branch can use. A menu with no `branches` is the brand's,
+     * every branch included; a menu that names branches is only offered there
+     * (the Garnethill function menus do not belong on a Merchant City poster).
+     */
+    function menusFor(brand, branchId) {
+        const menus = Array.isArray(brand?.content?.menus) ? brand.content.menus : [];
+        const branch = String(branchId || '');
+        return branch ? menus.filter((menu) => !menu.branches?.length || menu.branches.includes(branch)) : menus;
+    }
+
+    function menuRows(brand, menuId, branchId) {
+        const menus = menusFor(brand, branchId);
+        const menu = (menuId && menus.find((entry) => entry.id === menuId)) || menus[0];
+        if (!menu) return [];
+        return menuText(menu).split('\n').filter(Boolean);
+    }
+
+    function branchesOfBrand(brand) {
+        const locations = Array.isArray(brand?.content?.locations) ? brand.content.locations : [];
+        return locations.map((location) => ({ id: location.id, name: location.name }));
+    }
+
+    function branchLabel(brand, ids) {
+        const list = Array.isArray(ids) ? ids : [];
+        if (!list.length) return '';
+        const locations = Array.isArray(brand?.content?.locations) ? brand.content.locations : [];
+        const names = list.map((id) => locations.find((location) => location.id === id)?.name || titleCase(id));
+        return names.join(' & ');
+    }
+
+    /**
+     * Everything a menu or a venue can hand to a design, flat and addressed by
+     * a stable id. The id is safe inside a drag payload (`kind:id`), so a drop
+     * target only needs to look the asset up in this list.
+     */
+    function contentAssets(brand, options) {
+        const opts = options || {};
+        const menus = menusFor(brand, opts.branch);
+        const groups = [];
+        const assets = [];
+        menus.forEach((menu) => {
+            const itemCount = menu.sections.reduce((sum, section) => sum + (section.items?.length || 0), 0);
+            const where = branchLabel(brand, menu.branches);
+            const meta = [where, menu.availability, itemCount ? `${itemCount} items` : '']
+                .filter(Boolean).join(' · ');
+            const group = {
+                id: menu.id,
+                label: menu.name,
+                kind: menu.kind,
+                summary: menu.summary,
+                availability: menu.availability,
+                meta,
+                validFrom: menu.validFrom,
+                validTo: menu.validTo,
+                assets: [],
+            };
+            const push = (asset) => {
+                if (!asset || !asset.text) return;
+                group.assets.push(asset.id);
+                assets.push({ ...asset, group: menu.id, groupLabel: menu.name, branch: opts.branch || '' });
+            };
+            push({
+                id: `menu-${menu.id}`,
+                kind: 'menu',
+                format: 'menu-list',
+                label: menu.name,
+                text: menuText(menu),
+                meta,
+                detail: menu.summary,
+                price: menu.priceNote,
+                menuId: menu.id,
+            });
+            (menu.packages || []).forEach((pack, index) => {
+                push({
+                    id: `menu-${menu.id}-pack-${index}`,
+                    kind: 'package',
+                    format: 'offer',
+                    label: pack.name,
+                    text: [pack.name, pack.description || pack.includes?.join(', '), pack.price].filter(Boolean).join(MENU_ITEM_SEPARATOR),
+                    meta: [pack.minOrder, pack.unit].filter(Boolean).join(' · '),
+                    detail: pack.description,
+                    price: pack.price,
+                    menuId: menu.id,
+                    item: pack,
+                });
+            });
+            menu.sections.forEach((section, sectionIndex) => {
+                push({
+                    id: `menu-${menu.id}-s${sectionIndex}`,
+                    kind: 'section',
+                    format: 'menu-list',
+                    label: section.name || `Section ${sectionIndex + 1}`,
+                    text: menuSectionText(section),
+                    meta: [section.price, section.items?.length ? `${section.items.length} items` : '']
+                        .filter(Boolean).join(' · '),
+                    detail: section.note,
+                    price: section.price,
+                    menuId: menu.id,
+                    sectionName: section.name,
+                    sectionIndex,
+                });
+                (section.items || []).forEach((item, itemIndex) => {
+                    push({
+                        id: `menu-${menu.id}-s${sectionIndex}-i${itemIndex}`,
+                        kind: 'item',
+                        format: 'menu-item',
+                        label: item.name,
+                        text: menuItemLine(item),
+                        meta: [section.name, item.price].filter(Boolean).join(' · '),
+                        detail: item.description,
+                        price: item.price,
+                        menuId: menu.id,
+                        sectionName: section.name,
+                        sectionIndex,
+                        itemIndex,
+                        item,
+                    });
+                });
+            });
+            groups.push(group);
+        });
+        const venue = brand?.content?.venue;
+        const offers = [];
+        (Array.isArray(venue?.offers) ? venue.offers : []).forEach((offer, index) => {
+            if (opts.branch && offer.branches?.length && !offer.branches.includes(opts.branch)) return;
+            const asset = {
+                id: `venue-${offer.id || index}`,
+                kind: 'offer',
+                format: 'offer',
+                label: offer.title,
+                text: [offer.title, offer.detail, offer.price].filter(Boolean).join(MENU_ITEM_SEPARATOR),
+                meta: branchLabel(brand, offer.branches),
+                detail: offer.detail,
+                price: offer.price,
+                group: 'venue',
+                groupLabel: 'Venue & functions',
+                branch: opts.branch || '',
+            };
+            offers.push(asset);
+            assets.push(asset);
+        });
+        return {
+            branch: opts.branch || '',
+            menus: menus.map((menu) => ({
+                id: menu.id,
+                name: menu.name,
+                kind: menu.kind,
+                summary: menu.summary,
+                availability: menu.availability,
+                validFrom: menu.validFrom,
+                validTo: menu.validTo,
+                branches: menu.branches,
+                priceNote: menu.priceNote,
+            })),
+            groups,
+            offers,
+            assets,
+            venue: venue || null,
+        };
     }
 
     /**
@@ -781,6 +1261,10 @@
         const id = ID_PATTERN.test(String(source.id || ''))
             ? String(source.id)
             : slugId(source.name || source.dir, `brand-${index + 1}`);
+        const content = normalizeContent(source.content);
+        // Documents are listed in the content file (one source of truth) and
+        // lifted onto the brand so the asset library can index them.
+        const documents = normalizeDocuments(source.documents || source.content?.documents);
         const brand = {
             id,
             name: text(source.name, 120) || titleCase(source.dir) || `Brand ${index + 1}`,
@@ -795,7 +1279,8 @@
             palette: normalizePalette(source.palette || source.color),
             typography: normalizeTypography(source.typography),
             voice: normalizeVoice(source.voice),
-            content: normalizeContent(source.content),
+            content,
+            documents,
             provenance: normalizeProvenance(source.provenance),
             social: normalizeSocial(source.social),
             logos: normalizeLogos(source.logos),
@@ -1280,6 +1765,17 @@
             set('eyebrow', voucher.title);
             set('amount', voucher.value);
             set('msg', christmas ? festive.message : voucher.message);
+            set('foot', footer);
+        }
+
+        // A post idea for a brand without structured menus: the deck's special
+        // is the best dish it has, and the kicker is its menu label.
+        if (category === 'postidea') {
+            set('eyebrow', special.kicker);
+            set('kicker', menu.kicker);
+            set('title', special.dish);
+            set('body', special.description);
+            set('price', special.price);
             set('foot', footer);
         }
 
@@ -4398,6 +4894,20 @@
         normalizeLogos,
         normalizeGuidelines,
         normalizeContent,
+        normalizeMenus,
+        normalizeMenu,
+        normalizeVenue,
+        normalizeLocations,
+        normalizeDocuments,
+        MENU_KINDS,
+        menuItemLine,
+        menuSectionText,
+        menuText,
+        menuRows,
+        menusFor,
+        contentAssets,
+        branchesOfBrand,
+        branchLabel,
         normalizeBrand,
         normalizeBrandPack,
         brandKitFor,

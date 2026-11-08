@@ -388,7 +388,7 @@
     </div>
 
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-    <input type="file" id="agentPhotoInput" accept="image/*" hidden>
+    <input type="file" id="agentPhotoInput" accept="image/*,video/*" hidden>
     <input type="file" id="agentFontInput" accept=".woff2,.woff,.ttf,.otf,font/woff2,font/woff,font/ttf,font/otf" hidden>
 
     <script src="/src/client/asset-studio/vendor/qrcode.min.js"></script>
@@ -422,7 +422,10 @@
 
         /* ---------- state ---------- */
         let PACKS = [], P = null, B = null, TH = { ink: '#17162e', bone: '#f2eee7', accent: '#eb5b3c' }, PAL = {}, BF = { display: 'Georgia', body: 'Helvetica Neue' };
-        const UF = [], packCache = new Map(), IMG = new Map();
+        // IMG holds the in-flight promise per URL; IMG_OK holds the decoded
+        // image once it is ready. The engine needs the image, not the promise:
+        // handing it a promise made a chosen photo render as the no-photo wash.
+        const UF = [], packCache = new Map(), IMG = new Map(), IMG_OK = new Map();
         let BRAND_TEMPLATES = {}, BRAND_TEMPLATE_IMAGES = new Map();
         const BRAND_TEMPLATE_IMAGE_PENDING = new WeakMap();
         let IMAGE_LIB = { status: 'idle', brandId: null, items: [], error: '' };
@@ -525,7 +528,13 @@
         async function loadFonts() {
             try { const d = await jget(API + '/fonts'); for (const f of (d && d.fonts) || []) { if (!f.family || !f.url) continue; try { const ff = new FontFace(f.family, `url("${f.url}")`, { weight: '100 1000' }); await ff.load(); document.fonts.add(ff); UF.push(f); } catch { } } } catch { }
         }
-        const loadImg = src => { if (!IMG.has(src)) IMG.set(src, new Promise((res, rej) => { const i = new Image(), t = setTimeout(() => rej(new Error('timeout')), 9000); i.crossOrigin = 'anonymous'; i.onload = () => { clearTimeout(t); res(i); }; i.onerror = () => { clearTimeout(t); rej(new Error('load')); }; i.src = src; })); return IMG.get(src); };
+        const loadImg = src => {
+            if (!IMG.has(src)) {
+                const promise = new Promise((res, rej) => { const i = new Image(), t = setTimeout(() => rej(new Error('timeout')), 9000); i.crossOrigin = 'anonymous'; i.onload = () => { clearTimeout(t); IMG_OK.set(src, i); res(i); }; i.onerror = () => { clearTimeout(t); rej(new Error('load')); }; i.src = src; });
+                IMG.set(src, promise);
+            }
+            return IMG.get(src);
+        };
         function trimImg(img) {
             const w = img.naturalWidth || 300, h = img.naturalHeight || 100, c = document.createElement('canvas'); c.width = w; c.height = h;
             const x = c.getContext('2d'); x.drawImage(img, 0, 0, w, h);
@@ -544,9 +553,37 @@
             b._logos = out; return out;
         }
         async function brandPhotos(b) {
-            if (b._photos) return b._photos;
+            if (b._photos && b._photos.length) return b._photos;
             const urls = (b.photography || []).map(p => p && p.url).filter(Boolean).slice(0, 9);
-            b._photos = (await Promise.all(urls.map(u => loadImg(u).catch(() => null)))).filter(Boolean); return b._photos;
+            const loaded = (await Promise.all(urls.map(u => loadImg(u).catch(() => null)))).filter(Boolean);
+            // Do not cache an empty result: one failed sweep should not leave
+            // every design photoless for the rest of the session.
+            if (loaded.length) b._photos = loaded;
+            return loaded;
+        }
+
+        // Every image a design refers to — the chosen photo, uploads, images
+        // dropped on template layers and brand-template image slots. Load them
+        // before a render so a restored design shows the photo it was saved
+        // with instead of falling back to the brand's first photograph.
+        function stateImageUrls(state = S) {
+            const template = tplOf(state);
+            const slots = template?.brandComposition
+                ? (template.composition.variables || []).filter(variable => variable.kind === 'image').map(variable => state.t?.[variable.id])
+                : [];
+            return [...new Set([
+                state.photoUrl,
+                ...(state.photoUploads || []).map(source => source?.url),
+                ...Object.values(state.layerImages || {}),
+                ...slots,
+            ].filter(Boolean))];
+        }
+        async function preloadStateMedia(state = S) {
+            const template = tplOf(state);
+            await Promise.all(stateImageUrls(state).map(async url => {
+                const image = await loadImg(url).catch(() => null);
+                if (image && template?.brandComposition) BRAND_TEMPLATE_IMAGES.set(url, image);
+            }));
         }
 
         function brandTemplateCategory(template) {
@@ -741,7 +778,7 @@
         function engState(s) {
             const L = (B && B._logos) || {};
             return {
-                t: textOf(s), slideIndex: 0, slideCount: 1, pal: palOf(s), fonts: { display: s.fonts?.display || BF.display, serif: s.fonts?.serif || s.fonts?.body || BF.body, sans: s.fonts?.sans || s.fonts?.body || BF.body }, photos: (s.photoUrl && IMG.get(s.photoUrl) ? [IMG.get(s.photoUrl)] : (B && B._photos) || []), sel: 0, qr: '', boxes: [],
+                t: textOf(s), slideIndex: 0, slideCount: 1, pal: palOf(s), fonts: { display: s.fonts?.display || BF.display, serif: s.fonts?.serif || s.fonts?.body || BF.body, sans: s.fonts?.sans || s.fonts?.body || BF.body }, photos: (s.photoUrl && IMG_OK.get(s.photoUrl) ? [IMG_OK.get(s.photoUrl)] : (B && B._photos) || []), sel: 0, qr: '', boxes: [],
                 motif: s.motif || 'auto', motifOn: s.motifOn !== false, motifScale: s.motifScale || 1, motifX: s.motifX || 0, motifY: s.motifY || 0,
                 logoWordmark: L.wordmark ? L.wordmark.canvas : null, logoMark: L.mark ? L.mark.canvas : null, logoScale: s.logoScale || 1, logoOn: s.logoOn !== false, logoX: 0, logoY: 0,
                 brandWordmark: (B && (B.wordmark || B.name)) || 'Brand', typeProfile: null, titleWeight: 700, defaultQr: (B && (B.url || (siteOf() ? 'https://' + siteOf() : ''))) || ''
@@ -1171,9 +1208,21 @@
 
         /* ----- animation engine ----- */
         const Animation = window.AssetStudioAnimation;
+        // Drop the cached artwork. The media key above already does this;
+        // bumping a generation makes it explicit at the call sites.
+        function invalidateArt() { TL.art = null; TL.artKey = ''; TL.artGen = (TL.artGen || 0) + 1; }
         function buildArt() {
             const s = S, size = sizeOf(s), target = TL.target || Math.min(size.w, 1100);
-            const key = JSON.stringify([B.id, s.cat, s.tpl, s.size, size.w, size.h, s.t, s.pal, s.motif, s.motifOn, s.motifScale, s.motifX, s.motifY, s.logoScale, target]);
+            // Every input the artwork depends on belongs in this key. The
+            // images were missing: changing the photo did not invalidate the
+            // cache, so an animated design kept drawing the old (or no) photo
+            // and Reset could not bring the original back.
+            const key = JSON.stringify([
+                B.id, s.cat, s.tpl, s.size, size.w, size.h, s.t, s.pal, s.fonts,
+                s.motif, s.motifOn, s.motifScale, s.motifX, s.motifY, s.logoScale,
+                s.photoUrl, s.photoUploads, s.layerImages, s.imageVariable,
+                (B._photos || []).length, TL.artGen || 0, target,
+            ]);
             if (TL.art && TL.artKey === key) return TL.art;
             const cv = document.createElement('canvas'), template = tplOf(s);
             if (template.brandComposition) renderBrandComposition(cv, template, s, target, false, true);
@@ -1899,14 +1948,14 @@
                         if (selectedLayer) delete S.layerImages[selectedLayer.id];
                         else if (selectedVariable) delete S.t[selectedVariable.id];
                         else delete S.photoUrl;
-                        buildControls(); schedule();
+                        invalidateArt(); afterChange(true);
                     };
                     actions.appendChild(reset);
                 }
             }
             if (actions.children.length) body.appendChild(actions);
             const targetName = selectedLayer?.name || selectedVariable?.name || 'this design';
-            body.appendChild(Object.assign(document.createElement('p'), { className: 'hint', textContent: `Choose brand photography or a library image for ${targetName}, or upload a new image.` }));
+            body.appendChild(Object.assign(document.createElement('p'), { className: 'hint', textContent: `Choose brand photography or a library image for ${targetName}, upload a new image, or upload a video — its first frame is used and the video is kept in the library.` }));
         }
         function controlSize(body) {
             body.appendChild(Object.assign(document.createElement('p'), { className: 'hint', textContent: 'Downloads render at the selected export size.' }));
@@ -1939,6 +1988,12 @@
         const humanizeField = key => String(key).replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[-_]+/g, ' ').replace(/^./, char => char.toUpperCase());
         async function loadImageLibrary() {
             if (!B || (IMAGE_LIB.brandId === B.id && ['loading', 'ok'].includes(IMAGE_LIB.status))) return;
+            // Opening the Image tab is a good moment to retry photography that
+            // failed to load during boot.
+            if (!(B._photos || []).length && (B.photography || []).length) {
+                await brandPhotos(B);
+                if ((B._photos || []).length) renderPreview();
+            }
             const brand = B;
             IMAGE_LIB = { status: 'loading', brandId: brand.id, items: [], error: '' };
             buildControls();
@@ -1970,7 +2025,10 @@
                 S.t[variable.id] = url;
                 BRAND_TEMPLATE_IMAGES.set(url, image);
             } else S.photoUrl = url;
-            buildControls(); schedule();
+            // Rebuild rather than repaint: the variation cards and the design
+            // thumbnails carry the photo too, and they are only refreshed by a
+            // full pass.
+            invalidateArt(); afterChange(true);
         }
         const fileDataUrl = file => new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -1978,12 +2036,75 @@
             reader.onerror = () => reject(new Error('The file could not be read.'));
             reader.readAsDataURL(file);
         });
+        // A video cannot be drawn into a still design, so its first frame
+        // becomes the image and the video itself is kept in the library.
+        async function videoPoster(file) {
+            const url = URL.createObjectURL(file);
+            const video = document.createElement('video');
+            video.muted = true; video.playsInline = true; video.preload = 'auto'; video.src = url;
+            try {
+                await new Promise((resolve, reject) => {
+                    const fail = () => reject(new Error('This video cannot be read in the browser. Try MP4 (H.264) or WebM.'));
+                    video.onloadeddata = () => resolve();
+                    video.onerror = fail;
+                    setTimeout(fail, 8000);
+                });
+                try {
+                    video.currentTime = Math.min(0.15, Math.max(0, (video.duration || 1) * 0.05));
+                    await new Promise((resolve) => { video.onseeked = resolve; setTimeout(resolve, 600); });
+                } catch { /* not every container can seek */ }
+                const vw = video.videoWidth || 1280, vh = video.videoHeight || 720;
+                const width = Math.min(1280, vw), height = Math.max(1, Math.round(width * vh / vw));
+                const canvas = document.createElement('canvas');
+                canvas.width = width; canvas.height = height;
+                canvas.getContext('2d').drawImage(video, 0, 0, width, height);
+                return canvas.toDataURL('image/jpeg', 0.85);
+            } finally { URL.revokeObjectURL(url); }
+        }
         async function uploadAgentImage(file) {
             $('#agentPhotoInput').value = '';
             if (!file) return;
             const imageTarget = pendingImageTarget;
             pendingImageTarget = null;
-            if (!file.type.startsWith('image/') || file.size > 12 * 1024 * 1024) { toast('Choose an image up to 12 MB.', true); return; }
+            const isVideo = /^video\//.test(file.type) || /\.(mp4|webm|mov|m4v)$/i.test(file.name || '');
+            if (!file.type.startsWith('image/') && !isVideo) { toast('Choose an image or a video.', true); return; }
+            if (!isVideo && file.size > 12 * 1024 * 1024) { toast('Choose an image up to 12 MB.', true); return; }
+            if (isVideo) {
+                try {
+                    const poster = await videoPoster(file);
+                    const image = await loadImg(poster);
+                    if (!image) throw new Error('The first frame could not be read.');
+                    let stored = false;
+                    try {
+                        const result = await jget(`${API}/assets/ingest`, {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ packId: P?.id, brandId: B.id, files: [{ name: file.name || 'clip.mp4', dataUrl: await fileDataUrl(file), rights: 'unknown' }] }),
+                        });
+                        stored = Boolean(result?.created?.[0]);
+                    } catch { /* the still still works without the library copy */ }
+                    const source = { name: `${String(file.name || 'Video').replace(/\.[^.]+$/, '')} (first frame)`, url: poster, kind: 'Video still' };
+                    const template = tplOf();
+                    const variable = imageTarget?.variableId
+                        ? (template?.composition?.variables || []).find(item => item.id === imageTarget.variableId && item.kind === 'image')
+                        : null;
+                    hist.push(clone(S));
+                    S.photoUploads = [...(S.photoUploads || []), source];
+                    if (imageTarget?.layerId) {
+                        S.layerImages = { ...(S.layerImages || {}), [imageTarget.layerId]: poster };
+                        imageLayerTarget = imageTarget.layerId;
+                        BRAND_TEMPLATE_IMAGES.set(poster, image);
+                    } else if (variable) {
+                        S.imageVariable = variable.id;
+                        S.t[variable.id] = poster;
+                        BRAND_TEMPLATE_IMAGES.set(poster, image);
+                    } else S.photoUrl = poster;
+                    invalidateArt(); afterChange(true);
+                    toast(stored
+                        ? 'Using the first frame of the video. The video is in your library.'
+                        : 'Using the first frame of the video.');
+                } catch (error) { toast(`Could not use that video: ${error.message}`, true); }
+                return;
+            }
             try {
                 const dataUrl = await fileDataUrl(file);
                 const result = await jget(`${API}/assets/ingest`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ packId: P?.id, brandId: B.id, files: [{ name: file.name || 'upload.jpg', dataUrl, rights: 'unknown' }] }) });
@@ -2008,7 +2129,7 @@
                 }
                 else S.photoUrl = source.url;
                 if (template?.brandComposition && !imageTarget?.layerId && !variable) BRAND_TEMPLATE_IMAGES.set(source.url, image);
-                buildControls(); schedule(); toast(`Added “${source.name}” to this design.`);
+                invalidateArt(); afterChange(true); toast(`Added “${source.name}” to this design.`);
             } catch (error) { toast(`Could not upload image: ${error.message}`, true); }
         }
         async function uploadAgentFont(file) {
@@ -2047,9 +2168,7 @@
             restored.tpl = clamp(+restored.tpl || 0, 0, Math.max(0, categoryDesigns(restored.cat).length - 1));
             restored.size = clamp(+restored.size || 0, 0, Math.max(0, sizesOf(restored).length - 1));
             hist.push(clone(S)); stopP(); S = restored; TL.T = DUR; TL.art = null; TL.artKey = ''; SEL = null; HOV = null; focusKey = null;
-            const template = tplOf(S), imageKeys = template?.brandComposition ? (template.composition.variables || []).filter(variable => variable.kind === 'image').map(variable => S.t[variable.id]) : [];
-            const urls = [...new Set([S.photoUrl, ...S.photoUploads.map(source => source.url), ...imageKeys, ...Object.values(S.layerImages)].filter(Boolean))];
-            await Promise.all(urls.map(async url => { const image = await loadImg(url).catch(() => null); if (image && template?.brandComposition) BRAND_TEMPLATE_IMAGES.set(url, image); }));
+            await preloadStateMedia(S);
             afterChange(true); toast(`Opened “${entry.name || tplOf().n}”.`);
         }
         function deleteSaved(index) {
@@ -2422,6 +2541,8 @@
             }
             if (tok !== selTok) return;
             S = blank(); if (restore) { const c = window.AssetCategories[restore.cat]; if (c) { S.cat = restore.cat; S.tpl = clamp(restore.tpl | 0, 0, categoryDesigns(restore.cat).length - 1); S.size = clamp(Math.max(0, restore.size | 0), 0, sizesOf(S).length - 1); const saved = LS.get(stateKey(), null); if (saved && saved.cat === S.cat) S = { ...S, ...saved }; } }
+            await preloadStateMedia(S);
+            if (tok !== selTok) return;
             document.querySelectorAll('#brandSwitch button').forEach(x => x.disabled = false);
             focusMode = !!(restore && restore.focus && S.cat === restore.cat);
             buildBrandPills(); buildAll(); renderPreview(); greet();

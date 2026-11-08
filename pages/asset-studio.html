@@ -77,8 +77,11 @@
                 </div>
 
                 <div class="export-bar">
+                    <button type="button" class="btn" id="playBtn" hidden>▶ Play</button>
+                    <button type="button" class="btn" id="recordBtn" hidden>Record video</button>
                     <button type="button" class="btn primary" id="downloadBtn">Download PNG</button>
                     <button type="button" class="btn" id="jpgBtn" hidden>Download JPG</button>
+                    <button type="button" class="btn" id="layersBtn">Open in Studio V2</button>
                     <button type="button" class="btn" id="printBtn">Print</button>
                     <button type="button" class="btn" id="printPackBtn">Print pack (PDF)</button>
                     <button type="button" class="btn" id="saveBtn">Save asset</button>
@@ -201,13 +204,14 @@
 
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-    <input type="file" id="photoInput" accept="image/*" hidden>
+    <input type="file" id="photoInput" accept="image/*,video/*" hidden>
     <input type="file" id="fontInput" accept=".woff2,.woff,.ttf,.otf,font/woff2,font/woff,font/ttf,font/otf" hidden>
 
     <script src="/src/client/asset-studio/vendor/qrcode.min.js"></script>
     <script src="/src/shared/asset-intel.js"></script>
     <script src="/src/shared/studio-core.js"></script>
     <script src="/src/shared/brand-pack.js"></script>
+    <script src="/src/shared/post-idea.js"></script>
     <script src="/src/client/asset-studio/engine.js"></script>
     <script src="/src/client/asset-studio/categories.js"></script>
     <script src="/src/client/asset-studio/print.js"></script>

@@ -42,13 +42,19 @@ function parseArgs(argv) {
 }
 
 function contentFile(packDir, brand) {
-    const name = brand.dir || brand.id;
-    const dir = path.join(packDir, 'files', name, 'content');
-    if (!fs.existsSync(dir)) return null;
-    const preferred = path.join(dir, `${name}.json`);
-    if (fs.existsSync(preferred)) return preferred;
-    const first = fs.readdirSync(dir).find((file) => file.endsWith('.json'));
-    return first ? path.join(dir, first) : null;
+    // `dir` is the kit folder the crawler wrote (often `01-the-brand`), but an
+    // imported pack can store the files under the brand id instead. Try both
+    // and take the one that exists rather than silently skipping the brand.
+    const names = [brand.id, brand.dir].filter(Boolean);
+    for (const name of names) {
+        const dir = path.join(packDir, 'files', name, 'content');
+        if (!fs.existsSync(dir)) continue;
+        const preferred = path.join(dir, `${name}.json`);
+        if (fs.existsSync(preferred)) return preferred;
+        const first = fs.readdirSync(dir).find((file) => file.endsWith('.json'));
+        if (first) return path.join(dir, first);
+    }
+    return null;
 }
 
 function main() {
@@ -90,13 +96,18 @@ function main() {
             }
             const normalized = Brand.normalizeContent(parsed);
             if (!normalized) return;
-            const before = JSON.stringify(brand.content || null);
-            const after = JSON.stringify(normalized);
+            // The content file also lists the source documents; the brand
+            // carries them so the asset library can index the PDFs.
+            const documents = Brand.normalizeDocuments(parsed.documents);
+            const before = JSON.stringify([brand.content || null, brand.documents || null]);
+            const after = JSON.stringify([normalized, documents.length ? documents : null]);
             if (before === after) {
                 skipped += 1;
                 return;
             }
             brand.content = normalized;
+            if (documents.length) brand.documents = documents;
+            else delete brand.documents;
             changed = true;
             written += 1;
             console.log(`${options.dryRun ? '·' : '✓'} ${packId}/${brand.id} ← ${path.relative(ROOT, source)}`);

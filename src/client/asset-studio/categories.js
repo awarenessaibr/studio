@@ -130,6 +130,1732 @@ window.AssetCategories['social'] = CFG;
 })();
 
 /* =====================================================================
+ * Post ideas — a menu item becomes a finished social post.
+ * Two layouts that follow the shape of a good dish post: the photograph
+ * carries the mood, the band underneath carries the dish and its price,
+ * and the caption (written in the Caption tab) finishes the job.
+ * ===================================================================== */
+(function () {
+    // The band is always the darker of ink/paper so the same layout reads on
+    // a dark brand and a light one; `light` is its readable partner.
+    function bandColours() {
+        const ink = C('ink');
+        const paper = C('paper');
+        return colorLuma(ink) <= colorLuma(paper)
+            ? { dark: ink, light: paper }
+            : { dark: paper, light: ink };
+    }
+
+    function pill(text, x, centreY, size, bg, fg, font) {
+        if (!String(text || '').trim()) return 0;
+        X.font = font;
+        const height = size * 2.1;
+        const width = tw(text, font, 0) + size * 2.2;
+        X.fillStyle = bg;
+        X.beginPath();
+        X.roundRect(x, centreY - height / 2, width, height, height / 2);
+        X.fill();
+        put(text, x + size * 1.1, centreY + 1, font, 0, 'l', fg);
+        return width;
+    }
+
+    function badge(text, x, y, size, bg, fg) {
+        if (!String(text || '').trim()) return;
+        X.font = fnt('l', 700, size);
+        const height = size * 2.4;
+        const width = tw(text, X.font, size * 0.16) + size * 2.4;
+        X.fillStyle = bg;
+        X.beginPath();
+        X.roundRect(x, y, width, height, height / 2);
+        X.fill();
+        put(text, x + size * 1.2, y + height / 2 + 1, X.font, size * 0.16, 'l', fg);
+    }
+
+    // The handle/location block, right aligned, one line per `\n`.
+    function credits(text, right, bottomY, size, color) {
+        const lines = String(text || '').split('\n').map((line) => line.trim()).filter(Boolean);
+        X.font = fnt('b', 400, size);
+        lines.forEach((line, index) => {
+            put(line, right, bottomY - (lines.length - 1 - index) * size * 1.5, X.font, 0, 'r', color);
+        });
+    }
+
+    // How tall the text block will be at the requested sizes. The band is
+    // drawn around the words, not a fixed slab with a hole in it — that is
+    // what makes the card look designed rather than templated.
+    function stackHeight(items, width) {
+        let total = 0;
+        items.forEach((item, index) => {
+            const size = (item.z || 40) * U;
+            const font = fnt(item.f || 'd', item.w, size);
+            let value = item.k ? T(item.k) : '';
+            if (item.up) value = value.toUpperCase();
+            if (!String(value).trim()) return;
+            const lines = wrap(value, font, (item.ls || 0) * size, width);
+            total += (index ? (item.g || 0) * U : 0) + lines.length * size * (item.lh || 1.15);
+        });
+        return total;
+    }
+
+    const CFG = {
+        id: 'postidea',
+        title: 'Post Ideas',
+        sub: 'Pick a dish from the menu: the post, the caption and the motion come with it.',
+        idea: true,
+        ideaFormat: 'feed',
+        sizes: [
+            { n: 'Portrait 4:5', d: 'Feed · 1080×1350', w: 1080, h: 1350, print: false },
+            { n: 'Square', d: 'Feed · 1080×1080', w: 1080, h: 1080, print: false },
+            { n: 'Story 9:16', d: 'Reels & stories · 1080×1920', w: 1080, h: 1920, print: false },
+        ],
+        fields: [
+            ['eyebrow', 'Badge over the photo'],
+            ['hook', 'Hook line'],
+            ['kicker', 'Kicker'],
+            ['title', 'Dish', 2],
+            ['body', 'Description', 3],
+            ['price', 'Price'],
+            ['foot', 'Handle and location'],
+        ],
+        tpls: [{
+            n: 'Feed post',
+            animate: { eyebrow: 0.1, title: 0.25, body: 0.7, price: 1.0, foot: 1.25 },
+            sizes: ['Portrait 4:5', 'Square'],
+            t: {
+                eyebrow: 'MORNING SPECIAL',
+                hook: 'Somebody is coming back for this.',
+                kicker: 'Brunch, all day',
+                title: 'Homemade Brioche French Toast',
+                body: 'Blueberry compote & mascarpone, or bacon & maple.',
+                price: 'from £14.50',
+                foot: '@singlendcafe_glasgow\nGarnethill & Merchant City',
+            },
+            draw(W, H) {
+                const { dark, light } = bandColours();
+                const pad = W * 0.062;
+                const textWidth = W - 2 * pad;
+                const block = [
+                    { k: 'kicker', z: 21, f: 'l', up: 1, ls: .18, c: 'accent', g: 0 },
+                    { k: 'title', z: 54, lh: 1.06, g: 18, c: light },
+                    { k: 'body', z: 24, f: 'b', lh: 1.38, g: 22, c: light },
+                ];
+                const rowH = 92 * U;
+                const textH = stackHeight(block, textWidth);
+                const bandH = Math.min(H * 0.52, Math.max(H * 0.3, textH + rowH + H * 0.09));
+                const bandTop = H - bandH;
+
+                photo(0, 0, W, bandTop + 2);
+                badge(T('eyebrow').toUpperCase(), pad, H * 0.05, 20 * U, dark, light);
+                X.fillStyle = dark;
+                X.fillRect(0, bandTop, W, bandH);
+
+                stack([pad, bandTop + H * 0.045, textWidth, textH + 4], block, { al: 'l', va: 't' });
+
+                const rowY = H - H * 0.055 - rowH / 2;
+                pill(T('price'), pad, rowY, 24 * U, C('accent'), accentTextColor(), fnt('d', 700, 24 * U));
+                credits(T('foot'), W - pad, rowY + 9 * U, 17 * U, light);
+            },
+        }, {
+            n: 'Reel cover',
+            animate: { eyebrow: 0.2, hook: 0.5, kicker: 1.1, title: 1.4, body: 1.9, price: 2.4, foot: 2.7 },
+            sizes: ['Story 9:16'],
+            t: {
+                eyebrow: 'BREAKFAST RUN',
+                hook: 'Somebody is cycling over for this…',
+                kicker: 'Brunch, all day',
+                title: 'Homemade Brioche French Toast',
+                body: 'Blueberry compote & mascarpone, or bacon & maple.',
+                price: 'from £14.50',
+                foot: '@singlendcafe_glasgow\nOpen every day',
+            },
+            draw(W, H) {
+                const { dark, light } = bandColours();
+                const pad = W * 0.07;
+                photo(0, 0, W, H);
+                grad(0, 0, W, H * 0.44, dark, .84, 0);
+                grad(0, H * 0.42, W, H * 0.58, dark, 0, .95);
+
+                // Instagram's chrome covers roughly the top 13% and the
+                // bottom 14%: everything worth reading stays inside.
+                stack([pad, H * 0.115, W - 2 * pad, H * 0.22], [
+                    { k: 'eyebrow', z: 30, f: 'l', up: 1, ls: .24, c: 'accent', g: 18 },
+                    { k: 'hook', z: 68, lh: 1.08, c: light, g: 16 },
+                ], { al: 'l', va: 't' });
+
+                stack([pad, H * 0.54, W - 2 * pad, H * 0.26], [
+                    { k: 'kicker', z: 26, f: 'l', up: 1, ls: .2, c: 'accent', g: 16 },
+                    { k: 'title', z: 82, lh: 1.03, c: light, g: 18 },
+                    { k: 'body', z: 29, f: 'b', lh: 1.35, c: light, g: 16 },
+                ], { al: 'l', va: 'b' });
+
+                const rowY = H * 0.885;
+                pill(T('price'), pad, rowY, 27 * U, C('accent'), accentTextColor(), fnt('d', 700, 27 * U));
+                credits(T('foot'), W - pad, rowY + 11 * U, 21 * U, light);
+            },
+        }],
+    };
+    window.AssetCategories['postidea'] = CFG;
+})();
+
+/* =====================================================================
+ * Reel ideas — the same dish, twelve ways to open a nine-by-sixteen.
+ * Each design is the poster frame of a ten-second loop; the animation is
+ * written down in the caption's motion line rather than faked in a still.
+ *
+ * The engine calls draw(width, height) at the *target* pixel size, so every
+ * fixed size here is multiplied by `U` (width / 1080). Stack sizes (`z`) are
+ * already in 1080 units and are scaled by the engine.
+ * ===================================================================== */
+(function () {
+    const padOf = W => W * 0.075;
+
+    function tones() {
+        const ink = C('ink');
+        const paper = C('paper');
+        return colorLuma(ink) <= colorLuma(paper)
+            ? { dark: ink, light: paper }
+            : { dark: paper, light: ink };
+    }
+
+    // A pill, left-aligned at x (or centred when align is 'c').
+    function pill(text, x, centreY, size, bg, fg, font, align) {
+        const value = String(text || '').trim();
+        if (!value) return 0;
+        const face = font || fnt('d', 700, size);
+        X.font = face;
+        const height = size * 2.1;
+        const width = tw(value, face, 0) + size * 2.2;
+        const left = align === 'c' ? x - width / 2 : x;
+        X.fillStyle = bg;
+        X.beginPath();
+        X.roundRect(left, centreY - height / 2, width, height, height / 2);
+        X.fill();
+        put(value, left + size * 1.1, centreY + 1, face, 0, 'l', fg);
+        return width;
+    }
+
+    function chip(text, x, y, size, bg, fg) {
+        const value = String(text || '').trim();
+        if (!value) return 0;
+        X.font = fnt('l', 700, size);
+        const height = size * 2.2;
+        const width = tw(value, X.font, size * 0.08) + size * 2.4;
+        X.fillStyle = bg;
+        X.beginPath();
+        X.roundRect(x, y, width, height, size * 0.35);
+        X.fill();
+        put(value, x + size * 1.2, y + height / 2 + 1, X.font, size * 0.08, 'l', fg);
+        return width;
+    }
+
+    function rule(x, y, width, thickness, color) {
+        X.fillStyle = color;
+        X.fillRect(x, y, width, thickness);
+    }
+
+    function dashed(x, y, width, color, thickness) {
+        X.save();
+        X.strokeStyle = color;
+        X.lineWidth = thickness || 2 * U;
+        X.setLineDash([10 * U, 8 * U]);
+        X.beginPath();
+        X.moveTo(x, y);
+        X.lineTo(x + width, y);
+        X.stroke();
+        X.restore();
+    }
+
+    // One repeating strip, drawn edge to edge.
+    function ticker(text, y, height, bg, fg, size) {
+        const value = String(text || '').trim();
+        if (!value || !height) return;
+        X.fillStyle = bg;
+        X.fillRect(0, y, W_TARGET, height);
+        X.font = fnt('l', 700, size);
+        const unit = value + '  ·  ';
+        const step = tw(unit, X.font, 0) || 1;
+        let x = 0;
+        X.fillStyle = fg;
+        while (x < W_TARGET) {
+            put(unit, x, y + height / 2 + 1, X.font, 0, 'l', fg);
+            x += step;
+        }
+    }
+
+    let W_TARGET = 1080;
+
+    // Sixteen-point burst used for a price sticker.
+    function burst(cx, cy, radius, text, bg, fg, size) {
+        const points = 16;
+        X.save();
+        X.beginPath();
+        for (let i = 0; i < points * 2; i += 1) {
+            const angle = (Math.PI * i) / points - Math.PI / 2;
+            const r = i % 2 ? radius * 0.82 : radius;
+            const px = cx + Math.cos(angle) * r;
+            const py = cy + Math.sin(angle) * r;
+            if (i === 0) X.moveTo(px, py); else X.lineTo(px, py);
+        }
+        X.closePath();
+        X.fillStyle = bg;
+        X.fill();
+        X.restore();
+        X.font = fnt('l', 700, size);
+        put(String(text || ''), cx, cy + 2, X.font, 0, 'c', fg);
+    }
+
+    function lines(text, limit) {
+        return String(text || '').split('\n').map(line => line.trim()).filter(Boolean).slice(0, limit || 4);
+    }
+
+    // One line, trimmed to a width with an ellipsis: a lower-third bar cannot
+    // grow, so the copy has to fit it.
+    function fitLine(text, font, maxWidth, tracking) {
+        const value = String(text || '').trim();
+        const track = tracking || 0;
+        X.font = font;
+        if (tw(value, font, track) <= maxWidth) return value;
+        let cut = value;
+        while (cut.length > 4 && tw(cut + '…', font, track) > maxWidth) cut = cut.slice(0, -1);
+        return cut.trimEnd() + '…';
+    }
+
+    // A handle and a place arrive as two lines for the feed cards; a reel
+    // prints them on one marquee, so join them.
+    function footText() {
+        return String(T('foot') || '').replace(/\s*\n+\s*/g, ' · ').trim();
+    }
+
+    // Right-aligned handle/location, one line per newline.
+    function creditsText(text, right, bottomY, size, color) {
+        const list = String(text || '').split('\n').map(line => line.trim()).filter(Boolean);
+        X.font = fnt('b', 400, size);
+        list.forEach((line, index) => {
+            put(line, right, bottomY - (list.length - 1 - index) * size * 1.5, X.font, 0, 'r', color);
+        });
+    }
+
+    // A dish card used by several layouts.
+    function dishCard(x, y, width, height, tonesIn, u) {
+        const { dark, light } = tonesIn;
+        X.fillStyle = dark;
+        X.beginPath();
+        X.roundRect(x, y, width, height, 26 * u);
+        X.fill();
+        stack([x + 34 * u, y + height * 0.13, width - 68 * u, height * 0.5], [
+            { k: 'title', z: 50, lh: 1.05, c: light, g: 14 },
+            { k: 'body', z: 24, f: 'l', lh: 1.35, c: light, g: 22 },
+        ], { al: 'l', va: 't' });
+        pill(T('price'), x + 34 * u, y + height - height * 0.16, 26 * u, C('accent'), accentTextColor(), fnt('d', 700, 26 * u));
+        X.font = fnt('l', 500, 20 * u);
+        put(String(T('foot') || ''), x + width - 34 * u, y + height - height * 0.16, X.font, 0, 'r', light);
+    }
+
+    const CFG = {
+        id: 'reelidea',
+        title: 'Reel Ideas',
+        sub: 'The poster frame of a ten-second loop: pick a dish, then record it.',
+        idea: true,
+        ideaFormat: 'reel',
+        sizes: [
+            { n: 'Story 9:16', d: 'Reels & stories · 1080×1920', w: 1080, h: 1920, print: false },
+        ],
+        fields: [
+            ['eyebrow', 'Badge / small label'],
+            ['hook', 'Hook line'],
+            ['kicker', 'Kicker / location'],
+            ['title', 'Dish', 2],
+            ['body', 'Description', 3],
+            ['price', 'Price'],
+            ['foot', 'Handle'],
+        ],
+        tpls: [{
+            /* 1 · Whisper — one line, one price, a lot of air. */
+            n: 'Whisper',
+            animate: { title: 1.1, body: 2.1, price: 3.1, foot: 3.7 },
+            motion: '0–2s the street pans slowly · 2–4s a hairline draws under the title · 4–7s the title and detail settle in · 7–9s the price',
+            t: {
+                title: 'Eggs on toast',
+                body: 'POACHED OR FRIED · TOASTED SOURDOUGH',
+                price: '£7.50',
+                foot: '@singlendcafe_glasgow',
+            },
+            draw(W, H) {
+                W_TARGET = W;
+                const u = U;
+                const { dark, light } = tones();
+                const pad = padOf(W);
+                photo(0, 0, W, H);
+                grad(0, H * 0.38, W, H * 0.62, dark, 0, .94);
+                rule(pad, H * 0.6, W * 0.12, 3 * u, light);
+                stack([pad, H * 0.615, W - 2 * pad, H * 0.13], [
+                    { k: 'title', z: 96, lh: 1.02, c: light },
+                ], { al: 'l', va: 't' });
+                stack([pad, H * 0.75, W - 2 * pad, H * 0.11], [
+                    { k: 'body', z: 30, f: 'l', up: 1, ls: .14, c: light, g: 8 },
+                    { k: 'price', z: 38, f: 'l', ls: .1, c: 'accent', g: 22 },
+                ], { al: 'l', va: 't' });
+                creditsText(footText(), W - pad, H * 0.87, 22 * u, light);
+            },
+        }, {
+            /* 2 · Arch window — the building's doorway as the frame. */
+            n: 'Arch window',
+            animate: { title: 0.9, body: 1.5, price: 2.3, foot: 2.7 },
+            motion: '0–2s the arch opens from the bottom · 2–4s the photograph drifts inside it · 4–6s the title rises · 6–8s detail, rule and price',
+            t: {
+                title: 'Home Baked Granola',
+                body: 'Greek yoghurt, maple syrup & seasonal fruit',
+                price: '£7.50',
+                foot: 'Singl-end Cafe & Bakehouse',
+            },
+            draw(W, H) {
+                W_TARGET = W;
+                const u = U;
+                const ink = C('ink');
+                X.fillStyle = C('paper');
+                X.fillRect(0, 0, W, H);
+                const archW = W * 0.6, archX = (W - archW) / 2, archY = H * 0.14, archH = H * 0.46;
+                const reveal = easeOut(phase(0.4, 1.6));
+                X.save();
+                X.beginPath();
+                X.moveTo(archX, archY + archH);
+                X.lineTo(archX, archY + archW / 2);
+                X.arc(archX + archW / 2, archY + archW / 2, archW / 2, Math.PI, 0);
+                X.lineTo(archX + archW, archY + archH);
+                X.closePath();
+                X.clip();
+                X.beginPath();
+                X.rect(archX, archY + archH * (1 - reveal), archW, archH * reveal);
+                X.clip();
+                photo(archX, archY, archW, archH);
+                X.restore();
+                stack([0, H * 0.655, W, H * 0.15], [{ k: 'title', z: 86, lh: 1.02, c: ink }], { al: 'c', va: 't' });
+                rule(W * 0.46, H * 0.76, W * 0.08, 2 * u, C('accent'));
+                stack([W * 0.12, H * 0.78, W * 0.76, H * 0.08], [
+                    { k: 'body', z: 27, f: 'l', lh: 1.45, c: mix(ink, C('paper'), .1) },
+                ], { al: 'c', va: 't' });
+                stack([0, H * 0.855, W, H * 0.06], [
+                    { k: 'price', z: 34, f: 'l', ls: .22, up: 1, c: ink },
+                    { k: 'foot', z: 19, f: 'l', ls: .16, up: 1, c: mix(ink, C('paper'), .4), g: 18 },
+                ], { al: 'c', va: 't' });
+            },
+        }, {
+            /* 3 · Widening band — a thin line opens into the street. */
+            n: 'Widening band',
+            animate: { title: 1.2, price: 2.0, foot: 2.6 },
+            motion: '0–2s a hairline opens into a band across the frame · 2–5s the photograph drifts inside it · 5–7s the title, 7–9s price and marque',
+            t: {
+                title: 'Flat White',
+                price: '£4.00',
+                foot: 'Singl-end Cafe & Bakehouse',
+            },
+            draw(W, H) {
+                W_TARGET = W;
+                const { dark, light } = tones();
+                X.fillStyle = dark;
+                X.fillRect(0, 0, W, H);
+                const grow = easeOut(phase(0.5, 1.8));
+                const bandY = H * 0.3, bandH = Math.max(6 * U, H * 0.34 * grow);
+                photo(0, bandY, W, bandH);
+                stack([0, bandY + bandH + H * 0.08, W, H * 0.1], [
+                    { k: 'title', z: 64, f: 'l', up: 1, ls: .12, c: light },
+                ], { al: 'c', va: 't' });
+                stack([0, bandY + bandH + H * 0.2, W, H * 0.06], [
+                    { k: 'price', z: 44, f: 'l', ls: .2, c: 'accent' },
+                ], { al: 'c', va: 't' });
+                stack([0, bandY + bandH + H * 0.29, W, H * 0.05], [
+                    { k: 'foot', z: 20, f: 'l', up: 1, ls: .3, c: light },
+                ], { al: 'c', va: 't' });
+            },
+        }, {
+            /* 4 · Order ticket — the receipt is the poster. */
+            n: 'Order ticket',
+            animate: { hook: 0.2, kicker: 0.9, title: 1.3, body: 1.9, price: 2.5, foot: 2.9 },
+            motion: '0–2s the scene dims · 2–4s the receipt prints down the frame · 4–6s the lines type on · 6–8s the stamp lands',
+            t: {
+                eyebrow: 'SERVED ALL DAY',
+                hook: 'Table for one on John Street?',
+                kicker: 'Singl-end · Merchant City',
+                title: 'Mediterranean Sunrise Toast',
+                body: 'Whipped feta, roasted red peppers, crispy parma ham, poached eggs, thyme hot honey, sourdough',
+                price: '£15.00',
+                foot: '@singlendcafe_glasgow',
+            },
+            draw(W, H) {
+                W_TARGET = W;
+                const u = U;
+                const cream = C('paper'), ink = C('ink');
+                const pad = padOf(W);
+                photo(0, 0, W, H);
+                X.fillStyle = rgba(C('ink'), .58);
+                X.fillRect(0, 0, W, H);
+                grad(0, 0, W, H * 0.3, C('ink'), .78, 0);
+                stack([pad, H * 0.1, W - 2 * pad, H * 0.16], [
+                    { k: 'hook', z: 64, lh: 1.05, c: cream },
+                ], { al: 'l', va: 't' });
+
+                const tx = pad, ty = H * 0.34, cardW = W - 2 * pad, th = H * 0.32;
+                X.fillStyle = cream;
+                X.fillRect(tx, ty, cardW, th);
+                X.beginPath();
+                for (let i = 0; i < Math.floor(cardW / (26 * u)); i += 1) {
+                    X.moveTo(tx + i * 26 * u, ty + th + 9 * u);
+                    X.arc(tx + i * 26 * u, ty + th, 13 * u, Math.PI, 0, true);
+                }
+                X.fillStyle = cream;
+                X.fill();
+
+                X.font = fnt('l', 700, 22 * u);
+                put(String(T('kicker') || '').toUpperCase(), tx + 26 * u, ty + 40 * u, X.font, 1.6 * u, 'l', mix(ink, cream, .25));
+                dashed(tx + 26 * u, ty + 62 * u, cardW - 52 * u, rgba(ink, .3), 2 * u);
+                stack([tx + 26 * u, ty + 82 * u, cardW - 52 * u, H * 0.055], [
+                    { k: 'title', z: 40, lh: 1.1, c: ink },
+                ], { al: 'l', va: 't' });
+                stack([tx + 26 * u, ty + 158 * u, cardW - 52 * u, H * 0.1], [
+                    { k: 'body', z: 24, f: 'l', lh: 1.4, c: mix(ink, cream, .18) },
+                ], { al: 'l', va: 't' });
+                const totalY = ty + th - 70 * u;
+                dashed(tx + 26 * u, totalY - 26 * u, cardW - 52 * u, rgba(ink, .3), 2 * u);
+                X.font = fnt('l', 700, 28 * u);
+                put('TOTAL', tx + 26 * u, totalY + 12 * u, X.font, 2 * u, 'l', ink);
+                X.font = fnt('d', 700, 34 * u);
+                put(String(T('price') || ''), tx + cardW - 26 * u, totalY + 12 * u, X.font, 0, 'r', ink);
+                X.font = fnt('l', 500, 20 * u);
+                put(String(footText() || ''), tx + 26 * u, totalY + 46 * u, X.font, .6 * u, 'l', mix(ink, cream, .35));
+
+                const stamp = String(T('eyebrow') || '').toUpperCase();
+                if (stamp) {
+                    X.save();
+                    X.translate(W * 0.6, H * 0.72);
+                    X.rotate(-0.2);
+                    X.font = fnt('l', 700, 32 * u);
+                    const sw = tw(stamp, X.font, 3 * u) + 52 * u, sh = 70 * u;
+                    X.fillStyle = rgba(cream, .92);
+                    X.fillRect(-sw / 2, -sh / 2, sw, sh);
+                    X.strokeStyle = '#b4283c';
+                    X.lineWidth = 6 * u;
+                    X.strokeRect(-sw / 2 + 8 * u, -sh / 2 + 8 * u, sw - 16 * u, sh - 16 * u);
+                    put(stamp, 0, 2 * u, X.font, 3 * u, 'c', '#b4283c');
+                    X.restore();
+                }
+            },
+        }, {
+            /* 5 · Polaroid scrapbook — stuck to the wall, not designed. */
+            n: 'Polaroid',
+            animate: { hook: 0.3, title: 1.3, price: 2.1, body: 2.5, foot: 3.0 },
+            motion: '0–2s the hook writes itself on · 2–4s the polaroid drops and settles · 4–6s the photo sharpens and the price sticker pops · 6–8s the note',
+            t: {
+                hook: 'Rough night? Sorted.',
+                title: 'Cure yer Heid',
+                body: 'strawberries, raspberries, blueberries, banana, ginger & orange juice',
+                price: '£6.50',
+                foot: '@singlendcafe_glasgow',
+            },
+            draw(W, H) {
+                W_TARGET = W;
+                const u = U;
+                const ink = C('ink'), accent = C('accent');
+                X.fillStyle = accent;
+                X.fillRect(0, 0, W, H);
+                X.fillStyle = rgba(ink, .08);
+                for (let y = 30 * u; y < H; y += 54 * u) {
+                    for (let x = 30 * u; x < W; x += 54 * u) X.fillRect(x, y, 6 * u, 6 * u);
+                }
+                stack([W * 0.08, H * 0.08, W * 0.84, H * 0.12], [
+                    { k: 'hook', z: 66, lh: 1, c: ink },
+                ], { al: 'l', va: 't' });
+
+                const cardW = W * 0.76, cardX = W * 0.12, cardY = H * 0.26;
+                const photoH = cardW * (976 / 1098);
+                X.save();
+                X.translate(cardX + cardW / 2, cardY + (photoH + 110 * u) / 2);
+                X.rotate(-0.06);
+                X.translate(-(cardX + cardW / 2), -(cardY + (photoH + 110 * u) / 2));
+                X.fillStyle = '#ffffff';
+                X.fillRect(cardX, cardY, cardW, photoH + 130 * u);
+                X.fillStyle = 'rgba(242,226,160,.85)';
+                X.fillRect(cardX + cardW * 0.34, cardY - 20 * u, cardW * 0.32, 42 * u);
+                photo(cardX + 16 * u, cardY + 16 * u, cardW - 32 * u, photoH - 16 * u);
+                X.font = fnt('d', 600, 42 * u);
+                put(String(T('title') || ''), cardX + cardW / 2, cardY + photoH + 52 * u, X.font, 0, 'c', ink);
+                X.restore();
+
+                const stickerX = W * 0.7, stickerY = H * 0.68;
+                X.beginPath();
+                X.arc(stickerX, stickerY, W * 0.125, 0, Math.PI * 2);
+                X.fillStyle = C('ink');
+                X.fill();
+                X.font = fnt('l', 700, 42 * u);
+                put(String(T('price') || ''), stickerX, stickerY + 2 * u, X.font, 0, 'c', C('paper'));
+
+                stack([W * 0.1, H * 0.76, W * 0.62, H * 0.12], [
+                    { k: 'body', z: 30, f: 'd', lh: 1.2, c: ink },
+                    { k: 'foot', z: 20, f: 'l', ls: .12, c: mix(ink, accent, .4), g: 14 },
+                ], { al: 'l', va: 't' });
+            },
+        }, {
+            /* 6 · Kinetic type — words first, one round crop, a price burst. */
+            n: 'Kinetic type',
+            animate: { eyebrow: 0.2, title: 0.5, body: 3.3, price: 4.5, foot: 1.0 },
+            motion: '0–2s THE slams, then the dish name · 2–4s the round crop pops · 4–6s the ingredient chips · 6–8s the price burst · marquee runs throughout',
+            t: {
+                eyebrow: 'THE',
+                title: 'Betty',
+                body: 'Halloumi, Avocado & chilli smash, Poached eggs, Sriracha',
+                price: '£14.50',
+                foot: 'Singl-end Cafe & Bakehouse · Open everyday',
+            },
+            draw(W, H) {
+                W_TARGET = W;
+                const u = U;
+                const ink = C('ink'), accent = C('accent');
+                X.fillStyle = accent;
+                X.fillRect(0, 0, W, H);
+                stack([W * 0.07, H * 0.07, W * 0.86, H * 0.05], [
+                    { k: 'eyebrow', z: 40, f: 'l', up: 1, ls: .18, c: ink },
+                ], { al: 'l', va: 't' });
+                stack([W * 0.07, H * 0.115, W * 0.86, H * 0.16], [
+                    { k: 'title', z: 118, f: 'l', up: 1, lh: 1, c: ink },
+                ], { al: 'l', va: 't' });
+
+                const cx = W * 0.5, cy = H * 0.45, r = W * 0.3;
+                X.save();
+                X.beginPath();
+                X.arc(cx, cy, r, 0, Math.PI * 2);
+                X.clip();
+                photo(cx - r, cy - r, r * 2, r * 2);
+                X.restore();
+                X.strokeStyle = ink;
+                X.lineWidth = 16 * u;
+                X.beginPath();
+                X.arc(cx, cy, r, 0, Math.PI * 2);
+                X.stroke();
+
+                burst(W * 0.76, H * 0.565, W * 0.13, T('price'), ink, accent, 34 * u);
+
+                const tags = String(T('body') || '').split(/,\s*/).filter(Boolean).slice(0, 4);
+                const tagSize = 24 * u;
+                X.font = fnt('l', 700, tagSize);
+                const widths = tags.map(tag => tw(tag, X.font, 0) + tagSize * 2.4);
+                const rowWidth = widths.reduce((sum, width) => sum + width, 0) + 10 * u * (tags.length - 1);
+                let x = (W - rowWidth) / 2;
+                tags.forEach((tag, index) => {
+                    chip(tag, x, H * 0.655, tagSize, ink, C('paper'));
+                    x += widths[index] + 10 * u;
+                });
+                ticker(String(footText() || '').toUpperCase(), H * 0.925, H * 0.05, ink, accent, 22 * u);
+            },
+        }, {
+            /* 7 · Bike wipe — grey on the left, dinner on the right. */
+            n: 'Bike wipe',
+            animate: { title: 6.6, body: 6.9, price: 7.2, foot: 7.2 },
+            motion: '0–2s grey street, HUNGRY · 2–5s the wipe rides left to right and colour returns · 5–7s HAPPY · 7–9s the dish card',
+            t: {
+                title: 'The Meaty',
+                body: 'Poached eggs, potato scone, streaky bacon, lorne sausage, haggis, black pudding & more.',
+                price: '£15.25',
+                foot: '@singlendcafe_glasgow',
+            },
+            draw(W, H) {
+                W_TARGET = W;
+                const u = U;
+                const { dark, light } = tones();
+                const split = W * easeInOut(phase(3, 3.5));
+                X.save();
+                X.beginPath();
+                X.rect(0, 0, split, H);
+                X.clip();
+                X.filter = 'grayscale(1) brightness(.62)';
+                photo(0, 0, W, H);
+                X.filter = 'none';
+                X.restore();
+                X.save();
+                X.beginPath();
+                X.rect(split, 0, W - split, H);
+                X.clip();
+                photo(0, 0, W, H);
+                X.restore();
+                X.fillStyle = '#ffffff';
+                X.fillRect(split - 3 * u, 0, 6 * u, H);
+
+                chip('BEFORE', W * 0.06, H * 0.075, 20 * u, dark, light);
+                chip('AFTER', split + W * 0.04, H * 0.075, 20 * u, C('accent'), accentTextColor());
+                dishCard(W * 0.06, H * 0.62, W * 0.88, H * 0.22, { dark, light }, u);
+            },
+        }, {
+            /* 8 · Hunger gauge — the bar drains, the colours come back. */
+            n: 'Hunger gauge',
+            animate: { title: 6.2, body: 6.5, price: 6.9, foot: 6.9 },
+            motion: '0–2s HUNGRY, the gauge full · 2–6s the bar drains and colour returns · 6–8s the dish card rises',
+            t: {
+                title: 'Le Croque Gary',
+                body: 'Stornoway black pudding, caramelised onions, dijon mustard, béchamel & grilled emmental.',
+                price: '£15.00',
+                foot: '@singlendcafe_glasgow',
+            },
+            draw(W, H) {
+                W_TARGET = W;
+                const u = U;
+                const { dark, light } = tones();
+                const pad = padOf(W);
+                photo(0, 0, W, H);
+                X.fillStyle = rgba(C('ink'), .45);
+                X.fillRect(0, 0, W, H);
+                X.font = fnt('l', 700, 22 * u);
+                put('HUNGER LEVEL', pad, H * 0.095, X.font, 2.4 * u, 'l', light);
+                const gaugeY = H * 0.12, gaugeW = W * 0.5, gaugeH = 22 * u;
+                X.fillStyle = rgba(light, .25);
+                X.beginPath();
+                X.roundRect(pad, gaugeY, gaugeW, gaugeH, gaugeH / 2);
+                X.fill();
+                X.fillStyle = C('accent');
+                X.beginPath();
+                X.roundRect(pad, gaugeY, gaugeW * 0.34, gaugeH, gaugeH / 2);
+                X.fill();
+                dashed(pad, H * 0.18, W - 2 * pad, rgba(light, .6), 2 * u);
+                dishCard(pad, H * 0.6, W - 2 * pad, H * 0.24, { dark, light }, u);
+            },
+        }, {
+            /* 9 · Flip card — hangry on one side, dinner on the other. */
+            n: 'Flip card',
+            animate: { eyebrow: 0.6, title: 1.2, body: 1.8, price: 2.4 },
+            motion: '0–3s HANGRY?, card shakes · 3–5s the card flips · 5–8s HAPPY. with the dish and price',
+            t: {
+                eyebrow: 'HAPPY.',
+                title: 'Royale',
+                body: 'Flaked smoked salmon, poached eggs, hollandaise, toasted sourdough',
+                price: '£15.00',
+            },
+            draw(W, H) {
+                W_TARGET = W;
+                const u = U;
+                const ink = C('ink'), paper = C('paper');
+                X.save();
+                X.filter = 'blur(6px) brightness(.5)';
+                photo(-W * 0.1, -H * 0.05, W * 1.2, H * 1.1);
+                X.filter = 'none';
+                X.restore();
+
+                const cardW = W * 0.76, cardX = (W - cardW) / 2, cardY = H * 0.22, cardH = H * 0.52;
+                X.fillStyle = C('accent');
+                X.beginPath();
+                X.roundRect(cardX, cardY, cardW, cardH, 34 * u);
+                X.fill();
+                stack([cardX + 44 * u, cardY + H * 0.09, cardW - 88 * u, H * 0.07], [
+                    { k: 'eyebrow', z: 72, f: 'l', up: 1, ls: .04, c: ink },
+                ], { al: 'c', va: 't' });
+                stack([cardX + 44 * u, cardY + H * 0.19, cardW - 88 * u, H * 0.12], [
+                    { k: 'title', z: 56, lh: 1.05, c: ink },
+                ], { al: 'c', va: 't' });
+                stack([cardX + 54 * u, cardY + H * 0.33, cardW - 108 * u, H * 0.12], [
+                    { k: 'body', z: 26, f: 'l', lh: 1.4, c: ink },
+                ], { al: 'c', va: 't' });
+                pill(T('price'), W / 2, cardY + cardH - H * 0.06, 30 * u, ink, paper, fnt('l', 700, 30 * u), 'c');
+            },
+        }, {
+            /* 10 · Breaking news — the lower third does the work. */
+            n: 'Breaking news',
+            animate: { kicker: 0.3, title: 2.4, body: 3.5, price: 3.5, foot: 2.4 },
+            motion: '0–.3s white flash · .3–2s BREAKING slams · 2–6s lower third slides in, headline then detail · ticker runs throughout',
+            t: {
+                eyebrow: 'BREAKING',
+                kicker: 'Singl-end News · REC',
+                title: 'Cyclist diverts route for breakfast',
+                body: 'Haggis, chilli jam & poached eggs “worth the detour”',
+                price: '£14.75',
+                foot: 'Singl-end Cafe & Bakehouse · Open everyday',
+            },
+            draw(W, H) {
+                W_TARGET = W;
+                const u = U;
+                const ink = C('ink'), paper = C('paper'), accent = C('accent');
+                photo(0, 0, W, H);
+                X.fillStyle = 'rgba(0,0,0,.16)';
+                for (let y = 0; y < H; y += 6 * u) X.fillRect(0, y, W, 2 * u);
+                grad(0, 0, W, H, ink, .55, .15);
+                chip('LIVE', W * 0.05, H * 0.07, 24 * u, '#d6202f', '#ffffff');
+                X.font = fnt('l', 700, 22 * u);
+                put(String(T('kicker') || '').toUpperCase(), W - W * 0.05, H * 0.09, X.font, 1.4 * u, 'r', paper);
+
+                const tag = String(T('eyebrow') || 'BREAKING').toUpperCase();
+                X.font = fnt('l', 700, 22 * u);
+                const tagW = tw(tag, X.font, 2.6 * u) + 38 * u, tagH = 52 * u;
+                const thirdY = H * 0.6;
+                X.fillStyle = '#d6202f';
+                X.fillRect(W * 0.05, thirdY, tagW, tagH);
+                put(tag, W * 0.05 + 19 * u, thirdY + tagH / 2 + 1, X.font, 2.6 * u, 'l', '#ffffff');
+                const headY = thirdY + tagH, headH = H * 0.13;
+                X.fillStyle = ink;
+                X.fillRect(W * 0.05, headY, W * 0.95, headH);
+                stack([W * 0.05 + 26 * u, headY + 20 * u, W * 0.95 - 52 * u, headH - 30 * u], [
+                    { k: 'title', z: 44, f: 'l', up: 1, lh: 1.06, c: paper },
+                ], { al: 'l', va: 't' });
+                const subY = headY + headH, subH = 54 * u;
+                X.fillStyle = paper;
+                X.fillRect(W * 0.05, subY, W * 0.95, subH);
+                X.font = fnt('l', 700, 22 * u);
+                const subLine = fitLine([T('body'), T('price')].filter(Boolean).join('  ·  ').toUpperCase(), X.font, W * 0.95 - 40 * u, 1.2 * u);
+                put(subLine, W * 0.05 + 20 * u, subY + subH / 2 + 1, X.font, 1.2 * u, 'l', ink);
+                ticker(String(footText() || '').toUpperCase(), H * 0.9, H * 0.045, ink, accent, 20 * u);
+            },
+        }, {
+            /* 11 · Live report — a field checklist over the street. */
+            n: 'Live report',
+            animate: { price: 1.0, title: 2.0, body: 3.0, foot: 3.4, eyebrow: 0.3, kicker: 0.3 },
+            motion: '0–2s LIVE and the location · 2–4s the price stamp · 4–7s the panel, one line at a time · ticker throughout',
+            t: {
+                eyebrow: 'LIVE',
+                kicker: 'John Street · Merchant City',
+                title: 'The Clubbin Chicken Sandwich',
+                body: 'Grilled chicken breast, Crispy bacon, Hot honey halloumi, Roasted garlic & truffle mayo, Sriracha hot sauce slaw',
+                price: '£15.50',
+                foot: 'Open everyday · @singlendcafe_glasgow',
+            },
+            draw(W, H) {
+                W_TARGET = W;
+                const u = U;
+                const { dark, light } = tones();
+                const accent = C('accent');
+                photo(0, 0, W, H);
+                X.fillStyle = 'rgba(0,0,0,.14)';
+                for (let y = 0; y < H; y += 6 * u) X.fillRect(0, y, W, 2 * u);
+                grad(0, 0, W, H, C('ink'), .5, .2);
+                chip(String(T('eyebrow') || 'LIVE').toUpperCase(), W * 0.05, H * 0.07, 24 * u, '#d6202f', '#ffffff');
+                X.font = fnt('l', 700, 20 * u);
+                const place = lines(T('kicker'), 2);
+                place.forEach((line, index) => put(line.toUpperCase(), W - W * 0.05, H * 0.085 + index * 28 * u, X.font, 1.4 * u, 'r', light));
+
+                if (T('price')) {
+                    X.save();
+                    X.translate(W * 0.74, H * 0.235);
+                    X.rotate(0.07);
+                    X.font = fnt('l', 700, 52 * u);
+                    const width = tw(String(T('price')), X.font, 0) + 40 * u;
+                    X.fillStyle = '#d6202f';
+                    X.fillRect(-width / 2, -42 * u, width, 84 * u);
+                    put(String(T('price')), 0, 2 * u, X.font, 0, 'c', '#ffffff');
+                    X.restore();
+                }
+
+                const panelX = W * 0.06, panelW = W * 0.88, panelY = H * 0.33, panelH = H * 0.28;
+                X.fillStyle = rgba(dark, .92);
+                X.fillRect(panelX, panelY, panelW, panelH);
+                X.fillStyle = accent;
+                X.fillRect(panelX, panelY, panelW, 10 * u);
+                X.font = fnt('l', 700, 19 * u);
+                put('ON THE MENU TODAY', panelX + 30 * u, panelY + 42 * u, X.font, 2.2 * u, 'l', accent);
+                stack([panelX + 30 * u, panelY + 60 * u, panelW - 60 * u, H * 0.085], [
+                    { k: 'title', z: 44, f: 'l', up: 1, lh: 1.02, c: light },
+                ], { al: 'l', va: 't' });
+                const list = String(T('body') || '').split(/,\s*/).filter(Boolean).slice(0, 5);
+                const startY = panelY + H * 0.155;
+                list.forEach((item, index) => {
+                    X.font = fnt('l', 700, 22 * u);
+                    put('✓', panelX + 30 * u, startY + index * 32 * u, X.font, 0, 'l', accent);
+                    put(item, panelX + 62 * u, startY + index * 32 * u, X.font, 0, 'l', light);
+                });
+
+                X.font = fnt('l', 700, 20 * u);
+                put(String(footText() || '').toUpperCase(), panelX, H * 0.67, X.font, 1.4 * u, 'l', light);
+                ticker(String(footText() || '').toUpperCase(), H * 0.9, H * 0.045, dark, accent, 20 * u);
+            },
+        }, {
+            /* 12 · Front page extra — the dish is the story. */
+            n: 'Front page extra',
+            animate: { kicker: 0.6, title: 1.4, body: 2.6, price: 3.4, foot: 3.6 },
+            motion: '0–2s the page spins in · 2–4s the headline · 4–6s the photo box wipes in · 6–8s the caption, EXTRA! stamp',
+            t: {
+                kicker: 'Glasgow · Daily · Price: one smile',
+                title: 'Dirty Chai takes Glasgow by storm',
+                body: 'Terrace regulars, John Street, Merchant City.',
+                price: '£5.35',
+                foot: 'Sit in or take away · @singlendcafe_glasgow',
+            },
+            draw(W, H) {
+                W_TARGET = W;
+                const u = U;
+                const ink = C('ink');
+                const paper = mix(C('paper'), '#efe7d4', .4);
+                X.fillStyle = paper;
+                X.fillRect(0, 0, W, H);
+                const pad = W * 0.06;
+                X.font = fnt('d', 800, 44 * u);
+                put(String((S && (S.brandWordmark || S.brandName)) || 'The Singl-End Gazette').toUpperCase(), W / 2, H * 0.07, X.font, 0, 'c', ink);
+                rule(pad, H * 0.095, W - 2 * pad, 7 * u, ink);
+                X.font = fnt('l', 700, 18 * u);
+                put(String(T('kicker') || '').toUpperCase(), W / 2, H * 0.112, X.font, 2.4 * u, 'c', mix(ink, paper, .2));
+                stack([pad, H * 0.145, W - 2 * pad, H * 0.14], [
+                    { k: 'title', z: 60, lh: 1.02, c: ink },
+                ], { al: 'l', va: 't' });
+
+                const photoY = H * 0.32, photoH = H * 0.3;
+                X.save();
+                X.filter = 'grayscale(1) contrast(1.2)';
+                photo(pad, photoY, W - 2 * pad, photoH);
+                X.filter = 'none';
+                X.restore();
+                X.strokeStyle = ink;
+                X.lineWidth = 5 * u;
+                X.strokeRect(pad, photoY, W - 2 * pad, photoH);
+
+                stack([pad, photoY + photoH + H * 0.02, W - 2 * pad, H * 0.06], [
+                    { k: 'body', z: 26, f: 'l', lh: 1.4, c: ink },
+                ], { al: 'l', va: 't' });
+                stack([pad, photoY + photoH + H * 0.085, W - 2 * pad, H * 0.09], [
+                    { k: 'price', z: 44, f: 'd', c: ink },
+                    { k: 'foot', z: 21, f: 'l', c: mix(ink, paper, .2), g: 12 },
+                ], { al: 'l', va: 't' });
+
+                X.save();
+                X.translate(W * 0.76, H * 0.5);
+                X.rotate(-0.18);
+                X.font = fnt('l', 700, 50 * u);
+                const label = 'EXTRA!';
+                const width = tw(label, X.font, 3 * u) + 46 * u;
+                X.strokeStyle = '#b4283c';
+                X.lineWidth = 7 * u;
+                X.strokeRect(-width / 2, -42 * u, width, 84 * u);
+                put(label, 0, 2 * u, X.font, 3 * u, 'c', '#b4283c');
+                X.restore();
+            },
+        }],
+    };
+    window.AssetCategories['reelidea'] = CFG;
+})();
+
+/* =====================================================================
+ * Story reels — collaborations told as a ten-second story.
+ * A dish is still the point, but the design carries a narrative: a
+ * character, three beats and a punchline. The dish picker only touches the
+ * dish fields (`dishFields`), so the story survives a menu change.
+ * ===================================================================== */
+(function () {
+    const padOf = W => W * 0.07;
+
+    function tones() {
+        const ink = C('ink');
+        const paper = C('paper');
+        return colorLuma(ink) <= colorLuma(paper)
+            ? { dark: ink, light: paper }
+            : { dark: paper, light: ink };
+    }
+
+    function pill(text, x, centreY, size, bg, fg, font, align) {
+        const value = String(text || '').trim();
+        if (!value) return 0;
+        const face = font || fnt('d', 700, size);
+        X.font = face;
+        const height = size * 2.1;
+        const width = tw(value, face, 0) + size * 2.2;
+        const left = align === 'c' ? x - width / 2 : x;
+        X.fillStyle = bg;
+        X.beginPath();
+        X.roundRect(left, centreY - height / 2, width, height, height / 2);
+        X.fill();
+        put(value, left + size * 1.1, centreY + 1, face, 0, 'l', fg);
+        return width;
+    }
+
+    function chip(text, x, y, size, bg, fg) {
+        const value = String(text || '').trim();
+        if (!value) return 0;
+        X.font = fnt('l', 700, size);
+        const height = size * 2.2;
+        const width = tw(value, X.font, size * 0.08) + size * 2.4;
+        X.fillStyle = bg;
+        X.beginPath();
+        X.roundRect(x, y, width, height, size * 0.35);
+        X.fill();
+        put(value, x + size * 1.2, y + height / 2 + 1, X.font, size * 0.08, 'l', fg);
+        return width;
+    }
+
+    function rule(x, y, width, thickness, color) {
+        X.fillStyle = color;
+        X.fillRect(x, y, width, thickness);
+    }
+
+    function dashed(x, y, width, color, thickness) {
+        X.save();
+        X.strokeStyle = color;
+        X.lineWidth = thickness || 2 * U;
+        X.setLineDash([10 * U, 8 * U]);
+        X.beginPath();
+        X.moveTo(x, y);
+        X.lineTo(x + width, y);
+        X.stroke();
+        X.restore();
+    }
+
+    function footText() {
+        return String(T('foot') || '').replace(/\s*\n+\s*/g, ' · ').trim();
+    }
+
+    function fitLine(text, font, maxWidth, tracking) {
+        const value = String(text || '').trim();
+        const track = tracking || 0;
+        X.font = font;
+        if (tw(value, font, track) <= maxWidth) return value;
+        let cut = value;
+        while (cut.length > 4 && tw(cut + '…', font, track) > maxWidth) cut = cut.slice(0, -1);
+        return cut.trimEnd() + '…';
+    }
+
+    // Speech bubble with a tail; used by the puppet theatre and the comic.
+    function bubble(text, x, y, width, size, bg, fg, align, tail) {
+        const value = String(text || '').trim();
+        if (!value) return;
+        const face = fnt('l', 800, size);
+        const lines = wrap(value, face, 0, width - size * 2.6);
+        const lineHeight = size * 1.35;
+        const height = lines.length * lineHeight + size * 2.2;
+        X.fillStyle = bg;
+        X.beginPath();
+        X.roundRect(x, y, width, height, size * 0.9);
+        X.fill();
+        if (tail !== false) {
+            X.beginPath();
+            X.moveTo(x + width * 0.24, y + height - 1);
+            X.lineTo(x + width * 0.2, y + height + size * 1.1);
+            X.lineTo(x + width * 0.34, y + height - 1);
+            X.closePath();
+            X.fill();
+        }
+        X.font = face;
+        lines.forEach((line, index) => {
+            put(line, align === 'c' ? x + width / 2 : x + size * 1.3, y + size * 1.1 + index * lineHeight + lineHeight / 2, face, 0, align === 'c' ? 'c' : 'l', fg);
+        });
+    }
+
+    // Simple eight-bit ghost, drawn instead of relying on an emoji font.
+    function ghostSprite(cx, cy, size, color, eye) {
+        const unit = size / 8;
+        X.fillStyle = color;
+        X.beginPath();
+        X.moveTo(cx - size / 2, cy + size * 0.42);
+        X.lineTo(cx - size / 2, cy - size * 0.1);
+        X.arc(cx, cy - size * 0.1, size / 2, Math.PI, 0);
+        X.lineTo(cx + size / 2, cy + size * 0.42);
+        for (let i = 0; i < 3; i += 1) {
+            const x = cx + size / 2 - unit * (i * 2 + 1);
+            X.lineTo(x, cy + size * 0.3);
+            X.lineTo(x - unit, cy + size * 0.42);
+        }
+        X.closePath();
+        X.fill();
+        if (eye) {
+            X.fillStyle = eye;
+            X.fillRect(cx - size * 0.2, cy - size * 0.14, size * 0.14, size * 0.18);
+            X.fillRect(cx + size * 0.06, cy - size * 0.14, size * 0.14, size * 0.18);
+        }
+    }
+
+    // A marionette: head, body, stick and a nose that can grow.
+    function puppet(cx, baseY, height, color, noseColor, noseLength) {
+        const head = height * 0.16;
+        X.fillStyle = color;
+        X.beginPath();
+        X.arc(cx, baseY - height + head, head, 0, Math.PI * 2);
+        X.fill();
+        X.fillRect(cx - head * 0.55, baseY - height + head * 1.9, head * 1.1, height * 0.34);
+        X.fillRect(cx - head * 1.35, baseY - height + head * 2.1, head * 2.7, head * 0.5);
+        X.fillRect(cx - head * 0.95, baseY - height * 0.48, head * 0.55, height * 0.48);
+        X.fillRect(cx + head * 0.4, baseY - height * 0.48, head * 0.55, height * 0.48);
+        X.fillRect(cx - head * 0.16, baseY - height * 0.02, head * 0.32, head * 0.4);
+        if (noseLength > 0) {
+            X.fillStyle = noseColor;
+            X.beginPath();
+            X.moveTo(cx + head * 0.8, baseY - height + head * 0.9);
+            X.lineTo(cx + head * 0.8 + noseLength, baseY - height + head * 0.75);
+            X.lineTo(cx + head * 0.8, baseY - height + head * 1.25);
+            X.closePath();
+            X.fill();
+        }
+    }
+
+    const CFG = {
+        id: 'storyidea',
+        title: 'Story Reels',
+        sub: 'A dish inside a ten-second story: a character, three beats, a punchline.',
+        idea: true,
+        ideaFormat: 'reel',
+        sizes: [
+            { n: 'Story 9:16', d: 'Reels & stories · 1080×1920', w: 1080, h: 1920, print: false },
+        ],
+        fields: [
+            ['eyebrow', 'Small label / chapter'],
+            ['partner', 'Character / collaboration'],
+            ['line1', 'Story beat 1'],
+            ['line2', 'Story beat 2'],
+            ['line3', 'Story beat 3'],
+            ['title', 'Dish', 2],
+            ['body', 'Description', 3],
+            ['price', 'Price'],
+            ['foot', 'Handle'],
+        ],
+        tpls: [{
+            /* 1 · Night vision — a ghost hunt on the street. */
+            n: 'Night vision',
+            animate: { eyebrow: 0.1, line1: 1.2, line2: 3.2, line3: 5.1, title: 7.2, body: 7.5, price: 7.8 },
+            dishFields: ['title', 'body', 'price', 'foot'],
+            motion: '0–2s night vision locks on and the cam timecode starts · 2–4s the EMF bars climb and the ghost appears · 4–6s the crew calls it boring · 7–9s the dish card',
+            t: {
+                eyebrow: 'NIGHT VISION',
+                partner: 'Giovannin Senza Paura',
+                line1: 'Night one. The haunted castle.',
+                line2: 'Ghost detected. BOOOO!',
+                line3: 'Giovannin: “…Boring.” Fear level: 0%',
+                title: 'Bloody Mary',
+                body: 'Vodka, spiced tomato juice, tabasco, black pepper.',
+                price: '£9.00',
+                foot: '@singlendcafe_glasgow',
+            },
+            draw(W, H) {
+                const u = U;
+                const green = '#8dff8d';
+                X.save();
+                X.filter = 'grayscale(1) sepia(1) hue-rotate(50deg) saturate(4) brightness(.9) contrast(1.35)';
+                photo(0, 0, W, H);
+                X.filter = 'none';
+                X.restore();
+                X.fillStyle = 'rgba(0,20,0,.18)';
+                for (let y = 0; y < H; y += 7 * u) X.fillRect(0, y, W, 2 * u);
+                grad(0, 0, W, H, '#000000', .55, .35);
+
+                X.font = fnt('l', 700, 22 * u);
+                X.fillStyle = '#ff3b3b';
+                X.fillRect(W * 0.05, H * 0.085, 14 * u, 14 * u);
+                put('REC', W * 0.05 + 24 * u, H * 0.088, X.font, 2 * u, 'l', green);
+                put(String(T('eyebrow') || 'NIGHT VISION').toUpperCase(), W - W * 0.05, H * 0.088, X.font, 2 * u, 'r', green);
+                put('CAM 01 · 02:14:07', W * 0.05, H * 0.135, fnt('l', 500, 20 * u), 1.4 * u, 'l', green);
+
+                // EMF meter
+                const emfX = W * 0.86, emfY = H * 0.56;
+                for (let i = 0; i < 5; i += 1) {
+                    X.fillStyle = i < 3 ? green : 'rgba(141,255,141,.2)';
+                    X.fillRect(emfX, emfY - i * 22 * u, 36 * u, 14 * u);
+                }
+                X.font = fnt('l', 500, 17 * u);
+                put('EMF', emfX + 36 * u, emfY + 4 * u, X.font, 1.6 * u, 'r', green);
+
+                ghostSprite(W * 0.5, H * 0.4, W * 0.34, 'rgba(190,255,190,.9)', '#0a1f0a');
+
+                bubble(String(T('line1')), W * 0.08, H * 0.55, W * 0.7, 24 * u, 'rgba(0,0,0,.72)', '#ffffff', 'l');
+                X.font = fnt('l', 800, 26 * u);
+                put(String(T('line2')).toUpperCase(), W / 2, H * 0.645, X.font, 2 * u, 'c', '#ff9a9a');
+                X.font = fnt('l', 600, 22 * u);
+                put(fitLine(String(T('line3')), X.font, W * 0.86, 0), W / 2, H * 0.675, X.font, 0, 'c', green);
+
+                const cardY = H * 0.75;
+                X.fillStyle = 'rgba(8,24,12,.92)';
+                X.fillRect(0, cardY, W, H - cardY);
+                stack([W * 0.07, cardY + H * 0.045, W * 0.72, H * 0.16], [
+                    { k: 'title', z: 54, lh: 1.05, c: green, g: 14 },
+                    { k: 'body', z: 24, f: 'l', lh: 1.35, c: 'rgba(220,255,220,.85)' },
+                ], { al: 'l', va: 't' });
+                pill(T('price'), W * 0.79, cardY + H * 0.115, 26 * u, green, '#08180a', fnt('l', 700, 26 * u));
+            },
+        }, {
+            /* 2 · Comic strip — four panels and an empty plate. */
+            n: 'Comic strip',
+            animate: { partner: 0.2, eyebrow: 0.4, line1: 1.0, line2: 2.4, line3: 3.8, title: 5.4, body: 5.7, price: 6.2 },
+            dishFields: ['title', 'body', 'price', 'foot'],
+            motion: '0–2s the panels pop in one by one · 2–5s the beats land with a CLACK · 5–7s the empty plate · 7–9s the dish panel',
+            t: {
+                eyebrow: 'A fearless folk tale',
+                partner: 'Giovannin Senza Paura',
+                line1: 'Night one. A haunted castle.',
+                line2: 'Booo! … “Meh.”',
+                line3: 'An EMPTY plate?!',
+                title: 'Stornoway',
+                body: 'Stornoway black pudding, tomato & chilli jam, poached eggs, hollandaise, toasted sourdough.',
+                price: '£14.75',
+                foot: 'Fear-free breakfast · @singlendcafe_glasgow',
+            },
+            draw(W, H) {
+                const u = U;
+                X.fillStyle = '#ffd84a';
+                X.fillRect(0, 0, W, H);
+                X.fillStyle = 'rgba(232,185,42,.55)';
+                for (let y = 18 * u; y < H; y += 30 * u) {
+                    for (let x = 18 * u; x < W; x += 30 * u) X.fillRect(x, y, 6 * u, 6 * u);
+                }
+                X.font = fnt('d', 800, 54 * u);
+                const title = fitLine(String(T('partner') || '').toUpperCase(), X.font, W * 0.9, 0);
+                X.strokeStyle = '#111111';
+                X.lineWidth = 8 * u;
+                X.textBaseline = 'middle';
+                X.textAlign = 'center';
+                X.strokeText(title, W / 2, H * 0.075);
+                X.fillStyle = '#e11d48';
+                X.fillText(title, W / 2, H * 0.075);
+                X.font = fnt('l', 800, 20 * u);
+                X.fillStyle = '#111111';
+                X.fillText(String(T('eyebrow') || '').toUpperCase(), W / 2, H * 0.115);
+
+                const panelW = W * 0.41, panelH = H * 0.19, gap = W * 0.045;
+                const left = W * 0.055, right = left + panelW + gap;
+                const rows = [H * 0.16, H * 0.36];
+                const panel = (x, y, w, h, rotate, bg, caption, filter) => {
+                    X.save();
+                    X.translate(x + w / 2, y + h / 2);
+                    X.rotate(rotate);
+                    X.translate(-(x + w / 2), -(y + h / 2));
+                    X.fillStyle = bg;
+                    X.fillRect(x, y, w, h);
+                    X.save();
+                    X.beginPath();
+                    X.rect(x, y, w, h);
+                    X.clip();
+                    X.filter = filter;
+                    photo(x, y, w, h);
+                    X.filter = 'none';
+                    X.restore();
+                    X.strokeStyle = '#111111';
+                    X.lineWidth = 6 * u;
+                    X.strokeRect(x, y, w, h);
+                    X.fillStyle = '#ffd84a';
+                    X.fillRect(x, y, w * 0.62, 34 * u);
+                    X.strokeRect(x, y, w * 0.62, 34 * u);
+                    X.font = fnt('l', 800, 15 * u);
+                    put(fitLine(caption, X.font, w * 0.56, 0), x + 12 * u, y + 17 * u, X.font, 0, 'l', '#111111');
+                    X.restore();
+                };
+                panel(left, rows[0], panelW, panelH, -0.02, '#1b1b2f', String(T('line1')), 'brightness(.42) hue-rotate(200deg) saturate(1.5)');
+                panel(right, rows[0], panelW, panelH, 0.02, '#3a2f7a', String(T('line2')), 'brightness(.35) saturate(1.8)');
+                panel(left, rows[1], panelW, panelH, 0.015, '#ff8a3d', String(T('line3')), 'sepia(.6) saturate(1.4) brightness(.7)');
+                panel(right, rows[1], panelW, panelH, -0.015, '#1b1b2f', String(T('title')), 'grayscale(1) brightness(.4)');
+
+                // a speech burst in the second panel
+                X.save();
+                X.translate(right + panelW * 0.55, rows[0] + panelH * 0.55);
+                X.rotate(-0.12);
+                X.font = fnt('l', 800, 34 * u);
+                X.strokeStyle = '#111111';
+                X.lineWidth = 6 * u;
+                X.textAlign = 'center';
+                const shout = 'BOOOO!';
+                X.strokeText(shout, 0, 0);
+                X.fillStyle = '#e11d48';
+                X.fillText(shout, 0, 0);
+                X.restore();
+
+                const dishY = H * 0.585, dishH = H * 0.2;
+                X.fillStyle = '#f6c9dc';
+                X.fillRect(W * 0.055, dishY, W * 0.89, dishH);
+                X.strokeStyle = '#111111';
+                X.lineWidth = 7 * u;
+                X.strokeRect(W * 0.055, dishY, W * 0.89, dishH);
+                stack([W * 0.09, dishY + H * 0.02, W * 0.6, dishH - H * 0.05], [
+                    { k: 'title', z: 44, lh: 1.05, c: C('ink'), g: 10 },
+                    { k: 'body', z: 20, f: 'l', lh: 1.35, c: C('ink') },
+                ], { al: 'l', va: 'm' });
+                pill(T('price'), W * 0.72, dishY + dishH * 0.42, 24 * u, C('ink'), '#f6c9dc', fnt('d', 700, 24 * u));
+                X.font = fnt('l', 700, 18 * u);
+                put(fitLine(footText(), X.font, W * 0.82, 0), W * 0.09, dishY + dishH - H * 0.012, X.font, 0, 'l', C('ink'));
+            },
+        }, {
+            /* 3 · Pixel arcade — the ghost gets +100 three times. */
+            n: 'Pixel arcade',
+            animate: { line3: 0.2, eyebrow: 0.3, line1: 2.3, line2: 5.8, title: 7.5, body: 7.8, price: 8.0 },
+            dishFields: ['title', 'body', 'price', 'foot'],
+            motion: '0–2s the pixel hero lands · 2–5s ghosts pop up, BOO! +100 each · 5–6s WARNING, empty plate · 7–9s the prize card',
+            t: {
+                eyebrow: 'FEAR 0% · 1UP',
+                partner: 'GIOVANNIN',
+                line1: 'BOO! +100',
+                line2: 'WARNING! EMPTY?!',
+                line3: 'SCORE 000100',
+                title: 'Luxury Hot Chocolate',
+                body: 'Incl. cream & marshmallows.',
+                price: '£5.00',
+                foot: '@singlendcafe_glasgow',
+            },
+            draw(W, H) {
+                const u = U;
+                X.fillStyle = '#0a0a2a';
+                X.fillRect(0, 0, W, H);
+                X.fillStyle = 'rgba(154,163,255,.5)';
+                for (let y = 24 * u; y < H; y += 60 * u) {
+                    for (let x = 24 * u + (y % 120 === 24 * u ? 0 : 30 * u); x < W; x += 62 * u) X.fillRect(x, y, 4 * u, 4 * u);
+                }
+                X.font = fnt('l', 700, 22 * u);
+                X.fillStyle = '#ffd23f';
+                X.textAlign = 'left';
+                X.fillText(String(T('line3') || 'SCORE 000100'), W * 0.05, H * 0.075);
+                X.textAlign = 'right';
+                X.fillText('1UP', W - W * 0.05, H * 0.075);
+                X.textAlign = 'left';
+                X.fillStyle = '#4cff7a';
+                X.fillText(String(T('eyebrow') || 'FEAR 0%'), W * 0.05, H * 0.115);
+
+                ghostSprite(W * 0.26, H * 0.3, W * 0.16, '#9aa3ff', '#0a0a2a');
+                ghostSprite(W * 0.5, H * 0.24, W * 0.13, '#ff8ad8', '#0a0a2a');
+                ghostSprite(W * 0.72, H * 0.31, W * 0.15, '#4cff7a', '#0a0a2a');
+                X.font = fnt('l', 700, 30 * u);
+                X.fillStyle = '#ffffff';
+                X.fillText('BOO!', W * 0.3, H * 0.38);
+                X.fillStyle = '#ffd23f';
+                X.fillText('+100', W * 0.52, H * 0.42);
+                X.fillStyle = '#ff3b5c';
+                X.font = fnt('l', 700, 34 * u);
+                X.fillText(String(T('line2') || 'WARNING! EMPTY?!'), W * 0.08, H * 0.5);
+
+                // the prize card
+                const cardY = H * 0.6, cardH = H * 0.19;
+                X.fillStyle = '#10104a';
+                X.fillRect(W * 0.06, cardY, W * 0.88, cardH);
+                X.strokeStyle = '#ffd23f';
+                X.lineWidth = 8 * u;
+                X.strokeRect(W * 0.06, cardY, W * 0.88, cardH);
+                stack([W * 0.1, cardY + cardH * 0.12, W * 0.8, cardH * 0.66], [
+                    { k: 'title', z: 44, f: 'l', up: 1, lh: 1.1, c: '#ffd23f', g: 12 },
+                    { k: 'body', z: 22, f: 'l', lh: 1.35, c: '#ffffff' },
+                ], { al: 'c', va: 't' });
+                X.font = fnt('l', 700, 38 * u);
+                X.fillStyle = '#4cff7a';
+                X.textAlign = 'center';
+                X.fillText(String(T('price') || ''), W / 2, cardY + cardH * 0.9);
+
+                X.font = fnt('l', 700, 18 * u);
+                X.fillStyle = 'rgba(255,255,255,.7)';
+                X.fillText(fitLine(footText(), X.font, W * 0.86, 0), W / 2, H * 0.87);
+            },
+        }, {
+            /* 4 · Puppet theatre — the nose grows when he fibs. */
+            n: 'Puppet theatre',
+            animate: { eyebrow: 0.2, line1: 2.6, line2: 4.2, line3: 6.3, title: 1.6, body: 2.2, foot: 2.4, price: 7.4 },
+            dishFields: ['title', 'body', 'price', 'foot'],
+            motion: '0–2s the curtains open on the theatre · 2–4s the puppet takes a bow · 4–7s the nose grows on the fib · 7–9s the price stamp and the dish',
+            t: {
+                eyebrow: 'Teatro Singl-end',
+                partner: 'Pinocchio',
+                line1: 'Me, lie? Never!',
+                line2: 'The Limencello Spritz is… terrible.',
+                line3: 'Fine! It’s delicious.',
+                title: 'Limencello Spritz',
+                body: 'Limencello, prosecco, soda.',
+                price: '£10.50',
+                foot: 'LIMENCELLO · PROSECCO · SODA',
+            },
+            draw(W, H) {
+                const u = U;
+                const gold = '#f2c14e';
+                X.fillStyle = '#5a101c';
+                X.fillRect(0, 0, W, H);
+                for (let x = 0; x < W; x += 26 * u) {
+                    X.fillStyle = x % (52 * u) === 0 ? 'rgba(0,0,0,.18)' : 'rgba(255,255,255,.04)';
+                    X.fillRect(x, 0, 13 * u, H);
+                }
+                X.font = fnt('d', 800, 40 * u);
+                X.textAlign = 'center';
+                X.fillStyle = gold;
+                X.fillText(String(T('eyebrow') || 'Teatro Singl-end').toUpperCase(), W / 2, H * 0.055);
+
+                const winX = W * 0.08, winY = H * 0.09, winW = W * 0.84, winH = H * 0.46;
+                X.save();
+                X.beginPath();
+                X.rect(winX, winY, winW, winH);
+                X.clip();
+                photo(winX, winY, winW, winH);
+                X.fillStyle = 'rgba(0,0,0,.35)';
+                X.fillRect(winX, winY, winW, winH);
+                X.restore();
+                X.strokeStyle = '#c8902a';
+                X.lineWidth = 14 * u;
+                X.strokeRect(winX, winY, winW, winH);
+
+                // curtains, opening on cue
+                const open = easeOut(phase(0.3, 1.4));
+                X.fillStyle = '#a3182d';
+                X.save();
+                X.translate(-winW * 0.9 * open, 0);
+                X.beginPath();
+                X.moveTo(winX, winY);
+                X.lineTo(winX + winW * 0.16, winY);
+                X.quadraticCurveTo(winX + winW * 0.06, winY + winH * 0.5, winX + winW * 0.12, winY + winH);
+                X.lineTo(winX, winY + winH);
+                X.closePath();
+                X.fill();
+                X.restore();
+                X.save();
+                X.translate(winW * 0.9 * open, 0);
+                X.beginPath();
+                X.moveTo(winX + winW, winY);
+                X.lineTo(winX + winW * 0.84, winY);
+                X.quadraticCurveTo(winX + winW * 0.94, winY + winH * 0.5, winX + winW * 0.88, winY + winH);
+                X.lineTo(winX + winW, winY + winH);
+                X.closePath();
+                X.fill();
+                X.restore();
+
+                // strings from the flies
+                X.strokeStyle = 'rgba(255,255,255,.35)';
+                X.lineWidth = 1.6 * u;
+                [[0.3, 0.14], [0.26, 0.52], [0.34, 0.52]].forEach(([sx, sy]) => {
+                    X.beginPath();
+                    X.moveTo(W * sx, winY);
+                    X.lineTo(W * sx + (sx < 0.3 ? -6 * u : 6 * u), winY + winH * sy);
+                    X.stroke();
+                });
+                puppet(W * 0.3, winY + winH * 0.92, winH * 0.62, '#d8a05a', '#c88c55', winW * 0.14);
+
+                bubble(String(T('line1')), W * 0.4, winY + winH * 0.1, W * 0.42, 20 * u, '#fbf3df', C('ink'), 'l');
+                bubble(String(T('line2')), W * 0.3, winY + winH * 0.34, W * 0.52, 19 * u, '#fbf3df', C('ink'), 'l');
+                bubble(String(T('line3')), W * 0.36, winY + winH * 0.58, W * 0.46, 19 * u, '#fbf3df', C('ink'), 'l');
+
+                // price stamp
+                X.save();
+                X.translate(W * 0.62, H * 0.63);
+                X.rotate(-0.09);
+                X.fillStyle = '#b07a45';
+                X.fillRect(-W * 0.2, -46 * u, W * 0.4, 92 * u);
+                X.strokeStyle = '#5a3a1d';
+                X.lineWidth = 6 * u;
+                X.strokeRect(-W * 0.2, -46 * u, W * 0.4, 92 * u);
+                X.font = fnt('d', 800, 44 * u);
+                X.textAlign = 'center';
+                X.fillStyle = '#fbf3df';
+                X.fillText(String(T('price') || ''), 0, 4 * u);
+                X.restore();
+
+                stack([W * 0.06, H * 0.68, W * 0.88, H * 0.12], [
+                    { k: 'title', z: 62, lh: 1.02, c: gold },
+                ], { al: 'c', va: 't' });
+                stack([W * 0.12, H * 0.775, W * 0.76, H * 0.08], [
+                    { k: 'body', z: 26, f: 'l', lh: 1.3, c: '#fbf3df' },
+                    { k: 'foot', z: 18, f: 'l', up: 1, ls: .16, c: 'rgba(251,243,223,.85)', g: 14 },
+                ], { al: 'c', va: 't' });
+                rule(W * 0.12, H * 0.945, W * 0.76, 2 * u, 'rgba(242,193,78,.6)');
+            },
+        }, {
+            /* 5 · Storybook — a page turns and the nose stays the same. */
+            n: 'Storybook',
+            animate: { eyebrow: 0.4, title: 0.8, line1: 1.6, body: 2.6, price: 3.4, line2: 4.2, foot: 4.6 },
+            dishFields: ['title', 'body', 'price', 'foot'],
+            motion: '0–2s the page turns · 2–4s Capitolo II is set · 4–6s the illustration and dish · 6–8s the closing line',
+            t: {
+                eyebrow: 'Capitolo II',
+                partner: 'Pinocchio',
+                line1: 'In which a wooden boy walks into Singl-end',
+                line2: 'And his nose never grew, not once.',
+                title: 'The Everything',
+                body: 'Avocado & chilli smash, grilled tomatoes, crumbled feta, poached eggs, Italian pangrattato & toasted sourdough.',
+                price: '£14.50',
+                foot: '@singlendcafe_glasgow',
+            },
+            draw(W, H) {
+                const u = U;
+                const ink = '#3b2a1a';
+                X.fillStyle = '#ecdcb4';
+                X.fillRect(0, 0, W, H);
+                grad(0, 0, W, H, '#7a4e1f', .0, .18);
+                X.strokeStyle = 'rgba(59,42,26,.55)';
+                X.lineWidth = 3 * u;
+                X.strokeRect(W * 0.045, H * 0.035, W * 0.91, H * 0.93);
+                X.lineWidth = 1.5 * u;
+                X.strokeRect(W * 0.06, H * 0.048, W * 0.88, H * 0.904);
+
+                X.font = fnt('l', 700, 20 * u);
+                X.textAlign = 'center';
+                X.fillStyle = ink;
+                X.fillText(String(T('eyebrow') || 'Capitolo II').toUpperCase(), W / 2, H * 0.09);
+
+                stack([W * 0.1, H * 0.115, W * 0.8, H * 0.12], [
+                    { k: 'title', z: 64, f: 'b', lh: 1.02, c: ink },
+                ], { al: 'c', va: 't' });
+
+                const cx = W * 0.5, cy = H * 0.315, r = W * 0.19;
+                const uncover = easeOut(phase(0.7, 1.2));
+                X.save();
+                X.beginPath();
+                X.arc(cx, cy, r, 0, Math.PI * 2);
+                X.clip();
+                X.beginPath();
+                X.rect(cx - r, cy - r + 2 * r * (1 - uncover), 2 * r, 2 * r * uncover);
+                X.clip();
+                X.filter = 'sepia(.5) contrast(1.1)';
+                photo(cx - r, cy - r, r * 2, r * 2);
+                X.filter = 'none';
+                X.restore();
+                X.strokeStyle = ink;
+                X.lineWidth = 3 * u;
+                X.beginPath();
+                X.arc(cx, cy, r, 0, Math.PI * 2);
+                X.stroke();
+
+                X.font = fnt('b', 500, 26 * u);
+                X.fillStyle = ink;
+                X.fillText(String(T('line1') || ''), W / 2, H * 0.5);
+
+                stack([W * 0.12, H * 0.53, W * 0.76, H * 0.12], [
+                    { k: 'body', z: 25, f: 'l', lh: 1.45, c: ink },
+                ], { al: 'c', va: 't' });
+
+                X.save();
+                X.translate(W * 0.5, H * 0.7);
+                X.rotate(-0.05);
+                X.strokeStyle = ink;
+                X.lineWidth = 3 * u;
+                X.beginPath();
+                X.arc(0, 0, W * 0.11, 0, Math.PI * 2);
+                X.stroke();
+                X.font = fnt('b', 700, 38 * u);
+                X.fillStyle = ink;
+                X.fillText(String(T('price') || ''), 0, 12 * u);
+                X.restore();
+
+                X.font = fnt('b', 500, 24 * u);
+                X.fillText(String(T('line2') || ''), W / 2, H * 0.85);
+                X.font = fnt('l', 600, 17 * u);
+                X.fillText(fitLine(footText(), X.font, W * 0.8, 0), W / 2, H * 0.9);
+            },
+        }, {
+            /* 6 · Truth or Nose? — a game show that catches the lie. */
+            n: 'Truth or Nose?',
+            animate: { eyebrow: 0.2, line1: 1.2, line2: 2.3, line3: 3.2, title: 7.2, body: 7.5, price: 7.8 },
+            dishFields: ['title', 'body', 'price', 'foot'],
+            motion: '0–2s the wheel spins and the title lands · 2–5s statement one, TRUE stamp · 5–7s BZZT, the lie · 7–9s the dish card',
+            t: {
+                eyebrow: 'Truth or Nose?',
+                partner: 'Pinocchio',
+                line1: 'It has avocado & pickled purple cabbage.',
+                line2: 'TRUE ✔',
+                line3: 'It costs £140.  LIE ✘',
+                title: 'Rainbow Open Sandwich',
+                body: 'Roasted beetroot & toasted cumin hummus, avocado, pickled purple cabbage, flamed peppers, sourdough.',
+                price: '£14.00',
+                foot: '@singlendcafe_glasgow',
+            },
+            draw(W, H) {
+                const u = U;
+                X.fillStyle = '#2a0a5a';
+                X.fillRect(0, 0, W, H);
+                X.save();
+                X.translate(W / 2, H * 0.34);
+                for (let i = 0; i < 24; i += 1) {
+                    X.rotate(Math.PI / 12);
+                    X.fillStyle = i % 2 ? 'rgba(255,255,255,.05)' : 'rgba(255,255,255,.02)';
+                    X.beginPath();
+                    X.moveTo(0, 0);
+                    X.lineTo(W * 0.9, -W * 0.06);
+                    X.lineTo(W * 0.9, W * 0.06);
+                    X.closePath();
+                    X.fill();
+                }
+                X.restore();
+                X.fillStyle = 'rgba(90,31,162,.55)';
+                X.fillRect(0, 0, W, H);
+
+                X.font = fnt('d', 800, 62 * u);
+                X.textAlign = 'center';
+                X.fillStyle = '#c2185b';
+                X.fillText(String(T('eyebrow') || 'Truth or Nose?'), W / 2, H * 0.085);
+                X.fillStyle = '#ffd23f';
+                X.fillText(String(T('eyebrow') || 'Truth or Nose?'), W / 2, H * 0.085 - 5 * u);
+
+                // statement cards
+                const cardY = H * 0.155, cardH = H * 0.105;
+                X.fillStyle = 'rgba(10,4,30,.82)';
+                X.fillRect(W * 0.07, cardY, W * 0.86, cardH);
+                X.strokeStyle = '#ffd23f';
+                X.lineWidth = 5 * u;
+                X.strokeRect(W * 0.07, cardY, W * 0.86, cardH);
+                stack([W * 0.11, cardY + cardH * 0.2, W * 0.78, cardH * 0.6], [
+                    { k: 'line1', z: 30, f: 'l', lh: 1.25, c: '#ffffff' },
+                ], { al: 'c', va: 't' });
+                X.save();
+                X.translate(W * 0.72, cardY + cardH * 0.92);
+                X.rotate(-0.12);
+                X.font = fnt('l', 800, 34 * u);
+                X.fillStyle = '#4cff7a';
+                X.textAlign = 'center';
+                X.fillText(String(T('line2') || 'TRUE ✔'), 0, 0);
+                X.restore();
+
+                X.font = fnt('l', 800, 30 * u);
+                X.fillStyle = '#ff3b5c';
+                X.textAlign = 'left';
+                X.fillText('BZZT!', W * 0.1, H * 0.31);
+                X.font = fnt('l', 700, 22 * u);
+                X.fillStyle = '#ffffff';
+                X.fillText(fitLine(String(T('line3') || ''), X.font, W * 0.72, 0), W * 0.1, H * 0.355);
+                X.save();
+                X.translate(W * 0.83, H * 0.352);
+                X.rotate(-0.16);
+                X.strokeStyle = '#ff3b5c';
+                X.lineWidth = 5 * u;
+                X.font = fnt('l', 800, 26 * u);
+                const lieW = tw('LIE ✘', X.font, 0) + 30 * u;
+                X.strokeRect(-lieW / 2, -30 * u, lieW, 60 * u);
+                X.fillStyle = '#ff3b5c';
+                X.textAlign = 'center';
+                X.fillText('LIE ✘', 0, 2 * u);
+                X.restore();
+
+                const dishY = H * 0.42, dishH = H * 0.2;
+                X.fillStyle = 'rgba(10,4,30,.9)';
+                X.fillRect(W * 0.06, dishY, W * 0.88, dishH);
+                X.strokeStyle = '#ffd23f';
+                X.lineWidth = 8 * u;
+                X.strokeRect(W * 0.06, dishY, W * 0.88, dishH);
+                stack([W * 0.1, dishY + dishH * 0.12, W * 0.8, dishH * 0.64], [
+                    { k: 'title', z: 42, f: 'l', up: 1, lh: 1.08, c: '#ffd23f', g: 12 },
+                    { k: 'body', z: 21, f: 'l', lh: 1.35, c: '#ffffff' },
+                ], { al: 'c', va: 't' });
+                X.font = fnt('l', 700, 36 * u);
+                X.fillStyle = '#4cff7a';
+                X.fillText(String(T('price') || ''), W / 2, dishY + dishH * 0.9);
+
+                X.font = fnt('l', 600, 18 * u);
+                X.fillStyle = 'rgba(255,255,255,.7)';
+                X.fillText(fitLine(footText(), X.font, W * 0.86, 0), W / 2, H * 0.72);
+            },
+        }, {
+            /* 7 · Le Regole della Nonna — a series card, one rule per episode. */
+            n: 'Le Regole della Nonna',
+            dishFields: ['title', 'body', 'price', 'foot'],
+            motion: '0–2s the camera drifts across the scene · 2–4s the rule card slides up · 4–7s the Italian rule and its translation · 7–9s the dish and the NONNA APPROVED stamp',
+            animate: { partner: 0.1, eyebrow: 0.25, kicker: 0.9, line1: 1.1, line2: 1.5, line3: 2.6, title: 7.6, body: 7.9, price: 8.2, foot: 8.7 },
+            t: {
+                partner: 'Le Regole della Nonna',
+                eyebrow: 'Episodio 1 di 3 · ●○○',
+                kicker: 'Regola uno',
+                line1: 'Regola uno: nessuno esce affamato.',
+                line2: 'Rule one: nobody leaves hungry.',
+                line3: 'Nonna mescola. Nonna decide.',
+                title: 'Meaty Baked Eggs',
+                body: 'Chilli & fennel sausage, oven-baked onions, homemade tomato & butter bean casserole, toasted sourdough.',
+                price: '£14.75',
+                foot: '@singlendcafe_glasgow',
+            },
+            draw(W, H) {
+                const u = U;
+                const cream = '#fff7e8';
+                const red = '#a8202c';
+                const navy = C('ink');
+                X.fillStyle = cream;
+                X.fillRect(0, 0, W, H);
+
+                // camera tour: a slow push across the whole ten seconds
+                const pan = animTime() == null ? 1 : Math.min(1, (animTime() || 0) / 10);
+                const winY = H * 0.22, winH = H * 0.46;
+                X.save();
+                X.beginPath();
+                X.rect(0, winY, W, winH);
+                X.clip();
+                X.translate(W / 2, winY + winH / 2);
+                X.scale(1.02 + pan * 0.1, 1.02 + pan * 0.1);
+                X.translate(-W / 2 + (pan - 0.5) * W * 0.06, -(winY + winH / 2));
+                photo(0, winY, W, winH);
+                X.restore();
+                X.fillStyle = 'rgba(42,18,8,.18)';
+                X.fillRect(0, winY, W, winH);
+                X.fillStyle = red;
+                X.fillRect(0, winY + winH - 6 * u, W, 6 * u);
+
+                // header: checked band with the series pill
+                const bandY = H * 0.05, bandH = H * 0.15;
+                for (let y = 0; y < bandH; y += 40 * u) {
+                    for (let x = 0; x < W; x += 40 * u) {
+                        X.fillStyle = ((x / (40 * u)) + (y / (40 * u))) % 2 ? 'rgba(168,32,44,.85)' : 'rgba(255,247,232,.95)';
+                        X.fillRect(x, bandY + y, 40 * u, 40 * u);
+                    }
+                }
+                X.fillStyle = 'rgba(255,247,232,.94)';
+                X.beginPath();
+                X.roundRect(W * 0.1, bandY + bandH * 0.18, W * 0.8, bandH * 0.64, bandH * 0.32);
+                X.fill();
+                X.strokeStyle = red;
+                X.lineWidth = 4 * u;
+                X.stroke();
+                X.font = fnt('b', 700, 46 * u);
+                X.textAlign = 'center';
+                X.fillStyle = red;
+                X.fillText(String(T('partner') || 'Le Regole della Nonna'), W / 2, bandY + bandH * 0.44);
+                X.font = fnt('l', 700, 19 * u);
+                X.fillStyle = navy;
+                X.fillText(String(T('eyebrow') || '').toUpperCase(), W / 2, bandY + bandH * 0.7);
+
+                // the rule card slides up over the photograph
+                const slide = easeOut(phase(0.4, 0.9));
+                const cardY = H * (0.95 - 0.43 * slide);
+                const cardH = H * 0.42;
+                X.fillStyle = cream;
+                X.beginPath();
+                X.roundRect(W * 0.05, cardY, W * 0.9, cardH, 26 * u);
+                X.fill();
+                X.strokeStyle = red;
+                X.lineWidth = 6 * u;
+                X.stroke();
+
+                withElement('kicker', () => {
+                    X.fillStyle = red;
+                    X.beginPath();
+                    X.roundRect(W * 0.07, cardY - 22 * u, W * 0.42, 52 * u, 26 * u);
+                    X.fill();
+                    X.font = fnt('b', 700, 30 * u);
+                    X.textAlign = 'center';
+                    X.fillStyle = cream;
+                    X.fillText(String(T('kicker') || ''), W * 0.07 + W * 0.21, cardY - 22 * u + 27 * u);
+                });
+
+                stack([W * 0.09, cardY + H * 0.045, W * 0.82, H * 0.1], [
+                    { k: 'line1', z: 44, f: 'b', lh: 1.08, c: red },
+                    { k: 'line2', z: 22, f: 'l', lh: 1.3, c: navy, g: 10 },
+                    { k: 'line3', z: 22, f: 'b', lh: 1.3, c: mix(navy, cream, .3), g: 16 },
+                ], { al: 'l', va: 't' });
+
+                const dishY = cardY + H * 0.2;
+                withElement('title', () => {
+                    dashed(W * 0.09, dishY, W * 0.82, 'rgba(168,32,44,.35)', 2 * u);
+                    X.font = fnt('l', 800, 17 * u);
+                    X.textAlign = 'left';
+                    X.fillStyle = red;
+                    X.fillText('NONNA APPROVED ✔', W * 0.09, dishY + 34 * u);
+                });
+                stack([W * 0.09, dishY + 48 * u, W * 0.82, H * 0.1], [
+                    { k: 'title', z: 54, f: 'b', lh: 1.02, c: red },
+                    { k: 'body', z: 21, f: 'l', lh: 1.35, c: navy, g: 10 },
+                    { k: 'price', z: 34, f: 'b', c: red, g: 14 },
+                ], { al: 'l', va: 't' });
+
+                // the stamp
+                const stampIn = easeOut(phase(8.3, 0.6));
+                if (stampIn > 0.01) {
+                    X.save();
+                    X.translate(W * 0.8, cardY + cardH - H * 0.1);
+                    X.rotate(-0.18);
+                    X.scale(0.6 + 0.4 * stampIn, 0.6 + 0.4 * stampIn);
+                    X.strokeStyle = red;
+                    X.lineWidth = 6 * u;
+                    X.beginPath();
+                    X.arc(0, 0, W * 0.09, 0, Math.PI * 2);
+                    X.stroke();
+                    X.beginPath();
+                    X.arc(0, 0, W * 0.075, 0, Math.PI * 2);
+                    X.stroke();
+                    X.font = fnt('l', 800, 17 * u);
+                    X.textAlign = 'center';
+                    X.fillStyle = red;
+                    X.fillText('NONNA', 0, -14 * u);
+                    X.fillText('APPROVED', 0, 12 * u);
+                    X.restore();
+                }
+
+                withElement('foot', () => {
+                    X.font = fnt('l', 700, 20 * u);
+                    X.textAlign = 'center';
+                    X.fillStyle = mix(navy, cream, .25);
+                    X.fillText(fitLine(footText(), X.font, W * 0.9, 0), W / 2, H * 0.945);
+                });
+            },
+        }],
+    };
+    window.AssetCategories['storyidea'] = CFG;
+})();
+
+/* =====================================================================
  * Expansion — next 25 designs
  * Signage & posters, extended menus, guest cards, stationery, packaging,
  * extended social, compliance. Sizes carry physical mm (for the print

@@ -217,7 +217,7 @@
                             aria-pressed="false">Show archived</button>
                         <button type="button" data-action="import-archive">Import ZIP + image</button>
                         <button type="button" data-action="open-saved">Saved projects</button>
-                        <button type="button" data-action="import-files">Add images</button>
+                        <button type="button" data-action="import-files">Add media</button>
                         <button type="button" data-action="import-folder">Add folder</button>
                         <button type="button" data-action="confirm-all">Confirm all positions</button>
                     </div>
@@ -904,11 +904,11 @@
         </dialog>
 
         <input id="layerFontInput" type="file" accept=".woff2,.woff,.ttf,.otf,font/woff2,font/woff,font/ttf,font/otf" hidden>
-        <input id="layerFilesInput" type="file" accept="image/*" multiple hidden>
-        <input id="layerFolderInput" type="file" accept="image/*" webkitdirectory multiple hidden>
+        <input id="layerFilesInput" type="file" accept="image/*,video/*" multiple hidden>
+        <input id="layerFolderInput" type="file" accept="image/*,video/*" webkitdirectory multiple hidden>
         <input id="layerProjectInput" type="file" accept="application/json,.json" hidden>
         <input id="brandPackZipInput" type="file" accept=".zip,application/zip,application/x-zip-compressed" hidden>
-        <input id="segmentReplaceInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" hidden>
+        <input id="segmentReplaceInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,video/mp4,video/webm,video/quicktime,video/x-matroska" hidden>
     </div>
 
     <script src="/src/shared/studio-core.js"></script>

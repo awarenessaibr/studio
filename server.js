@@ -56,7 +56,7 @@ const STUDIO_PROJECT_ARCHIVE_FILE = path.join(SETTINGS_DIR, 'studio-project-arch
 // The management UI is a developer surface. With a key configured, every
 // admin call must present it; without one, only loopback callers are allowed.
 const ADMIN_KEY = String(process.env.STUDIO_ADMIN_KEY || '').trim();
-const PORT = Number(process.env.PORT) || 8008;
+const PORT = Number(process.env.PORT) || 8009;
 const HOST = process.env.HOST || '0.0.0.0';
 
 const MAX_BODY = 320 * 1024 * 1024;

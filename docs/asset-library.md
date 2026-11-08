@@ -81,6 +81,18 @@ server returns `409` if asked to run them as file operations.
 Brand-identity logos pick up `resize`, `recolour`, `compose`, `preflight`.
 Uploaded menus pick up `extract-rows`, `extract-text`, `resize`.
 
+### Documents and curated rows
+
+A pack's declared documents (`brand.documents[]`, written by the brand's
+content file) are indexed as `business-document`: role `menu` for a menu, role
+`document` otherwise, starting `verified` because the pack declares them. When
+the brand's content also carries a parsed menu for that document
+(`content.menus[].source.document`), the record starts with
+`extracted.method: "curated"` and the curated rows — `# Section` plus
+`Name | Description | Price` — instead of running a second, lossy pass over the
+PDF. `extract-rows` stays available for a document with no curated menu. See
+[menus.md](menus.md).
+
 ### Review states
 
 `proposed` → `verified` → `approved`, or `rejected`. Pack logos and specimens

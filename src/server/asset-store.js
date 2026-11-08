@@ -14,6 +14,7 @@ const fsp = fs.promises;
 const path = require('path');
 const crypto = require('crypto');
 const Intel = require('../shared/asset-intel.js');
+const Brand = require('../shared/brand-pack.js');
 const AssetService = require('./asset-service.js');
 
 const ROOT = path.join(__dirname, '..', '..');
@@ -312,9 +313,44 @@ async function loadPackAssets(packId) {
         (brand.typeSpecimens || []).forEach((asset) => add(brand, asset, 'brand-identity', 'specimen', 'verified'));
         (brand.paletteImages || []).forEach((asset) => add(brand, asset, 'brand-identity', 'specimen', 'verified'));
         (brand.photography || []).forEach((asset) => add(brand, asset, 'unclassified', 'photo', 'proposed'));
+        // Menus, brochures and terms supplied with the pack. They are declared
+        // documents, so they start verified; their rows come from the brand's
+        // curated content when it has them (see curatedDocumentRows).
+        const documents = Array.isArray(brand.documents) && brand.documents.length
+            ? brand.documents
+            : (Array.isArray(brand.content?.documents) ? brand.content.documents : []);
+        documents.forEach((document) => add(
+            brand,
+            { path: document.path, name: document.title, width: null, height: null },
+            'business-document',
+            document.kind === 'menu' ? 'menu' : 'document',
+            'verified',
+        ));
         if (brand.cover) add(brand, { path: null, url: brand.cover, name: `${brand.name} cover`, width: null, height: null }, 'marketing-collateral', 'cover', 'proposed');
     }
     return { pack, items };
+}
+
+/**
+ * Rows for a document the brand's content file has already parsed. A text
+ * layer in a PDF gives pdftotext a bad time (a two-column menu interleaves,
+ * prices lose their dish), so when the brand carries a curated menu for this
+ * file we use those rows instead and say where they came from.
+ */
+function curatedDocumentRows(brand, relative) {
+    const menus = Array.isArray(brand?.content?.menus) ? brand.content.menus : [];
+    const rows = [];
+    menus.forEach((menu) => {
+        if (!menu?.source?.document || menu.source.document !== relative) return;
+        menu.sections.forEach((section) => {
+            if (section.name) rows.push(`# ${section.name}`);
+            (section.items || []).forEach((item) => {
+                const line = Brand.menuItemLine(item);
+                if (line) rows.push(line);
+            });
+        });
+    });
+    return rows.length ? rows : null;
 }
 
 async function brandPalette(packId, brandId) {
@@ -336,11 +372,26 @@ async function recordForPackItem({ brand, asset, relative, full, cls, role, stat
     const name = String(asset.name || path.basename(relative).replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ')).slice(0, 120);
     const id = Intel.assetId(`${brand.id}-${role}-${path.basename(relative)}`, sha256);
     const existing = await readJson(metadataFile(id)).catch(() => null);
-    if (existing) return { existing: true, record: Intel.normalizeAsset(existing) };
+    if (existing) {
+        const record = Intel.normalizeAsset(existing);
+        // A document's curated rows can improve after an edit to the brand's
+        // content file; re-indexing refreshes them instead of leaving the
+        // first parse in place for ever.
+        const rows = cls === 'business-document' ? curatedDocumentRows(brand, relative) : null;
+        if (rows && JSON.stringify(record.extracted?.rows || null) !== JSON.stringify(rows)) {
+            record.extracted = { kind: 'menu', method: 'curated', confidence: 0.95, rows, text: rows.join('\n').slice(0, 20000) };
+            return { existing: true, refreshed: true, record };
+        }
+        return { existing: true, record };
+    }
     const usage = defaultUsage(cls, role);
     const fit = Intel.brandFit({
         role, identity: { width, height, sha256, palette: [] },
     }, { palette: brand.palette || [] });
+    // A document the content file has already parsed starts with those rows,
+    // so the library, the Asset Studio text tab and the review drawer agree on
+    // what is in the menu without a second, lossy pass over the PDF.
+    const rows = cls === 'business-document' ? curatedDocumentRows(brand, relative) : null;
     return {
         existing: false,
         record: {
@@ -368,9 +419,20 @@ async function recordForPackItem({ brand, asset, relative, full, cls, role, stat
             usage,
             fit,
             variants: [],
-            extracted: null,
+            extracted: rows ? {
+                kind: 'menu',
+                method: 'curated',
+                confidence: 0.95,
+                rows,
+                text: rows.join('\n').slice(0, 20000),
+            } : null,
             master: { isMaster: true, of: null },
-            review: { state, by: state === 'verified' ? 'pack-import' : 'classifier', at: nowIso(), note: '' },
+            review: {
+                state,
+                by: state === 'verified' ? 'pack-import' : 'classifier',
+                at: nowIso(),
+                note: rows ? 'Rows parsed from the brand content file; confirm before publishing.' : '',
+            },
             status: 'active',
             usageLog: { designs: 0, downloads: 0, lastUsedAt: null },
             createdAt: pack.createdAt || nowIso(),
@@ -387,20 +449,22 @@ async function indexPack(packId) {
     }
     let created = 0;
     let skipped = 0;
+    let refreshed = 0;
     const warnings = [];
     for (const item of items) {
         try {
             const result = await recordForPackItem(item, pack, packId);
-            if (result.existing) { skipped += 1; continue; }
+            if (result.existing && !result.refreshed) { skipped += 1; continue; }
             await saveAsset(result.record);
-            created += 1;
+            if (result.refreshed) refreshed += 1;
+            else created += 1;
         } catch (error) {
             warnings.push(`${item.relative}: ${error.message}`);
         }
     }
     await dedupeAll();
     const health = await assetHealth();
-    return { packId, created, skipped, warnings: warnings.slice(0, 20), health };
+    return { packId, created, refreshed, skipped, warnings: warnings.slice(0, 20), health };
 }
 
 async function ingestAssets(payload = {}) {

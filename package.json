@@ -13,6 +13,7 @@
     "test:smoke": "node tests/smoke.js",
     "test:asset-studio": "node tests/asset-studio.js",
     "test:agent-studio": "node tests/agent-studio.js",
+    "test:menus": "node tests/menus.js",
     "test:visual": "node tests/visual.js",
     "test:visual:report": "node tests/visual.js --report",
     "test:all": "npm test && npm run test:smoke && npm run test:asset-studio && npm run test:visual",

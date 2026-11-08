@@ -552,7 +552,16 @@ Chocolate hazelnut spread | Deez Nuts`,
         libraryClass: '',
         libraryVerifiedOnly: false,
         libraryLoadedBrand: '',
+        // Which of the brand's menus a menu design draws from. `''` is the
+        // brand's primary menu; `<menuId>#<sectionIndex>` is one section.
+        menuSource: '',
+        // Playback: `playAt` is milliseconds into the ten-second loop, or null
+        // for the still. The design's own `animate` plan drives the reveal.
+        playAt: null,
+        playing: false,
     };
+    const LOOP_MS = 10000;
+    const PLAYBACK_MAX = 760;
 
     const el = {};
     const imageCache = new Map();
@@ -905,42 +914,178 @@ Chocolate hazelnut spread | Deez Nuts`,
         return true;
     };
 
+    const brandMenus = () => (Array.isArray(state.brand?.content?.menus) ? state.brand.content.menus : []);
+
+    // Both Post Ideas and Reel Ideas are menu-item-driven: the category config
+    // says so (`idea: true`), so adding a family does not need new checks here.
+    const ideaCategory = () => Boolean(currentCategory()?.idea);
+
+    const menuSourceLines = (menu, sectionIndex) => {
+        if (!menu) return [];
+        const line = (item) => (window.StudioBrand?.menuItemLine
+            ? window.StudioBrand.menuItemLine(item)
+            : [item.name, item.description, item.price].filter(Boolean).join(' | '));
+        if (sectionIndex >= 0 && menu.sections[sectionIndex]) {
+            const section = menu.sections[sectionIndex];
+            const lines = section.name ? [`# ${section.name}`] : [];
+            (section.items || []).slice(0, 8).forEach((item) => { if (item?.name) lines.push(line(item)); });
+            return lines;
+        }
+        const lines = [];
+        menu.sections.forEach((section) => {
+            if (lines.length >= 6) return;
+            (section.items || []).forEach((item) => {
+                if (!item?.name || lines.length >= 6) return;
+                lines.push(line(item));
+            });
+        });
+        return lines;
+    };
+
+    // `state.menuSource` is `''` (the brand's primary menu) or
+    // `<menuId>#<sectionIndex>` for one section of one menu.
+    const menuForSource = () => {
+        const menus = brandMenus();
+        if (!menus.length) return null;
+        const [id, section] = String(state.menuSource || '').split('#');
+        const menu = menus.find((entry) => entry.id === id)
+            || menus.find((entry) => entry.kind === 'food')
+            || menus[0];
+        return { menu, sectionIndex: section === undefined || section === '' ? -1 : Number(section) };
+    };
+
+    // ─── post ideas ──────────────────────────────────────────────────
+    // A post concept is one menu item plus the brand's own facts: the dish
+    // fills the artwork and the copy module writes the caption, the hashtags
+    // and the motion the reel should use.
+
+    const postItems = () => {
+        if (!window.StudioBrand?.contentAssets || !state.brand) return [];
+        try {
+            const catalog = window.StudioBrand.contentAssets(state.brand, {});
+            return (catalog.assets || []).filter((asset) => asset.kind === 'item');
+        } catch {
+            return [];
+        }
+    };
+
+    const currentPost = () => {
+        const items = postItems();
+        if (!items.length) return null;
+        return items.find((entry) => entry.id === state.postItemId) || items[0];
+    };
+
+    const postConceptFor = (asset = currentPost()) => {
+        const Module = window.StudioPostIdea;
+        if (!asset || !Module) return null;
+        const menus = Array.isArray(state.brand?.content?.menus) ? state.brand.content.menus : [];
+        const menu = menus.find((entry) => entry.id === asset.menuId) || menus[0] || {};
+        const section = (menu.sections || [])[asset.sectionIndex] || { name: asset.sectionName || '' };
+        // One branch prints that branch; a menu served in both says so rather
+        // than picking one address.
+        const location = menu.branches?.length === 1
+            ? (state.brand?.content?.locations || []).find((entry) => entry.id === menu.branches[0]) || null
+            : (menu.branches?.length > 1
+                ? { name: window.StudioBrand?.branchLabel?.(state.brand, menu.branches) || '', address: '' }
+                : null);
+        const size = sizesForTemplate()[state.sizeIndex];
+        const format = currentCategory()?.ideaFormat === 'reel' || /story|9:16|reel/i.test(size?.n || '') ? 'reel' : 'feed';
+        try {
+            return Module.concept(state.brand, { item: asset.item, menu, section, location, format });
+        } catch {
+            return null;
+        }
+    };
+
+    const POST_FIELDS = ['eyebrow', 'hook', 'kicker', 'title', 'body', 'price', 'foot'];
+
+    const fillPostSource = (source, idea, template) => {
+        if (!idea) return source;
+        // The concept names its parts; the design names its fields.
+        const values = {
+            eyebrow: idea.badge,
+            hook: idea.hook,
+            kicker: idea.kicker,
+            title: idea.title,
+            body: idea.description,
+            price: idea.price,
+            foot: idea.foot,
+        };
+        // A story design keeps its narrative; only the dish fields follow the
+        // menu. Everything else stays as the template (and the editor) wrote it.
+        const fillable = Array.isArray(template?.dishFields) ? template.dishFields : POST_FIELDS;
+        fillable.forEach((field) => {
+            if (field in source && field in values) source[field] = values[field] || '';
+        });
+        source.caption = idea.caption;
+        source.hashtags = idea.hashtagsText;
+        // A reel layout knows its own choreography; fall back to the recipe.
+        // The template is passed in because thumbnail passes build each
+        // design's text while `state.templateIndex` still points at another.
+        const designMotion = template?.motion;
+        source.motion = designMotion ? `Motion idea: ${designMotion}.` : idea.motion;
+        return source;
+    };
+
     const categoryDefaultText = (template, index) => {
         if (!template) return {};
         if (template.brandComposition) return brandTemplateDefaults(template);
-        const key = `${state.brand?.id || 'none'}|${state.categoryId}|${index}`;
+        const key = `${state.brand?.id || 'none'}|${state.categoryId}|${index}|${state.menuSource || ''}|${state.postItemId || ''}`;
         if (defaultTextCache.has(key)) return { ...defaultTextCache.get(key) };
         const text = {};
         const source = { ...(template.t || {}) };
-        // A crawler pack carries structured menu content. Prefill the menu
-        // designs with it instead of the generic scallops/beef set.
+        const authored = applyAuthoredCopy(source, template);
+        // Menu designs draw from the brand's structured menus — loaded from its
+        // PDFs into `content.menus` — before any fallback, and after the auth
+        // copy deck so the chosen menu (or section) wins over the deck's first
+        // five dishes. A brand without menus keeps the crawler's older
+        // single-menu shape.
         const brandContent = state.brand?.content;
-        if (state.categoryId === 'menu' && brandContent) {
-            const menu = brandContent.menu || brandContent.drinks;
-            if (menu && Array.isArray(menu.sections) && menu.sections.length) {
-                const lines = [];
-                // A printed menu needs air. The crawler can return 30+ dishes;
-                // keep the first five so every layout stays legible, and let
-                // the user paste more in the Text tab.
-                menu.sections.slice(0, 3).forEach((section) => {
-                    if (lines.length >= 5) return;
-                    const items = Array.isArray(section.items) ? section.items : [];
-                    if (!items.length) return;
-                    items.slice(0, 5).forEach((item) => {
-                        if (!item || !item.name || lines.length >= 5) return;
-                        const description = item.description && item.description.length <= 70
-                            ? item.description
-                            : '';
-                        lines.push([item.name, description, item.price || ''].join(' | '));
-                    });
-                });
+        if (state.categoryId === 'menu') {
+            const picked = menuForSource();
+            if (picked) {
+                const lines = menuSourceLines(picked.menu, picked.sectionIndex);
                 if (lines.length) {
                     source.items = lines.join('\n');
-                    source.title = menu.title || 'Menu';
+                    source.title = picked.menu.name || 'Menu';
+                    if ('sub' in source && picked.menu.availability) source.sub = picked.menu.availability;
+                    // A menu documented for one branch prints that branch: the
+                    // Christmas and function menus are Garnethill's, not the
+                    // whole brand's.
+                    const location = picked.menu.branches?.length === 1
+                        ? (brandContent.locations || []).find((entry) => entry.id === picked.menu.branches[0])
+                        : null;
+                    if (location?.address && 'foot' in source) {
+                        const web = String(state.brand?.url || '').replace(/^https?:\/\//i, '').replace(/\/$/, '');
+                        source.foot = [
+                            [location.address, location.postcode].filter(Boolean).join(', '),
+                            web,
+                        ].filter(Boolean).join('  ·  ');
+                    }
+                }
+            } else {
+                const menu = brandContent?.menu || brandContent?.drinks;
+                if (menu && Array.isArray(menu.sections) && menu.sections.length) {
+                    const lines = [];
+                    // A printed menu needs air. Keep the first five so every
+                    // layout stays legible; the Text tab takes more.
+                    menu.sections.slice(0, 3).forEach((section) => {
+                        if (lines.length >= 5) return;
+                        (Array.isArray(section.items) ? section.items : []).slice(0, 5).forEach((item) => {
+                            if (!item || !item.name || lines.length >= 5) return;
+                            const description = item.description && item.description.length <= 70
+                                ? item.description
+                                : '';
+                            lines.push([item.name, description, item.price || ''].join(' | '));
+                        });
+                    });
+                    if (lines.length) {
+                        source.items = lines.join('\n');
+                        source.title = menu.title || 'Menu';
+                    }
                 }
             }
         }
-        const authored = applyAuthoredCopy(source, template);
         const copy = authored ? null : BRAND_COPY[state.brand?.id];
         if (copy) {
             Object.entries(copy).forEach(([field, value]) => {
@@ -997,6 +1142,9 @@ Chocolate hazelnut spread | Deez Nuts`,
                 }
             }
         }
+        // Post ideas take their copy from the chosen dish last, so neither the
+        // auth copy deck nor the catalogue sample can win over the menu.
+        if (ideaCategory()) fillPostSource(source, postConceptFor(), template);
         Object.entries(source).forEach(([field, value]) => {
             text[field] = typeof value === 'string' ? brandify(value) : value;
         });
@@ -1344,6 +1492,7 @@ Chocolate hazelnut spread | Deez Nuts`,
             logoY: state.logoY,
             qr: state.qr,
             text: state.text,
+            menuSource: state.menuSource,
             photoIndex: state.photoIndex,
         };
         try {
@@ -1379,7 +1528,7 @@ Chocolate hazelnut spread | Deez Nuts`,
             'boot', 'studio', 'groupSelect', 'topbarHint', 'brandSwitch', 'brandInfoBtn',
             'categoryNav', 'designMeta', 'designGrid', 'controlTabs', 'controlBody',
             'previewBrand', 'previewTitle', 'previewFormat', 'previewSize', 'previewCanvas',
-            'downloadBtn', 'printBtn', 'saveBtn', 'exportNote', 'brandGate', 'gateClose',
+            'downloadBtn', 'layersBtn', 'printBtn', 'saveBtn', 'exportNote', 'playBtn', 'recordBtn', 'brandGate', 'gateClose',
             'gateGrid', 'gateError', 'gatePortfolio', 'gateGroups', 'brandDrawer', 'drawerBackdrop',
             'drawerBody', 'drawerTitle', 'drawerClose', 'brandTemplatesBtn', 'brandTemplatesDialog',
             'brandTemplatesBackdrop', 'brandTemplatesClose', 'brandTemplatesTitle', 'brandTemplatesHint',
@@ -1391,8 +1540,117 @@ Chocolate hazelnut spread | Deez Nuts`,
         ].forEach((id) => { el[id] = document.getElementById(id); });
     };
 
+    const buildAssetStudioFoundationTemplate = () => {
+        const template = currentTemplate();
+        const size = currentSize();
+        if (!template) throw new Error('No asset design is selected.');
+        const canvas = document.createElement('canvas');
+        const width = Number(size?.w) || 1080;
+        const height = Number(size?.h) || 1080;
+        canvas.width = width;
+        canvas.height = height;
+        const renderState = buildRenderState(state.text);
+        if (template.brandComposition) {
+            renderBrandComposition(canvas, template, state.text, width);
+        } else {
+            window.AssetEngine.render(canvas, size || { w: width, h: height, n: 'Canvas' }, template, renderState, width);
+        }
+        const fieldEntries = Object.entries(template.t || {}).map(([key, value]) => {
+            const textValue = state.text?.[key] ?? value;
+            if (textValue == null || String(textValue).trim() === '') return null;
+            return { key, text: String(textValue).slice(0, 180) };
+        }).filter(Boolean);
+        const fieldVariables = fieldEntries.slice(0, 8).map((entry, index) => ({
+            id: `asset-text-${index + 1}`,
+            name: `${entry.key} text`,
+            kind: 'text',
+            defaultValue: entry.text,
+            locked: false,
+        }));
+        const baseLayers = [{
+            id: 'asset-studio-base',
+            type: 'image',
+            name: `${template.n || 'Asset'} foundation`,
+            role: 'background',
+            url: canvas.toDataURL('image/png'),
+            x: 0,
+            y: 0,
+            w: 100,
+            h: 100,
+            z: 0,
+            visible: true,
+            positionConfirmed: true,
+            fit: 'contain',
+            opacity: 1,
+        }];
+        const editableLayers = fieldVariables.map((variable, index) => ({
+            id: `asset-studio-${variable.id}`,
+            type: 'text',
+            name: variable.name,
+            role: 'foreground',
+            text: variable.defaultValue,
+            bindings: { text: variable.id },
+            x: 8 + (index % 2) * 12,
+            y: 12 + index * 10,
+            w: 72,
+            h: 12,
+            z: 10 + index,
+            align: 'left',
+            verticalAlign: 'middle',
+            visible: true,
+            positionConfirmed: true,
+            color: '#111111',
+            opacity: 1,
+            font: { family: state.fonts?.display || 'Georgia', weight: 600, sizePct: 2.8 + (index * 0.6) },
+        }));
+        const composition = {
+            version: 3,
+            id: `asset-studio-${slug(currentCategory()?.label || 'asset')}-${Date.now().toString(36)}`,
+            name: `${state.brand?.name || 'Brand'} — ${template.n || 'Asset design'}`,
+            width,
+            height,
+            duration: 10000,
+            defaultLocale: 'en',
+            referenceLayerId: null,
+            activeFormatId: 'master',
+            formats: [{ id: 'master', label: 'Master', width, height, channel: currentProfile() || 'print' }],
+            variables: fieldVariables,
+            brandKit: state.brand ? (window.StudioBrand?.brandKitFor?.(state.brand) || null) : null,
+            brandKitId: state.brand?.brandKitId || null,
+            guardrails: { enabled: false, block: false },
+            showSafeZones: true,
+            layers: [...baseLayers, ...editableLayers],
+            meta: {
+                source: 'asset-studio-foundation',
+                schema: 'layer-studio/brand-template/v1',
+                packId: state.pack?.id || null,
+                packName: state.pack?.name || null,
+                brandId: state.brand?.id || null,
+                brandName: state.brand?.name || null,
+                templateId: template.id || null,
+                templateLabel: template.n || template.label || null,
+                categoryId: state.categoryId || null,
+                sourceBrandTemplate: Boolean(template.brandComposition),
+            },
+        };
+        return composition;
+    };
+
+    const openCurrentDesignInStudio = () => {
+        try {
+            const composition = buildAssetStudioFoundationTemplate();
+            sessionStorage.setItem('assetStudio.openTemplate', JSON.stringify(composition));
+            window.location.href = 'studio-v2.html';
+        } catch (error) {
+            toast(error.message || 'This asset could not be opened in Studio V2.', true);
+        }
+    };
+
     const bindEvents = () => {
+        el.playBtn.addEventListener('click', () => togglePlayback());
+        el.recordBtn.addEventListener('click', () => recordAnimation());
         el.downloadBtn.addEventListener('click', downloadAsset);
+        el.layersBtn.addEventListener('click', openCurrentDesignInStudio);
         el.jpgBtn.addEventListener('click', downloadJpg);
         el.slidePrev.addEventListener('click', () => goToSlide(-1));
         el.slideNext.addEventListener('click', () => goToSlide(1));
@@ -1485,6 +1743,25 @@ Chocolate hazelnut spread | Deez Nuts`,
                 await selectBrand(state.brands[0].id, { restoreSession: true, session });
             } else {
                 showGate();
+            }
+            // Deep link from the menus: ?category=postidea&item=<content asset>.
+            // The dish is chosen before the category so its first render is
+            // already the right post.
+            const deepParams = new URLSearchParams(location.search);
+            const wantedItem = deepParams.get('item');
+            if (wantedItem) state.postItemId = wantedItem;
+            const wantedCategory = deepParams.get('category');
+            if (state.brand && wantedCategory && window.AssetCategories[wantedCategory]) {
+                if (state.categoryId !== wantedCategory) {
+                    selectCategory(wantedCategory);
+                } else if (wantedItem) {
+                    // Already on that category (a restored session): the dish
+                    // still has to win, or the link opens the previous post.
+                    state.text = categoryDefaultText(currentTemplate(), state.templateIndex);
+                    renderControlBody();
+                    schedulePreviewAndThumbs();
+                    queueSession();
+                }
             }
         } catch (error) {
             showBootError(error);
@@ -1857,6 +2134,7 @@ Chocolate hazelnut spread | Deez Nuts`,
             state.fonts = { ...session.fonts };
         }
         if (session.text && typeof session.text === 'object') state.text = { ...session.text };
+        if (typeof session.menuSource === 'string') state.menuSource = session.menuSource;
         if (Number.isInteger(session.slideIndex)) state.slideIndex = session.slideIndex;
         if (typeof session.qr === 'string') state.qr = session.qr;
         if (session.motif && (session.motif === 'auto' || MOTIF_LABELS[session.motif])) {
@@ -1883,6 +2161,7 @@ Chocolate hazelnut spread | Deez Nuts`,
     const selectCategory = (categoryId) => {
         if (!window.AssetCategories[categoryId]) return;
         if (state.categoryId === categoryId && state.brand) return;
+        stopPlayback();
         state.categoryId = categoryId;
         state.templateIndex = 0;
         state.sizeIndex = 0;
@@ -1902,6 +2181,7 @@ Chocolate hazelnut spread | Deez Nuts`,
     const selectTemplate = (index) => {
         const category = currentCategory();
         if (!category?.tpls[index]) return;
+        stopPlayback();
         const template = category.tpls[index];
         state.templateIndex = index;
         state.sizeIndex = 0;
@@ -1950,6 +2230,7 @@ Chocolate hazelnut spread | Deez Nuts`,
         renderControlTabs();
         renderHeader();
         renderPreview();
+        updatePlayButtons();
         queueSession();
     };
 
@@ -2139,7 +2420,9 @@ Chocolate hazelnut spread | Deez Nuts`,
         clear(el.controlTabs);
         const controls = currentTemplate()?.brandComposition
             ? CONTROLS.filter(([id]) => ['colours', 'type', 'image', 'text', 'size', 'saved'].includes(id))
-            : CONTROLS;
+            : (ideaCategory()
+                ? CONTROLS.flatMap((entry) => (entry[0] === 'size' ? [['caption', 'Caption'], entry] : [entry]))
+                : CONTROLS);
         controls.forEach(([id, label]) => {
             const count = id === 'saved' && state.saved.length ? ` (${state.saved.length})` : '';
             const tab = button(`${label}${count}`, 'control-tab', () => setActiveTab(id));
@@ -2168,6 +2451,7 @@ Chocolate hazelnut spread | Deez Nuts`,
         else if (state.activeTab === 'motif') renderMotifPanel();
         else if (state.activeTab === 'logo') renderLogoPanel();
         else if (state.activeTab === 'text') renderTextPanel();
+        else if (state.activeTab === 'caption') renderCaptionPanel();
         else if (state.activeTab === 'size') renderSizePanel();
         else if (state.activeTab === 'saved') renderSavedPanel();
         else renderColoursPanel();
@@ -2375,6 +2659,15 @@ Chocolate hazelnut spread | Deez Nuts`,
         } catch {
             state.libraryAssets = [];
         }
+        // Curated rows (parsed into the brand's content from its own PDFs)
+        // beat a second pass over the document: pdftotext interleaves a
+        // two-column menu and loses which price belongs to which dish.
+        const curated = window.StudioBrand?.menuRows ? window.StudioBrand.menuRows(brand) : [];
+        if (curated.length) {
+            state.libraryRows = curated;
+            if (state.brand?.id === brand.id && ['image', 'text'].includes(state.activeTab)) renderControlBody();
+            return;
+        }
         try {
             const docs = await fetchJson(`${API}/assets?brandId=${encodeURIComponent(brand.id)}&class=business-document&limit=20`);
             const rows = [];
@@ -2457,6 +2750,26 @@ Chocolate hazelnut spread | Deez Nuts`,
                 return;
             }
             const src = `/api/assets/${encodeURIComponent(asset.id)}/file/original`;
+            if (/^(?:mp4|webm|mov|m4v)$/i.test(String(asset.identity.format || ''))) {
+                // A video from the library is used through its first frame.
+                const response = await fetch(src);
+                if (!response.ok) throw new Error('That video could not be read.');
+                const blob = await response.blob();
+                const poster = await videoPoster(new File([blob], `${asset.name || 'clip'}.mp4`, { type: blob.type || 'video/mp4' }));
+                const image = await loadImage(poster);
+                state.photos.push(image);
+                state.photoSources.push({ name: `${asset.name} (first frame)`, src: poster, uploaded: true, assetId: asset.id });
+                state.photoIndex = state.photos.length - 1;
+                if (currentTemplate()?.brandComposition && state.activeBrandImageVariable) {
+                    state.text[state.activeBrandImageVariable] = poster;
+                    state.brandTemplateImages.set(poster, image);
+                }
+                renderControlBody();
+                schedulePreviewAndThumbs();
+                queueSession();
+                toast(`Using the first frame of “${asset.name}”.`);
+                return;
+            }
             const image = await loadImage(src);
             state.photos.push(image);
             state.photoSources.push({
@@ -2528,14 +2841,20 @@ Chocolate hazelnut spread | Deez Nuts`,
         const grid = make('div', 'business-library-grid');
         visible.slice(0, 18).forEach((asset) => {
             const tile = button(null, 'business-library-tile', () => selectLibraryAsset(asset));
-            const image = document.createElement('img');
-            image.src = asset.thumb || asset.sourceUrl;
-            image.alt = asset.name;
-            image.loading = 'lazy';
-            image.addEventListener('error', () => {
-                if (image.src !== location.origin + asset.sourceUrl) image.src = asset.sourceUrl;
-            });
-            tile.append(image);
+            const isImage = /^(?:png|jpe?g|webp|gif|svg|avif)$/i.test(String(asset.format || ''));
+            if (isImage) {
+                const image = document.createElement('img');
+                image.src = asset.thumb || asset.sourceUrl;
+                image.alt = asset.name;
+                image.loading = 'lazy';
+                image.addEventListener('error', () => {
+                    if (image.src !== location.origin + asset.sourceUrl) image.src = asset.sourceUrl;
+                });
+                tile.append(image);
+            } else {
+                // A video's own URL cannot be an <img>; show what it is.
+                tile.append(make('span', 'library-tile-kind', String(asset.format || 'file').toUpperCase()));
+            }
             tile.append(make('span', 'library-tile-name', asset.name));
             const meta = make('span', 'library-tile-meta');
             meta.append(make('i', 'library-state', ''));
@@ -3064,12 +3383,99 @@ Chocolate hazelnut spread | Deez Nuts`,
         el.controlBody.append(make('p', 'control-note',
             'Leave a field empty and it disappears from the design. The copy is brandified when you switch brands.'));
 
+        // A post idea starts with one dish. The list is every dish the brand
+        // has, grouped by menu, and choosing one refills the artwork and the
+        // caption together.
+        if (ideaCategory()) {
+            const items = postItems();
+            if (items.length) {
+                const field = make('label', 'field');
+                field.append(make('span', null, 'Dish'));
+                const select = document.createElement('select');
+                let group = null;
+                let groupId = '';
+                items.forEach((asset) => {
+                    if (!group || asset.group !== groupId) {
+                        group = document.createElement('optgroup');
+                        group.label = asset.groupLabel || 'Menu';
+                        select.append(group);
+                        groupId = asset.group;
+                    }
+                    const option = document.createElement('option');
+                    option.value = asset.id;
+                    option.textContent = `${asset.label}${asset.price ? ` · ${asset.price}` : ''}`;
+                    group.append(option);
+                });
+                select.value = currentPost()?.id || '';
+                select.addEventListener('change', () => {
+                    state.postItemId = select.value;
+                    state.text = categoryDefaultText(currentTemplate(), state.templateIndex);
+                    renderControlBody();
+                    schedulePreviewAndThumbs();
+                    queueSession();
+                    toast(`Post idea: ${select.selectedOptions[0]?.textContent || select.value}`);
+                });
+                field.append(select);
+                el.controlBody.append(field);
+                const idea = postConceptFor();
+                if (idea) {
+                    el.controlBody.append(make('p', 'hint', `${idea.badge} · ${idea.hook} The caption is in the Caption tab.`));
+                }
+            } else {
+                el.controlBody.append(make('p', 'hint',
+                    'This brand has no menu items yet, so these fields are the design’s sample copy. Add menus to the brand’s content file to fill them from the menu.'));
+            }
+        }
+
+        // A brand with several menus (all-day, drinks, bairns, functions,
+        // Christmas) lets the design choose which one it prints. The list is
+        // the brand's own structured content, so a dish never has to be typed.
+        if (state.categoryId === 'menu' && brandMenus().length) {
+            const field = make('label', 'field');
+            field.append(make('span', null, 'Menu source'));
+            const select = document.createElement('select');
+            brandMenus().forEach((menu) => {
+                const group = document.createElement('optgroup');
+                group.label = [menu.name, menu.validFrom].filter(Boolean).join(' · ');
+                const whole = document.createElement('option');
+                whole.value = menu.id;
+                whole.textContent = `Whole menu — ${menu.name}`;
+                group.append(whole);
+                (menu.sections || []).forEach((section, sectionIndex) => {
+                    const option = document.createElement('option');
+                    option.value = `${menu.id}#${sectionIndex}`;
+                    option.textContent = section.name || `Section ${sectionIndex + 1}`;
+                    group.append(option);
+                });
+                select.append(group);
+            });
+            const current = menuForSource();
+            select.value = state.menuSource || current?.menu.id || '';
+            select.addEventListener('change', () => {
+                state.menuSource = select.value;
+                state.text = categoryDefaultText(currentTemplate(), state.templateIndex);
+                renderControlBody();
+                schedulePreview();
+                scheduleThumbs();
+                queueSession();
+                toast(`Menu source: ${select.selectedOptions[0]?.textContent || select.value}`);
+            });
+            field.append(select);
+            el.controlBody.append(field);
+            const picked = menuForSource();
+            const notes = [picked?.menu?.summary, picked?.menu?.priceNote].filter(Boolean).join(' · ');
+            if (notes) el.controlBody.append(make('p', 'hint', notes));
+        }
+
         // Template order wins: a design can use its own fields, and any copy
         // key gets an editable input even when the category declares none.
         const declared = new Map((category.fields || []).map(([key, label, rows]) => [key, { label, rows }]));
         const fields = Object.keys(template.t || {}).map((key) => {
             const meta = declared.get(key) || {};
-            const value = template.t[key];
+            // The row count follows what is actually in the field: a menu item
+            // can put a two-line handle into a design whose sample was one
+            // line, and an <input> would silently swallow the newline.
+            const value = state.text[key] ?? template.t[key];
             let rows = meta.rows;
             if (rows === undefined && typeof value === 'string'
                 && (value.includes('\n') || value.length > 80)) {
@@ -3150,6 +3556,82 @@ Chocolate hazelnut spread | Deez Nuts`,
             toast('Copy reset to the brand defaults.');
         }));
         el.controlBody.append(actions);
+    };
+
+    // ─── caption ─────────────────────────────────────────────────────
+    // The artwork is half a post; this is the other half. Both are generated
+    // from the same dish, so the caption cannot quote a price the card does
+    // not show.
+    const renderCaptionPanel = () => {
+        const idea = postConceptFor();
+        el.controlBody.append(make('p', 'control-note',
+            'The post is the picture; this is what gets posted with it. Both come from the chosen dish — edit freely, then copy.'));
+
+        if (!idea) {
+            el.controlBody.append(make('p', 'hint',
+                'This brand has no menu items, so there is no caption to write. Add menus to the brand’s content file first.'));
+            return;
+        }
+
+        const captionField = make('label', 'field');
+        captionField.append(make('span', null, 'Caption'));
+        const caption = document.createElement('textarea');
+        caption.rows = 9;
+        caption.value = state.text.caption ?? idea.caption;
+        caption.addEventListener('input', () => {
+            state.text.caption = caption.value;
+            queueSession();
+        });
+        captionField.append(caption);
+        el.controlBody.append(captionField);
+
+        const tagField = make('label', 'field');
+        tagField.append(make('span', null, 'Hashtags'));
+        const tags = document.createElement('input');
+        tags.type = 'text';
+        tags.value = state.text.hashtags ?? idea.hashtagsText;
+        tags.addEventListener('input', () => {
+            state.text.hashtags = tags.value;
+            queueSession();
+        });
+        tagField.append(tags);
+        el.controlBody.append(tagField);
+
+        el.controlBody.append(make('p', 'hint', state.text.motion || idea.motion));
+
+        const copyText = async (value, label) => {
+            const payload = String(value || '').trim();
+            if (!payload) return;
+            try {
+                await navigator.clipboard.writeText(payload);
+                toast(`${label} copied.`);
+            } catch {
+                toast(`Could not copy — select the text instead.`, true);
+            }
+        };
+
+        const actions = make('div', 'button-row');
+        actions.append(
+            button('Copy caption', 'btn', () => {
+                const body = [state.text.caption ?? idea.caption, state.text.hashtags ?? idea.hashtagsText]
+                    .filter(Boolean).join('\n\n');
+                copyText(body, 'Caption');
+            }),
+            button('Copy hashtags', 'btn', () => copyText(state.text.hashtags ?? idea.hashtagsText, 'Hashtags')),
+            button('Regenerate', 'btn', () => {
+                delete state.text.caption;
+                delete state.text.hashtags;
+                delete state.text.motion;
+                state.text = categoryDefaultText(currentTemplate(), state.templateIndex);
+                renderControlBody();
+                schedulePreviewAndThumbs();
+                queueSession();
+                toast('Caption regenerated from the dish.');
+            }),
+        );
+        el.controlBody.append(actions);
+        el.controlBody.append(make('p', 'hint',
+            'Regenerate rewrites the dish fields too. The motion line is a suggestion for Layer Studio, not a promise of animation.'));
     };
 
     const renderSizePanel = () => {
@@ -3281,6 +3763,8 @@ Chocolate hazelnut spread | Deez Nuts`,
                 : OKJA_IDS.has(state.brand?.id) ? 'okja' : null,
         titleWeight: state.brand?.id === 'allerq' ? 400 : 700,
         defaultQr: websiteUrl(),
+        playAt: state.playAt,
+        animate: currentTemplate()?.animate || null,
     });
 
     // ─── zoomable preview (inspection only, never exported) ───────────
@@ -3434,12 +3918,93 @@ Chocolate hazelnut spread | Deez Nuts`,
         updateZoomBar();
     };
 
+    // ─── playback ────────────────────────────────────────────────────
+    // A design with an `animate` plan renders at any time, so the same draw()
+    // gives the still and the ten-second loop. Playback repaints the preview
+    // canvas; recording captures that canvas.
+    const hasAnimation = () => Boolean(currentTemplate()?.animate);
+    let playRaf = 0;
+    let playStart = 0;
+    let recorder = null;
+
+    const updatePlayButtons = () => {
+        if (!el.playBtn) return;
+        const animated = hasAnimation();
+        el.playBtn.hidden = !animated;
+        el.recordBtn.hidden = !animated || !('MediaRecorder' in window);
+        el.playBtn.textContent = state.playing ? '❚❚ Pause' : '▶ Play';
+        el.playBtn.setAttribute('aria-pressed', String(state.playing));
+    };
+
+    const stopPlayback = (keepFrame) => {
+        state.playing = false;
+        cancelAnimationFrame(playRaf);
+        playRaf = 0;
+        if (!keepFrame) state.playAt = null;
+        updatePlayButtons();
+        renderPreview();
+    };
+
+    const startPlayback = () => {
+        if (!hasAnimation()) return;
+        state.playing = true;
+        playStart = performance.now() - (state.playAt || 0);
+        const step = (now) => {
+            if (!state.playing) return;
+            state.playAt = (now - playStart) % LOOP_MS;
+            renderPreview();
+            playRaf = requestAnimationFrame(step);
+        };
+        playRaf = requestAnimationFrame(step);
+        updatePlayButtons();
+    };
+
+    const togglePlayback = () => {
+        if (state.playing) stopPlayback();
+        else startPlayback();
+    };
+
+    // Record the ten-second loop as WebM (the browser's canvas encoder).
+    const recordAnimation = async () => {
+        if (!hasAnimation() || !el.previewCanvas?.captureStream) return;
+        if (recorder) return;
+        const mime = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']
+            .find((type) => window.MediaRecorder.isTypeSupported(type));
+        const stream = el.previewCanvas.captureStream(30);
+        const chunks = [];
+        recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+        recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data); };
+        const finished = new Promise((resolve) => { recorder.onstop = resolve; });
+        el.recordBtn.disabled = true;
+        el.recordBtn.textContent = '● Recording…';
+        state.playAt = 0;
+        startPlayback();
+        recorder.start(200);
+        await new Promise((resolve) => setTimeout(resolve, LOOP_MS + 250));
+        recorder.stop();
+        await finished;
+        recorder = null;
+        stopPlayback();
+        el.recordBtn.disabled = false;
+        el.recordBtn.textContent = 'Record video';
+        const blob = new Blob(chunks, { type: mime || 'video/webm' });
+        if (!blob.size) { toast('The browser did not record any frames.', true); return; }
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `animation-${(currentTemplate()?.n || 'design').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.webm`;
+        document.body.append(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(link.href), 4000);
+        toast('Animation recorded (WebM).');
+    };
+
     const renderPreview = () => {
         const template = currentTemplate();
         const size = currentSize();
         if (!template || !size) return;
         clampSlide();
-        const baseTarget = Math.min(size.w, PREVIEW_MAX);
+        const baseTarget = Math.min(size.w, state.playing ? PLAYBACK_MAX : PREVIEW_MAX);
         // Upscale the render while inspecting so the zoom shows real detail.
         const targetWidth = Math.min(ZOOM_RENDER_MAX, Math.round(baseTarget * Math.max(1, state.zoom)));
         try {
@@ -3503,8 +4068,12 @@ Chocolate hazelnut spread | Deez Nuts`,
         if (currentTemplate()?.brandComposition) {
             renderBrandComposition(canvas, currentTemplate(), state.text, currentSize().w);
         } else {
+            // An export is the finished frame, never a mid-animation one.
+            const playAt = state.playAt;
+            state.playAt = null;
             window.AssetEngine.render(canvas, currentSize(), currentTemplate(), buildRenderState(state.text), null,
                 { backdrop: false, ...options });
+            state.playAt = playAt;
         }
         return canvas;
     };
@@ -4102,15 +4671,85 @@ Chocolate hazelnut spread | Deez Nuts`,
 
     // ─── uploads ─────────────────────────────────────────────────────
 
+    // A video cannot be drawn into a still design: its first frame becomes the
+    // image and the video itself is kept in the asset library.
+    const videoPoster = async (file) => {
+        const url = URL.createObjectURL(file);
+        const video = document.createElement('video');
+        video.muted = true;
+        video.playsInline = true;
+        video.preload = 'auto';
+        video.src = url;
+        try {
+            await new Promise((resolve, reject) => {
+                const fail = () => reject(new Error('This video cannot be read in the browser. Try MP4 (H.264) or WebM.'));
+                video.onloadeddata = () => resolve();
+                video.onerror = fail;
+                setTimeout(fail, 8000);
+            });
+            try {
+                video.currentTime = Math.min(0.15, Math.max(0, (video.duration || 1) * 0.05));
+                await new Promise((resolve) => { video.onseeked = resolve; setTimeout(resolve, 600); });
+            } catch { /* not every container can seek */ }
+            const vw = video.videoWidth || 1280;
+            const vh = video.videoHeight || 720;
+            const width = Math.min(1280, vw);
+            const height = Math.max(1, Math.round(width * vh / vw));
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            canvas.getContext('2d').drawImage(video, 0, 0, width, height);
+            return canvas.toDataURL('image/jpeg', 0.85);
+        } finally {
+            URL.revokeObjectURL(url);
+        }
+    };
+
     const uploadPhoto = async (file) => {
         el.photoInput.value = '';
         if (!file) return;
-        if (!file.type.startsWith('image/')) {
-            toast('Choose an image file (PNG, JPEG, WebP or SVG).', true);
+        const isVideo = /^video\//.test(file.type) || /\.(mp4|webm|mov|m4v)$/i.test(file.name || '');
+        if (!file.type.startsWith('image/') && !isVideo) {
+            toast('Choose an image (PNG, JPEG, WebP, SVG) or a video (MP4, WebM).', true);
             return;
         }
-        if (file.size > 12 * 1024 * 1024) {
+        if (!isVideo && file.size > 12 * 1024 * 1024) {
             toast('Images are limited to 12 MB.', true);
+            return;
+        }
+        if (isVideo) {
+            try {
+                const poster = await videoPoster(file);
+                let stillSource = { name: `${String(file.name || 'Video').replace(/\.[^.]+$/, '')} (first frame)`, src: poster, uploaded: true };
+                try {
+                    const result = await fetchJson(`${API}/assets/ingest`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ packId: state.pack?.id, brandId: state.brand.id, files: [{ name: file.name || 'clip.mp4', dataUrl: await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(new Error('The video could not be read.')); reader.readAsDataURL(file); }), rights: 'unknown' }] }),
+                    });
+                    const asset = result?.created?.[0];
+                    if (asset) {
+                        state.libraryAssets = [asset, ...state.libraryAssets.filter((item) => item.id !== asset.id)];
+                        libraryCache.set(asset.id, asset);
+                        stillSource = { ...stillSource, name: `${stillSource.name} · video in library` };
+                    }
+                } catch { /* the still still works without the library copy */ }
+                const image = await loadImage(poster).catch(() => null);
+                if (!image) throw new Error('The first frame could not be read.');
+                state.photos.push(image);
+                state.photoSources.push(stillSource);
+                state.photoIndex = state.photos.length - 1;
+                if (currentTemplate()?.brandComposition && state.activeBrandImageVariable) {
+                    state.text[state.activeBrandImageVariable] = poster;
+                    state.brandTemplateImages.set(poster, image);
+                }
+                renderControlBody();
+                schedulePreviewAndThumbs();
+                queueSession();
+                toast('Using the first frame of the video. The video is in your library.');
+            } catch (error) {
+                toast(`Could not use that video: ${error.message}`, true);
+            }
             return;
         }
         const dataUrl = await new Promise((resolve, reject) => {
