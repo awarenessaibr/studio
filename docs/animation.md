@@ -56,6 +56,62 @@ composition. Tracks match layers by ID first, then by layer name; unmatched
 tracks are skipped and reported. The **Delete** button removes the selected
 entry from the shared library.
 
+The same animation can also be exported as a file and replayed in the Asset
+Studio Agent timeline (**Export → Animation JSON** in Studio, then **Import** in
+the Agent timeline).
+
+The export bakes the motion instead of copying preset names, because the two
+pages run different animation engines: `parallax`, `pulse`, and the whole
+`clip*` family exist only in Studio, and a name like `pulse` means a scale bump
+in the Agent engine but an opacity dip in Studio. Reusing the name would change
+the animation. So the exporter evaluates the same `@keyframes` and timing
+functions the stage runs, samples them at 25 fps (plus a sample on every event
+boundary), and the Agent replays those frames with linear interpolation.
+
+```jsonc
+{
+  "schema": "agent-studio/animation/2",
+  "duration": 10000,                  // the Studio timeline length
+  "fps": 25,
+  "tracks": [{
+    "layerId": "headline",            // used for matching, not applied blindly
+    "layerName": "Headline",
+    "role": "headline",               // background|image|logo|headline|subhead|body|cta|footer
+    "text": "Garnethill after dark.", // helps match a design whose copy matches
+    "box": { "x": 0.08, "y": 0.34, "w": 0.84, "h": 0.12 },
+    "segments": [{                    // one per timeline event
+      "preset": "fadeIn",
+      "label": "Fade In",
+      "start": 300,
+      "duration": 900,
+      "loop": false,
+      "frames": [                     // t is relative to the segment start
+        { "t": 0, "a": 0, "dy": 0.02 },
+        { "t": 160, "a": 0.42, "dy": 0.0116 },
+        { "t": 900, "a": 1 }
+      ]
+    }]
+  }]
+}
+```
+
+Frame keys are `a` (opacity), `dx`/`dy` (fraction of canvas width/height),
+`s`/`sx`/`sy` (scale multipliers), and `clip` (a `{shape:"poly",points}` or
+`{shape:"circle",cx,cy,r}` reveal in box-normalised units). Missing keys default
+to the neutral value, and constant runs are collapsed to their first and last
+sample so a long hold costs two frames.
+
+On import the Agent matches tracks to elements by layer id, then copy, then
+role and reading order. It replaces the timeline it had, fits the timeline
+length to the file, and names each bar after the original event. A track with no
+plausible element is reported by name instead of being dropped on an arbitrary
+layer — cross-app designs do not always have the same layers, and a silent
+mismatch is worse than a visible one.
+
+Files in the old `agent-studio/animation/1` shape (preset names only) are
+refused with an explanation rather than remapped, because that mapping cannot
+reproduce the source motion. Re-export them from Studio.
+
 The studio accepts at most 30 seconds and 400 keyframes per layer. The motion
 script enforces those limits, keeps translation at or below 1% of the canvas,
 rotation at or below 1 degree, and scale amplitude at or below 10%.

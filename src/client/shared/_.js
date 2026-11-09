@@ -12,6 +12,7 @@
     const SharedAnimation = typeof window !== 'undefined' ? window.AssetStudioAnimation : null;
     const {
         layoutText,
+        planTextFit,
         getActiveFormat,
         getMasterFormat,
         ensureActiveFormat,
@@ -1728,6 +1729,10 @@
                 layers: [],
             };
             this.selectedLayerId = null;
+            this.textOverflowReport = [];
+            this.lastTextRepair = null;
+            this._textOverflowSignature = '';
+            this._textOverflowTimer = null;
             this._ctrl = null;
             this.projectId = null;
             this.projectMeta = null;
@@ -2223,6 +2228,7 @@
             this.renderAnimationControls();
             this.applyAnimationTime(this.animation.currentTime);
             this.syncProjectControls();
+            this.scheduleTextOverflowNotice();
         }
 
         isReferenceLayer(layer) {
@@ -2821,7 +2827,11 @@
             }
 
             // Overflow is silent in an export, so say it loudly in the editor.
-            const layout = computeTextLayout(layer, this.activeFormat() || { width: 1080, height: 1080 }, {
+            // Resolve first so this matches what the canvas and the banner measure.
+            const overflowLayer = this.resolveLayer(layer);
+            const layout = computeTextLayout(overflowLayer, this.activeFormat() || { width: 1080, height: 1080 }, {
+                w: finite(overflowLayer.baseW, finite(overflowLayer.w, 100)),
+                h: finite(overflowLayer.baseH, finite(overflowLayer.h, 10)),
                 locale: this.locale(),
                 defaultLocale: this.composition.defaultLocale,
             });
@@ -2831,6 +2841,13 @@
                 warning.dataset.textOverflow = 'true';
                 warning.textContent = `${layout.clippedLines} line${layout.clippedLines === 1 ? '' : 's'} do not fit this box and will be dropped. Increase the box height or reduce the size.`;
                 group.appendChild(warning);
+                const fit = document.createElement('button');
+                fit.type = 'button';
+                fit.className = 'layer-overflow-fix';
+                fit.dataset.action = 'fix-text-overflow';
+                fit.dataset.id = layer.id;
+                fit.textContent = `Fit ${layout.clippedLines} hidden line${layout.clippedLines === 1 ? '' : 's'}`;
+                group.appendChild(fit);
             }
 
             const families = fontRegistryEntries().map((entry) => [entry.family, entry.family]);
@@ -4755,6 +4772,9 @@
                 case 'load-font':
                     this.loadLayerFont(action.dataset.family || '');
                     break;
+                case 'fix-text-overflow':
+                    this.repairTextOverflow({ layerIds: [action.dataset.id || this.selectedLayerId] });
+                    break;
                 case 'upload-font':
                     this.el.fontInput?.click();
                     break;
@@ -5335,6 +5355,228 @@
             this.applyAnimationTime(this.animation.currentTime);
             if (refreshInspector) this.renderInspector();
             this.scheduleSave();
+            this.scheduleTextOverflowNotice();
+        }
+
+        // ------------------------------------------------------------------
+        // Hidden text lines
+        //
+        // A clipping text box drops whole lines on export. Detect that on load
+        // and offer one accepted fix: grow the box, then reduce the type size.
+        // ------------------------------------------------------------------
+
+        /** Every text layer whose active format drops at least one line. */
+        textOverflowLayers({ format = null } = {}) {
+            if (!this.composition) return [];
+            const active = format
+                || this.activeFormat()
+                || { width: this.composition.width, height: this.composition.height };
+            const locale = this.locale();
+            const defaultLocale = this.composition.defaultLocale;
+            return (this.composition.layers || [])
+                .filter((layer) => layer && layer.type === 'text' && layer.visible !== false)
+                .map((layer) => {
+                    const resolved = this.resolveLayer(layer);
+                    const w = finite(resolved.baseW, finite(resolved.w, 100));
+                    const h = finite(resolved.baseH, finite(resolved.h, 10));
+                    const layout = computeTextLayout(resolved, active, { w, h, locale, defaultLocale });
+                    if (!layout.clippedLines) return null;
+                    return {
+                        layerId: layer.id,
+                        name: layer.name || 'Text layer',
+                        clippedLines: layout.clippedLines,
+                        visibleLines: layout.lines.length,
+                        sizePct: finite(resolved.font && resolved.font.sizePct, TEXT_LAYER_DEFAULTS.font.sizePct),
+                        w,
+                        h,
+                    };
+                })
+                .filter(Boolean);
+        }
+
+        /** How far a text box may grow before the format edge or the next text layer. */
+        textBoxCeiling(layer) {
+            const top = finite(layer.y, 0);
+            let bottom = 100;
+            (this.composition.layers || []).forEach((other) => {
+                if (!other || other.id === layer.id || other.visible === false) return;
+                if (other.type !== 'text') return;
+                const otherTop = finite(other.y, 0);
+                if (otherTop > top + 0.01) bottom = Math.min(bottom, otherTop - 1);
+            });
+            return Math.max(finite(layer.h, 10), bottom - top);
+        }
+
+        /** The repair for one layer, or null when it cannot be fitted automatically. */
+        planTextRepair(layer) {
+            if (!layer || layer.type !== 'text') return null;
+            const format = this.activeFormat()
+                || { width: this.composition.width, height: this.composition.height };
+            const resolved = this.resolveLayer(layer);
+            const w = finite(resolved.baseW, finite(resolved.w, 100));
+            const h = finite(resolved.baseH, finite(resolved.h, 10));
+            // Keyframed boxes are laid out from their base height and then scaled,
+            // so growing `h` would not change the layout: only offer the type size.
+            const animated = (layer.keyframes || []).length > 0;
+            const ceiling = animated ? h : this.textBoxCeiling(resolved);
+            const maxH = Math.min(ceiling, 100 - finite(resolved.y, 0));
+            return planTextFit(resolved, format, {
+                w,
+                h,
+                maxH: Math.max(h, maxH),
+                locale: this.locale(),
+                defaultLocale: this.composition.defaultLocale,
+                measureFactory: textMeasureFactory,
+            });
+        }
+
+        /**
+         * Applies `planTextRepair` to every reported layer (or just `layerIds`).
+         * One undo-free bulk edit, saved and re-rendered, that reports what changed.
+         */
+        repairTextOverflow({ layerIds = null } = {}) {
+            const reported = this.textOverflowLayers();
+            const requested = Array.isArray(layerIds) ? layerIds.filter(Boolean) : null;
+            const targets = requested
+                ? reported.filter((entry) => requested.includes(entry.layerId))
+                : reported;
+            if (!targets.length) {
+                this.setStatus(requested
+                    ? 'That text layer already shows all of its lines.'
+                    : 'Every text layer already shows all of its lines.');
+                return { fixed: [], skipped: [] };
+            }
+            const format = this.activeFormat();
+            const fixed = [];
+            const skipped = [];
+            targets.forEach((entry) => {
+                const layer = this.getLayer(entry.layerId);
+                if (!layer) return;
+                const plan = this.planTextRepair(layer);
+                if (!plan) {
+                    skipped.push({ ...entry, reason: 'no room or already at the minimum size' });
+                    return;
+                }
+                const before = {
+                    sizePct: finite(layer.font && layer.font.sizePct, TEXT_LAYER_DEFAULTS.font.sizePct),
+                    h: finite(layer.h, 10),
+                    positionConfirmed: layer.positionConfirmed,
+                };
+                const override = format && format.layerOverrides && format.layerOverrides[layer.id]
+                    ? { fontSizePct: format.layerOverrides[layer.id].fontSizePct, h: format.layerOverrides[layer.id].h }
+                    : null;
+                if (plan.sizeChanged) layer.font = normalizeTextFont({ ...layer.font, sizePct: plan.sizePct });
+                if (plan.heightChanged) {
+                    layer.h = plan.h;
+                    layer.positionConfirmed = false;
+                }
+                // The fix is composition-wide: drop any pinned type/height override
+                // for the edited format so the repaired values are what renders.
+                if (format && format.layerOverrides && format.layerOverrides[layer.id]) {
+                    delete format.layerOverrides[layer.id].fontSizePct;
+                    delete format.layerOverrides[layer.id].h;
+                }
+                fixed.push({ ...entry, before, override, after: { sizePct: plan.sizePct, h: plan.h }, mode: plan.mode });
+            });
+            if (!fixed.length) {
+                this.setStatus(
+                    `Could not fit ${targets.length} text layer${targets.length === 1 ? '' : 's'} automatically. Increase the box height or reduce the size by hand.`,
+                    true,
+                );
+                this.refreshTextOverflowNotice({ force: true });
+                return { fixed, skipped };
+            }
+            this.render();
+            this.scheduleSave();
+            /* Keep earlier repairs undoable too: a partial fix followed by "Fix
+               all" should still be one undo, with the oldest values winning. */
+            const previous = Array.isArray(this.lastTextRepair) ? this.lastTextRepair : [];
+            const snapshots = new Map(previous.map((entry) => [entry.layerId, entry]));
+            fixed.forEach((entry) => {
+                if (snapshots.has(entry.layerId)) return;
+                snapshots.set(entry.layerId, {
+                    layerId: entry.layerId,
+                    sizePct: entry.before.sizePct,
+                    h: entry.before.h,
+                    positionConfirmed: entry.before.positionConfirmed,
+                    override: entry.override,
+                });
+            });
+            this.lastTextRepair = [...snapshots.values()];
+            const typeChanged = fixed.filter((entry) => entry.before.sizePct !== entry.after.sizePct).length;
+            const boxChanged = fixed.filter((entry) => entry.before.h !== entry.after.h).length;
+            const parts = [];
+            if (typeChanged) parts.push(`type size on ${typeChanged}`);
+            if (boxChanged) parts.push(`box height on ${boxChanged}`);
+            this.setStatus(
+                `Fitted ${fixed.length} text layer${fixed.length === 1 ? '' : 's'}${parts.length ? ` (${parts.join(', ')})` : ''}${skipped.length ? `; ${skipped.length} still need a hand` : ''}.${boxChanged ? ' Re-confirm the resized layers after review.' : ''}`,
+            );
+            return { fixed, skipped };
+        }
+
+        /** Restores the type sizes and box heights captured by the last repair. */
+        undoTextRepair() {
+            const snapshot = Array.isArray(this.lastTextRepair) ? this.lastTextRepair : [];
+            if (!snapshot.length) {
+                this.setStatus('There is no text fit to undo.');
+                return false;
+            }
+            const format = this.activeFormat();
+            snapshot.forEach((entry) => {
+                const layer = this.getLayer(entry.layerId);
+                if (!layer) return;
+                layer.font = normalizeTextFont({ ...layer.font, sizePct: entry.sizePct });
+                layer.h = entry.h;
+                layer.positionConfirmed = entry.positionConfirmed;
+                if (entry.override && format && format.layerOverrides && format.layerOverrides[layer.id]) {
+                    if (entry.override.fontSizePct !== undefined) format.layerOverrides[layer.id].fontSizePct = entry.override.fontSizePct;
+                    if (entry.override.h !== undefined) format.layerOverrides[layer.id].h = entry.override.h;
+                }
+            });
+            this.lastTextRepair = null;
+            this.render();
+            this.scheduleSave();
+            this.setStatus(`Restored the type size and box height of ${snapshot.length} layer${snapshot.length === 1 ? '' : 's'}.`);
+            return true;
+        }
+
+        textOverflowSignature(report) {
+            return (report || [])
+                .map((entry) => `${entry.layerId}:${entry.clippedLines}:${entry.sizePct}:${entry.h}`)
+                .join('|');
+        }
+
+        /**
+         * Recomputes the report and tells the page when it changed. `force`
+         * re-announces an unchanged report (used once after the page wires up).
+         */
+        refreshTextOverflowNotice({ force = false } = {}) {
+            if (!this.composition) return [];
+            const report = this.textOverflowLayers();
+            const signature = this.textOverflowSignature(report);
+            this.textOverflowReport = report;
+            if (!force && signature === this._textOverflowSignature) return report;
+            this._textOverflowSignature = signature;
+            const detail = {
+                report,
+                count: report.length,
+                hiddenLines: report.reduce((total, entry) => total + entry.clippedLines, 0),
+                formatId: (this.activeFormat() || {}).id || 'master',
+            };
+            try {
+                document.dispatchEvent(new CustomEvent('layerstudio:text-overflow', { detail }));
+            } catch {
+                /* environments without CustomEvent simply do not get the notice */
+            }
+            return report;
+        }
+
+        scheduleTextOverflowNotice() {
+            if (this._textOverflowTimer) return;
+            this._textOverflowTimer = window.setTimeout(() => {
+                this._textOverflowTimer = null;
+                this.refreshTextOverflowNotice();
+            }, 0);
         }
 
         applyPreset(presetName, params = {}) {
@@ -8394,6 +8636,8 @@
                 this._saveTimer = null;
             }
             this.composition = normalizeComposition(parsed);
+            this.lastTextRepair = null;
+            this._textOverflowSignature = '';
             this.projectId = projectId || null;
             this.projectMeta = projectMeta || parsed?.meta || null;
             this.repositorySource = repositorySource;

@@ -241,6 +241,30 @@ correctly across every format. A clipped line count is shown in the inspector
 as a warning — clipping is silent in an export, so the editor says it out
 loud.
 
+#### Fixing hidden lines
+
+Opening a project or composition whose active format clips text shows a
+banner above the canvas: *“N text layers have M hidden lines”*. **Fix all**
+repairs every one of them; **Review** selects the first and the inspector’s
+**Fit hidden lines** button repairs just that layer.
+
+The repair keeps the line breaks the copy already asks for and changes the
+least it can, in this order:
+
+1. grow the box downwards at the current type size — capped at the format edge
+   and the next text layer, so it cannot run into other type;
+2. reduce the type size, down to half of the current size, when the box cannot
+   grow;
+3. do both when neither is enough on its own.
+
+Box growth is skipped for keyframed layers, whose geometry is animated, so those
+only ever shrink their type. Layers that cannot be fitted within those bounds are
+reported rather than silently half-fixed. The copy is never edited.
+
+Every repair is followed by **Undo**, which restores the type sizes, box heights
+and pinned overrides from before the fit, and the whole thing goes through the
+normal save path.
+
 ---
 
 ## 6. Animation

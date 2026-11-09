@@ -132,6 +132,125 @@
         @media (max-width:1180px) { .workspace.has-agent { grid-template-columns:minmax(260px,320px) minmax(0,1fr); } .agent-panel { grid-column:1/-1; position:static; height:520px; } }
         @media (max-width:760px) { .workspace.has-agent { grid-template-columns:1fr; } }
 
+
+        /* ================= Clean canvas mode ================= */
+        body.clean-canvas { overflow:hidden; background:#0b0b10; }
+        body.clean-canvas .studio { display:block; height:100vh; padding:0; }
+        body.clean-canvas .topbar,
+        body.clean-canvas .category-nav,
+        body.clean-canvas .rail,
+        body.clean-canvas .agent-panel,
+        body.clean-canvas .preview-head,
+        body.clean-canvas .export-bar,
+        body.clean-canvas .preview-panel > .hint,
+        body.clean-canvas #timeline,
+        body.clean-canvas .stage-resize-grip,
+        body.clean-canvas .zoom-bar,
+        body.clean-canvas #selLayer,
+        body.clean-canvas #brandTemplatesDialog { display:none !important; }
+        body.clean-canvas .workspace.has-agent { display:flex; align-items:center; justify-content:center; height:100vh; min-height:0; padding:0; gap:0; }
+        body.clean-canvas .preview-panel { display:flex; align-items:center; justify-content:center; width:100vw; height:100vh; min-height:0; margin:0; padding:0; position:static; background:#0b0b10; }
+        body.clean-canvas .preview-panel .stage { flex:none; width:min(92vmin,92vh); height:min(92vmin,92vh); min-height:0; margin:0; padding:4vmin; box-sizing:border-box; display:flex; align-items:center; justify-content:center; overflow:hidden; border:1px solid #ffffff14; border-radius:2px; background:#111116; box-shadow:0 30px 90px #0008; }
+        body.clean-canvas .preview-panel .stage canvas { max-width:100%; max-height:100%; flex:none; display:block; box-shadow:0 12px 36px #0007; pointer-events:none; }
+        body.clean-canvas #toast { bottom:76px; }
+        .clean-root { position:fixed; inset:0; z-index:80; color:#f6f3ec; font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; pointer-events:none; }
+        .clean-root[hidden] { display:none; }
+        .clean-root button { font:inherit; color:inherit; cursor:pointer; }
+        .clean-icon-btn { pointer-events:auto; position:absolute; top:18px; left:18px; display:inline-flex; align-items:center; gap:8px; height:40px; padding:0 13px; border:1px solid #ffffff24; border-radius:12px; background:#15151ce8; color:#f6f3ec; box-shadow:0 8px 28px #0006; font-size:12px; font-weight:600; letter-spacing:.02em; backdrop-filter:blur(14px); }
+        .clean-icon-btn:hover, .clean-icon-btn[aria-expanded="true"] { border-color:#eb5b3c; }
+        .clean-icon-btn .ico { display:grid; grid-template-columns:repeat(2,5px); gap:2px; }
+        .clean-icon-btn .ico i { width:5px; height:5px; border-radius:1px; background:currentColor; display:block; }
+        .clean-drawer { pointer-events:auto; position:absolute; z-index:82; left:18px; top:70px; bottom:18px; width:min(360px,calc(100vw - 36px)); border:1px solid #ffffff1f; border-radius:18px; background:#131319f2; box-shadow:0 30px 80px #0008; backdrop-filter:blur(20px); overflow:auto; padding:14px; box-sizing:border-box; }
+        .clean-drawer[hidden], .clean-agent[hidden] { display:none; }
+        .clean-drawer-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:11px; }
+        .clean-drawer-head h2 { margin:0; font-size:15px; letter-spacing:-.01em; }
+        .clean-drawer-head p { margin:3px 0 0; color:#a9a5b4; font-size:11px; }
+        .clean-drawer-head .clean-provider { margin-top:7px; }
+        .clean-close { border:0; background:transparent; color:#a9a5b4; font-size:20px; line-height:1; padding:0 3px; }
+        .clean-close:hover { color:#fff; }
+        .clean-design-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; max-height:34vh; overflow:auto; padding-right:2px; scrollbar-width:thin; }
+        .clean-design { border:1px solid #ffffff17; border-radius:11px; background:#1b1b23; padding:7px; text-align:left; display:grid; gap:6px; min-width:0; }
+        .clean-design:hover { border-color:#ffffff45; }
+        .clean-design.is-on { border-color:#eb5b3c; box-shadow:inset 0 0 0 1px #eb5b3c; }
+        .clean-design canvas { width:100%; height:96px; object-fit:contain; display:block; background:#101015; border-radius:6px; }
+        .clean-design strong { font-size:11px; font-weight:600; line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .clean-design small { color:#8f8b9a; font-size:9.5px; text-transform:uppercase; letter-spacing:.05em; }
+        .clean-design-badge { display:inline-block; margin-left:5px; padding:1px 4px; border:1px solid #ffffff22; border-radius:4px; color:#bdb8c6; font-size:8px; vertical-align:1px; }
+        .clean-sec { margin-top:15px; border-top:1px solid #ffffff12; padding-top:12px; }
+        .clean-sec-head { display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:7px; }
+        .clean-sec-head h3 { margin:0; font-size:10px; letter-spacing:.13em; text-transform:uppercase; color:#9b96a6; font-weight:700; }
+        .clean-sec-head span { color:#7f7a89; font-size:10px; }
+        .clean-anim-list { display:grid; gap:5px; max-height:27vh; overflow:auto; padding-right:2px; scrollbar-width:thin; }
+        .clean-anim { border:1px solid #ffffff14; border-radius:9px; background:#1a1a22; padding:8px 9px; text-align:left; display:flex; align-items:center; gap:8px; min-height:35px; }
+        .clean-anim:hover { border-color:#ffffff3d; }
+        .clean-anim.is-on { border-color:#eb5b3c; background:#2a1d1b; }
+        .clean-anim i { width:6px; height:6px; border-radius:50%; background:#6f6a7b; flex:none; }
+        .clean-anim.is-on i { background:#eb5b3c; box-shadow:0 0 0 3px #eb5b3c26; }
+        .clean-anim > span { min-width:0; flex:1; }
+        .clean-anim b { font-size:11.5px; font-weight:600; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .clean-anim small { font-size:9.5px; color:#8b8696; display:block; margin-top:1px; }
+        .clean-anim .clean-del { margin-left:auto; border:0; background:transparent; color:#716c7d; font-size:14px; padding:0 2px; }
+        .clean-anim .clean-del:hover { color:#ff8c73; }
+        .clean-empty { color:#85808f; font-size:11px; line-height:1.45; padding:4px 0; }
+        .clean-group-list { display:flex; flex-wrap:wrap; gap:5px; }
+        .clean-group { border:1px solid #ffffff18; border-radius:99px; background:#1a1a22; padding:5px 9px; display:inline-flex; align-items:center; gap:5px; color:#bdb8c6; font-size:10px; }
+        .clean-group:hover { border-color:#ffffff3d; color:#fff; }
+        .clean-group.is-on { border-color:#eb5b3c; background:#2a1d1b; color:#f6f3ec; }
+        .clean-group b { font-weight:600; }
+        .clean-group small { color:#85808f; font-size:9px; }
+        .clean-context { color:#8b8696; font-size:10px; line-height:1.35; }
+        .clean-format-toggle { width:100%; border:1px solid #ffffff18; border-radius:9px; background:#1a1a22; padding:9px 10px; display:flex; align-items:center; gap:8px; text-align:left; }
+        .clean-format-toggle:hover { border-color:#ffffff3d; }
+        .clean-format-toggle b { font-size:11.5px; }
+        .clean-format-toggle span { margin-left:auto; color:#a9a5b4; font-size:10.5px; }
+        .clean-format-toggle .chev { color:#777281; font-size:13px; transition:transform .18s; }
+        .clean-format-toggle[aria-expanded="true"] .chev { transform:rotate(180deg); }
+        .clean-format-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px; margin-top:6px; }
+        .clean-format { border:1px solid #ffffff14; border-radius:8px; background:#1a1a22; padding:7px 8px; text-align:left; }
+        .clean-format:hover { border-color:#ffffff3d; }
+        .clean-format.is-on { border-color:#eb5b3c; }
+        .clean-format b { display:block; font-size:10.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .clean-format small { display:block; color:#85808f; font-size:9px; margin-top:1px; }
+        .clean-replay { pointer-events:auto; z-index:90; position:absolute; left:50%; bottom:22px; transform:translateX(-50%); display:inline-flex; align-items:center; gap:9px; padding:9px 15px; border:1px solid #ffffff24; border-radius:99px; background:#15151ce8; color:#f6f3ec; box-shadow:0 10px 32px #0007; backdrop-filter:blur(14px); }
+        .clean-replay:hover { border-color:#eb5b3c; }
+        .clean-replay .rr { font-size:17px; line-height:1; }
+        .clean-replay b { font-size:11.5px; font-weight:600; }
+        .clean-replay small { color:#a9a5b4; font-size:10px; max-width:260px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .clean-replay::after { content:attr(data-tip); position:absolute; left:50%; bottom:calc(100% + 8px); transform:translateX(-50%); padding:5px 8px; border-radius:6px; background:#f6f3ec; color:#17171d; font-size:10px; white-space:nowrap; opacity:0; pointer-events:none; transition:opacity .16s; }
+        .clean-replay:hover::after, .clean-replay.tip::after { opacity:1; }
+        .clean-ask { pointer-events:auto; position:absolute; right:18px; bottom:18px; display:inline-flex; align-items:center; gap:7px; height:40px; padding:0 14px; border:1px solid #ffffff24; border-radius:12px; background:#15151ce8; box-shadow:0 8px 28px #0006; backdrop-filter:blur(14px); font-size:12px; font-weight:600; }
+        .clean-ask:hover, .clean-ask[aria-expanded="true"] { border-color:#eb5b3c; }
+        .clean-agent { pointer-events:auto; position:absolute; z-index:83; right:18px; bottom:70px; width:min(380px,calc(100vw - 36px)); max-height:min(620px,calc(100vh - 100px)); border:1px solid #ffffff1f; border-radius:18px; background:#131319f5; box-shadow:0 30px 80px #0008; backdrop-filter:blur(20px); display:flex; flex-direction:column; overflow:hidden; }
+        .clean-agent-head { display:flex; align-items:center; gap:8px; padding:12px 13px 10px; border-bottom:1px solid #ffffff12; }
+        .clean-agent-head strong { font-size:12.5px; }
+        .clean-agent-head .dot { width:6px; height:6px; border-radius:50%; background:#65c7a6; }
+        .clean-agent-head .clean-close { margin-left:auto; }
+        .clean-chat { padding:11px 12px; overflow:auto; display:flex; flex-direction:column; gap:8px; min-height:90px; max-height:390px; }
+        .clean-msg { border-radius:10px; padding:8px 9px; font-size:11.5px; line-height:1.45; background:#1e1e27; color:#d9d5e0; white-space:pre-wrap; }
+        .clean-msg.user { background:#30201d; color:#f1e8e3; align-self:flex-end; max-width:94%; }
+        .clean-msg.agent { max-width:96%; }
+        .clean-msg ul { margin:4px 0 0; padding-left:16px; }
+        .clean-msg li { margin:2px 0; }
+        .clean-msg .saved { display:inline-block; margin-top:5px; color:#7bd6b7; font-size:10px; }
+        .clean-msg.error { color:#ffb4a5; background:#2b1b1b; }
+        .clean-agent-foot { border-top:1px solid #ffffff12; padding:9px 11px 11px; display:grid; gap:7px; }
+        .clean-provider { width:100%; border:1px solid #ffffff1c; border-radius:8px; background:#1a1a22; color:#d9d5e0; padding:6px 8px; font:inherit; font-size:10.5px; }
+        .clean-form { display:flex; gap:6px; }
+        .clean-form input { flex:1; min-width:0; border:1px solid #ffffff1c; border-radius:8px; background:#1a1a22; color:#f6f3ec; padding:8px 9px; font:inherit; font-size:11.5px; }
+        .clean-form input::placeholder { color:#7f7a89; }
+        .clean-form button { border:0; border-radius:8px; background:#eb5b3c; color:#fff; font-weight:700; padding:0 12px; font-size:11px; }
+        .clean-form button:disabled { opacity:.55; cursor:default; }
+        .clean-quick { display:flex; gap:5px; flex-wrap:wrap; }
+        .clean-quick button { border:1px solid #ffffff18; background:transparent; color:#b4afbe; border-radius:99px; padding:4px 8px; font-size:9.5px; }
+        .clean-quick button:hover { border-color:#eb5b3c; color:#fff; }
+        @media (max-width:760px) {
+            body.clean-canvas .preview-panel .stage { width:min(94vmin,90vh); height:min(94vmin,90vh); }
+            .clean-drawer { width:calc(100vw - 24px); left:12px; top:64px; bottom:12px; }
+            .clean-agent { right:12px; left:12px; width:auto; }
+            .clean-replay { bottom:16px; max-width:calc(100vw - 150px); }
+            .clean-replay small { max-width:130px; }
+        }
+
         /* ---- Collapsible side panels ---- */
         .workspace.has-agent.hide-rail { grid-template-columns:minmax(0,1fr) minmax(300px,380px); }
         .workspace.has-agent.hide-agent { grid-template-columns:minmax(280px,340px) minmax(0,1fr); }
@@ -248,6 +367,7 @@
             <div class="brand-switch" id="brandSwitch" aria-label="Active brand"></div>
             <div class="topbar-actions">
                 <button type="button" class="ghost" id="brandTemplatesBtn" aria-haspopup="dialog">Brand templates</button>
+                <a class="ghost" href="studio-agent.html?clean=1" title="Open the clean canvas-only view">Canvas</a>
                 <details class="more-menu" id="moreMenu">
                     <summary class="ghost" aria-label="More tools">More ▾</summary>
                     <div class="more-pop">
@@ -257,6 +377,7 @@
                         <a href="social.html" title="Read the business social profile">Social</a>
                         <a href="asset-studio.html" id="lnkClassic" title="Open the classic Asset Studio">Classic Asset Studio</a>
                         <a href="studio-v2.html" title="Open the full layer studio">Studio V2</a>
+                        <a href="studio-agent.html?clean=1" title="Open the clean canvas-only agent">Canvas only</a>
                     </div>
                 </details>
             </div>
@@ -344,6 +465,7 @@
                             <select id="tlPreset" aria-label="Animation preset"></select>
                             <button type="button" id="tlAdd" title="Add the chosen animation to the selected element" disabled>+ Animate selected</button>
                             <button type="button" id="tlClear" title="Clear the selected element's animation, or all animation when nothing is selected">Clear</button>
+                            <button type="button" id="tlImport" title="Import a saved animation JSON file into this design">Import</button>
                         </div>
                         <span class="tl-sep"></span>
                         <div class="tl-group">
@@ -388,8 +510,76 @@
     </div>
 
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+    <div id="cleanCanvas" class="clean-root" hidden>
+        <button type="button" id="cleanDesignsBtn" class="clean-icon-btn" aria-expanded="false" aria-controls="cleanDrawer" title="Browse designs">
+            <span class="ico" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+            <span>Designs</span>
+        </button>
+
+        <aside id="cleanDrawer" class="clean-drawer" aria-label="Designs and animations" hidden>
+            <header class="clean-drawer-head">
+                <div>
+                    <h2>Designs</h2>
+                    <p id="cleanBrandLine">Saved and published templates</p>
+                    <select id="cleanBrandSelect" class="clean-provider" aria-label="Brand"></select>
+                </div>
+                <button type="button" class="clean-close" id="cleanDrawerClose" aria-label="Close designs">×</button>
+            </header>
+            <div id="cleanDesignGrid" class="clean-design-grid"></div>
+
+            <section class="clean-sec" id="cleanAnimSection">
+                <div class="clean-sec-head"><h3>Animations</h3><span id="cleanAnimMeta">select a design</span></div>
+                <div id="cleanAnimList" class="clean-anim-list"></div>
+            </section>
+
+            <section class="clean-sec" id="cleanGroupSection">
+                <div class="clean-sec-head"><h3>Groups</h3><span id="cleanGroupMeta">all layers</span></div>
+                <div id="cleanGroupList" class="clean-group-list"></div>
+            </section>
+
+            <section class="clean-sec">
+                <button type="button" id="cleanFormatsToggle" class="clean-format-toggle" aria-expanded="false" aria-controls="cleanFormatList">
+                    <b>Formats</b><span id="cleanFormatNow">—</span><span class="chev">⌄</span>
+                </button>
+                <div id="cleanFormatList" class="clean-format-list" hidden></div>
+            </section>
+        </aside>
+
+        <button type="button" id="cleanReplay" class="clean-replay" data-tip="Replay the selected animation" title="Replay the selected animation">
+            <span class="rr" aria-hidden="true">↺</span><b>Replay</b><small id="cleanReplayTip">No animation selected</small>
+        </button>
+
+        <button type="button" id="cleanAskBtn" class="clean-ask" aria-expanded="false" aria-controls="cleanAgent" title="Ask the canvas agent">✦ Ask</button>
+
+        <aside id="cleanAgent" class="clean-agent" aria-label="Canvas agent" hidden>
+            <header class="clean-agent-head">
+                <span class="dot" aria-hidden="true"></span><strong>Canvas agent</strong>
+                <button type="button" class="clean-close" id="cleanAgentClose" aria-label="Close agent">×</button>
+            </header>
+            <div id="cleanChat" class="clean-chat" aria-live="polite">
+                <div class="clean-msg agent">Ask for a design change, a new animation, or a review. I receive this composition and its animation JSON.</div>
+            </div>
+            <div class="clean-agent-foot">
+                <div class="clean-quick">
+                    <button type="button" data-clean-prompt="Review this composition and point out anything that should be corrected or improved, especially the animation.">Review</button>
+                    <button type="button" data-clean-prompt="Create a new, more expressive animation for this composition using its existing layers.">New animation</button>
+                    <button type="button" data-clean-prompt="Improve the composition hierarchy, spacing and legibility without changing the copy.">Improve design</button>
+                </div>
+                <div id="cleanAgentContext" class="clean-context">Context · all groups</div>
+                <select id="cleanProvider" class="clean-provider" aria-label="AI provider">
+                    <option value="">Auto provider</option>
+                </select>
+                <form id="cleanForm" class="clean-form">
+                    <input id="cleanPrompt" type="text" placeholder="Ask for a change, animation or review…" autocomplete="off">
+                    <button id="cleanSend" type="submit">Send</button>
+                </form>
+            </div>
+        </aside>
+    </div>
     <input type="file" id="agentPhotoInput" accept="image/*,video/*" hidden>
     <input type="file" id="agentFontInput" accept=".woff2,.woff,.ttf,.otf,font/woff2,font/woff,font/ttf,font/otf" hidden>
+    <input type="file" id="agentAnimationInput" accept=".json,application/json" hidden>
 
     <script src="/src/client/asset-studio/vendor/qrcode.min.js"></script>
     <script src="/src/shared/asset-intel.js"></script>
@@ -429,14 +619,40 @@
         let BRAND_TEMPLATES = {}, BRAND_TEMPLATE_IMAGES = new Map();
         const BRAND_TEMPLATE_IMAGE_PENDING = new WeakMap();
         let IMAGE_LIB = { status: 'idle', brandId: null, items: [], error: '' };
-        const blank = () => ({ cat: Object.keys(window.AssetCategories)[0], tpl: 0, size: 0, t: {}, layout: {}, layerStyles: {}, layerImages: {}, anim: {}, pal: null, fonts: { display: BF.display, body: BF.body, serif: BF.body, sans: BF.body }, photoUrl: '', photoUploads: [], imageVariable: '', motif: 'auto', motifOn: true, motifScale: 1, motifX: 0, motifY: 0, logoOn: true, logoScale: 1, extraFormats: [], motion: '' });
+        const blank = () => ({ cat: Object.keys(window.AssetCategories)[0], tpl: 0, size: 0, t: {}, layout: {}, layerStyles: {}, layerImages: {}, anim: {}, animDur: 0, pal: null, fonts: { display: BF.display, body: BF.body, serif: BF.body, sans: BF.body }, photoUrl: '', photoUploads: [], imageVariable: '', motif: 'auto', motifOn: true, motifScale: 1, motifX: 0, motifY: 0, logoOn: true, logoScale: 1, extraFormats: [], motion: '' });
+        const CLEAN = /\/studio-agent-canvas(?:\.html)?\/?$/.test(location.pathname)
+            || new URLSearchParams(location.search).get('clean') === '1';
+        if (CLEAN) document.body.classList.add('clean-canvas');
+        let CLEAN_INIT = false, CLEAN_DESIGN_KEY = '', CLEAN_CHOICES = [], CLEAN_CHOICES_TEMPLATE = '';
+        let CLEAN_SELECTED = null, CLEAN_LIBRARY = null, CLEAN_ANIM_TOKEN = 0, CLEAN_FORMATS_OPEN = false;
+        let CLEAN_LIBRARY_SUMMARY = null, CLEAN_LIBRARY_COMPOSITION = null;
+        let CLEAN_GROUPS = [], CLEAN_GROUP_SELECTION = new Set(), CLEAN_GROUPS_TEMPLATE = '';
         let S = null, hist = [], focusKey = null, selTok = 0, rt = 0;
         let focusMode = false; /* true: only the chosen design is shown, with its variations and edit controls */
         const preview = $('#previewCanvas');
         const ZOOM_MAX = 5, ZOOM_RENDER_MAX = 3500;
         let zoom = 1, zoomX = 0, zoomY = 0, zoomBase = null, zoomBar = null, zoomRenderTimer = 0;
         /* animation + selection state */
-        const DUR = window.AssetStudioAnimation.DURATION;
+        const BASE_DUR = window.AssetStudioAnimation.DURATION;
+        let DUR = BASE_DUR;
+        /* Imported motion can be longer than the built-in 8 s timeline. */
+        function syncDur() {
+            const wanted = Math.max(BASE_DUR, Math.min(60000, Math.round((Number(S && S.animDur) || 0) / 100) * 100));
+            if (wanted === DUR) return;
+            DUR = wanted;
+            TL.T = Math.min(TL.T, DUR);
+            const scrub = $('#tlScrub');
+            if (scrub) { scrub.max = String(DUR); if (+scrub.value > DUR) scrub.value = String(DUR); }
+        }
+        function recalcAnimDuration(state) {
+            if (!state) return;
+            let latest = BASE_DUR;
+            Object.values(state.anim || {}).forEach(list => {
+                Animation.events(list).forEach(event => { latest = Math.max(latest, event.start + event.duration); });
+            });
+            const rounded = Math.ceil(latest / 100) * 100;
+            state.animDur = rounded > BASE_DUR ? rounded : 0;
+        }
         const TL = { open: false, T: DUR, playing: false, raf: 0, art: null, artKey: '', els: [], target: 0, shown: 'f', onEnd: null };
         let SEL = null, HOV = null, pendingImageTarget = null, imageLayerTarget = null;
         const ART = { id: 'art', name: 'Background & motif', kind: 'art' };
@@ -528,9 +744,18 @@
         async function loadFonts() {
             try { const d = await jget(API + '/fonts'); for (const f of (d && d.fonts) || []) { if (!f.family || !f.url) continue; try { const ff = new FontFace(f.family, `url("${f.url}")`, { weight: '100 1000' }); await ff.load(); document.fonts.add(ff); UF.push(f); } catch { } } } catch { }
         }
+        const sameOriginAsset = src => {
+            try {
+                const url = new URL(String(src), location.href);
+                if ((url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]') && url.origin !== location.origin) {
+                    return url.pathname + url.search + url.hash;
+                }
+            } catch { }
+            return src;
+        };
         const loadImg = src => {
             if (!IMG.has(src)) {
-                const promise = new Promise((res, rej) => { const i = new Image(), t = setTimeout(() => rej(new Error('timeout')), 9000); i.crossOrigin = 'anonymous'; i.onload = () => { clearTimeout(t); IMG_OK.set(src, i); res(i); }; i.onerror = () => { clearTimeout(t); rej(new Error('load')); }; i.src = src; });
+                const promise = new Promise((res, rej) => { const i = new Image(), t = setTimeout(() => rej(new Error('timeout')), 9000); i.crossOrigin = 'anonymous'; i.onload = () => { clearTimeout(t); IMG_OK.set(src, i); res(i); }; i.onerror = () => { clearTimeout(t); rej(new Error('load')); }; i.src = sameOriginAsset(src); });
                 IMG.set(src, promise);
             }
             return IMG.get(src);
@@ -1103,11 +1328,11 @@
                 addButton('Reset', 'Reset zoom', resetZoom, true));
             stage.append(bar); zoomBar = bar;
             stage.addEventListener('wheel', event => {
-                if (bar.contains(event.target) || (!event.deltaY && !event.deltaX)) return;
+                if (CLEAN || bar.contains(event.target) || (!event.deltaY && !event.deltaX)) return;
                 event.preventDefault();
                 zoomTo(zoom * Math.exp(-event.deltaY * 0.0016), event.clientX, event.clientY);
             }, { passive: false });
-            stage.addEventListener('dblclick', event => { if (zoom > 1) { event.preventDefault(); resetZoom(); } });
+            stage.addEventListener('dblclick', event => { if (!CLEAN && zoom > 1) { event.preventDefault(); resetZoom(); } });
             window.addEventListener('resize', resetZoom);
         }
         function zoomAtCenter(factor) {
@@ -1117,6 +1342,7 @@
 
         function renderPreview(s = S) {
             if (!B || !s) return;
+            syncDur();
             const size = sizeOf(s);
             if (zoomBase && Math.abs(zoomBase.w / zoomBase.h - size.w / size.h) > 0.01) clearZoom();
             const target = Math.min(ZOOM_RENDER_MAX, Math.round(Math.min(size.w, 1100) * zoom));
@@ -1251,11 +1477,25 @@
             const withAnim = (id, box, fn) => {
                 const f = Animation.atTrack((S.anim || {})[id], t); if (f.a <= 0) return;
                 const wp = f.wipe; if (wp && wp.p <= 0) return;
-                c.save(); c.globalAlpha = f.a; const cx = (box.x + box.w / 2) * W, cy = (box.y + box.h / 2) * H;
-                c.translate(cx + f.dx * W, cy + f.dy * H); if (f.r) c.rotate(f.r); c.scale(f.s * (f.sx == null ? 1 : f.sx), f.s * (f.sy == null ? 1 : f.sy)); c.translate(-cx, -cy);
-                if (wp && wp.p < 1) {
+                c.save(); c.globalAlpha = f.a;
+                /* Clip before the transform, like a CSS clip-path on the element. */
+                const bx = box.x * W, by = box.y * H, bw = box.w * W, bh = box.h * H;
+                if (f.clip) {
+                    if (f.clip.shape === 'circle') {
+                        c.beginPath();
+                        c.arc(bx + f.clip.cx * bw, by + f.clip.cy * bh, Math.max(0, f.clip.r * Math.hypot(bw, bh)), 0, Math.PI * 2);
+                        c.clip();
+                    } else if (f.clip.shape === 'poly' && Array.isArray(f.clip.points) && f.clip.points.length >= 3) {
+                        c.beginPath();
+                        f.clip.points.forEach((point, index) => {
+                            const px = bx + point[0] * bw, py = by + point[1] * bh;
+                            if (index) c.lineTo(px, py); else c.moveTo(px, py);
+                        });
+                        c.closePath(); c.clip();
+                    }
+                } else if (wp && wp.p < 1) {
                     /* reveal rectangle over the element's box (padded a little so glyph overhang is not cut) */
-                    const bx = box.x * W, by = box.y * H, bw = box.w * W, bh = box.h * H, pad = Math.max(W, H) * .01, k = wp.p;
+                    const pad = Math.max(W, H) * .01, k = wp.p;
                     let rx = bx - pad, ry = by - pad, rw = bw + pad * 2, rh = bh + pad * 2;
                     if (wp.d === 'r') rw = pad + bw * k;
                     else if (wp.d === 'l') { rx = bx + bw * (1 - k); rw = bw * k + pad; }
@@ -1263,6 +1503,8 @@
                     else if (wp.d === 'u') { ry = by + bh * (1 - k); rh = bh * k + pad; }
                     c.beginPath(); c.rect(rx, ry, rw, rh); c.clip();
                 }
+                const cx = (box.x + box.w / 2) * W, cy = (box.y + box.h / 2) * H;
+                c.translate(cx + f.dx * W, cy + f.dy * H); if (f.r) c.rotate(f.r); c.scale(f.s * (f.sx == null ? 1 : f.sx), f.s * (f.sy == null ? 1 : f.sy)); c.translate(-cx, -cy);
                 fn(); c.restore();
             };
             withAnim('art', { x: 0, y: 0, w: 1, h: 1 }, () => c.drawImage(art, 0, 0));
@@ -1334,11 +1576,13 @@
             addEventListener('pointermove', mv); addEventListener('pointerup', up);
         }
         function tlBuild() {
+            syncDur();
             if (!TL.open) return;
             const body = $('#tlBody'); body.innerHTML = '';
             const inner = document.createElement('div'); inner.className = 'tl-inner'; inner.id = 'tlInner'; body.appendChild(inner);
             const ruler = document.createElement('div'); ruler.className = 'tl-row tl-ruler';
-            ruler.innerHTML = `<div class="n"></div><div class="tl-track" style="cursor:pointer">${[...Array(9)].map((_, i) => `<small style="left:${i / 8 * 100}%">${i}s</small>`).join('')}</div>`; inner.appendChild(ruler);
+            const ticks = Math.min(12, Math.max(2, Math.round(DUR / 1000)));
+            ruler.innerHTML = `<div class="n"></div><div class="tl-track" style="cursor:pointer">${[...Array(ticks + 1)].map((_, i) => `<small style="left:${i / ticks * 100}%">${+(i / ticks * DUR / 1000).toFixed(2)}s</small>`).join('')}</div>`; inner.appendChild(ruler);
             const rtk = ruler.querySelector('.tl-track'), go = ev => { const r = rtk.getBoundingClientRect(); stopP(); seek((ev.clientX - r.left) / r.width * DUR); };
             rtk.onpointerdown = ev => { go(ev); const up = () => { removeEventListener('pointermove', go); removeEventListener('pointerup', up); }; addEventListener('pointermove', go); addEventListener('pointerup', up); };
             [ART, ...[...TL.els].sort((a, b) => a.y - b.y)].forEach(e => {
@@ -1374,9 +1618,9 @@
                 Animation.events(S.anim && S.anim[e.id]).forEach(a => {
                     const bar = document.createElement('div'); bar.className = 'tl-bar g-' + groupOf(a.preset); bar.dataset.animationId = a.id;
                     bar.tabIndex = 0; bar.setAttribute('role', 'button');
-                    bar.setAttribute('aria-label', `${presetLabel(a.preset)}, ${(a.start / 1000).toFixed(1)} to ${((a.start + a.duration) / 1000).toFixed(1)} seconds. Press Delete to remove this event.`);
-                    bar.title = `${presetLabel(a.preset)} · ${(a.start / 1000).toFixed(1)}–${((a.start + a.duration) / 1000).toFixed(1)}s · Delete removes`;
-                    bar.innerHTML = `<span>${esc(presetLabel(a.preset))}</span>`; posBar(a, bar); bar.onpointerdown = ev => barDown(ev, e, bar, a.id); tr.appendChild(bar);
+                    bar.setAttribute('aria-label', `${animationLabel(a)}, ${(a.start / 1000).toFixed(1)} to ${((a.start + a.duration) / 1000).toFixed(1)} seconds. Press Delete to remove this event.`);
+                    bar.title = `${animationLabel(a)} · ${(a.start / 1000).toFixed(1)}–${((a.start + a.duration) / 1000).toFixed(1)}s · Delete removes`;
+                    bar.innerHTML = `<span>${esc(animationLabel(a))}</span>`; posBar(a, bar); bar.onpointerdown = ev => barDown(ev, e, bar, a.id); tr.appendChild(bar);
                     bar.addEventListener('keydown', ev => {
                         if (ev.key === 'Delete' || ev.key === 'Backspace') {
                             ev.preventDefault(); ev.stopPropagation(); commit([{ t: 'removeAnim', id: e.id, eventId: a.id }]);
@@ -1459,6 +1703,7 @@
                 else if (c.t === 'size') { s.size = clamp(c.i, 0, sizesOf(s).length - 1); }
                 else if (c.t === 'reset') { Object.assign(s, { t: {}, layout: {}, layerStyles: {}, layerImages: {}, pal: null, motif: 'auto', motifOn: true, motifScale: 1, motifX: 0, motifY: 0, logoOn: true, logoScale: 1, anim: {}, motion: '' }); }
             }
+            if (cmds.some(c => ['anim', 'clearAnim', 'removeAnim', 'motion', 'reset'].includes(c.t))) recalcAnimDuration(s);
             return s;
         }
         let animSeq = 0;
@@ -1470,10 +1715,12 @@
             if (cmds.some(c => c.t === 'anim')) { openTimeline(true); setTimeout(() => play(0), 60); }
         }
         function afterChange(full) {
+            syncDur();
             if (full) { buildAll(); }
             renderPreview(); saveState();
             if (full) renderLayerInspector();
             if (full && focusMode && VARTAB === 'motion') buildVariations(); /* needs the elements captured by the render above */
+            if (CLEAN && CLEAN_INIT) cleanUpdate();
         }
 
         /* ---------- UI: topbar, category nav, designs ---------- */
@@ -1769,7 +2016,7 @@
             panel.appendChild(Object.assign(document.createElement('small'), {
                 className: 'hint',
                 textContent: activeAnimations.length
-                    ? `Animation: ${activeAnimations.map(event => presetLabel(event.preset)).join(', ')}`
+                    ? `Animation: ${activeAnimations.map(event => animationLabel(event)).join(', ')}`
                     : 'No animation on this layer.'
             }));
         }
@@ -2524,6 +2771,1036 @@
                 cv.toBlob(b => { if (!b) return toast('Could not export this asset.', true); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = fname(type === 'image/jpeg' ? 'jpg' : 'png'); document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); $('#exportNote').textContent = `Exported ${size.w}×${size.h}px`; }, type, .95);
             } catch (e) { toast('Export failed: ' + e.message, true); }
         }
+        /* ---------- animation import ----------
+           Layer Studio exports sampled motion frames (schema 2) because the two
+           engines define the same preset names differently. Those frames are
+           replayed as a baked track, so the motion is identical rather than a
+           reinterpretation. */
+        const animationLabel = event => event && event.label ? event.label : presetLabel(event && event.preset);
+        const animateNorm = value => String(value == null ? '' : value).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+        const animateId = value => String(value == null ? '' : value).toLowerCase().replace(/[^a-z0-9]+/g, '');
+        function animationText(element) {
+            if (!element) return '';
+            if (Array.isArray(element.lines) && element.lines.length) return animateNorm(element.lines.join(' '));
+            if (element.key) return animateNorm(textOf(S)[element.key]);
+            return '';
+        }
+        function animationTargetRole(element) {
+            if (!element) return 'other';
+            if (element.id === 'art') return 'background';
+            if (element.kind === 'logo') return 'logo';
+            if (element.kind === 'image') return 'image';
+            if (element.kind === 'text') return 'text';
+            return 'other';
+        }
+        function animationFrames(track) {
+            const frames = (Array.isArray(track.frames) ? track.frames : [])
+                .map(frame => {
+                    if (!frame || typeof frame !== 'object') return null;
+                    const t = Number(frame.t);
+                    if (!Number.isFinite(t) || t < 0) return null;
+                    const out = { t };
+                    ['a', 'dx', 'dy', 's', 'sx', 'sy'].forEach(key => {
+                        const value = Number(frame[key]);
+                        if (Number.isFinite(value)) out[key] = value;
+                    });
+                    if (frame.clip && typeof frame.clip === 'object') {
+                        if (frame.clip.shape === 'circle' && ['cx', 'cy', 'r'].every(key => Number.isFinite(Number(frame.clip[key])))) {
+                            out.clip = { shape: 'circle', cx: Number(frame.clip.cx), cy: Number(frame.clip.cy), r: Number(frame.clip.r) };
+                        } else if (frame.clip.shape === 'poly' && Array.isArray(frame.clip.points) && frame.clip.points.length >= 3) {
+                            out.clip = {
+                                shape: 'poly',
+                                points: frame.clip.points
+                                    .filter(point => Array.isArray(point) && Number.isFinite(Number(point[0])) && Number.isFinite(Number(point[1])))
+                                    .map(point => [Number(point[0]), Number(point[1])]),
+                            };
+                            if (out.clip.points.length < 3) delete out.clip;
+                        }
+                    }
+                    return out;
+                })
+                .filter(Boolean)
+                .sort((a, b) => a.t - b.t);
+            return frames;
+        }
+        function importedAnimationTracks(payload) {
+            if (!payload || typeof payload !== 'object') throw new Error('The animation file is empty.');
+            const schema = String(payload.schema || '');
+            const tracks = Array.isArray(payload.tracks) ? payload.tracks : [];
+            if (schema === 'agent-studio/animation/1' || (!tracks.length && Array.isArray(payload.animations))) {
+                throw new Error('That file uses the old preset-only format (schema 1), which cannot reproduce Layer Studio motion exactly. Re-export it from Layer Studio with Export → Animation JSON, then import the new file.');
+            }
+            if (!tracks.length) throw new Error('This file does not contain any animation tracks to import.');
+            const started = Date.now().toString(36);
+            return tracks.map((track, index) => {
+                if (!track || typeof track !== 'object') return null;
+                const segments = Array.isArray(track.segments) ? track.segments : [];
+                const events = segments.map((segment, segmentIndex) => {
+                    if (!segment || typeof segment !== 'object') return null;
+                    const frames = animationFrames(segment);
+                    if (frames.length < 2) return null;
+                    const start = Math.max(0, Math.min(60000, Math.round(Number(segment.start) || 0)));
+                    const duration = Math.max(1, Math.min(60000, Math.round(Number(segment.duration) || frames[frames.length - 1].t)));
+                    return {
+                        id: `import-${started}-${index}-${segmentIndex}`,
+                        preset: window.AssetStudioAnimation.BAKED,
+                        label: String(segment.label || presetLabel(segment.preset) || 'Imported motion'),
+                        start,
+                        duration,
+                        frames,
+                        sourcePreset: String(segment.preset || ''),
+                        loop: segment.loop === true,
+                    };
+                }).filter(Boolean);
+                if (!events.length) return null;
+                return {
+                    layerId: String(track.layerId || ''),
+                    layerName: String(track.layerName || ''),
+                    layerType: String(track.layerType || ''),
+                    role: String(track.role || ''),
+                    text: animateNorm(track.text),
+                    box: track.box && typeof track.box === 'object'
+                        ? { x: Number(track.box.x) || 0, y: Number(track.box.y) || 0, w: Number(track.box.w) || 0, h: Number(track.box.h) || 0 }
+                        : null,
+                    events,
+                };
+            }).filter(Boolean);
+        }
+        /* The two apps compose designs differently, so copy and position are the
+           only reliable signals once ids fail. Reading the target's own copy
+           separates a call to action from a footer without guessing. */
+        function animationTextRole(text) {
+            if (!text) return null;
+            if (text.length <= 42 && /\b(book|buy|shop|order|reserve|subscribe|contact|enquire|inquire|call|get|start|join|sign up|discover|explore|view|see|download|apply|visit|find out)\b/.test(text)) return 'cta';
+            if (/(©|®|all rights|\bwww\.|https?:|\S+@\S+|\+\d[\d\s()-]{6,}|street|road|avenue|lane|boulevard|postcode)/.test(text)) return 'footer';
+            if (text.length > 120) return 'body';
+            return null;
+        }
+        const ANIMATION_TEXT_ROLES = new Set(['headline', 'subhead', 'body', 'cta', 'footer', 'text']);
+        function animationRanks(tracks, elements) {
+            const rankedTracks = tracks
+                .map((track, index) => ({ track, index }))
+                .filter(entry => ANIMATION_TEXT_ROLES.has(entry.track.role))
+                .sort((a, b) => (a.track.box ? a.track.box.y : 0) - (b.track.box ? b.track.box.y : 0));
+            const rankedElements = elements.filter(element => element.kind === 'text').sort((a, b) => a.y - b.y);
+            const position = (list, index) => list.length <= 1 ? 0.5 : Math.min(1, index / (list.length - 1));
+            return {
+                track: new Map(rankedTracks.map((entry, rank) => [entry.index, position(rankedTracks, rank)])),
+                element: new Map(rankedElements.map((element, rank) => [element.id, position(rankedElements, rank)])),
+            };
+        }
+        /* Score the pair instead of guessing: an id match, matching copy, a
+           compatible role and a similar position all raise confidence. */
+        function animationMatchScore(track, element, ranks) {
+            const targetRole = animationTargetRole(element);
+            const role = track.role;
+            const compatible = {
+                background: targetRole === 'background',
+                logo: targetRole === 'logo',
+                image: targetRole === 'image',
+                headline: targetRole === 'text',
+                subhead: targetRole === 'text',
+                body: targetRole === 'text',
+                cta: targetRole === 'text' || targetRole === 'other',
+                footer: targetRole === 'text',
+                text: targetRole === 'text',
+                other: true,
+            };
+            if (compatible[role] === false) return -1;
+            let score = compatible[role] === true ? 10 : 0;
+            if (role === 'background' && element.id === 'art') score += 65;
+            if (role === 'logo' && targetRole === 'logo') score += 40;
+            const sourceId = animateId(track.layerId), targetIdent = animateId(element.id);
+            if (sourceId && targetIdent && (sourceId === targetIdent || sourceId.endsWith(targetIdent) || targetIdent.endsWith(sourceId))) score += 55;
+            const sourceName = animateNorm(track.layerName), targetName = animateNorm(element.name);
+            if (sourceName && targetName && (sourceName === targetName || sourceName.includes(targetName) || targetName.includes(sourceName))) score += 35;
+            const text = animationText(element);
+            if (track.text && text && (track.text === text || text.includes(track.text) || track.text.includes(text))) score += 70;
+            const textRole = animationTextRole(text);
+            if (textRole) score += textRole === role ? 45 : -25;
+            if (ranks && ranks.track.has(ranks.index) && ranks.element.has(element.id)) {
+                score += Math.round(22 * (1 - Math.abs(ranks.track.get(ranks.index) - ranks.element.get(element.id))));
+            }
+            const box = element.id === 'art' ? { x: 0, y: 0 } : element;
+            if (track.box && Number.isFinite(box.y)) {
+                const dy = Math.abs(track.box.y - box.y), dx = Math.abs(track.box.x - (Number(box.x) || 0));
+                if (dy < .06) score += 20;
+                else if (dy < .14) score += 10;
+                if (dx < .06) score += 8;
+            }
+            if (targetRole === 'text' && ['headline', 'subhead', 'body', 'cta', 'footer'].includes(role)) {
+                const band = { headline: [0, .45], subhead: [.18, .65], body: [.28, .85], cta: [.5, 1], footer: [.58, 1] }[role];
+                if (band && element.y >= band[0] - .1 && element.y <= band[1] + .1) score += 14;
+            }
+            return score;
+        }
+        function applyImportedAnimationTracks(payload) {
+            const tracks = importedAnimationTracks(payload);
+            if (!tracks.length) throw new Error('No usable animation frames were found in that file.');
+            const targets = [...TL.els, ART];
+            const ranks = animationRanks(tracks, targets);
+            const candidates = [];
+            tracks.forEach((track, trackIndex) => {
+                targets.forEach(element => {
+                    const score = animationMatchScore(track, element, { ...ranks, index: trackIndex });
+                    if (score >= 30) candidates.push({ trackIndex, element, score });
+                });
+            });
+            candidates.sort((a, b) => b.score - a.score);
+            const usedTracks = new Set(), usedElements = new Set(), assignment = new Map();
+            candidates.forEach(candidate => {
+                if (usedTracks.has(candidate.trackIndex) || usedElements.has(candidate.element.id)) return;
+                usedTracks.add(candidate.trackIndex);
+                usedElements.add(candidate.element.id);
+                assignment.set(candidate.trackIndex, { element: candidate.element, score: candidate.score });
+            });
+            /* A lone leftover track and a lone compatible element are unambiguous. */
+            let leftoverTracks = tracks.map((track, index) => index).filter(index => !usedTracks.has(index));
+            let leftoverElements = targets.filter(element => !usedElements.has(element.id));
+            if (leftoverTracks.length === 1 && leftoverElements.length === 1
+                && animationMatchScore(tracks[leftoverTracks[0]], leftoverElements[0], { ...ranks, index: leftoverTracks[0] }) >= 0) {
+                assignment.set(leftoverTracks[0], { element: leftoverElements[0], score: 0 });
+                usedTracks.add(leftoverTracks[0]);
+            }
+            /* Text leftovers follow reading order on both sides — the safest
+               remaining signal when the copy itself is new. */
+            leftoverTracks = tracks.map((track, index) => index)
+                .filter(index => !usedTracks.has(index) && ['headline', 'subhead', 'body', 'cta', 'footer', 'text'].includes(tracks[index].role))
+                .sort((a, b) => (tracks[a].box ? tracks[a].box.y : 0) - (tracks[b].box ? tracks[b].box.y : 0));
+            leftoverElements = targets
+                .filter(element => !usedElements.has(element.id) && element.kind === 'text')
+                .sort((a, b) => a.y - b.y);
+            if (leftoverTracks.length && leftoverTracks.length === leftoverElements.length) {
+                leftoverTracks.forEach((trackIndex, rank) => {
+                    const element = leftoverElements[rank];
+                    assignment.set(trackIndex, { element, score: 0 });
+                    usedTracks.add(trackIndex);
+                });
+            }
+            if (!assignment.size) {
+                throw new Error(`None of the ${tracks.length} animated layer${tracks.length === 1 ? '' : 's'} in this file match an element in the current design. Switch to the matching design and import again.`);
+            }
+            hist.push(clone(S));
+            /* The file is the animation: drop whatever was on the timeline so
+               the result is exactly what was exported. */
+            S.anim = {};
+            let latest = Math.max(BASE_DUR, Number(payload.duration) || 0);
+            assignment.forEach(({ element }, trackIndex) => {
+                const events = tracks[trackIndex].events;
+                S.anim[element.id] = Animation.events(events);
+                events.forEach(event => { latest = Math.max(latest, event.start + event.duration); });
+            });
+            S.motion = '';
+            S.animDur = latest > BASE_DUR ? latest : 0;
+            syncDur();
+            afterChange(true);
+            openTimeline(true);
+            seek(0);
+            const skipped = tracks.filter((track, index) => !assignment.has(index)).map(track => track.layerName || track.layerId || 'unnamed layer');
+            toast(
+                `Imported the animation onto ${assignment.size} of ${tracks.length} layer${tracks.length === 1 ? '' : 's'}${skipped.length ? ` · no match for: ${skipped.join(', ')}` : ''}.`,
+                skipped.length > 0,
+            );
+            return {
+                applied: assignment.size,
+                unmatched: skipped,
+                assignment: [...assignment.entries()].map(([index, entry]) => ({
+                    layerId: tracks[index].layerId,
+                    layerName: tracks[index].layerName,
+                    targetId: entry.element.id,
+                    targetName: entry.element.name,
+                    score: entry.score,
+                })),
+            };
+        }
+        function importTimelineAnimation(file) {
+            if (!file) return;
+            return file.text().then((text) => {
+                let payload;
+                try { payload = JSON.parse(text); }
+                catch (error) { throw new Error('That file is not valid JSON.'); }
+                return applyImportedAnimationTracks(payload);
+            });
+        }
+        /* ================= Clean canvas mode ================= */
+        function cleanEls() {
+            return {
+                root: $('#cleanCanvas'), drawings: $('#cleanDesignGrid'), animList: $('#cleanAnimList'),
+                animMeta: $('#cleanAnimMeta'), formats: $('#cleanFormatList'), formatToggle: $('#cleanFormatsToggle'),
+                formatNow: $('#cleanFormatNow'), replay: $('#cleanReplay'), replayTip: $('#cleanReplayTip'),
+                drawer: $('#cleanDrawer'), ask: $('#cleanAskBtn'), agent: $('#cleanAgent'), chat: $('#cleanChat'),
+                prompt: $('#cleanPrompt'), send: $('#cleanSend'), provider: $('#cleanProvider'), brandLine: $('#cleanBrandLine'),
+                brandSelect: $('#cleanBrandSelect'),
+            };
+        }
+        function cleanDesigns() {
+            const designs = [];
+            Object.entries(BRAND_TEMPLATES).forEach(([cat, templates]) => {
+                (templates || []).forEach((template) => {
+                    const index = categoryDesigns(cat).findIndex((item) => item.id === template.id);
+                    if (index >= 0) designs.push({ cat, template, index });
+                });
+            });
+            return designs;
+        }
+        function cleanRole(layer) {
+            const name = String((layer && layer.name) || '');
+            if ((layer && layer.role) === 'logo' || /logo|wordmark|mark/i.test(name)) return 'logo';
+            if (layer && layer.type === 'text') return 'text';
+            // Brand-composition backgrounds are real image layers, not the
+            // synthetic ART element. Keep them as image tracks so the matching
+            // pass applies the motion to the layer itself.
+            if (layer && (layer.type === 'image' || layer.type === 'video')) return 'image';
+            if ((layer && (layer.type === 'fill' || layer.type === 'gradient')) || (layer && layer.id === 'background')) return 'background';
+            return 'other';
+        }
+        function cleanBaseBox(layerOrElement) {
+            if (!layerOrElement) return { x: 0, y: 0, w: 100, h: 100 };
+            if (layerOrElement.id === 'art') return { x: 0, y: 0, w: 100, h: 100 };
+            const raw = layerOrElement;
+            if (['x', 'y', 'w', 'h'].every((key) => Number.isFinite(Number(raw[key])) && Math.abs(Number(raw[key])) <= 1)) {
+                return { x: Number(raw.x) * 100, y: Number(raw.y) * 100, w: Number(raw.w) * 100, h: Number(raw.h) * 100 };
+            }
+            return { x: Number(layerOrElement.x) || 0, y: Number(layerOrElement.y) || 0, w: Number(layerOrElement.w) || 100, h: Number(layerOrElement.h) || 100 };
+        }
+        function cleanFramesForEvent(base, event) {
+            const start = Math.max(0, Math.round(Number(event && event.start) || 0));
+            const box = { x: Number(base.x) || 0, y: Number(base.y) || 0, w: Math.max(.1, Number(base.w) || 100), h: Math.max(.1, Number(base.h) || 100) };
+            const keys = Array.isArray(event && event.keyframes) ? event.keyframes.filter((key) => key && Number.isFinite(Number(key.time))) : [];
+            if (keys.length >= 2) {
+                const sorted = [...keys].sort((a, b) => Number(a.time) - Number(b.time));
+                const first = Math.max(0, Number(sorted[0].time) || 0);
+                const frames = sorted.map((key) => {
+                    if (key.t != null) {
+                        return {
+                            t: Math.max(0, Math.round(Number(key.t) || 0)),
+                            a: key.a == null ? 1 : Number(key.a),
+                            dx: Number(key.dx) || 0, dy: Number(key.dy) || 0,
+                            s: Number(key.s) || 1, sx: Number(key.sx) || 1, sy: Number(key.sy) || 1,
+                            ...(key.clip ? { clip: key.clip } : {}),
+                        };
+                    }
+                    const keyX = key.x == null ? box.x : Number(key.x);
+                    const keyY = key.y == null ? box.y : Number(key.y);
+                    const keyW = key.w == null ? box.w : Number(key.w);
+                    const keyH = key.h == null ? box.h : Number(key.h);
+                    // Layer Studio keyframes describe the left/top edge and
+                    // width/height. The agent renderer scales around the box
+                    // centre, so convert to a centre delta or the edges drift
+                    // whenever the layer also resizes.
+                    return {
+                        t: Math.max(0, Math.round((Number(key.time) || 0) - first)),
+                        a: key.opacity == null ? 1 : clamp(Number(key.opacity), 0, 1),
+                        dx: ((keyX + keyW / 2) - (box.x + box.w / 2)) / 100,
+                        dy: ((keyY + keyH / 2) - (box.y + box.h / 2)) / 100,
+                        s: 1,
+                        sx: keyW / box.w,
+                        sy: keyH / box.h,
+                    };
+                });
+                return { preset: String(event.preset || 'keyframes'), label: String(event.label || 'Original motion'), start: first, duration: Math.max(1, frames[frames.length - 1].t), loop: event.loop === true, frames };
+            }
+            if (event && event.preset && typeof Animation !== 'undefined') {
+                const duration = Math.max(100, Math.round(Number(event.duration) || 900));
+                const trackEvent = Animation.events([{ id: 'clean', preset: event.preset, start, duration }])[0];
+                if (!trackEvent) return null;
+                const frames = [];
+                const steps = Math.max(8, Math.min(60, Math.round(duration / 25)));
+                for (let index = 0; index <= steps; index += 1) {
+                    const t = Math.round((duration * index) / steps);
+                    const frame = Animation.atTrack([trackEvent], start + t);
+                    frames.push({
+                        t, a: frame.a == null ? 1 : frame.a, dx: frame.dx || 0, dy: frame.dy || 0,
+                        s: frame.s == null ? 1 : frame.s, sx: frame.sx == null ? 1 : frame.sx, sy: frame.sy == null ? 1 : frame.sy,
+                        ...(frame.clip ? { clip: frame.clip } : {}),
+                    });
+                }
+                return { preset: String(event.preset), label: String(event.label || presetLabel(event.preset) || 'Original motion'), start, duration, loop: event.loop === true, frames };
+            }
+            return null;
+        }
+        function cleanCompositionAnimation(template) {
+            const composition = template && template.composition;
+            if (!composition || !Array.isArray(composition.layers)) return null;
+            const tracks = [];
+            composition.layers.forEach((layer) => {
+                if (!layer || !layer.id) return;
+                const events = [];
+                if (Array.isArray(layer.keyframes) && layer.keyframes.length) events.push({ preset: 'keyframes', keyframes: layer.keyframes });
+                if (layer.animation && typeof layer.animation === 'object') events.push(layer.animation);
+                if (Array.isArray(layer.animations)) layer.animations.forEach((event) => { if (event && typeof event === 'object') events.push(event); });
+                if (!events.length) return;
+                const base = cleanBaseBox(layer);
+                const segments = [];
+                const seen = new Set();
+                events.forEach((event) => {
+                    const segment = cleanFramesForEvent(base, event);
+                    if (!segment) return;
+                    const key = `${segment.preset}:${segment.start}:${segment.duration}`;
+                    if (seen.has(key)) return;
+                    seen.add(key);
+                    segments.push(segment);
+                });
+                if (!segments.length) return;
+                tracks.push({
+                    layerId: String(layer.id), layerName: String(layer.name || layer.id), layerType: String(layer.type || ''),
+                    role: cleanRole(layer), text: String(layer.text || ''),
+                    box: { x: base.x / 100, y: base.y / 100, w: base.w / 100, h: base.h / 100 }, segments,
+                });
+            });
+            if (!tracks.length) return null;
+            return {
+                schema: 'agent-studio/animation/2', kind: 'studio-animation',
+                id: `canvas-original-${template.id}`, name: `${template.n} · original`,
+                duration: Math.max(BASE_DUR, Number(composition.duration) || 0), fps: 25, tracks,
+            };
+        }
+        function cleanLibraryPayload(entry) {
+            if (!entry || !Array.isArray(entry.tracks)) return null;
+            const elements = [ART, ...TL.els];
+            const norm = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            const tracks = [];
+            entry.tracks.forEach((track) => {
+                if (!track || !track.event) return;
+                const sourceId = norm(track.layerId), sourceName = norm(track.layerName);
+                const element = elements.find((item) => norm(item.id) === sourceId)
+                    || elements.find((item) => norm(item.name) === sourceName)
+                    || elements.find((item) => sourceName && (norm(item.name).includes(sourceName) || sourceName.includes(norm(item.name))));
+                if (!element) return;
+                const base = cleanBaseBox(element);
+                const event = { ...track.event };
+                if (Array.isArray(event.keyframes)) event.keyframes = event.keyframes.map((key) => ({ ...key }));
+                const segment = cleanFramesForEvent(base, event);
+                if (!segment) return;
+                tracks.push({
+                    layerId: String(track.layerId || element.id), layerName: String(track.layerName || element.name),
+                    layerType: String(element.kind || ''), role: cleanRole({ type: element.kind, name: element.name, id: element.id }),
+                    text: animationText(element), box: { x: base.x / 100, y: base.y / 100, w: base.w / 100, h: base.h / 100 }, segments: [segment],
+                });
+            });
+            if (!tracks.length) return null;
+            return {
+                schema: 'agent-studio/animation/2', kind: 'studio-animation',
+                id: `canvas-library-${entry.id}`, name: entry.name || 'Saved animation',
+                duration: Math.max(BASE_DUR, Number(entry.eventDuration) || 0, ...tracks.flatMap((track) => track.segments.map((segment) => segment.start + segment.duration))),
+                fps: 25, tracks,
+            };
+        }
+        function cleanChoicePayload(choice) {
+            if (!choice) return null;
+            if (choice.kind === 'original' || choice.kind === 'saved') return choice.payload || null;
+            if (choice.kind === 'library') return cleanLibraryPayload(choice.entry);
+            return null;
+        }
+        function cleanTextKind(layer) {
+            const text = String(layer && layer.text || '').replace(/\s+/g, ' ').trim();
+            if (!text) return 'text';
+            const size = Number(layer && layer.font && layer.font.sizePct) || 0;
+            const letters = text.replace(/[^A-Za-z]/g, '');
+            const upperRatio = letters ? text.replace(/[^A-Z]/g, '').length / letters.length : 0;
+            if (/(?:[£$€]\s?\d[\d.,]*|\b\d+[.,]\d{2}\b)/.test(text)) return 'price';
+            if (/(?:@|https?:|www\.|\.co\.uk|\.com|\+\d[\d\s()-]{6,}|\b(?:street|st|road|rd|avenue|ave|lane|ln)\b)/i.test(text) || text.length > 90) return 'contact';
+            if (/\b(book|order|reserve|shop|buy|call|visit|subscribe|download|get|join|explore)\b/i.test(text)) return 'cta';
+            if (size >= 12 || (text.length <= 32 && size >= 9 && upperRatio > .7)) return 'headline';
+            if (text.length > 60) return 'body';
+            if (size > 0 && size < 4.8 && text.length < 44) return 'badges';
+            if (text.length <= 48) return 'menu';
+            return 'text';
+        }
+        function cleanGroupKind(layer) {
+            const meta = layer && layer.meta || {};
+            if (!layer) return 'other';
+            if (layer.role === 'background' || layer.id === 'html-bg') return 'background';
+            if (meta.rasterized) return 'artwork';
+            if (meta.isShape || meta.isBackground) return 'shape';
+            if (layer.type === 'text') return cleanTextKind(layer);
+            if (['image', 'video'].includes(layer.type)) return 'photos';
+            return 'other';
+        }
+        function cleanBuildGroups() {
+            const template = tplOf(S);
+            const composition = template && template.composition;
+            if (!composition || !Array.isArray(composition.layers)) return [];
+            const labels = {
+                background: 'Background', artwork: 'Artwork', photos: 'Photography', shape: 'Shapes',
+                headline: 'Headlines', menu: 'Menu items', price: 'Prices', body: 'Body copy',
+                badges: 'Badges & labels', contact: 'Contact & footer', cta: 'Calls to action', text: 'Text', other: 'Other',
+            };
+            const buckets = new Map();
+            composition.layers.forEach((layer) => {
+                if (!layer || layer.visible === false) return;
+                const kind = cleanGroupKind(layer);
+                if (!buckets.has(kind)) buckets.set(kind, []);
+                buckets.get(kind).push(layer);
+            });
+            return [...buckets.entries()].map(([kind, layers]) => ({
+                id: `${template.id}::${kind}`,
+                kind,
+                label: labels[kind] || kind,
+                layerIds: layers.map((layer) => String(layer.id)),
+                layers,
+                assets: layers.map((layer) => layer.url).filter(Boolean),
+            }));
+        }
+        function cleanSelectedGroups() {
+            return CLEAN_GROUPS.filter((group) => CLEAN_GROUP_SELECTION.has(group.id));
+        }
+        function cleanUpdateAgentContext() {
+            const context = $('#cleanAgentContext');
+            if (!context) return;
+            const selected = cleanSelectedGroups();
+            const menuCount = (CLEAN_LIBRARY_COMPOSITION && Array.isArray(CLEAN_LIBRARY_COMPOSITION.composition.menuItems))
+                ? CLEAN_LIBRARY_COMPOSITION.composition.menuItems.length : 0;
+            context.textContent = `Context · ${selected.length}/${CLEAN_GROUPS.length} groups${menuCount ? ` · ${menuCount} menu items` : ''}`;
+        }
+        function cleanRenderGroups() {
+            const list = $('#cleanGroupList'), meta = $('#cleanGroupMeta');
+            if (!list) return;
+            list.innerHTML = '';
+            if (!CLEAN_GROUPS.length) {
+                list.innerHTML = '<div class="clean-empty">No grouped layers for this design.</div>';
+                if (meta) meta.textContent = 'no groups';
+                cleanUpdateAgentContext();
+                return;
+            }
+            CLEAN_GROUPS.forEach((group) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'clean-group' + (CLEAN_GROUP_SELECTION.has(group.id) ? ' is-on' : '');
+                const name = document.createElement('b');
+                name.textContent = group.label;
+                const count = document.createElement('small');
+                count.textContent = group.layerIds.length + (group.assets.length ? `+${group.assets.length}` : '');
+                button.append(name, count);
+                button.title = `${group.layerIds.length} layer${group.layerIds.length === 1 ? '' : 's'}${group.assets.length ? ` · ${group.assets.length} asset${group.assets.length === 1 ? '' : 's'}` : ''}`;
+                button.onclick = () => {
+                    if (CLEAN_GROUP_SELECTION.has(group.id)) CLEAN_GROUP_SELECTION.delete(group.id);
+                    else CLEAN_GROUP_SELECTION.add(group.id);
+                    cleanRenderGroups();
+                    cleanUpdateAgentContext();
+                };
+                list.append(button);
+            });
+            if (meta) meta.textContent = `${CLEAN_GROUP_SELECTION.size}/${CLEAN_GROUPS.length} selected`;
+            cleanUpdateAgentContext();
+        }
+        function cleanUpdateGroups() {
+            if (!CLEAN || !S) return;
+            const templateId = tplOf(S) && tplOf(S).id || '';
+            const groups = cleanBuildGroups();
+            CLEAN_GROUPS = groups;
+            if (CLEAN_GROUPS_TEMPLATE !== templateId) {
+                CLEAN_GROUPS_TEMPLATE = templateId;
+                CLEAN_GROUP_SELECTION = new Set(groups.map((group) => group.id));
+            } else {
+                const valid = new Set(groups.map((group) => group.id));
+                CLEAN_GROUP_SELECTION = new Set([...CLEAN_GROUP_SELECTION].filter((id) => valid.has(id)));
+            }
+            cleanRenderGroups();
+        }
+        function cleanAnimationCompatible(tracks) {
+            const list = Array.isArray(tracks) ? tracks : [];
+            if (!list.length) return false;
+            const elements = [ART, ...TL.els];
+            const normalize = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            return list.every((track) => {
+                if (!track || typeof track !== 'object') return false;
+                const id = normalize(track.layerId), name = normalize(track.layerName);
+                return elements.some((element) => {
+                    const elementId = normalize(element.id), elementName = normalize(element.name);
+                    return (id && elementId === id)
+                        || (name && elementName === name)
+                        || (name && (elementName.includes(name) || name.includes(elementName)));
+                });
+            });
+        }
+        function cleanMatchLibraryComposition() {
+            if (!CLEAN_LIBRARY_SUMMARY || !S) return null;
+            const template = tplOf(S);
+            if (!template) return null;
+            const source = String(template.composition && template.composition.sourceFacts && template.composition.sourceFacts.htmlSource || '');
+            const name = norm(template.n || '');
+            const stage = (String(template.n || '').match(/(?:—|-)\s*(\d{1,2})(?:\D|$)/) || [])[1] || '';
+            let best = null;
+            (CLEAN_LIBRARY_SUMMARY.compositions || []).forEach((composition) => {
+                let score = 0;
+                if (source && composition.source === source) score += 200;
+                const candidate = norm(composition.name || '');
+                if (candidate && name && (candidate === name || name.includes(candidate) || candidate.includes(name))) score += 100;
+                if (source && candidate && (norm(source).includes(candidate) || candidate.includes(norm(source)))) score += 40;
+                if (stage && new RegExp(`(?:—|-)\\s*0?${Number(stage)}(?:\\D|$)`).test(composition.name || '')) score += 80;
+                if (composition.collection && norm(template.n).includes(norm(composition.collection))) score += 20;
+                if (!best || score > best.score) best = { composition, score };
+            });
+            return best && best.score >= 40 ? best.composition : null;
+        }
+        async function cleanRefreshLibraryComposition() {
+            if (!CLEAN_LIBRARY_SUMMARY) { CLEAN_LIBRARY_COMPOSITION = null; cleanUpdateAgentContext(); return; }
+            const match = cleanMatchLibraryComposition();
+            if (!match) { CLEAN_LIBRARY_COMPOSITION = null; cleanUpdateAgentContext(); return; }
+            if (CLEAN_LIBRARY_COMPOSITION && CLEAN_LIBRARY_COMPOSITION.composition.id === match.id) {
+                cleanUpdateAgentContext();
+                return;
+            }
+            try {
+                CLEAN_LIBRARY_COMPOSITION = await jget(`${API}/agent-library/compositions/${encodeURIComponent(match.id)}`);
+            } catch {
+                CLEAN_LIBRARY_COMPOSITION = null;
+            }
+            cleanUpdateAgentContext();
+        }
+        async function cleanLoadLibrary() {
+            try {
+                CLEAN_LIBRARY_SUMMARY = await jget(`${API}/agent-library?summary=1`);
+            } catch {
+                CLEAN_LIBRARY_SUMMARY = null;
+            }
+            await cleanRefreshLibraryComposition();
+            if (CLEAN_INIT) cleanUpdateDesigns(false);
+        }
+        function cleanAgentLibraryContext() {
+            const matched = CLEAN_LIBRARY_COMPOSITION && CLEAN_LIBRARY_COMPOSITION.composition;
+            const business = matched && CLEAN_LIBRARY_SUMMARY
+                ? (CLEAN_LIBRARY_SUMMARY.businesses || []).find((entry) => entry.id === matched.businessId)
+                : null;
+            const selected = cleanSelectedGroups();
+            return {
+                business: business ? { id: business.id, name: business.name, tagline: business.tagline, url: business.url, palette: business.palette || [] } : null,
+                composition: matched ? {
+                    id: matched.id, name: matched.name, collection: matched.collection,
+                    width: matched.width, height: matched.height, duration: matched.duration,
+                    format: matched.format, menuItems: matched.menuItems || [],
+                    scenes: (matched.scenes || []).map((scene) => ({ id: scene.id, label: scene.label, start: scene.start, end: scene.end, layerIds: scene.layerIds, groupIds: scene.groupIds })),
+                    groupAnimations: matched.animations && matched.animations.groups ? matched.animations.groups : [],
+                    availableGroups: matched.groups.map((group) => ({ id: group.id, label: group.label, layerIds: group.layerIds, assetIds: group.assetIds })),
+                } : null,
+                groups: selected.map((group) => ({
+                    id: group.id, kind: group.kind, label: group.label,
+                    layerIds: group.layerIds,
+                    layers: group.layers.map((layer) => ({
+                        id: layer.id, name: layer.name, type: layer.type,
+                        text: String(layer.text || '').slice(0, 180), x: layer.x, y: layer.y, w: layer.w, h: layer.h,
+                        url: layer.url || '',
+                    })),
+                    assets: group.assets,
+                })),
+                animations: CLEAN_CHOICES
+                    .filter((choice) => choice.kind !== 'none')
+                    .map((choice) => ({ id: choice.id, name: choice.name, kind: choice.kind })),
+            };
+        }
+
+        function cleanUpdateReplay() {
+            const els = cleanEls();
+            if (!els.replay) return;
+            const active = CLEAN_SELECTED && CLEAN_SELECTED.kind !== 'none'
+                ? CLEAN_SELECTED.name
+                : (S && S.anim && Object.keys(S.anim).length ? 'Current animation' : 'No animation selected');
+            els.replayTip.textContent = active;
+            els.replay.dataset.tip = active;
+            els.replay.title = active;
+            els.replay.classList.add('tip');
+            clearTimeout(cleanUpdateReplay.timer);
+            cleanUpdateReplay.timer = setTimeout(() => els.replay.classList.remove('tip'), 1600);
+        }
+        function cleanRenderChoices() {
+            const els = cleanEls();
+            if (!els.animList) return;
+            els.animList.innerHTML = '';
+            const count = CLEAN_CHOICES.filter((choice) => choice.kind !== 'none').length;
+            els.animMeta.textContent = count ? `${count} compatible` : 'no compatible motions';
+            CLEAN_CHOICES.forEach((choice) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'clean-anim' + (CLEAN_SELECTED && CLEAN_SELECTED.id === choice.id ? ' is-on' : '');
+                const dot = document.createElement('i');
+                const copy = document.createElement('span');
+                const name = document.createElement('b');
+                const note = document.createElement('small');
+                name.textContent = choice.name;
+                note.textContent = choice.note;
+                copy.append(name, note);
+                button.append(dot, copy);
+                if (choice.kind === 'saved') {
+                    const remove = document.createElement('span');
+                    remove.className = 'clean-del'; remove.title = 'Delete this saved animation'; remove.textContent = '×';
+                    remove.setAttribute('role', 'button'); remove.tabIndex = 0;
+                    const removeChoice = async (event) => {
+                        event.stopPropagation();
+                        if (!confirm(`Delete “${choice.name}”?`)) return;
+                        try {
+                            await jget(`${API}/agent-animations/${encodeURIComponent(choice.id)}`, { method: 'DELETE' });
+                            CLEAN_CHOICES_TEMPLATE = '';
+                            if (CLEAN_SELECTED && CLEAN_SELECTED.id === choice.id) { CLEAN_SELECTED = null; cleanUpdateReplay(); }
+                            await cleanUpdateAnimations(true);
+                            toast('Animation deleted.');
+                        } catch (error) { toast(`Could not delete that animation: ${error.message}`, true); }
+                    };
+                    remove.onclick = removeChoice;
+                    remove.onkeydown = (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); removeChoice(event); } };
+                    button.append(remove);
+                }
+                button.onclick = () => cleanApplyChoice(choice);
+                els.animList.append(button);
+            });
+        }
+        async function cleanUpdateAnimations(force = false) {
+            if (!CLEAN || !S || !B) return;
+            const template = tplOf(S);
+            if (!template) return;
+            if (!force && CLEAN_CHOICES_TEMPLATE === template.id && CLEAN_CHOICES.length) {
+                cleanRenderChoices();
+                return;
+            }
+            const token = ++CLEAN_ANIM_TOKEN;
+            CLEAN_CHOICES_TEMPLATE = template.id;
+            CLEAN_CHOICES = [];
+            const els = cleanEls();
+            els.animMeta.textContent = 'loading…';
+            els.animList.innerHTML = '<div class="clean-empty">Loading animations…</div>';
+            const original = cleanCompositionAnimation(template);
+            let saved = [];
+            try {
+                const response = await jget(`${API}/agent-animations?templateId=${encodeURIComponent(template.id)}`);
+                saved = Array.isArray(response.animations) ? response.animations : [];
+            } catch { saved = []; }
+            if (!CLEAN_LIBRARY) {
+                try {
+                    const response = await jget(`${API}/animation-library`);
+                    CLEAN_LIBRARY = Array.isArray(response.animations) ? response.animations : [];
+                } catch { CLEAN_LIBRARY = []; }
+            }
+            if (token !== CLEAN_ANIM_TOKEN) return;
+            const choices = [];
+            if (original) choices.push({ id: 'original', kind: 'original', name: 'Original animation', note: 'Embedded in this template', payload: original });
+            saved
+                .filter((entry) => entry && entry.animation && cleanAnimationCompatible(entry.animation.tracks))
+                .forEach((entry) => choices.push({ id: entry.id, kind: 'saved', name: entry.name, note: `Saved · ${entry.provider || 'agent'}`, payload: entry.animation, entry }));
+            (CLEAN_LIBRARY || [])
+                .filter((entry) => entry && cleanAnimationCompatible(entry.tracks))
+                .forEach((entry) => choices.push({ id: `library-${entry.id}`, kind: 'library', name: entry.name, note: 'Compatible shared library', entry }));
+            choices.push({ id: 'none', kind: 'none', name: 'No animation', note: 'Stop and clear motion' });
+            CLEAN_CHOICES = choices;
+            const compatibleCount = choices.filter((choice) => choice.kind !== 'none').length;
+            els.animMeta.textContent = compatibleCount ? `${compatibleCount} compatible` : 'no compatible motions';
+            cleanRenderChoices();
+        }
+        async function cleanApplyChoice(choice) {
+            if (!choice) return;
+            if (choice.kind === 'none') {
+                hist.push(clone(S)); S.anim = {}; S.motion = ''; recalcAnimDuration(S); afterChange(true);
+                CLEAN_SELECTED = { id: 'none', kind: 'none', name: 'No animation' };
+                cleanRenderChoices(); cleanUpdateReplay(); return;
+            }
+            try {
+                const payload = cleanChoicePayload(choice);
+                if (!payload) throw new Error('That animation has no frames for this design.');
+                applyImportedAnimationTracks(payload);
+                CLEAN_SELECTED = { id: choice.id, kind: choice.kind, name: choice.name };
+                cleanRenderChoices(); cleanUpdateReplay();
+                play(0);
+            } catch (error) {
+                toast(`Could not apply that animation: ${error.message}`, true);
+            }
+        }
+        function cleanUpdateFormats() {
+            const els = cleanEls();
+            if (!els.formats || !S) return;
+            const sizes = sizesOf(S), current = sizeOf(S);
+            els.formatNow.textContent = `${current.n} · ${current.w}×${current.h}`;
+            els.formats.innerHTML = '';
+            sizes.forEach((size, index) => {
+                const button = document.createElement('button');
+                button.type = 'button'; button.className = 'clean-format' + (index === S.size ? ' is-on' : '');
+                const name = document.createElement('b'), spec = document.createElement('small');
+                name.textContent = size.n; spec.textContent = `${size.w}×${size.h}`;
+                button.append(name, spec);
+                button.onclick = () => {
+                    CLEAN_FORMATS_OPEN = false;
+                    els.formats.hidden = true;
+                    els.formatToggle.setAttribute('aria-expanded', 'false');
+                    commit([{ t: 'size', i: index }]);
+                };
+                els.formats.append(button);
+            });
+            els.formats.hidden = !CLEAN_FORMATS_OPEN;
+            els.formatToggle.setAttribute('aria-expanded', String(CLEAN_FORMATS_OPEN));
+        }
+        function cleanUpdateDesigns(force = false) {
+            const els = cleanEls();
+            if (!els.drawings || !S) return;
+            const designs = cleanDesigns();
+            const libraryCounts = CLEAN_LIBRARY_SUMMARY && CLEAN_LIBRARY_SUMMARY.counts;
+            els.brandLine.textContent = B
+                ? `${B.name} · ${designs.length} template${designs.length === 1 ? '' : 's'}${libraryCounts ? ` · ${libraryCounts.compositions} in library` : ''}`
+                : 'Saved and published templates';
+            if (els.brandSelect && P) {
+                const brandKey = (P.brands || []).map((brand) => brand.id).join('|');
+                if (els.brandSelect.dataset.key !== brandKey) {
+                    els.brandSelect.dataset.key = brandKey;
+                    els.brandSelect.innerHTML = '';
+                    (P.brands || []).forEach((brand) => els.brandSelect.append(new Option(brand.name || brand.id, brand.id)));
+                    els.brandSelect.onchange = () => {
+                        const next = (P.brands || []).find((brand) => brand.id === els.brandSelect.value);
+                        if (!next || (B && next.id === B.id)) return;
+                        CLEAN_SELECTED = null;
+                        selectBrand(next.id).catch((error) => toast(`Could not load that brand: ${error.message}`, true));
+                    };
+                }
+                els.brandSelect.value = B ? B.id : '';
+            }
+            const key = designs.map((entry) => `${entry.cat}:${entry.template.id}`).join('|');
+            if (force || key !== CLEAN_DESIGN_KEY) {
+                CLEAN_DESIGN_KEY = key;
+                els.drawings.innerHTML = '';
+                if (!designs.length) els.drawings.innerHTML = '<div class="clean-empty">No saved or published templates were found for this brand.</div>';
+                designs.forEach(({ cat, template, index }) => {
+                    const card = document.createElement('button');
+                    card.type = 'button'; card.className = 'clean-design'; card.dataset.design = `${cat}:${index}`;
+                    const canvas = document.createElement('canvas');
+                    const name = document.createElement('strong');
+                    name.textContent = template.n || template.id;
+                    const meta = document.createElement('small');
+                    meta.textContent = template.published ? 'Published template' : 'Brand template';
+                    try { renderBrandComposition(canvas, template, { ...S, cat, tpl: index, t: {}, anim: {} }, 220); }
+                    catch { canvas.width = 120; canvas.height = 120; }
+                    card.append(canvas, name, meta);
+                    card.onclick = () => {
+                        if (tplOf(S) && tplOf(S).id === template.id) return;
+                        saveState(); stopP();
+                        CLEAN_SELECTED = null;
+                        CLEAN_FORMATS_OPEN = false;
+                        commit([{ t: 'cat', id: cat }, { t: 'tpl', i: index }], { focus: true });
+                        setTimeout(() => cleanEls().animList && cleanEls().animList.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 80);
+                    };
+                    els.drawings.append(card);
+                });
+            }
+            const currentId = tplOf(S) && tplOf(S).id;
+            els.drawings.querySelectorAll('.clean-design').forEach((card) => {
+                const [cat, index] = card.dataset.design.split(':');
+                const design = categoryDesigns(cat)[Number(index)];
+                card.classList.toggle('is-on', Boolean(design && currentId === design.id));
+            });
+        }
+        function cleanUpdate(force = false) {
+            if (!CLEAN || !CLEAN_INIT || !S || !B) return;
+            cleanUpdateDesigns(force);
+            cleanUpdateFormats();
+            cleanUpdateGroups();
+            cleanUpdateReplay();
+            cleanUpdateAnimations(false);
+            cleanRefreshLibraryComposition().catch(() => {});
+        }
+        async function cleanApplyComposition(composition) {
+            if (!composition || !Array.isArray(composition.layers)) throw new Error('The agent returned no usable composition.');
+            const template = tplOf(S);
+            let current = null;
+            try { current = resolveBrandComposition(template, S).composition; } catch { }
+            const byId = new Map(((current && current.layers) || []).map((layer) => [String(layer.id), layer]));
+            composition.layers.forEach((layer) => {
+                const old = byId.get(String(layer.id));
+                if (!old) return;
+                ['url', 'src', 'videoUrl', 'poster'].forEach((key) => {
+                    if (old[key] && (!layer[key] || /^\[.*omitted\]$/i.test(String(layer[key])))) layer[key] = old[key];
+                });
+                // Text overrides live in the design state, not the template.
+                // Mirror the agent's new copy so the canvas actually changes.
+                if (layer.type === 'text' && layer.text != null && !layer.bindings?.text) {
+                    S.t[`layer:${layer.id}`] = String(layer.text);
+                }
+            });
+            template.composition = composition;
+            template.brandComposition = true;
+            template.n = composition.name || template.n;
+            S.size = clamp(S.size, 0, Math.max(0, sizesOf(S).length - 1));
+            const urls = [...new Set(composition.layers.flatMap((layer) => [layer.url, layer.src, layer.videoUrl, layer.poster]).filter((url) => typeof url === 'string' && url && !/^\[.*omitted\]$/i.test(url)))];
+            await Promise.all(urls.map(async (url) => {
+                try { const image = await loadImg(url); if (image) BRAND_TEMPLATE_IMAGES.set(url, image); } catch { }
+            }));
+            stopP();
+            hist.push(clone(S));
+            TL.art = null; TL.artKey = '';
+            CLEAN_CHOICES_TEMPLATE = '';
+            CLEAN_LIBRARY_COMPOSITION = null;
+            afterChange(true);
+            cleanUpdateDesigns(true);
+            toast('Composition updated.');
+        }
+        async function cleanSaveGeneratedAnimation(animation, meta) {
+            const template = tplOf(S);
+            const name = animation.name || meta.name || 'Agent animation';
+            try {
+                const saved = await jget(`${API}/agent-animations`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name, templateId: template.id, templateName: template.n,
+                        designName: B ? `${B.name} · ${template.n}` : template.n,
+                        provider: meta.provider || '', model: meta.model || '', prompt: meta.prompt || '', animation,
+                    }),
+                });
+                CLEAN_CHOICES_TEMPLATE = '';
+                CLEAN_SELECTED = { id: saved.animation.id, kind: 'saved', name: saved.animation.name };
+                await cleanUpdateAnimations(true);
+                cleanUpdateReplay();
+                cleanAddMessage('agent', `Saved “${saved.animation.name}”. It is now available in this design's animations.`, { saved: true });
+                toast('Animation saved and available in this design.');
+                return saved.animation;
+            } catch (error) {
+                cleanAddMessage('agent', `The animation is applied but could not be saved: ${error.message}`, { error: true });
+                toast('Animation applied, but saving it failed.', true);
+                return null;
+            }
+        }
+        function cleanAddMessage(role, text, options = {}) {
+            const els = cleanEls();
+            if (!els.chat) return;
+            const bubble = document.createElement('div');
+            bubble.className = `clean-msg ${role}${options.error ? ' error' : ''}`;
+            const paragraph = document.createElement('div');
+            paragraph.textContent = text;
+            bubble.append(paragraph);
+            if (Array.isArray(options.list) && options.list.length) {
+                const list = document.createElement('ul');
+                options.list.forEach((item) => { const li = document.createElement('li'); li.textContent = item; list.append(li); });
+                bubble.append(list);
+            }
+            if (options.saved) {
+                const saved = document.createElement('span'); saved.className = 'saved'; saved.textContent = '✓ Saved to this design';
+                bubble.append(saved);
+            }
+            els.chat.append(bubble);
+            els.chat.scrollTop = els.chat.scrollHeight;
+            return bubble;
+        }
+        async function cleanSendPrompt(prompt) {
+            const text = String(prompt || '').trim();
+            if (!text || !S || !B) return;
+            const els = cleanEls();
+            els.send.disabled = true;
+            els.prompt.value = '';
+            cleanAddMessage('user', text);
+            const thinking = cleanAddMessage('agent', 'Thinking about the composition and animation…');
+            try {
+                const template = tplOf(S);
+                const resolved = resolveBrandComposition(template, S);
+                const selected = cleanChoicePayload(CLEAN_SELECTED);
+                const animation = selected || cleanCompositionAnimation(template);
+                const response = await jget(`${API}/agent-canvas`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        prompt: text, composition: resolved.composition, animation,
+                        animationState: S.anim, designName: B.name + ' · ' + template.n,
+                        templateId: template.id, provider: els.provider.value || undefined,
+                        library: cleanAgentLibraryContext(),
+                    }),
+                });
+                thinking.remove();
+                cleanAddMessage('agent', response.reply || 'Done.', { list: response.observations });
+                if (response.composition) {
+                    await cleanApplyComposition(response.composition);
+                    cleanAddMessage('agent', 'Applied the composition changes.');
+                }
+                if (response.animation) {
+                    try {
+                        applyImportedAnimationTracks(response.animation);
+                        CLEAN_SELECTED = { id: `generated-${Date.now()}`, kind: 'saved', name: response.animation.name || 'Agent animation' };
+                        cleanUpdateReplay();
+                        play(0);
+                        await cleanSaveGeneratedAnimation(response.animation, {
+                            provider: response.provider, model: response.model, prompt: text,
+                            name: response.animation.name || 'Agent animation',
+                        });
+                    } catch (error) {
+                        cleanAddMessage('agent', `The animation could not be applied: ${error.message}`, { error: true });
+                    }
+                }
+            } catch (error) {
+                thinking.remove();
+                cleanAddMessage('agent', error.message || 'The agent could not complete that request.', { error: true });
+            } finally {
+                els.send.disabled = false;
+            }
+        }
+        async function cleanLoadProviders() {
+            const select = cleanEls().provider;
+            if (!select) return;
+            try {
+                let catalog = null;
+                try { catalog = await jget(`${API}/agent-canvas/providers`); }
+                catch { catalog = await jget(`${API}/llm/animation-director`); }
+                select.innerHTML = '';
+                const auto = new Option('Auto provider', '');
+                select.append(auto);
+                (catalog.providers || []).forEach((provider) => {
+                    const label = `${provider.label || provider.id}${provider.available ? '' : ' · unavailable'}`;
+                    const option = new Option(label, provider.id);
+                    option.disabled = !provider.available;
+                    select.append(option);
+                });
+                const preferred = (catalog.providers || []).find((provider) => provider.id === catalog.defaultProvider && provider.available);
+                select.value = preferred ? preferred.id : '';
+            } catch {
+                select.innerHTML = '<option value="">Auto provider</option>';
+            }
+        }
+        function cleanInit() {
+            if (!CLEAN || CLEAN_INIT) return;
+            CLEAN_INIT = true;
+            const els = cleanEls();
+            if (!els.root) return;
+            els.root.hidden = false;
+            const setDrawer = (open) => {
+                els.drawer.hidden = !open;
+                $('#cleanDesignsBtn').setAttribute('aria-expanded', String(open));
+            };
+            const setAgent = (open) => {
+                els.agent.hidden = !open;
+                els.ask.setAttribute('aria-expanded', String(open));
+                if (open) setTimeout(() => els.prompt.focus(), 40);
+            };
+            $('#cleanDesignsBtn').onclick = () => setDrawer(els.drawer.hidden);
+            $('#cleanDrawerClose').onclick = () => setDrawer(false);
+            els.ask.onclick = () => setAgent(els.agent.hidden);
+            $('#cleanAgentClose').onclick = () => setAgent(false);
+            els.replay.onclick = () => {
+                if (!hasAnim()) { toast('Select an animation first.', true); return; }
+                play(0);
+            };
+            els.formatToggle.onclick = () => {
+                CLEAN_FORMATS_OPEN = !CLEAN_FORMATS_OPEN;
+                cleanUpdateFormats();
+                if (CLEAN_FORMATS_OPEN) setTimeout(() => els.formats.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 30);
+            };
+            $('#cleanForm').onsubmit = (event) => {
+                event.preventDefault();
+                cleanSendPrompt(els.prompt.value);
+            };
+            document.querySelectorAll('[data-clean-prompt]').forEach((button) => {
+                button.onclick = () => { els.prompt.value = button.dataset.cleanPrompt; cleanSendPrompt(els.prompt.value); };
+            });
+            cleanLoadProviders();
+            cleanLoadLibrary().catch(() => {});
+            cleanUpdate(true);
+            // The canvas should replay the selected motion at the start.
+            if (hasAnim()) seek(0);
+        }
+
+        /* Diagnostic seam for the animation round-trip test. */
+        window.__agentCanvas = {
+            composition: () => tplOf(S) && tplOf(S).composition,
+            compositionAnimation: () => cleanCompositionAnimation(tplOf(S)),
+            choices: () => CLEAN_CHOICES.map((choice) => ({ id: choice.id, kind: choice.kind, name: choice.name })),
+            selected: () => CLEAN_SELECTED,
+            apply: (payload) => applyImportedAnimationTracks(payload),
+        };
+        window.__assetStudioAnimation = {
+            tracks: () => clone((S && S.anim) || {}),
+            sample: (id, t) => Animation.atTrack((S.anim || {})[id], t),
+            elements: () => [ART, ...TL.els].map(element => ({ id: element.id, name: element.name, kind: element.kind, x: element.x, y: element.y })),
+            duration: () => DUR,
+            import: payload => applyImportedAnimationTracks(payload),
+        };
         const stateKey = () => `assetStudioAgent.v1:${B && B.id}:${S && S.cat}:${S && S.tpl}`;
         function saveState() { if (!B || !S) return; LS.set(stateKey(), S); LS.set('assetStudioAgent.last.v1', { packId: P && P.id, brandId: B.id, cat: S.cat, tpl: S.tpl, size: S.size, focus: focusMode }); }
         function saveAsset() { saveState(); const lib = LS.get('assetStudioAgent.saved.v1', []); lib.unshift({ id: `saved-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`, at: Date.now(), packId: P?.id, packName: P?.name, brand: B.id, brandName: B.name, name: `${B.name} · ${tplOf().n}`, state: clone(S) }); LS.set('assetStudioAgent.saved.v1', lib.slice(0, 40)); if (TAB === 'saved') buildControls(); toast('Saved this asset.'); }
@@ -2531,6 +3808,7 @@
         /* ---------- selection flow ---------- */
         async function selectBrand(id, restore) {
             const b = (P.brands || []).find(x => x.id === id); if (!b) return; const tok = ++selTok;
+            if (CLEAN) { CLEAN_SELECTED = null; CLEAN_CHOICES_TEMPLATE = ''; CLEAN_FORMATS_OPEN = false; }
             document.querySelectorAll('#brandSwitch button').forEach(x => x.disabled = true);
             B = b; BRAND_TEMPLATES = {}; BRAND_TEMPLATE_IMAGES = new Map(); IMAGE_LIB = { status: 'idle', brandId: b.id, items: [], error: '' }; deriveTheme(b); BF = brandFonts(b); hist = []; focusKey = null;
             try {
@@ -2548,6 +3826,7 @@
             buildBrandPills(); buildAll(); renderPreview(); greet();
             LS.set('assetStudioAgent.lastBrands.v1', { ...LS.get('assetStudioAgent.lastBrands.v1', {}), [P.id]: B.id });
             try { const u = new URL(location.href); u.searchParams.set('pack', P.id); u.searchParams.set('brand', B.id); history.replaceState(null, '', u); } catch { }
+            if (CLEAN && CLEAN_INIT) cleanUpdate(true);
         }
         const packFull = async id => { if (packCache.has(id)) return packCache.get(id); const d = await jget(`${API}/brand-packs/${encodeURIComponent(id)}`), p = d && d.pack; if (!p || !(p.brands || []).length) throw new Error('The brand group contains no brands.'); packCache.set(id, p); return p; };
         async function selectPack(id, preferredBrand) {
@@ -2587,6 +3866,18 @@
         $('#tlReplay').onclick = replay;
         $('#previewReplay').onclick = replay;
         $('#tlClose').onclick = () => openTimeline(false);
+        $('#tlImport').onclick = () => $('#agentAnimationInput').click();
+        $('#agentAnimationInput').addEventListener('change', async event => {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+            try {
+                await importTimelineAnimation(file);
+            } catch (error) {
+                toast('Could not import that animation: ' + error.message, true);
+            } finally {
+                event.target.value = '';
+            }
+        });
 
         /* resizable timeline: drag the grip (or use the arrow keys) */
         const TLH_KEY = 'assetStudioAgent.timelineH.v1';
@@ -2779,6 +4070,7 @@
                 const lm = LS.get('assetStudioAgent.lastBrands.v1', {}), want = [rb, last.packId === packId ? last.brandId : null, lm[packId]].find(x => x && P.brands.some(b => b.id === x)) || P.brands[0].id;
                 await selectBrand(want, last.brandId === want ? last : null);
                 $('#boot').hidden = true; $('#studio').hidden = false; renderPreview();
+                if (CLEAN) cleanInit();
             } catch (e) {
                 $('#bootMsg').innerHTML = `<strong>Asset Studio could not load your brands.</strong><br>${esc(/fetch|network|failed|load/i.test(String(e.message)) ? 'Start the local studio server with `node server.js`, then reload.' : e.message)}`;
             }

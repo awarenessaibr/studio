@@ -391,6 +391,27 @@ test('saveComposition preserves formats, variables and brandKit from a stale cli
     assert.strictEqual(saved.composition.brandKit.name, 'Acme');
 });
 
+test('createCompositionProject writes an editable import project', async () => {
+    const composition = {
+        ...baseComposition(),
+        id: 'incoming',
+        name: 'Saved from Agent Studio',
+    };
+    const result = await server.createCompositionProject({ name: 'Agent save test', composition });
+    created.add(result.project.id);
+    assert.ok(/^agent-save-test-/.test(result.project.id));
+    assert.strictEqual(result.composition.id, result.project.id);
+    assert.strictEqual(result.composition.meta.source, 'agent-studio-save');
+    const saved = JSON.parse(await fsp.readFile(
+        path.join(IMPORTS, result.project.id, 'composition.json'),
+        'utf8',
+    ));
+    assert.strictEqual(saved.id, result.project.id);
+    assert.strictEqual(saved.name, 'Agent save test');
+    assert.strictEqual(saved.layers.length, 1);
+    assert.strictEqual(saved.meta.storage, `data/imports/${result.project.id}`);
+});
+
 test('saveComposition preserves text metadata and bindings from a stale client', async () => {
     const seeded = {
         ...baseComposition(),
@@ -698,4 +719,112 @@ test('a shared kit validates a composition that has no embedded kit', () => {
     const report = core.validateAgainstBrandKit(composition, { kit });
     assert.ok(!report.groups.some((group) => group.id === 'kit'));
     assert.strictEqual(report.groups.find((group) => group.id === 'fonts').ok, true);
+});
+
+test('agent canvas animations are saved per template and can be removed', async () => {
+    const templateId = `canvas-test-${Date.now().toString(36)}`;
+    const saved = await server.saveAgentCanvasAnimation({
+        name: 'Canvas test motion',
+        templateId,
+        templateName: 'Canvas test design',
+        provider: 'test',
+        prompt: 'test animation',
+        animation: {
+            schema: 'agent-studio/animation/2',
+            kind: 'studio-animation',
+            name: 'Canvas test motion',
+            duration: 1200,
+            fps: 25,
+            tracks: [{
+                layerId: 'headline',
+                layerName: 'Headline',
+                role: 'text',
+                box: { x: 0.1, y: 0.1, w: 0.6, h: 0.2 },
+                segments: [{
+                    preset: 'fadeIn',
+                    start: 0,
+                    duration: 1200,
+                    frames: [{ t: 0, a: 0 }, { t: 1200, a: 1 }],
+                }],
+            }],
+        },
+    });
+    try {
+        assert.strictEqual(saved.animation.templateId, templateId);
+        assert.strictEqual(saved.animation.animation.schema, 'agent-studio/animation/2');
+        const listed = (await server.readAgentCanvasAnimations()).filter((item) => item.templateId === templateId);
+        assert.strictEqual(listed.length, 1);
+        assert.strictEqual(listed[0].name, 'Canvas test motion');
+    } finally {
+        await server.deleteAgentCanvasAnimation(saved.animation.id).catch(() => {});
+    }
+});
+
+test('agent canvas LLM requires a prompt', async () => {
+    await assert.rejects(
+        () => server.runAgentCanvasLlm({ prompt: '' }),
+        (error) => /Ask the agent/.test(error.message),
+    );
+});
+
+test('agent canvas parses a DeepSeek composition and animation response', async () => {
+    const keys = ['STUDIO_DEEPSEEK_API_KEY', 'STUDIO_DEEPSEEK_MODEL', 'STUDIO_DEEPSEEK_BASE_URL'];
+    const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+    const originalFetch = global.fetch;
+    process.env.STUDIO_DEEPSEEK_API_KEY = 'test-key';
+    process.env.STUDIO_DEEPSEEK_MODEL = 'deepseek-chat';
+    delete process.env.STUDIO_DEEPSEEK_BASE_URL;
+    const response = {
+        reply: 'Made the headline smaller and added a fade.',
+        observations: ['The headline was too close to the top edge.'],
+        composition: {
+            version: 3,
+            name: 'Test canvas',
+            width: 1080,
+            height: 1920,
+            duration: 2000,
+            layers: [{ id: 'headline', type: 'text', x: 10, y: 10, w: 80, h: 20, text: 'Hello' }],
+        },
+        animation: {
+            schema: 'agent-studio/animation/2',
+            name: 'Canvas fade',
+            duration: 2000,
+            fps: 25,
+            tracks: [{
+                layerId: 'headline',
+                layerName: 'Headline',
+                segments: [{ start: 0, duration: 2000, frames: [{ t: 0, a: 0 }, { t: 2000, a: 1 }] }],
+            }],
+        },
+    };
+    let sentBody = null;
+    global.fetch = async (_url, options) => {
+        sentBody = JSON.parse(options.body);
+        return {
+            ok: true,
+            text: async () => JSON.stringify({ choices: [{ message: { content: JSON.stringify(response) } }] }),
+        };
+    };
+    try {
+        const result = await server.runAgentCanvasLlm({
+            prompt: 'Review and animate this',
+            provider: 'deepseek',
+            composition: { width: 1080, height: 1920, duration: 2000, layers: [{ id: 'headline', type: 'text', text: 'Hello' }] },
+            library: { groups: [{ id: 'headline', label: 'Headline' }] },
+        });
+        assert.strictEqual(result.provider, 'deepseek');
+        assert.strictEqual(result.reply, response.reply);
+        assert.deepStrictEqual(result.observations, response.observations);
+        assert.strictEqual(result.composition.layers[0].id, 'headline');
+        assert.strictEqual(result.animation.tracks.length, 1);
+        assert.strictEqual(result.animation.schema, 'agent-studio/animation/2');
+        assert.match(sentBody.messages[1].content, /"library"/);
+        assert.match(sentBody.messages[1].content, /Headline/);
+    } finally {
+        global.fetch = originalFetch;
+        keys.forEach((key) => {
+            if (previous[key] === undefined) delete process.env[key];
+            else process.env[key] = previous[key];
+        });
+    }
 });

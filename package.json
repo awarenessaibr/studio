@@ -13,12 +13,15 @@
     "test:smoke": "node tests/smoke.js",
     "test:asset-studio": "node tests/asset-studio.js",
     "test:agent-studio": "node tests/agent-studio.js",
+    "test:animation-roundtrip": "node tests/animation-roundtrip.js",
+    "test:text-overflow": "node tests/text-overflow.js",
     "test:menus": "node tests/menus.js",
     "test:visual": "node tests/visual.js",
     "test:visual:report": "node tests/visual.js --report",
-    "test:all": "npm test && npm run test:smoke && npm run test:asset-studio && npm run test:visual",
+    "test:all": "npm test && npm run test:smoke && npm run test:asset-studio && npm run test:animation-roundtrip && npm run test:text-overflow && npm run test:visual",
     "crawl": ".venv/bin/python scripts/crawler-combined.py",
     "publish:templates": "node scripts/publish-brand-templates.js",
-    "test:crawler": "node --test tests/crawler.test.js"
+    "test:crawler": "node --test tests/crawler.test.js",
+    "build:agent-library": "node tools/build-agent-library.js"
   }
 }

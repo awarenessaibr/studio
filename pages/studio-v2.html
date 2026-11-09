@@ -178,6 +178,49 @@
             background: rgb(30 29 36 / 92%); color: #fff; font-size: 11px; white-space: nowrap; pointer-events: none;
         }
         @media (prefers-reduced-motion: reduce) { .seg-caret { transition: none; } }
+
+        /* Hidden-line repair banner: offered after load, never blocks the canvas */
+        .layer-overflow-banner {
+            display: flex;
+            flex: 0 0 auto;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin: 0 12px 8px;
+            padding: 9px 12px;
+            border: 1px solid color-mix(in srgb, var(--ls-accent) 55%, transparent);
+            border-radius: 8px;
+            background: color-mix(in srgb, var(--ls-accent) 10%, var(--ls-surface));
+            color: var(--ls-text);
+        }
+        .layer-overflow-banner[hidden] { display: none; }
+        .layer-overflow-copy { display: grid; gap: 2px; min-width: 0; }
+        .layer-overflow-copy strong { font-size: 12px; }
+        .layer-overflow-copy span { color: var(--ls-muted); font-size: 11px; line-height: 1.45; }
+        .layer-overflow-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 6px; }
+        .layer-overflow-actions button {
+            min-height: 30px; padding: 5px 10px;
+            border: 1px solid var(--ls-line-hi); border-radius: 6px;
+            background: var(--ls-raised); color: var(--ls-text);
+            font-size: 11px; font-weight: 600;
+        }
+        .layer-overflow-actions button:hover { border-color: var(--ls-accent); }
+        .layer-overflow-actions button:focus-visible { outline: 2px solid var(--ls-accent); outline-offset: 1px; }
+        .layer-overflow-actions .layer-overflow-fix {
+            border-color: var(--ls-accent);
+            background: var(--ls-accent);
+            color: #1a1110;
+        }
+        .layer-overflow-actions .layer-overflow-fix:hover {
+            background: color-mix(in srgb, var(--ls-accent) 82%, #fff);
+        }
+        .layer-overflow-actions .layer-overflow-dismiss {
+            min-width: 30px; padding: 5px 8px; font-size: 13px; font-weight: 400; color: var(--ls-muted);
+        }
+        @media (max-width: 900px) {
+            .layer-overflow-banner { flex-direction: column; align-items: stretch; }
+            .layer-overflow-actions { justify-content: flex-end; }
+        }
     </style>
 </head>
 
@@ -467,6 +510,21 @@
                 <output id="layerPlayheadEnd">3000 ms</output>
             </div>
             <div id="layerExportProgress" class="layer-export-progress" hidden></div>
+
+            <!-- Hidden-line repair: offered when a loaded composition clips text lines -->
+            <section id="layerTextOverflowBanner" class="layer-overflow-banner" aria-labelledby="layerTextOverflowTitle" hidden>
+                <div class="layer-overflow-copy">
+                    <strong id="layerTextOverflowTitle" aria-live="polite">Some text layers have hidden lines</strong>
+                    <span id="layerTextOverflowDetail">Clipped lines are dropped when this composition is exported. Fit them automatically, or review each layer.</span>
+                </div>
+                <div class="layer-overflow-actions">
+                    <button type="button" id="layerTextOverflowUndo" hidden>Undo</button>
+                    <button type="button" id="layerTextOverflowFix" class="layer-overflow-fix">Fix all</button>
+                    <button type="button" id="layerTextOverflowReview">Review</button>
+                    <button type="button" id="layerTextOverflowDismiss" class="layer-overflow-dismiss"
+                        aria-label="Dismiss the hidden-line warning">×</button>
+                </div>
+            </section>
 
             <div class="layer-stage">
                 <div class="layer-zoom-controls" role="group" aria-label="Canvas zoom">

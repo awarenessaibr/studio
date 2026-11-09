@@ -82,10 +82,91 @@
     const info = new Map(PRESETS.map(([id, label, duration, group]) => [id, { label, duration, group }]));
 
     const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+    /* Baked tracks carry sampled motion frames exported by LayerStudio. They are
+       replayed directly instead of being mapped onto a preset, because preset
+       names mean different things in the two engines. A frame is
+       { t, a, dx, dy, s, sx, sy, clip } with t in ms from the event start. */
+    const BAKED = 'baked';
+    const isBaked = event => !!event && event.preset === BAKED && Array.isArray(event.frames) && event.frames.length > 0;
+    const valid = event => !!event
+        && Number.isFinite(event.start)
+        && Number.isFinite(event.duration)
+        && event.duration > 0
+        && (info.has(event.preset) || isBaked(event));
+
+    function bakedFrame(frame) {
+        const source = frame || {};
+        return {
+            a: Number.isFinite(source.a) ? source.a : 1,
+            dx: Number.isFinite(source.dx) ? source.dx : 0,
+            dy: Number.isFinite(source.dy) ? source.dy : 0,
+            s: Number.isFinite(source.s) ? source.s : 1,
+            sx: Number.isFinite(source.sx) ? source.sx : 1,
+            sy: Number.isFinite(source.sy) ? source.sy : 1,
+            r: Number.isFinite(source.r) ? source.r : 0,
+            clip: source.clip && typeof source.clip === 'object' ? source.clip : null,
+        };
+    }
+    const lerp = (from, to, p) => from + (to - from) * p;
+    function lerpClip(from, to, p) {
+        if (!from) return to || null;
+        if (!to) return from;
+        if (from.shape === 'circle' && to.shape === 'circle') {
+            return { shape: 'circle', cx: lerp(from.cx, to.cx, p), cy: lerp(from.cy, to.cy, p), r: lerp(from.r, to.r, p) };
+        }
+        if (from.shape === 'poly' && to.shape === 'poly'
+            && Array.isArray(from.points) && Array.isArray(to.points)
+            && from.points.length === to.points.length) {
+            return {
+                shape: 'poly',
+                points: from.points.map((point, index) => [
+                    lerp(point[0], to.points[index][0], p),
+                    lerp(point[1], to.points[index][1], p),
+                ]),
+            };
+        }
+        return p < .5 ? from : to;
+    }
+    function bakedAt(event, time) {
+        const frames = event.frames;
+        const relative = clamp(time - event.start, 0, event.duration);
+        const first = frames[0], last = frames[frames.length - 1];
+        if (relative <= (Number.isFinite(first.t) ? first.t : 0)) return bakedFrame(first);
+        if (relative >= (Number.isFinite(last.t) ? last.t : event.duration)) return bakedFrame(last);
+        let lo = 0, hi = frames.length - 1;
+        while (hi - lo > 1) {
+            const mid = (lo + hi) >> 1;
+            if ((Number.isFinite(frames[mid].t) ? frames[mid].t : 0) <= relative) lo = mid;
+            else hi = mid;
+        }
+        const a = frames[lo], b = frames[hi];
+        const aTime = Number.isFinite(a.t) ? a.t : 0;
+        const bTime = Number.isFinite(b.t) ? b.t : aTime;
+        const span = bTime - aTime;
+        const p = span > 0 ? clamp((relative - aTime) / span, 0, 1) : 0;
+        const from = bakedFrame(a), to = bakedFrame(b);
+        return {
+            a: lerp(from.a, to.a, p),
+            dx: lerp(from.dx, to.dx, p),
+            dy: lerp(from.dy, to.dy, p),
+            s: lerp(from.s, to.s, p),
+            sx: lerp(from.sx, to.sx, p),
+            sy: lerp(from.sy, to.sy, p),
+            r: lerp(from.r, to.r, p),
+            clip: lerpClip(from.clip, to.clip, p),
+        };
+    }
+    function bakedDuration(event) {
+        const frames = event.frames || [];
+        const last = frames[frames.length - 1];
+        return Math.max(1, Number.isFinite(last && last.t) ? last.t : event.duration);
+    }
+
     function events(value) {
         const list = Array.isArray(value) ? value : value && typeof value === 'object' ? [value] : [];
         return list
-            .filter(event => event && info.has(event.preset) && Number.isFinite(event.start) && Number.isFinite(event.duration) && event.duration > 0)
+            .filter(event => event && valid(event))
             .map((event, index) => ({
                 ...event,
                 id: typeof event.id === 'string' && event.id ? event.id : `legacy-${index}-${event.preset}-${event.start}`,
@@ -160,6 +241,7 @@
     const identity = () => frame();
 
     function at(animation, time) {
+        if (isBaked(animation)) return bakedAt(animation, time);
         const meta = animation && info.get(animation.preset);
         if (!meta) return identity();
         // Entrances hold their starting pose until they begin so staggered elements stay hidden;
@@ -255,7 +337,7 @@
             const end = event.start + event.duration;
             if (time < event.start) {
                 if (previous) return previous;
-                return info.get(event.preset).group === 'in' ? at(event, time) : identity();
+                return (info.has(event.preset) ? info.get(event.preset).group : 'in') === 'in' ? at(event, time) : identity();
             }
             if (time < end || time === event.start) return at(event, time);
             previous = at(event, end);
@@ -267,11 +349,14 @@
         DURATION,
         GROUPS,
         PRESETS,
+        BAKED,
+        isBaked,
+        bakedDuration,
         events,
         canPlace,
         withoutEvent,
         findSlot,
-        durationFor: preset => (info.get(preset) || {}).duration || 900,
+        durationFor: preset => (preset === BAKED ? DURATION : (info.get(preset) || {}).duration || 900),
         groupOf: preset => (info.get(preset) || {}).group || 'in',
         at,
         atTrack,

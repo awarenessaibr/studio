@@ -32,6 +32,7 @@ const AssetStore = require('./src/server/asset-store.js');
 const AssetService = require('./src/server/asset-service.js');
 const SocialStore = require('./src/server/social-store.js');
 const { generateSegmentTexture } = require('./src/server/segment-texture.js');
+const AgentLibrary = require('./src/server/agent-library.js');
 
 // Load local API keys (SERPAPI_KEY, GOOGLE_PLACES_API_KEY, …) from .env.
 // The crawler children inherit process.env, so this is the only place keys
@@ -52,6 +53,8 @@ const BRAND_PACKS_DIR = path.join(DATA_DIR, 'brand-packs');
 const SETTINGS_DIR = path.join(DATA_DIR, 'settings');
 const GROUP_SETTINGS_FILE = path.join(SETTINGS_DIR, 'groups.json');
 const STUDIO_ANIMATION_LIBRARY_FILE = path.join(SETTINGS_DIR, 'studio-animation-library.json');
+const AGENT_CANVAS_ANIMATIONS_FILE = path.join(SETTINGS_DIR, 'agent-canvas-animations.json');
+const AGENT_LIBRARY_FILE = path.join(SETTINGS_DIR, 'agent-library.json');
 const STUDIO_PROJECT_ARCHIVE_FILE = path.join(SETTINGS_DIR, 'studio-project-archive.json');
 // The management UI is a developer surface. With a key configured, every
 // admin call must present it; without one, only loopback callers are allowed.
@@ -347,6 +350,19 @@ function safeRelativePath(name) {
 
 function urlPath(...parts) {
     return `/${parts.map((part) => String(part).split('/').map(encodeURIComponent).join('/')).join('/')}`;
+}
+
+/** Older saved templates may carry an absolute http://localhost:PORT path.
+ * Asset copying works from the pathname, not from the host that happened to be
+ * running when the snapshot was written. */
+function localUrlPath(value) {
+    const text = String(value || '');
+    if (!/^https?:\/\//i.test(text)) return text;
+    try {
+        return new URL(text).pathname;
+    } catch {
+        return text;
+    }
 }
 
 /**
@@ -1368,6 +1384,65 @@ async function listImports() {
     return projects;
 }
 
+// ─── Agent library (HTML → compositions → business/menu/groups/animations) ──
+let agentLibraryCache = { mtimeMs: 0, size: 0, value: null };
+
+async function readAgentLibraryFile() {
+    const stat = await fsp.stat(AGENT_LIBRARY_FILE);
+    if (agentLibraryCache.value && agentLibraryCache.mtimeMs === stat.mtimeMs && agentLibraryCache.size === stat.size) {
+        return agentLibraryCache.value;
+    }
+    const value = JSON.parse(await fsp.readFile(AGENT_LIBRARY_FILE, 'utf8'));
+    if (!value || value.schema !== AgentLibrary.SCHEMA) throw new Error('The agent library file has an unsupported schema.');
+    agentLibraryCache = { mtimeMs: stat.mtimeMs, size: stat.size, value };
+    return value;
+}
+
+async function rebuildAgentLibrary() {
+    const value = await AgentLibrary.buildAgentLibrary({
+        projectsDir: PROJECTS_DIR,
+        brandPacksDir: BRAND_PACKS_DIR,
+    });
+    await fsp.mkdir(SETTINGS_DIR, { recursive: true });
+    await writeFileAtomic(AGENT_LIBRARY_FILE, JSON.stringify(value));
+    const stat = await fsp.stat(AGENT_LIBRARY_FILE);
+    agentLibraryCache = { mtimeMs: stat.mtimeMs, size: stat.size, value };
+    return value;
+}
+
+async function getAgentLibrary({ force = false, summary = false } = {}) {
+    let value = null;
+    if (force) {
+        value = await rebuildAgentLibrary();
+    } else {
+        try {
+            value = await readAgentLibraryFile();
+        } catch (error) {
+            if (error.code !== 'ENOENT') console.warn('[studio] rebuilding agent library:', error.message);
+            value = await rebuildAgentLibrary();
+        }
+    }
+    return summary ? AgentLibrary.summaryOf(value) : value;
+}
+
+let agentLibraryWatchTimer = null;
+function watchAgentLibrary() {
+    try {
+        fs.mkdirSync(PROJECTS_DIR, { recursive: true });
+        fs.watch(PROJECTS_DIR, { recursive: true }, (_event, filename) => {
+            if (filename && !/\.composition\.json$/i.test(String(filename))) return;
+            clearTimeout(agentLibraryWatchTimer);
+            // The HTML importer writes a batch of compositions; debounce until
+            // the batch settles before rebuilding the cross-project index.
+            agentLibraryWatchTimer = setTimeout(() => {
+                rebuildAgentLibrary().catch((error) => console.warn('[studio] agent library rebuild failed:', error.message));
+            }, 1200);
+        });
+    } catch (error) {
+        console.warn('[studio] agent library watcher unavailable:', error.message);
+    }
+}
+
 async function listStudioProjects() {
     const archivedProjects = await readStudioProjectArchive();
     const projects = [];
@@ -1747,6 +1822,72 @@ async function createRepositoryCopy(payload) {
     };
 }
 
+/**
+ * Persists a composition that did not come from a repo/import/template source
+ * (for example a brand-built scene) as a normal editable import project. The
+ * client can then keep saving it with PUT /api/imports/:id/composition.json.
+ */
+async function createCompositionProject(payload = {}) {
+    const incoming = payload && payload.composition && typeof payload.composition === 'object'
+        ? payload.composition
+        : payload;
+    if (!incoming || typeof incoming !== 'object' || !Array.isArray(incoming.layers)) {
+        throw httpError(400, 'The request must include a composition with a layers array.');
+    }
+    if (incoming.layers.length > MAX_LAYERS) {
+        throw httpError(413, `A composition cannot contain more than ${MAX_LAYERS} layers.`);
+    }
+    const encoded = JSON.stringify(incoming);
+    if (encoded.length > MAX_COMPOSITION_BYTES) throw httpError(413, 'The composition is too large to save.');
+    const width = Math.max(1, Math.round(Number(incoming.width) || 1080));
+    const height = Math.max(1, Math.round(Number(incoming.height) || 1080));
+    const duration = Math.max(1, Math.round(Number(incoming.duration) || DEFAULT_DURATION));
+    const name = sanitizeLabel(payload?.name || incoming.name, 'Saved composition');
+    const base = slugify(name) || 'saved-composition';
+    const stamp = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14);
+    const id = `${base.slice(0, 48)}-${stamp}-${crypto.randomBytes(2).toString('hex')}`;
+    const projectDir = path.join(IMPORTS_DIR, id);
+    const createdAt = new Date().toISOString();
+    const composition = {
+        ...incoming,
+        id,
+        name,
+        width,
+        height,
+        duration,
+        meta: {
+            ...(incoming.meta && typeof incoming.meta === 'object' ? incoming.meta : {}),
+            source: 'agent-studio-save',
+            storage: `data/imports/${id}`,
+            createdAt,
+            updatedAt: createdAt,
+        },
+    };
+    const reference = composition.layers.find((layer) => layer && layer.id === composition.referenceLayerId);
+    await fsp.mkdir(projectDir, { recursive: true });
+    try {
+        const packId = String(composition.meta?.packId || '');
+        if (packId) await localiseBrandAssets(packId, id, projectDir, composition).catch(() => {});
+        await writeFileAtomic(path.join(projectDir, 'composition.json'), JSON.stringify(composition, null, 2));
+    } catch (error) {
+        await fsp.rm(projectDir, { recursive: true, force: true }).catch(() => {});
+        throw error;
+    }
+    return {
+        project: {
+            id,
+            name,
+            createdAt,
+            updatedAt: createdAt,
+            width,
+            height,
+            layerCount: composition.layers.filter((layer) => layer?.rig !== true).length,
+            referenceUrl: reference?.url || composition.meta.referenceUrl || null,
+        },
+        composition,
+    };
+}
+
 const ANIMATIONS_FILE = 'animations.json';
 
 function normalizeAnimationEntry(entry, index) {
@@ -1887,6 +2028,79 @@ async function deleteStudioAnimation(id) {
         animations,
     }, null, 2));
     return { ok: true, animations };
+}
+
+// ─── Agent Canvas generated animations ────────────────────────────────
+// These are full `agent-studio/animation/2` documents (baked frames) keyed by
+// the design/template they belong to, so the clean canvas can offer every
+// generated animation for that design again later.
+function normalizeAgentCanvasAnimation(record, index = 0) {
+    const source = record && typeof record === 'object' ? record : {};
+    const animation = source.animation && typeof source.animation === 'object' ? source.animation : source;
+    if (!animation || !Array.isArray(animation.tracks) || !animation.tracks.length) {
+        throw httpError(400, 'A generated animation must include at least one track.');
+    }
+    if (JSON.stringify(animation).length > 4 * 1024 * 1024) {
+        throw httpError(413, 'That animation is too large to save.');
+    }
+    const id = typeof source.id === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(source.id)
+        ? source.id
+        : `agent-anim-${Date.now().toString(36)}-${crypto.randomBytes(2).toString('hex')}`;
+    return {
+        id,
+        name: sanitizeLabel(source.name || animation.name, `Animation ${index + 1}`),
+        templateId: String(source.templateId || '').slice(0, 160),
+        templateName: sanitizeLabel(source.templateName, 'Design'),
+        designName: String(source.designName || '').slice(0, 200),
+        provider: String(source.provider || '').slice(0, 40),
+        model: String(source.model || '').slice(0, 120),
+        prompt: String(source.prompt || '').slice(0, 1200),
+        createdAt: typeof source.createdAt === 'string' ? source.createdAt : new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        animation: {
+            ...animation,
+            schema: 'agent-studio/animation/2',
+            kind: 'studio-animation',
+            id: typeof animation.id === 'string' ? animation.id : `agent-studio-animation-${id}`,
+            name: sanitizeLabel(animation.name, source.name || 'Generated animation'),
+            tracks: animation.tracks.slice(0, 500),
+        },
+    };
+}
+
+async function readAgentCanvasAnimations() {
+    try {
+        const data = JSON.parse(await fsp.readFile(AGENT_CANVAS_ANIMATIONS_FILE, 'utf8'));
+        return Array.isArray(data.animations) ? data.animations.slice(0, 240).map(normalizeAgentCanvasAnimation) : [];
+    } catch (error) {
+        if (error.code === 'ENOENT') return [];
+        throw httpError(500, `Could not read generated animations: ${error.message}`);
+    }
+}
+
+async function saveAgentCanvasAnimation(payload = {}) {
+    const animations = await readAgentCanvasAnimations();
+    const incoming = normalizeAgentCanvasAnimation(payload, animations.length);
+    const next = [incoming, ...animations.filter((item) => item.id !== incoming.id)].slice(0, 240);
+    await fsp.mkdir(SETTINGS_DIR, { recursive: true });
+    await writeFileAtomic(AGENT_CANVAS_ANIMATIONS_FILE, JSON.stringify({
+        schema: 'agent-studio/canvas-animations/1',
+        updatedAt: new Date().toISOString(),
+        animations: next,
+    }, null, 2));
+    return { ok: true, animation: incoming, animations: next };
+}
+
+async function deleteAgentCanvasAnimation(id) {
+    const animations = await readAgentCanvasAnimations();
+    const next = animations.filter((item) => item.id !== id);
+    if (next.length === animations.length) throw httpError(404, 'Generated animation not found.');
+    await writeFileAtomic(AGENT_CANVAS_ANIMATIONS_FILE, JSON.stringify({
+        schema: 'agent-studio/canvas-animations/1',
+        updatedAt: new Date().toISOString(),
+        animations: next,
+    }, null, 2));
+    return { ok: true, animations: next };
 }
 
 // ─── Local LLM animation director ─────────────────────────────────────
@@ -2077,6 +2291,188 @@ async function getAnimationDirectorCatalog() {
         defaultProvider,
         available: providers.some((provider) => provider.available),
     };
+}
+
+/* ---------- Agent Canvas: composition + animation LLM ---------- */
+function llmSafeValue(value, key = '') {
+    if (value == null || typeof value === 'boolean' || typeof value === 'number') return value;
+    if (typeof value === 'string') {
+        if (/^data:/i.test(value)) return '[inline image/video omitted]';
+        if (value.length > 4000) return `${value.slice(0, 4000)}…`;
+        return value;
+    }
+    if (Array.isArray(value)) {
+        // Keep enough motion keys to understand the intent without blowing a
+        // local model's context window. Full frame data stays in the page.
+        const limit = key === 'frames' ? 24 : (key === 'keyframes' ? 80 : (key === 'segments' ? 40 : 120));
+        return value.slice(0, limit).map((item) => llmSafeValue(item, key));
+    }
+    if (typeof value === 'object') {
+        const out = {};
+        for (const [childKey, child] of Object.entries(value)) {
+            if (childKey === 'agentScene' || childKey === 'thumbnail' || childKey === 'preview') continue;
+            out[childKey] = llmSafeValue(child, childKey);
+        }
+        return out;
+    }
+    return null;
+}
+
+function llmCompositionContext(composition) {
+    if (!composition || typeof composition !== 'object' || !Array.isArray(composition.layers)) return null;
+    const keys = ['id', 'name', 'type', 'role', 'x', 'y', 'w', 'h', 'z', 'rotation', 'opacity', 'visible', 'text',
+        'font', 'color', 'align', 'verticalAlign', 'url', 'src', 'videoUrl', 'fit', 'shape', 'radius', 'bg',
+        'keyframes', 'animation', 'animations', 'assetId'];
+    const layers = composition.layers.slice(0, 120).map((layer) => {
+        const out = {};
+        for (const key of keys) if (layer && layer[key] !== undefined) out[key] = llmSafeValue(layer[key], key);
+        return out;
+    });
+    return llmSafeValue({
+        name: composition.name,
+        width: composition.width,
+        height: composition.height,
+        duration: composition.duration,
+        variables: composition.variables,
+        formats: composition.formats,
+        layers,
+    });
+}
+
+function normalizeAgentComposition(value) {
+    if (!value || typeof value !== 'object' || !Array.isArray(value.layers) || !value.layers.length) return null;
+    const layers = value.layers.filter((layer) => layer && typeof layer === 'object' && typeof layer.id === 'string').slice(0, 500);
+    if (!layers.length) return null;
+    return {
+        ...value,
+        version: Math.max(3, Number(value.version) || 3),
+        width: Math.max(1, Math.round(Number(value.width) || 1080)),
+        height: Math.max(1, Math.round(Number(value.height) || 1080)),
+        duration: Math.max(1, Math.round(Number(value.duration) || 10000)),
+        layers,
+    };
+}
+
+function normalizeAgentAnimation(value) {
+    if (!value || typeof value !== 'object' || !Array.isArray(value.tracks) || !value.tracks.length) return null;
+    const tracks = value.tracks
+        .filter((track) => track && typeof track === 'object' && Array.isArray(track.segments) && track.segments.some((segment) => segment && Array.isArray(segment.frames) && segment.frames.length))
+        .slice(0, 240);
+    if (!tracks.length) return null;
+    return {
+        ...value,
+        schema: 'agent-studio/animation/2',
+        kind: 'studio-animation',
+        id: typeof value.id === 'string' ? value.id : `agent-canvas-${Date.now().toString(36)}`,
+        name: sanitizeLabel(value.name, 'Agent animation'),
+        duration: Math.max(1, Math.round(Number(value.duration) || 10000)),
+        fps: Math.max(1, Math.min(60, Math.round(Number(value.fps) || 25))),
+        tracks,
+    };
+}
+
+async function runAgentCanvasLlm(payload = {}) {
+    const prompt = String(payload.prompt || '').trim();
+    if (!prompt) throw httpError(400, 'Ask the agent what to change or review.');
+    if (prompt.length > 4000) throw httpError(413, 'That prompt is too long.');
+    const composition = llmCompositionContext(payload.composition);
+    if (!composition) throw httpError(400, 'The current composition is missing or has no layers.');
+    const animation = payload.animation ? llmSafeValue(payload.animation) : (payload.animationState ? llmSafeValue(payload.animationState) : null);
+    const context = {
+        design: String(payload.designName || '').slice(0, 200),
+        templateId: String(payload.templateId || '').slice(0, 160),
+        composition,
+        animation,
+        library: payload.library ? llmSafeValue(payload.library) : null,
+    };
+    let contextText;
+    try {
+        contextText = JSON.stringify(context);
+    } catch {
+        throw httpError(400, 'The composition could not be serialized for the agent.');
+    }
+    if (contextText.length > 150000) contextText = `${contextText.slice(0, 150000)}…`;
+    const requested = String(payload.provider || '');
+    let provider = requested;
+    if (!['ollama', 'deepseek'].includes(provider)) {
+        const catalog = await getCanvasAgentCatalog();
+        provider = catalog.defaultProvider;
+    }
+    let model;
+    if (provider === 'deepseek') {
+        const config = getDeepSeekDirectorConfig();
+        if (!config.available) throw httpError(503, config.error);
+        model = config.model;
+    } else {
+        const llm = await getLlmCatalog();
+        if (!llm.available) throw httpError(503, llm.error || 'The local LLM is unavailable. Start Ollama first.');
+        model = resolveModelId(payload.model, llm.defaults.text, llm.models) || llm.defaults.text || llm.models[0]?.name;
+        if (!model) throw httpError(503, 'No text model is installed in Ollama.');
+    }
+    const messages = [
+        {
+            role: 'system',
+            content: [
+                'You are the Agent Canvas design and animation director.',
+                'You receive one LayerStudio composition JSON and an optional animation JSON. Answer as JSON only, with no markdown fences.',
+                'Return exactly this shape:',
+                '{"reply":"one short sentence","observations":["review point"],"composition":null,"animation":null}',
+                'Use observations for review/critique. Set composition to a complete edited composition only when the user asks for a design change or a correction; keep layer ids stable where possible.',
+                'Set animation to a complete agent-studio/animation/2 document only when the user asks for a new or modified animation.',
+                'Animation tracks use {layerId,layerName,layerType,role,text,box:{x,y,w,h},segments:[{preset,label,start,duration,loop,frames:[{t,dx,dy,s,sx,sy,a}]}]}. box values are 0..1; dx/dy are fractions of the stage; sx/sy are width/height scale; a is opacity.',
+                'Composition geometry is percent of the page: x,w against width; y,h against height. Text uses font.sizePct percent of height.',
+                'When context.library is present, use its business, menu items, grouped layers and assets as the available material. The groups list is the user-selected subset; create new animations or composition variations from those groups and keep their layer ids/assets stable.',
+                'Only offer animation choices that are compatible with the selected composition and groups; do not invent assets or layer ids.',
+                'Never invent image data URLs; preserve existing image/video URLs from the supplied composition when returning layers.',
+                'For a pure review, return observations and leave composition and animation null.',
+            ].join(' '),
+        },
+        { role: 'user', content: `Request: ${prompt}\n\nCurrent context JSON:\n${contextText}` },
+    ];
+    const result = provider === 'deepseek'
+        ? await callDeepSeek(model, messages)
+        : await callOllama(model, messages, { temperature: 0.25, numPredict: 6144, numCtx: 24576, think: false });
+    const raw = result?.message?.content;
+    const parsed = extractJsonObject(raw) || {};
+    return {
+        ok: true,
+        provider,
+        model,
+        reply: String(parsed.reply || raw || 'The agent did not return a summary.').slice(0, 4000),
+        observations: Array.isArray(parsed.observations)
+            ? parsed.observations.map((item) => String(item).slice(0, 600)).filter(Boolean).slice(0, 24)
+            : [],
+        composition: normalizeAgentComposition(parsed.composition),
+        animation: normalizeAgentAnimation(parsed.animation),
+    };
+}
+
+async function getCanvasAgentCatalog() {
+    const ollama = await getLlmCatalog();
+    const deepseek = getDeepSeekDirectorStatus();
+    const providers = [
+        {
+            id: 'ollama',
+            label: 'Ollama · local',
+            available: Boolean(ollama.available && ollama.models.length),
+            models: ollama.models,
+            defaults: ollama.defaults,
+            error: ollama.available
+                ? (ollama.models.length ? null : 'No Ollama model is installed.')
+                : (ollama.error || 'Ollama is not running.'),
+        },
+        {
+            id: 'deepseek',
+            label: 'DeepSeek · API',
+            available: deepseek.available,
+            model: deepseek.model || null,
+            error: deepseek.error,
+        },
+    ];
+    const defaultProvider = providers.find((provider) => provider.id === 'ollama' && provider.available)
+        ? 'ollama'
+        : (deepseek.available ? 'deepseek' : 'ollama');
+    return { providers, defaultProvider, available: providers.some((provider) => provider.available) };
 }
 
 async function getOrganizerModelCatalog() {
@@ -4231,16 +4627,17 @@ async function localiseSavedTemplateAssets(packId, brandId, templateId, composit
     const copied = new Set();
     const copy = async (url) => {
         if (typeof url !== 'string') return url;
+        const pathName = localUrlPath(url);
         let source = null;
         let relative = null;
-        if (url.startsWith(packPrefix)) {
-            relative = safeRelativePath(url.slice(packPrefix.length));
+        if (pathName.startsWith(packPrefix)) {
+            relative = safeRelativePath(pathName.slice(packPrefix.length));
             if (relative) source = path.join(BRAND_PACKS_DIR, packId, 'files', ...relative.split('/'));
         } else {
-            const match = url.match(templatePrefix);
-            const imported = url.match(/^\/data\/imports\/([A-Za-z0-9_-]{1,80})\/(.+)$/);
+            const match = pathName.match(templatePrefix);
+            const imported = pathName.match(/^\/data\/imports\/([A-Za-z0-9_-]{1,80})\/(.+)$/);
             if (match) {
-                relative = safeRelativePath(url.slice(match[0].length));
+                relative = safeRelativePath(pathName.slice(match[0].length));
                 if (relative) source = path.join(savedTemplateDir(packId, match[1], match[2]), 'files', ...relative.split('/'));
             } else if (imported) {
                 relative = safeRelativePath(imported[2]);
@@ -4262,6 +4659,7 @@ async function localiseSavedTemplateAssets(packId, brandId, templateId, composit
     };
     for (const layer of composition.layers || []) {
         if (typeof layer.url === 'string') layer.url = await copy(layer.url);
+        if (typeof layer.videoUrl === 'string') layer.videoUrl = await copy(layer.videoUrl);
         if (Array.isArray(layer.frames)) {
             layer.frames = await Promise.all(layer.frames.map((frame) => copy(frame)));
         }
@@ -4322,6 +4720,37 @@ async function saveBrandTemplate(packId, payload = {}) {
     snapshot.variables = Array.isArray(snapshot.variables) ? snapshot.variables : [];
     snapshot.formats = Array.isArray(snapshot.formats) ? snapshot.formats : [];
     snapshot.characters = Array.isArray(snapshot.characters) ? snapshot.characters : [];
+    // A published template must be usable immediately. Any library asset it
+    // references is approved here rather than leaving the image blocked in the
+    // library until somebody opens the drawer and presses Approve.
+    const approvals = new Map();
+    const autoApprove = (assetId) => {
+        const idValue = String(assetId || '');
+        if (!/^ast_[A-Za-z0-9_-]{1,72}$/.test(idValue) || approvals.has(idValue)) return;
+        approvals.set(idValue, AssetStore.verifyAsset(
+            idValue,
+            'approved',
+            'auto-approved when published as a template',
+            'template-publish',
+        ).then(() => idValue).catch((error) => {
+            console.warn(`[studio] could not auto-approve ${idValue} for template ${id}:`, error.message);
+            return null;
+        }));
+    };
+    const collectAssets = (layers) => {
+        for (const layer of layers || []) {
+            if (!layer || typeof layer !== 'object') continue;
+            if (layer.assetId) autoApprove(layer.assetId);
+            for (const value of [layer.url, ...(Array.isArray(layer.frames) ? layer.frames : [])]) {
+                const match = String(value || '').match(/\/api\/assets\/(ast_[A-Za-z0-9_-]{1,72})\//);
+                if (match) autoApprove(match[1]);
+            }
+        }
+    };
+    collectAssets(snapshot.layers);
+    collectAssets(snapshot.meta?.agentScene?.layers);
+    const autoApproved = (await Promise.all(approvals.values())).filter(Boolean);
+    if (autoApproved.length) snapshot.meta = { ...(snapshot.meta || {}), autoApproved };
     snapshot.id = id;
     snapshot.name = name;
     snapshot.version = Math.max(3, Number(snapshot.version) || 3);
@@ -4364,7 +4793,7 @@ async function saveBrandTemplate(packId, payload = {}) {
             composition: snapshot,
         };
         await writeFileAtomic(savedTemplateFile(packId, brand.id, id), JSON.stringify(record, null, 2));
-        return { template: savedTemplateSummary(record), composition: snapshot };
+        return { template: savedTemplateSummary(record), composition: snapshot, autoApproved };
     } catch (error) {
         await fsp.rm(dir, { recursive: true, force: true }).catch(() => {});
         throw error;
@@ -4395,21 +4824,27 @@ async function openSavedBrandTemplate(packId, brandId, templateId, payload = {})
         let source = null;
         let relative = null;
         let targetRelative = null;
-        if (url.startsWith(templatePrefix)) {
-            relative = safeRelativePath(url.slice(templatePrefix.length));
-            // Import-sourced snapshots keep an assets/ segment in their copied
-            // path; strip it once so the working copy does not nest it twice.
+        const pathName = localUrlPath(url);
+        // A snapshot can point at any earlier template folder (or directly at
+        // the pack/import it was built from). Match the path shape, not only
+        // this template's own id, so every referenced file is copied.
+        const templateMatch = pathName.match(/^\/api\/brand-packs\/([A-Za-z0-9_-]{1,80})\/templates\/([A-Za-z0-9_-]{1,80})\/([A-Za-z0-9_-]{1,100})\/files\/(.+)$/);
+        const packFileMatch = pathName.match(/^\/api\/brand-packs\/([A-Za-z0-9_-]{1,80})\/files\/(.+)$/);
+        const imported = pathName.match(/^\/data\/imports\/([A-Za-z0-9_-]{1,80})\/(.+)$/);
+        if (templateMatch) {
+            relative = safeRelativePath(templateMatch[4]);
             targetRelative = relative && relative.startsWith('assets/') ? relative.slice('assets/'.length) : relative;
-            if (relative) source = path.join(savedTemplateDir(packId, brandId, templateId), 'files', ...relative.split('/'));
-        } else {
-            const imported = url.match(/^\/data\/imports\/([A-Za-z0-9_-]{1,80})\/(.+)$/);
-            if (imported) {
-                relative = safeRelativePath(imported[2]);
-                // Import URLs already include the project's assets/ folder;
-                // do not nest it twice in the copy.
-                targetRelative = relative && relative.startsWith('assets/') ? relative.slice('assets/'.length) : relative;
-                if (relative) source = path.join(IMPORTS_DIR, imported[1], ...relative.split('/'));
-            }
+            if (relative) source = path.join(savedTemplateDir(packId, templateMatch[2], templateMatch[3]), 'files', ...relative.split('/'));
+        } else if (packFileMatch) {
+            relative = safeRelativePath(packFileMatch[2]);
+            targetRelative = relative;
+            if (relative) source = path.join(BRAND_PACKS_DIR, packId, 'files', ...relative.split('/'));
+        } else if (imported) {
+            relative = safeRelativePath(imported[2]);
+            // Import URLs already include the project's assets/ folder; do
+            // not nest it twice in the copy.
+            targetRelative = relative && relative.startsWith('assets/') ? relative.slice('assets/'.length) : relative;
+            if (relative) source = path.join(IMPORTS_DIR, imported[1], ...relative.split('/'));
         }
         if (!source || !relative || !targetRelative) return url;
         const target = path.join(projectDir, 'assets', ...targetRelative.split('/'));
@@ -4423,6 +4858,7 @@ async function openSavedBrandTemplate(packId, brandId, templateId, payload = {})
     };
     for (const layer of composition.layers || []) {
         if (typeof layer.url === 'string') layer.url = await copyAsset(layer.url);
+        if (typeof layer.videoUrl === 'string') layer.videoUrl = await copyAsset(layer.videoUrl);
         if (Array.isArray(layer.frames)) {
             layer.frames = await Promise.all(layer.frames.map((frame) => copyAsset(frame)));
         }
@@ -4751,6 +5187,23 @@ async function handleApi(req, res, pathname) {
 
     if (pathname === '/api/llm/animation-director' && req.method === 'GET') {
         sendJson(res, 200, await getAnimationDirectorCatalog());
+        return;
+    }
+
+    if (pathname === '/api/agent-canvas/providers' && req.method === 'GET') {
+        sendJson(res, 200, await getCanvasAgentCatalog());
+        return;
+    }
+
+    if (pathname === '/api/agent-canvas' && req.method === 'POST') {
+        const body = await readBody(req, 10 * 1024 * 1024);
+        let payload;
+        try {
+            payload = JSON.parse(body.toString('utf8'));
+        } catch {
+            throw httpError(400, 'The agent request must be valid JSON.');
+        }
+        sendJson(res, 200, await runAgentCanvasLlm(payload || {}));
         return;
     }
 
@@ -5644,6 +6097,33 @@ async function handleApi(req, res, pathname) {
         return;
     }
 
+    if (pathname === '/api/agent-animations' && req.method === 'GET') {
+        const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+        const templateId = String(url.searchParams.get('templateId') || '');
+        const animations = (await readAgentCanvasAnimations())
+            .filter((item) => !templateId || item.templateId === templateId);
+        sendJson(res, 200, { schema: 'agent-studio/canvas-animations/1', animations });
+        return;
+    }
+
+    if (pathname === '/api/agent-animations' && req.method === 'POST') {
+        const body = await readBody(req, 6 * 1024 * 1024);
+        let payload;
+        try {
+            payload = JSON.parse(body.toString('utf8'));
+        } catch {
+            throw httpError(400, 'The animation save request must be valid JSON.');
+        }
+        sendJson(res, 201, await saveAgentCanvasAnimation(payload || {}));
+        return;
+    }
+
+    const agentAnimationMatch = pathname.match(/^\/api\/agent-animations\/([A-Za-z0-9_-]{1,80})$/);
+    if (agentAnimationMatch && req.method === 'DELETE') {
+        sendJson(res, 200, await deleteAgentCanvasAnimation(agentAnimationMatch[1]));
+        return;
+    }
+
     if (pathname === '/api/animation-library' && req.method === 'GET') {
         sendJson(res, 200, await readStudioAnimationLibrary());
         return;
@@ -5664,6 +6144,51 @@ async function handleApi(req, res, pathname) {
     const studioAnimationMatch = pathname.match(/^\/api\/animation-library\/([A-Za-z0-9_-]{1,80})$/);
     if (studioAnimationMatch && req.method === 'DELETE') {
         sendJson(res, 200, await deleteStudioAnimation(studioAnimationMatch[1]));
+        return;
+    }
+
+    if (pathname === '/api/agent-library' && req.method === 'GET') {
+        const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+        // The full index is large (many compositions with sampled keyframes),
+        // so the catalogue is the default and ?full=1 opts into every record.
+        const full = ['1', 'true', 'yes'].includes(String(url.searchParams.get('full') || '').toLowerCase());
+        sendJson(res, 200, await getAgentLibrary({ summary: !full }));
+        return;
+    }
+
+    if (pathname === '/api/agent-library/rebuild' && req.method === 'POST') {
+        const library = await getAgentLibrary({ force: true, summary: false });
+        sendJson(res, 200, { ok: true, generatedAt: library.generatedAt, counts: library.counts, summary: AgentLibrary.summaryOf(library) });
+        return;
+    }
+
+    const agentLibraryCompositionMatch = pathname.match(/^\/api\/agent-library\/compositions\/([A-Za-z0-9_-]{1,120})$/);
+    if (agentLibraryCompositionMatch && req.method === 'GET') {
+        const library = await getAgentLibrary();
+        const composition = (library.compositions || []).find((entry) => entry.id === agentLibraryCompositionMatch[1]);
+        if (!composition) throw httpError(404, 'Library composition not found.');
+        sendJson(res, 200, { composition, mappings: {
+            groups: composition.groups.map((group) => group.id),
+            animations: {
+                layer: composition.animations.layer.map((animation) => animation.id),
+                groups: composition.animations.groups.map((animation) => animation.id),
+                original: composition.animations.original ? composition.animations.original.id : null,
+            },
+        } });
+        return;
+    }
+
+    const agentLibraryBusinessMatch = pathname.match(/^\/api\/agent-library\/businesses\/([A-Za-z0-9_-]{1,140})$/);
+    if (agentLibraryBusinessMatch && req.method === 'GET') {
+        const library = await getAgentLibrary();
+        const business = (library.businesses || []).find((entry) => entry.id === agentLibraryBusinessMatch[1]);
+        if (!business) throw httpError(404, 'Library business not found.');
+        const compositionIds = new Set(library.mappings.businessCompositions[business.id] || []);
+        sendJson(res, 200, {
+            business,
+            compositions: (library.compositions || []).filter((entry) => compositionIds.has(entry.id)),
+            menuItems: (library.menuItems || []).filter((entry) => entry.businessId === business.id),
+        });
         return;
     }
 
@@ -5755,6 +6280,18 @@ async function handleApi(req, res, pathname) {
         return;
     }
 
+    if (pathname === '/api/compositions' && req.method === 'POST') {
+        const body = await readBody(req, MAX_COMPOSITION_BYTES + 1024 * 1024);
+        let payload;
+        try {
+            payload = JSON.parse(body.toString('utf8'));
+        } catch {
+            throw httpError(400, 'The save request must be valid JSON.');
+        }
+        sendJson(res, 201, await createCompositionProject(payload || {}));
+        return;
+    }
+
     if (pathname === '/api/imports' && req.method === 'POST') {
         const body = await readBody(req);
         let payload;
@@ -5813,6 +6350,8 @@ const PAGE_ROUTES = {
     '/studio.html': 'studio.html',
     '/studio-agent': 'studio-agent.html',
     '/studio-agent.html': 'studio-agent.html',
+    '/studio-agent-canvas': 'studio-agent.html',
+    '/studio-agent-canvas.html': 'studio-agent.html',
     '/agent-first-studio': 'agent-first-studio.html',
     '/agent-first-studio.html': 'agent-first-studio.html',
     '/studio-import': 'studio-import.html',
@@ -6031,6 +6570,8 @@ async function main() {
         console.log(`[studio] Management (dev only) running at http://${HOST}:${PORT}/admin.html`);
         console.log(`[studio] imports stored in ${IMPORTS_DIR}`);
         console.log(`[studio] brand packs stored in ${BRAND_PACKS_DIR}`);
+        console.log(`[studio] agent library stored in ${AGENT_LIBRARY_FILE}`);
+        watchAgentLibrary();
     });
 }
 
@@ -6057,6 +6598,7 @@ module.exports = {
     readStudioComposition,
     createImport,
     createCharacterImport,
+    createCompositionProject,
     listImports,
     readSavedComposition,
     saveComposition,
@@ -6096,4 +6638,11 @@ module.exports = {
     deleteBrandKit,
     normalizeDirectorProposals,
     generateDirectorIdeas,
+    readAgentCanvasAnimations,
+    saveAgentCanvasAnimation,
+    deleteAgentCanvasAnimation,
+    runAgentCanvasLlm,
+    getCanvasAgentCatalog,
+    getAgentLibrary,
+    rebuildAgentLibrary,
 };

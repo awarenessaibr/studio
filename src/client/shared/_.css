@@ -1858,6 +1858,28 @@
     border-color: var(--ls-accent);
 }
 
+/* One-click repair for a clipping text box, next to the overflow warning. */
+.layer-overflow-fix {
+    align-self: flex-start;
+    margin: 2px 0 6px;
+    padding: 4px 9px;
+    border: 1px solid var(--ls-accent);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--ls-accent) 14%, var(--ls-raised));
+    color: var(--ls-text);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.layer-overflow-fix:hover {
+    background: color-mix(in srgb, var(--ls-accent) 24%, var(--ls-raised));
+}
+
+.layer-overflow-fix:focus-visible {
+    outline: 2px solid var(--ls-accent);
+    outline-offset: 1px;
+}
+
 .layer-binding-note {
     color: var(--ls-accent);
 }

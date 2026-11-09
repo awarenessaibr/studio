@@ -1261,6 +1261,104 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    /* ---------- hidden text lines ----------
+       A clipping text box silently drops whole lines on export. When a project
+       or composition loads with any, offer one accepted repair: grow the box,
+       then reduce the type size. The engine does the measuring and the edit. */
+    const overflowBanner = $('layerTextOverflowBanner');
+    const overflowTitle = $('layerTextOverflowTitle');
+    const overflowDetail = $('layerTextOverflowDetail');
+    const overflowFix = $('layerTextOverflowFix');
+    const overflowReview = $('layerTextOverflowReview');
+    const overflowUndo = $('layerTextOverflowUndo');
+    let overflowDismissed = '';
+    let overflowCompositionId = null;
+
+    const overflowSignature = (report) => (report || [])
+        .map((entry) => `${entry.layerId}:${entry.clippedLines}`)
+        .join('|');
+
+    function setTextOverflowBanner(report) {
+        if (!overflowBanner) return;
+        const layers = Array.isArray(report) ? report : [];
+        const signature = overflowSignature(layers);
+        const undoable = Array.isArray(studio.lastTextRepair) ? studio.lastTextRepair : [];
+        if (!layers.length) {
+            // After a fit, keep one step of undo visible until it is used or dismissed.
+            if (!undoable.length) {
+                overflowBanner.hidden = true;
+                return;
+            }
+            overflowBanner.dataset.mode = 'fixed';
+            overflowBanner.dataset.signature = '';
+            overflowTitle.textContent = `Fitted ${undoable.length} text layer${undoable.length === 1 ? '' : 's'}`;
+            overflowDetail.textContent = 'Every line is visible now. Undo restores the previous type sizes and box heights.';
+            if (overflowFix) overflowFix.hidden = true;
+            if (overflowReview) overflowReview.hidden = true;
+            if (overflowUndo) overflowUndo.hidden = false;
+            overflowBanner.hidden = false;
+            return;
+        }
+        if (overflowDismissed && signature === overflowDismissed) {
+            overflowBanner.hidden = true;
+            return;
+        }
+        const hidden = layers.reduce((total, entry) => total + entry.clippedLines, 0);
+        const plural = layers.length === 1 ? '' : 's';
+        const lineWord = hidden === 1 ? 'line' : 'lines';
+        overflowBanner.dataset.mode = 'fix';
+        overflowBanner.dataset.signature = signature;
+        overflowTitle.textContent = `${layers.length} text layer${plural} ${layers.length === 1 ? 'has' : 'have'} ${hidden} hidden ${lineWord}`;
+        overflowDetail.textContent = `${hidden === 1 ? 'That line is' : 'Those lines are'} dropped when this composition is exported. Fit ${layers.length === 1 ? 'it' : 'them'} automatically, or review ${layers.length === 1 ? 'the layer' : 'each layer'}.`;
+        if (overflowFix) overflowFix.hidden = false;
+        if (overflowReview) overflowReview.hidden = false;
+        // A partial repair can still be undone while the rest is unfixed.
+        if (overflowUndo) overflowUndo.hidden = undoable.length === 0;
+        overflowBanner.hidden = false;
+    }
+
+    function reviewNextHiddenLayer() {
+        const report = studio.textOverflowLayers();
+        const first = report[0];
+        if (!first) {
+            setTextOverflowBanner([]);
+            return;
+        }
+        studio.selectedLayerId = first.layerId;
+        studio.render();
+        studio.setStatus(`Reviewing ${first.name}: ${first.clippedLines} hidden line${first.clippedLines === 1 ? '' : 's'}. Use “Fit hidden lines” in the Text panel.`);
+        $('layerInspector')?.scrollIntoView({ block: 'nearest' });
+    }
+
+    overflowFix?.addEventListener('click', () => {
+        studio.repairTextOverflow();
+        setTextOverflowBanner(studio.textOverflowLayers());
+    });
+    overflowReview?.addEventListener('click', reviewNextHiddenLayer);
+    overflowUndo?.addEventListener('click', () => {
+        studio.undoTextRepair();
+        setTextOverflowBanner(studio.textOverflowLayers());
+    });
+    $('layerTextOverflowDismiss')?.addEventListener('click', () => {
+        if (overflowBanner?.dataset.mode === 'fixed') {
+            studio.lastTextRepair = null;
+        } else {
+            overflowDismissed = overflowBanner?.dataset.signature || overflowSignature(studio.textOverflowLayers());
+        }
+        if (overflowBanner) overflowBanner.hidden = true;
+    });
+    document.addEventListener('layerstudio:text-overflow', (event) => {
+        // A dismissal only applies to the composition it was made on.
+        const compositionId = studio.composition?.id || '';
+        if (compositionId !== overflowCompositionId) {
+            overflowCompositionId = compositionId;
+            overflowDismissed = '';
+        }
+        setTextOverflowBanner(event.detail?.report || []);
+    });
+    overflowCompositionId = studio.composition?.id || '';
+    setTextOverflowBanner(studio.textOverflowLayers());
+
     // _.js re-renders its hidden list on every change; use that as the redraw signal.
     let queued = false;
     new MutationObserver(() => {

@@ -473,6 +473,124 @@
         };
     }
 
+    const MIN_TEXT_SIZE_PCT = 0.5;
+    const MAX_TEXT_SIZE_PCT = 30;
+
+    /**
+     * Plans the smallest edit that reveals every clipped line of a text layer.
+     *
+     * Preference order, so the fix disturbs the design as little as possible:
+     *   1. keep the type size and grow the box (down to `maxH`),
+     *   2. keep the box and reduce the type size (down to `minSizePct`),
+     *   3. grow the box and reduce the type size together.
+     *
+     * Pure: it never mutates the layer. Returns null when nothing fits.
+     *
+     * options:
+     *   w, h        the box to start from (defaults to baseW/baseH, then w/h)
+     *   maxH        the tallest the box may become; defaults to h (no growth)
+     *   minSizePct  the smallest type size that is still acceptable
+     *   locale, defaultLocale, measureFactory  forwarded to layoutText()
+     */
+    function planTextFit(layer, format, options = {}) {
+        const source = layer && typeof layer === 'object' ? layer : {};
+        const spec = format && finite(format.width, 0) > 0 && finite(format.height, 0) > 0
+            ? format
+            : { width: 1080, height: 1080 };
+        const font = normalizeTextFont(source.font);
+        const startSizePct = clamp(
+            finite(font.sizePct, TEXT_LAYER_DEFAULTS.font.sizePct),
+            MIN_TEXT_SIZE_PCT,
+            MAX_TEXT_SIZE_PCT,
+        );
+        const widthPct = Math.max(0.5, finite(options.w, finite(source.baseW, finite(source.w, 100))));
+        const baseHeightPct = Math.max(0.5, finite(options.h, finite(source.baseH, finite(source.h, 10))));
+        const maxHeightPct = Math.max(baseHeightPct, finite(options.maxH, baseHeightPct));
+        const minSizePct = clamp(
+            finite(options.minSizePct, round2(startSizePct * 0.5)),
+            MIN_TEXT_SIZE_PCT,
+            startSizePct,
+        );
+        const locale = options.locale || '';
+        const defaultLocale = options.defaultLocale || DEFAULT_LOCALE;
+        const measureFactory = typeof options.measureFactory === 'function' ? options.measureFactory : null;
+
+        const layoutAt = (sizePct, heightPct) => layoutText({
+            text: source.text,
+            font: { ...font, sizePct },
+            boxWidthPx: Math.max(1, widthPct / 100 * spec.width),
+            boxHeightPx: Math.max(1, heightPct / 100 * spec.height),
+            formatHeightPx: Math.max(1, spec.height),
+            locale,
+            defaultLocale,
+            align: source.align,
+            verticalAlign: source.verticalAlign,
+            overflow: source.overflow,
+            ...(measureFactory ? { measureFactory } : {}),
+        });
+        if (source.overflow === 'visible') return null;
+        const current = layoutAt(startSizePct, baseHeightPct);
+        if (!current.clippedLines) return null;
+        const fits = (sizePct, heightPct) => layoutAt(sizePct, heightPct).clippedLines === 0;
+
+        const smallestFittingHeight = (sizePct) => {
+            if (maxHeightPct - baseHeightPct < 0.05) return null;
+            if (!fits(sizePct, maxHeightPct)) return null;
+            if (fits(sizePct, baseHeightPct)) return baseHeightPct;
+            let lo = baseHeightPct, hi = maxHeightPct;
+            for (let step = 0; step < 26; step += 1) {
+                const mid = (lo + hi) / 2;
+                if (fits(sizePct, mid)) hi = mid;
+                else lo = mid;
+            }
+            let height = Math.min(maxHeightPct, Math.ceil(hi * 10) / 10);
+            while (height > baseHeightPct && !fits(sizePct, height)) height = round2(height - 0.1);
+            return height > baseHeightPct ? height : null;
+        };
+        const largestFittingSize = (heightPct) => {
+            if (!fits(minSizePct, heightPct)) return null;
+            if (fits(startSizePct, heightPct)) return startSizePct;
+            let lo = minSizePct, hi = startSizePct;
+            for (let step = 0; step < 26; step += 1) {
+                const mid = (lo + hi) / 2;
+                if (fits(mid, heightPct)) lo = mid;
+                else hi = mid;
+            }
+            let size = Math.floor(lo * 10) / 10;
+            while (size > minSizePct && !fits(size, heightPct)) size = round2(size - 0.1);
+            return size >= minSizePct ? size : null;
+        };
+        const plan = (sizePct, heightPct, mode) => {
+            const nextSize = clamp(round2(sizePct), MIN_TEXT_SIZE_PCT, MAX_TEXT_SIZE_PCT);
+            const nextHeight = clamp(round2(heightPct), baseHeightPct, maxHeightPct);
+            const sizeChanged = Math.abs(nextSize - round2(startSizePct)) > 0.001;
+            const heightChanged = Math.abs(nextHeight - round2(baseHeightPct)) > 0.001;
+            if (!sizeChanged && !heightChanged) return null;
+            return {
+                sizePct: nextSize,
+                h: nextHeight,
+                mode,
+                clippedLines: current.clippedLines,
+                lineCount: current.lines.length + current.clippedLines,
+                sizeChanged,
+                heightChanged,
+            };
+        };
+
+        const grown = smallestFittingHeight(startSizePct);
+        if (grown != null) return plan(startSizePct, grown, 'box');
+        const shrunk = largestFittingSize(baseHeightPct);
+        if (shrunk != null) return plan(shrunk, baseHeightPct, 'size');
+        if (maxHeightPct > baseHeightPct) {
+            const sizeAtMaxHeight = largestFittingSize(maxHeightPct);
+            if (sizeAtMaxHeight != null) {
+                const height = smallestFittingHeight(sizeAtMaxHeight) ?? maxHeightPct;
+                return plan(sizeAtMaxHeight, height, 'both');
+            }
+        }
+        return null;
+    }
+
     // ---------------------------------------------------------------------
     // Formats
     // ---------------------------------------------------------------------
@@ -1408,6 +1526,9 @@
         fallbackTextMetrics,
         breakUnits,
         layoutText,
+        planTextFit,
+        MIN_TEXT_SIZE_PCT,
+        MAX_TEXT_SIZE_PCT,
 
         // formats
         FORMAT_CHANNELS,

@@ -348,21 +348,25 @@ against canvas height. `font.sizePct` is percent of canvas **height**
 | `z` | number | render, timeline order | higher = in front |
 | `opacity` | 0…1 | render, contrast | multiplies layer opacity |
 | `hidden` | boolean | render/list/timeline | hidden layers are skipped |
-| `color` | hex/rgba | fill, shape, text | text colour for text |
+| `rotation` | degrees | render, canvas export | layer-level offset; keyframe rotations add to it |
+| `shape` | `rect` \| `circle` | image/shape | rectangle or ellipse crop |
+| `color` | hex/rgba | fill, shape, text, media shape | fill colour, text colour, or the colour behind a shape's image/video |
 | `from`, `to` | rgba | gradient | CSS `linear-gradient(from,to)` (top → bottom) |
-| `radius` | number (cqh) | shape/text bg | border radius |
-| `src` | URL/data URL | image | photo or rendered art |
-| `fit` | `cover` \| `contain` | image | background sizing |
+| `radius` | number (cqh) | shape/text bg/image | border radius (`shape:circle` ignores it and uses an ellipse) |
+| `src` | URL/data URL | image/shape media | photo, rendered art, or an image fill inside a shape |
+| `videoUrl` | URL/data URL | image/shape media | video fill; the export path draws the frame at the requested time |
+| `fit` | `cover` \| `contain` \| `fill` | image/shape media | background/object sizing |
 | `fx`, `fy` | 0…100 | image | background-position percentages |
 | `which` | `wordmark` \| `mark` | logo | logo cut |
 | `tone` | `white` \| `ink` \| `accent` | logo | tint colour |
 | `text` | string | text | literal copy |
-| `font` | object | text | `{family,weight,sizePct,lineHeight,letterSpacingEm,transform}` |
+| `font` | object | text | `{family,weight,style,sizePct,lineHeight,letterSpacingEm,transform}` |
 | `bg` | colour | text | badge/box background |
 | `align` | `left` \| `center` \| `right` | text | horizontal alignment |
+| `valign` | `top` \| `middle` \| `bottom` | text | vertical alignment |
 | `nowrap` | boolean | text | `white-space:pre`; engine text uses it |
 | `anim` | object | render/timeline | `{preset,start,duration}` in ms |
-| `assetId` | `ast_…` | library assets | stored but only used for usage logging |
+| `assetId` | `ast_…` | library assets | stored but also used for usage logging |
 | `pal` | object | engine art | palette override saved for variants |
 
 Example:
@@ -550,6 +554,77 @@ drop on #wrap → stage-relative px% → addAsset(kind, a, b, px, py)
    ├─ say('agent', 'Added <name>…')
    └─ select(layer.id) → render + layers
 ```
+
+### 5.6.1 Edit layer, rotation and media fills
+
+Right-clicking a layer on the stage or in the layer list opens the layer menu;
+**Edit layer…** opens a live modal for every property of that layer. The modal
+is a control surface, not a copy: the first edit pushes one undo snapshot and
+each field updates the stage immediately. **Cancel** restores the snapshot and
+removes it again; **Done** keeps the changes and saves the scene.
+
+The modal sections depend on `type`:
+
+| Layer | Controls |
+|---|---|
+| all | layer name and **Layer number (1 = front)**; changing the number reorders `z` and therefore the layer tree, canvas stacking and timeline rows |
+| text | content, font family/weight/style, case, horizontal and vertical alignment, size, line height, letter spacing, colour, highlight colour and radius, position/size, opacity, rotation |
+| image | fit, rectangle/ellipse shape, corner radius, focal X/Y, upload image or video, image URL, brand photography, library thumbnails, position/size, opacity, rotation |
+| shape | rectangle/ellipse, image fit, corner radius, colour, colour/image/video fill, uploads, image URL, brand photography, library thumbnails, position/size, opacity, rotation |
+| logo | wordmark/mark and tone |
+| fill / gradient | colour, or both gradient stops |
+
+Image and video uploads are stored as data URLs on the layer; the stage uses
+`<video>` elements for video previews and the canvas renderer seeks the same
+media to the requested timeline time for PNG, PDF, GIF, MP4 and segment
+exports. A video's first frame is kept in `src` as its poster.
+
+A selected layer also gets a round **rotation handle** at the top edge, next to
+the eight resize handles. Dragging it sets `rotation`; holding Shift snaps to
+15°. Keyframes may animate their own rotation, so the layer value is an offset
+on top of those frames. When a composition is exported, the offset is folded
+into the keyframes so the document round-trips without applying it twice.
+
+### 5.6.2 Save and publish
+
+The header has two persistence actions:
+
+- **Save** (⌘S / Ctrl+S) writes the current composition to the backend. A scene
+  opened from an import updates that import in place; a repository composition
+  becomes an editable copy on the first save; a published template is opened
+  into an import copy first, so its files are copied instead of remaining
+  linked to the template folder; a plain brand scene becomes a new import
+  project. The button then updates the same project on later saves.
+- **Save as template** publishes a snapshot into the brand's template library.
+  The server auto-approves every library asset the snapshot references
+  (`assetId` on a layer, or an `/api/assets/ast_…` URL) with the note
+  “auto-approved when published as a template”, and the toast reports how many
+  assets were approved. Published templates keep their per-layer
+  `animation`/`animations` keyframes and their artwork; opening one restores
+  the timeline bars and images, not just the static frame.
+
+### 5.6.3 JSON editor and animation import
+
+**JSON** in the header opens an editable document modal with two tabs:
+
+- **Composition** — the current `agent-studio/composition` document. Upload a
+  composition `.json`, paste one, or edit the current text; **Save JSON**
+  replaces the scene, format size, duration and timeline from that document.
+  The current backend source is kept, so **Save** can persist the edited
+  composition afterwards.
+- **Animation** — the current `agent-studio/animation/2` export. **Import
+  animation** in the timeline opens the same modal on this tab.
+
+The animation importer matches tracks by `layerId`, then `layerName`, and
+converts every baked segment back into a timeline keyframe event using the
+track box plus each frame's `dx`, `dy`, `s`, `sx`, `sy` and opacity. Existing
+animation on matched layers is replaced unless **Replace animation on matched
+layers** is unchecked. The timeline duration grows to the imported duration
+when needed. Clip-path-only presets have no geometry equivalent and therefore
+come back as their position/opacity keyframes without the clip wipe.
+
+Both tabs support **Upload JSON**, **Load current** and **Format**; invalid
+JSON leaves the modal open with an error in the status line.
 
 ### 5.7 Persistence
 
@@ -825,7 +900,7 @@ Variants:
 | `menu` | `Menus (n)` | the brand's structured menus, sections, dishes and venue offers (only when the brand has menus) |
 | `lib` | Library or `Library (n)` | business asset library with filters |
 | `tmpl` | Templates | engine panel if `hasEngine()`, otherwise the fallback catalogue |
-| `el` | Elements | scrim, rule, badge, text block |
+| `el` | Elements | scrim, rule, badge, text block, square, circle |
 
 The **Menus** tab is a projection of the brand pack, not a second source of
 truth: `StudioBrand.contentAssets(brand, {branch})` returns the menus a branch
@@ -871,7 +946,7 @@ sections, then:
 | `size:<id>` | fallback Templates | switch format |
 | `format:<id>` | fallback Templates | switch format (`FMTS` id) |
 | `motif:<id>` | fallback Templates | glyph text layer |
-| `el:<scrim\|rule\|badge\|text>` | Elements | simple element |
+| `el:<scrim\|rule\|badge\|text\|square\|circle>` | Elements | simple element; square/circle are `shape` layers with a media-fill editor |
 
 Choices in the fallback grid are click-only (`data-choice`), not draggable;
 the engine design/motif cards are click-only too.
@@ -1517,11 +1592,19 @@ JSON; non-2xx throws.
 | 6 | `POST api/assets/usage` | `recordUsage` (745) | `{events:[{assetId,action,designId,size,profile}]}` | `{recorded}` | `server.js:4733` → `AssetStore.recordUsage` | `data/assets/usage.json` + each asset’s `usageLog` |
 | 7 | `GET api/assets/:id/file/:variant` | **not called by JS**; produced as `thumb`/`sourceUrl` and fetched by `<img>`/CSS | path id + variant | image bytes | `server.js:4838` | `data/assets/<id>/…` |
 | 8 | `GET api/brand-packs/:packId/files/<…>` | **not called by JS**; pack `logos[].url` / `photography[].url` are fetched by `<img>`/CSS | path | image bytes | `server.js:4921` | `data/brand-packs/<pack>/files/…` |
+| 9 | `POST api/compositions` | `persistComposition` | `{name,composition}` | `{project,composition}` | `server.js` | new `data/imports/<id>/composition.json` |
+| 10 | `PUT api/imports/:id/composition.json` | `persistComposition` | `{composition,meta}` | `{ok,updatedAt,project}` | `server.js` | update an editable import |
+| 11 | `POST api/imports/copy` | `persistComposition` | `{sourceProjectId,sourceCompositionId,composition}` | `{project,composition}` | `server.js` | editable copy of a repository composition |
+| 12 | `POST api/brand-packs/:pack/templates/save` | `saveAsTemplate` | `{brandId,name,composition}` | `{template,composition,autoApproved[]}` | `server.js` | publish a template and auto-approve referenced library assets |
+| 13 | `GET api/brand-packs/:pack/templates?brandId=…` | `loadSavedTemplates` | — | `{templates:[summary]}` | `server.js` | published-template cards |
+| 14 | `GET api/brand-packs/:pack/templates/:brand/:id` | `applySavedTemplate` fallback | — | `{…summary,composition}` | `server.js` | full template snapshot |
+| 15 | `POST api/brand-packs/:pack/templates/:brand/:id/open` | `persistComposition` | `{name}` | `{project,composition}` | `server.js` | editable project with copied template files |
 
 Server-side endpoints that exist but are **not used by this page**:
-`/api/assets/:id` CRUD/verify/master/classify/operations, `/api/assets/ingest`,
-`/api/assets/index-pack`, `/api/brand-packs/import`, `/api/brand-packs/:id/templates`,
-`/api/fonts` POST, `/api/brand-kits`, `/api/briefs/parse`, `/api/projects/...`.
+`/api/assets/:id` CRUD/verify/master/classify/operations (the template publisher
+calls `verify` server-side, not from the browser), `/api/assets/ingest`,
+`/api/assets/index-pack`, `/api/brand-packs/import`, `/api/fonts` POST,
+`/api/brand-kits`, `/api/briefs/parse`.
 
 ### 14.3 Data files read indirectly
 
@@ -2185,3 +2268,5 @@ the photo.
 | 888–893 | persistence |
 | 895–920 | selection flow |
 | 922–948 | boot/demo/ResizeObserver/start |
+
+See [Agent Canvas](agent-canvas.md) for the clean canvas-only surface at `/studio-agent-canvas`.
