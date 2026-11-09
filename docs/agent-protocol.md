@@ -1,3 +1,8 @@
+> **Scope:** this document covers Layer Studio's `layer-studio/agent/*`
+> protocol. For **Agent First Studio** (`data/library`, canvas reels and
+> generated animations), use the dedicated pack:
+> [docs/agent-first-studio/agent.md](agent-first-studio/agent.md).
+
 # Agent protocol
 
 A JSON contract that lets a language model (or any script) direct a

@@ -213,6 +213,32 @@ async function saveAnimation({ libraryDir, projectsDir, designId, animation }) {
     return { ok: true, animation: normalised, ...validation, file: entry.file };
 }
 
+async function deleteAnimation({ libraryDir, designId, animationId }) {
+    const detail = await readDesign(libraryDir, designId);
+    const id = String(animationId || '');
+    if (!/^[A-Za-z0-9_-]{1,160}$/.test(id)) {
+        const error = new Error('Invalid animation id.');
+        error.statusCode = 400;
+        throw error;
+    }
+    const entry = (detail.animations || []).find((item) => item.id === id);
+    detail.animations = (detail.animations || []).filter((item) => item.id !== id);
+    await fsp.writeFile(path.join(libraryDir, 'designs', `${detail.id}.json`), JSON.stringify(detail, null, 2));
+    if (entry && typeof entry.file === 'string' && entry.file.startsWith(`/data/library/animations/${detail.id}/`)) {
+        const file = path.join(libraryDir, 'animations', detail.id, path.basename(entry.file));
+        await fsp.unlink(file).catch(() => {});
+    }
+    const index = await readIndex(libraryDir);
+    const item = index.designs.find((design) => design.id === detail.id);
+    if (item) {
+        item.animations = detail.animations.map((a) => ({
+            id: a.id, name: a.name, origin: a.origin, file: a.file, duration: a.duration, status: a.status,
+        }));
+    }
+    await fsp.writeFile(path.join(libraryDir, 'index.json'), JSON.stringify(index, null, 2));
+    return { ok: true, id };
+}
+
 async function composeAnimation({ libraryDir, projectsDir, designId, name, steps, save = false }) {
     const detail = await readDesign(libraryDir, designId);
     const composition = await readComposition(detail, projectsDir);
@@ -289,6 +315,7 @@ module.exports = {
     validateAnimation,
     normaliseAnimation,
     saveAnimation,
+    deleteAnimation,
     composeAnimation,
     libraryPaths,
 };

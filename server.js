@@ -6178,6 +6178,19 @@ async function handleApi(req, res, pathname) {
         return;
     }
 
+    const libraryAnimationDelete = pathname.match(/^\/api\/library\/animations\/([A-Za-z0-9_-]{1,160})$/);
+    if (libraryAnimationDelete && req.method === 'DELETE') {
+        const designId = new URL(req.url, 'http://localhost').searchParams.get('designId');
+        try {
+            sendJson(res, 200, await LibraryService.deleteAnimation({
+                libraryDir: LIBRARY_DIR, designId, animationId: libraryAnimationDelete[1],
+            }));
+        } catch (error) {
+            throw httpError(error.statusCode || 400, error.message);
+        }
+        return;
+    }
+
     if (pathname === '/api/library/compose' && req.method === 'POST') {
         const body = await readBody(req, 8 * 1024 * 1024);
         let payload;

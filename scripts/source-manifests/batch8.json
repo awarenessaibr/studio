@@ -1,0 +1,141 @@
+[
+  {
+    "file": "_dev/agent-first-canvas-library-expansion/html-templates-sources/next-html-pages/Melano · stop-motion style posts.html",
+    "id": "melano-posts-stop-motion-01",
+    "stage": 0,
+    "width": 1080,
+    "height": 1350,
+    "duration": 10000,
+    "selector": ".post"
+  },
+  {
+    "file": "_dev/agent-first-canvas-library-expansion/html-templates-sources/next-html-pages/Melano · stop-motion style posts.html",
+    "id": "melano-posts-stop-motion-02",
+    "stage": 1,
+    "width": 1080,
+    "height": 1350,
+    "duration": 10000,
+    "selector": ".post"
+  },
+  {
+    "file": "_dev/agent-first-canvas-library-expansion/html-templates-sources/next-html-pages/Melano · stop-motion style posts.html",
+    "id": "melano-posts-stop-motion-03",
+    "stage": 2,
+    "width": 1080,
+    "height": 1350,
+    "duration": 10000,
+    "selector": ".post"
+  },
+  {
+    "file": "_dev/agent-first-canvas-library-expansion/html-templates-sources/next-html-pages/Singl-end Pinocchio · ALT reels.html",
+    "id": "singl-end-pinocchio-alt-storytelling-reels-01",
+    "stage": 0,
+    "width": 1080,
+    "height": 1920,
+    "duration": 10000
+  },
+  {
+    "file": "_dev/agent-first-canvas-library-expansion/html-templates-sources/next-html-pages/Singl-end Pinocchio · ALT reels.html",
+    "id": "singl-end-pinocchio-alt-storytelling-reels-02",
+    "stage": 1,
+    "width": 1080,
+    "height": 1920,
+    "duration": 10000
+  },
+  {
+    "file": "_dev/agent-first-canvas-library-expansion/html-templates-sources/next-html-pages/Singl-end Pinocchio · ALT reels.html",
+    "id": "singl-end-pinocchio-alt-storytelling-reels-03",
+    "stage": 2,
+    "width": 1080,
+    "height": 1920,
+    "duration": 10000
+  },
+  {
+    "file": "_dev/agent-first-canvas-library-expansion/html-templates-sources/next-html-pages/Singl-end · 3 minimalist reels.html",
+    "id": "singl-end-3-minimalist-reels-01",
+    "stage": 0,
+    "width": 1080,
+    "height": 1920,
+    "duration": 10000
+  },
+  {
+    "file": "_dev/agent-first-canvas-library-expansion/html-templates-sources/next-html-pages/Singl-end · 3 minimalist reels.html",
+    "id": "singl-end-3-minimalist-reels-02",
+    "stage": 1,
+    "width": 1080,
+    "height": 1920,
+    "duration": 10000
+  },
+  {
+    "file": "_dev/agent-first-canvas-library-expansion/html-templates-sources/next-html-pages/Singl-end · 3 minimalist reels.html",
+    "id": "singl-end-3-minimalist-reels-03",
+    "stage": 2,
+    "width": 1080,
+    "height": 1920,
+    "duration": 10000
+  },
+  {
+    "file": "_dev/agent-first-canvas-library-expansion/html-templates-sources/next-html-pages/Singl-end · 3 more reel styles.html",
+    "id": "singl-end-3-more-reel-styles-01",
+    "stage": 0,
+    "width": 1080,
+    "height": 1920,
+    "duration": 10000
+  },
+  {
+    "file": "_dev/agent-first-canvas-library-expansion/html-templates-sources/next-html-pages/Singl-end · 3 more reel styles.html",
+    "id": "singl-end-3-more-reel-styles-02",
+    "stage": 1,
+    "width": 1080,
+    "height": 1920,
+    "duration": 10000
+  },
+  {
+    "file": "_dev/agent-first-canvas-library-expansion/html-templates-sources/next-html-pages/Singl-end · 3 more reel styles.html",
+    "id": "singl-end-3-more-reel-styles-03",
+    "stage": 2,
+    "width": 1080,
+    "height": 1920,
+    "duration": 10000
+  },
+  {
+    "file": "_dev/agent-first-canvas-library-expansion/html-templates-sources/next-html-pages/Singl-end · 9_16 reel concepts.html",
+    "id": "singl-end-9-16-reel-concepts-01",
+    "stage": 0,
+    "width": 1080,
+    "height": 1920,
+    "duration": 10000
+  },
+  {
+    "file": "_dev/agent-first-canvas-library-expansion/html-templates-sources/next-html-pages/Singl-end · 9_16 reel concepts.html",
+    "id": "singl-end-9-16-reel-concepts-02",
+    "stage": 1,
+    "width": 1080,
+    "height": 1920,
+    "duration": 10000
+  },
+  {
+    "file": "_dev/agent-first-canvas-library-expansion/html-templates-sources/next-html-pages/Singl-end × Giovannin Senza Paura · reels.html",
+    "id": "singl-end-giovannin-senza-paura-01",
+    "stage": 0,
+    "width": 1080,
+    "height": 1920,
+    "duration": 10000
+  },
+  {
+    "file": "_dev/agent-first-canvas-library-expansion/html-templates-sources/next-html-pages/Singl-end × Giovannin Senza Paura · reels.html",
+    "id": "singl-end-giovannin-senza-paura-02",
+    "stage": 1,
+    "width": 1080,
+    "height": 1920,
+    "duration": 10000
+  },
+  {
+    "file": "_dev/agent-first-canvas-library-expansion/html-templates-sources/next-html-pages/Singl-end × Giovannin Senza Paura · reels.html",
+    "id": "singl-end-giovannin-senza-paura-03",
+    "stage": 2,
+    "width": 1080,
+    "height": 1920,
+    "duration": 10000
+  }
+]

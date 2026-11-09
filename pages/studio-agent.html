@@ -189,7 +189,7 @@
         .clean-subhead-label { color:#9b96a6; }
         .clean-subhead span { color:#7f7a89; font-size:10px; }
         .clean-subhead .clean-chevron { flex:none; }
-        .clean-library-grid { max-height:27vh; }
+        .clean-library-grid { max-height:40vh; }
         .clean-design canvas, .clean-design img { width:100%; height:96px; object-fit:contain; display:block; background:#101015; border-radius:6px; }
         .clean-design img { object-fit:cover; }
         .clean-design .lib-status { color:#8fd3c1; }
@@ -201,7 +201,7 @@
         .clean-sec-head { display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:7px; }
         .clean-sec-head h3 { margin:0; font-size:10px; letter-spacing:.13em; text-transform:uppercase; color:#9b96a6; font-weight:700; }
         .clean-sec-head span { color:#7f7a89; font-size:10px; }
-        .clean-anim-list { display:grid; gap:5px; max-height:34vh; overflow:auto; padding-right:1px; scrollbar-width:thin; scrollbar-color:transparent transparent; }
+        .clean-anim-list { display:grid; gap:5px; max-height:42vh; overflow:auto; padding-right:1px; scrollbar-width:thin; scrollbar-color:transparent transparent; }
         .clean-anim { border:1px solid #ffffff14; border-radius:8px; background:#1a1a22; padding:7px 8px; text-align:left; display:flex; align-items:center; gap:8px; min-height:34px; }
         .clean-anim:hover { border-color:#ffffff3d; }
         .clean-anim.is-on { border-color:#eb5b3c; background:#2a1d1b; }
@@ -221,8 +221,12 @@
         .clean-selected-card-copy { min-width:0; }
         .clean-selected-card strong { display:block; font-size:11.5px; font-weight:600; line-height:1.3; }
         .clean-selected-card small { display:block; margin-top:4px; color:#8f8b9a; font-size:9px; text-transform:uppercase; letter-spacing:.04em; }
-        .clean-subhead button:focus-visible, .clean-section-toggle:focus-visible, .clean-library-back:focus-visible { outline:1px solid #ffffff55; outline-offset:3px; border-radius:3px; }
+        .clean-subhead button:focus-visible, .clean-section-toggle:focus-visible, .clean-library-back:focus-visible, .clean-collapsible-heading > button:focus-visible { outline:1px solid #ffffff55; outline-offset:3px; border-radius:3px; }
         .clean-group-list { display:flex; flex-wrap:wrap; gap:5px; }
+        .clean-group-list[hidden] { display:none; }
+        .clean-collapsible-heading { margin:0; }
+        .clean-collapsible-heading > button { width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px; border:0; background:transparent; padding:2px 0; text-align:left; }
+        .clean-collapsible-heading .clean-subhead-label { font-size:10px; letter-spacing:.13em; text-transform:uppercase; font-weight:700; }
         .clean-group { border:1px solid #ffffff18; border-radius:99px; background:#1a1a22; padding:5px 9px; display:inline-flex; align-items:center; gap:5px; color:#bdb8c6; font-size:10px; }
         .clean-group:hover { border-color:#ffffff3d; color:#fff; }
         .clean-group.is-on { border-color:#eb5b3c; background:#2a1d1b; color:#f6f3ec; }
@@ -591,16 +595,20 @@
                 <div id="cleanAnimList" class="clean-anim-list"></div>
             </section>
 
-            <section class="clean-sec" id="cleanGroupSection">
-                <div class="clean-sec-head"><h3>Groups</h3><span id="cleanGroupMeta">all layers</span></div>
-                <div id="cleanGroupList" class="clean-group-list"></div>
-            </section>
-
             <section class="clean-sec" id="cleanFormatsSection">
                 <button type="button" id="cleanFormatsToggle" class="clean-format-toggle" aria-expanded="false" aria-controls="cleanFormatList">
                     <b>Formats</b><span id="cleanFormatNow">—</span><span class="chev">⌄</span>
                 </button>
                 <div id="cleanFormatList" class="clean-format-list" hidden></div>
+            </section>
+
+            <section class="clean-sec" id="cleanGroupSection">
+                <h3 class="clean-collapsible-heading">
+                    <button type="button" id="cleanGroupsToggle" aria-expanded="false" aria-controls="cleanGroupList">
+                        <span class="clean-subhead-label">Groups</span><span id="cleanGroupMeta">all layers</span><span class="clean-chevron" aria-hidden="true"></span>
+                    </button>
+                </h3>
+                <div id="cleanGroupList" class="clean-group-list" hidden></div>
             </section>
         </aside>
 
@@ -4095,6 +4103,7 @@
             $('#cleanDrawerClose').onclick = () => setDrawer(false);
             $('#cleanDesignsToggle').onclick = () => toggleSection($('#cleanDesignsToggle'), $('#cleanDesignContent'));
             $('#cleanLibraryToggle').onclick = () => toggleSection($('#cleanLibraryToggle'), $('#cleanLibraryGrid'));
+            $('#cleanGroupsToggle').onclick = () => toggleSection($('#cleanGroupsToggle'), $('#cleanGroupList'));
             $('#cleanLibraryBack').onclick = () => {
                 CLEAN_LIBRARY_DETAIL_VIEW = false;
                 $('#cleanLibraryToggle').setAttribute('aria-expanded', 'true');

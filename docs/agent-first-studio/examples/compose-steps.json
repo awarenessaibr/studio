@@ -1,0 +1,21 @@
+{
+  "reply": "I used the available reveal clips to stagger the headline, description and price.",
+  "name": "Staggered product reveal",
+  "steps": [
+    {
+      "target": "headline",
+      "clip": "clip-fade-in-700",
+      "start": 0
+    },
+    {
+      "target": "description",
+      "clip": "clip-fade-in-700",
+      "start": 90
+    },
+    {
+      "target": "price",
+      "clip": "clip-pop-in-400",
+      "start": 180
+    }
+  ]
+}

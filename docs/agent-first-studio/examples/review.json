@@ -1,0 +1,15 @@
+{
+  "reply": "I found one layout collision and one motion issue.",
+  "review": [
+    {
+      "layerId": "m11-text-the-meaty",
+      "observation": "The title box overlaps the description by roughly 1.8% of the artboard.",
+      "suggestion": "Move the title up or reduce its box height first; only reduce the font if the band still collides."
+    },
+    {
+      "layerId": "m14-text-15-25",
+      "observation": "The price is visible for only the final 300 ms of the reel.",
+      "suggestion": "Hold the price from the moment the card lands until the end."
+    }
+  ]
+}

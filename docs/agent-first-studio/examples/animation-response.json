@@ -1,0 +1,41 @@
+{
+  "reply": "I slowed the headline entrance and kept the existing card motion.",
+  "animation": {
+    "name": "Slower headline entrance",
+    "duration": 8000,
+    "keepOthers": true,
+    "tracks": [
+      {
+        "layerId": "m04-text-hungry",
+        "segments": [
+          {
+            "preset": "keyframes",
+            "start": 0,
+            "duration": 1200,
+            "loop": false,
+            "frames": [
+              {
+                "t": 0,
+                "dx": 0,
+                "dy": 0.035,
+                "sx": 1,
+                "sy": 1,
+                "a": 0,
+                "e": "out"
+              },
+              {
+                "t": 1200,
+                "dx": 0,
+                "dy": 0,
+                "sx": 1,
+                "sy": 1,
+                "a": 1,
+                "e": "out"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

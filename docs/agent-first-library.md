@@ -11,10 +11,10 @@ the catalogue both Agent First UIs use:
 | `clips.json` | 76 reusable motion clips extracted from the designs |
 | `assets.json` | 111 de-duplicated images/shapes and their uses |
 | `business.json` | 3 brands, hours, taglines, contacts |
-| `menu.json` | 4 menu items with descriptions, prices and sources |
+| `menu.json` | Extracted menu-item candidates (not the authoritative brand menu) |
 
-Current index: **13 designs**, **8 ready**, **19 animations** (13 originals + 6 imported extras),
-**76 clips**, **111 assets**, **4 menu items**.
+At the time of writing: **63 designs**, **41 ready**, **61 source recordings**,
+**195 clips**, **665 assets**, **21 extracted menu items**.
 
 ## Status rules
 
@@ -22,9 +22,10 @@ Current index: **13 designs**, **8 ready**, **19 animations** (13 originals + 6 
 - `review` — usable, but has issues/warnings
 - `blocked` — not offered
 
-Animations carry their own `status` (`ok`, `warn`, `broken`). Default UI shows
-only ready designs and `ok` animations. Admin mode shows review designs and
-warning animations; broken animations are still hidden.
+Animations carry their own `status` (`ok`, `warn`, `broken`). Agent First lists
+all designs; the default animation list hides broken animations. Admin mode
+includes broken animations. Review/blocked status stays visible on the design
+cards.
 
 ## Brand filter and video export
 
@@ -42,11 +43,38 @@ The Clean Canvas has the same video export as a **Video** button in the
 top-right; it records the selected timeline animation at the canvas resolution.
 
 
+
+## Menu item swaps
+
+For supported Singl-end product designs, Agent First shows a **Menu item** card
+under the selected design. The card displays the current item, price, menu,
+section, description and dietary marks.
+
+- **Change item** opens a searchable picker limited to the brand's confirmed
+  menus.
+- Choosing an item creates a separate `Menu variation — <item>` animation.
+- One variation is kept per item; choosing the same item reuses it.
+- Variations can be deleted from the animation list.
+- Text fields use the design's existing fonts and boxes; long text is reduced
+  slightly to fit.
+- If a design has a verified product-image slot, the variation offers an optional
+  image upload and an online image search prompt. No v1 design has one yet;
+  scene photography is never treated as a product image.
+
+The original source recording is never modified. Menu variations use the
+editable composition.
+
+Data:
+
+- `data/library/menu-catalog.json` — confirmed brand menus.
+- `data/library/menu-designs.json` — supported designs and product slots.
+- `docs/menu-enabled-designs.md` — supported/unsupported design list.
+
 ## Source-exact original playback
 
-Each of the 13 source-derived designs has a recording of its original HTML
-stage under `data/library/sources/<design-id>.webm`, with a representative
-`.jpg` poster. `scripts/attach-source-videos.js` attaches those paths to the
+Each source-derived design (61 at the time of this batch) has a recording of
+its original HTML stage under `data/library/sources/<design-id>.webm`, with a
+representative `.jpg` poster. `scripts/attach-source-videos.js` attaches those paths to the
 library detail and index after a build.
 
 - Selecting a source-derived design shows the source poster, not the
@@ -66,9 +94,10 @@ Both UIs have a small admin toggle:
 - **`studio-agent.html` clean canvas** — the `A` button in the Designs drawer
   header
 
-The setting is shared through `localStorage["agentLibrary.admin"]`. Toggling it
-reloads the catalogue with every library design. The normal view remains
-curated: ready designs only.
+The setting is shared through `localStorage["agentLibrary.admin"]`. In Agent
+First, all designs are always listed; `A` only adds broken animations. In the
+clean canvas, the normal library grid remains ready-only and admin exposes the
+full design set.
 
 ## Extra animations
 

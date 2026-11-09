@@ -1,0 +1,34 @@
+{
+  "reply": "I moved the description below the title, kept the price in its own band, and lifted the price badge above its card.",
+  "composition_fixes": [
+    {
+      "layerId": "m11-text-the-meaty",
+      "set": {
+        "y": 56.5,
+        "h": 4.2,
+        "font.sizePct": 7.6
+      }
+    },
+    {
+      "layerId": "m12-text-poached-eggs-potato-",
+      "set": {
+        "y": 61.5,
+        "h": 8
+      }
+    },
+    {
+      "layerId": "m14-text-15-25",
+      "set": {
+        "y": 71,
+        "h": 3.4
+      }
+    },
+    {
+      "layerId": "m13-shape-badge",
+      "set": {
+        "z": 12,
+        "y": 70.4
+      }
+    }
+  ]
+}

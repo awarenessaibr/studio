@@ -11,7 +11,10 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font:14px/1
 button{font:inherit;color:inherit;cursor:pointer}
 :focus-visible{outline:2px solid var(--ac);outline-offset:2px}
 #stage{position:fixed;inset:0;display:grid;place-items:center}
-#cv{width:min(100vw,100vh);height:min(100vw,100vh);display:block;cursor:pointer}
+#cv.area-mode{cursor:crosshair}
+#areaBanner{position:fixed;top:18px;left:50%;transform:translateX(-50%);background:#1b2824;color:var(--ac);border:1px solid var(--ac);padding:8px 16px;border-radius:24px;font-size:12px;font-weight:600;z-index:20;display:flex;align-items:center;gap:10px;box-shadow:0 8px 30px #000c}
+#areaBanner button{background:transparent;border:0;color:inherit;font-size:14px;cursor:pointer;padding:0 4px}
+#areaBanner[hidden]{display:none}
 #cv[hidden]{display:none!important}
 #srcVideo{display:none;max-width:min(100vw,100vh);max-height:min(100vw,100vh);width:auto;height:auto;background:#0e0d12;box-shadow:0 20px 60px #0008}
 #srcVideo.on,#srcPoster.on{display:block}#srcPoster{max-width:min(100vw,100vh);max-height:min(100vw,100vh);width:auto;height:auto;background:#0e0d12;box-shadow:0 20px 60px #0008}
@@ -51,9 +54,24 @@ button{font:inherit;color:inherit;cursor:pointer}
 .m button{margin-top:6px;border:1px solid var(--line);border-radius:8px;background:transparent;padding:2px 9px}
 .chips{display:flex;flex-wrap:wrap;gap:5px;padding:8px 12px 0}
 .chips button{font-size:11.5px;border:1px solid var(--line);border-radius:99px;background:transparent;padding:2px 9px}.chips button:hover,.chips button[aria-pressed=true]{border-color:var(--ac)}.chips button[aria-pressed=true]{background:#2a3532}
-#form{display:flex;gap:6px;padding:10px 12px}
+#form-wrap{border-top:1px solid var(--line);position:relative}
+#attachBar{display:flex;gap:5px;padding:8px 12px 0;align-items:center;flex-wrap:wrap}
+#attachBar:empty{display:none;padding:0}
+.attach-btn{display:inline-flex;align-items:center;gap:4px;font-size:11px;border:1px solid var(--line);border-radius:8px;background:transparent;padding:3px 8px;color:var(--mu);cursor:pointer;white-space:nowrap}
+.attach-btn:hover{border-color:var(--ac);color:var(--ink)}
+.attach-btn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.attach-thumbs{display:flex;gap:6px;flex-wrap:wrap;padding:4px 12px 2px}
+.attach-thumbs:empty{display:none;padding:0}
+.att{position:relative;border-radius:8px;border:1px solid var(--line);overflow:hidden;background:#17161c}
+.att img,.att video{width:56px;height:56px;object-fit:cover;display:block}
+.att .att-x{position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;border:0;background:#000b;color:#fff;font-size:11px;display:grid;place-items:center;cursor:pointer;padding:0;line-height:1}
+.att .att-x:hover{background:var(--warn)}
+.att .att-label{position:absolute;bottom:0;left:0;right:0;background:#000a;color:var(--ink);font-size:8px;text-align:center;padding:1px 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#form{display:flex;gap:6px;padding:6px 12px 10px}
 #in{flex:1;min-width:0;resize:none;height:54px;border:1px solid var(--line);border-radius:9px;background:#17161b;color:var(--ink);font:inherit;padding:7px 9px}
-#form button{border:0;background:var(--ac);color:#10211c;font-weight:600;border-radius:9px;padding:0 14px}
+#form button.send{border:0;background:var(--ac);color:#10211c;font-weight:600;border-radius:9px;padding:0 14px}
+#dropOverlay{display:none;position:absolute;inset:0;z-index:10;background:#8fd3c133;border:2px dashed var(--ac);border-radius:14px;place-items:center;font-size:14px;color:var(--ac);font-weight:600;pointer-events:none}
+#dropOverlay.on{display:grid}
 select,input{font:inherit;color:var(--ink);background:#17161b;border:1px solid var(--line);border-radius:8px;padding:5px 8px}
 #toast{position:fixed;z-index:9;left:50%;top:16px;transform:translateX(-50%);background:var(--ac);color:#10211c;padding:9px 14px;border-radius:10px;font-weight:600;max-width:calc(100vw - 140px)}
 #toast.err{background:var(--warn)}#toast[hidden]{display:none}
@@ -62,6 +80,25 @@ dialog::backdrop{background:#000a}dialog label{display:grid;gap:3px;margin:10px 
 dialog menu{display:flex;gap:8px;justify-content:flex-end;padding:0;margin:14px 0 0}
 dialog button{border:1px solid var(--line);background:transparent;border-radius:8px;padding:6px 12px}
 dialog button.p{background:var(--ac);color:#10211c;border:0;font-weight:600}
+
+.menu-card{border:1px solid #eb5b3c55;border-radius:10px;background:#201a18;padding:10px;margin:10px 0}
+.menu-card .mk{display:flex;align-items:center;gap:6px;color:#ffb39e;font-size:11px;letter-spacing:.04em;text-transform:uppercase}
+.menu-card .mk b{font-weight:700}.menu-card h3{margin:5px 0 2px;font-size:14px;line-height:1.25}
+.menu-card p{margin:0 0 7px;color:var(--mu);font-size:11px;line-height:1.4}
+.menu-card .menu-actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.menu-card button{border:1px solid #ffffff2b;background:#2a2522;color:var(--ink);border-radius:7px;padding:5px 8px;font-size:11px}
+.menu-card button:hover{border-color:var(--ac)}
+.menu-card .menu-note{display:block;margin-top:6px;color:#9b938b;font-size:10px;line-height:1.35}
+.menu-card .menu-img{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:7px}
+.menu-card .menu-img img{width:42px;height:42px;object-fit:cover;border-radius:5px;border:1px solid #ffffff22}
+#menuDialog{width:min(680px,94vw);max-height:82vh;overflow:auto}
+#menuDialog .menu-search{width:100%;margin:8px 0 10px}
+#menuDialog .menu-group{margin:12px 0}
+#menuDialog .menu-group h3{margin:0 0 5px;font-size:12px;color:var(--mu);text-transform:uppercase;letter-spacing:.05em}
+#menuDialog .menu-pick{display:block;width:100%;text-align:left;border:1px solid var(--line);background:#17161c;color:var(--ink);border-radius:8px;padding:8px 9px;margin:4px 0;cursor:pointer}
+#menuDialog .menu-pick:hover{border-color:var(--ac);background:#211d22}
+#menuDialog .menu-pick b{display:block;font-size:12px}#menuDialog .menu-pick small{display:block;color:var(--mu);font-size:10.5px;line-height:1.35;margin-top:2px}
+#menuDialog .menu-pick .price{float:right;color:#ffb39e;font-weight:600}
 @media (prefers-reduced-motion:reduce){#tip{transition:none}}
 </style>
 </head>
@@ -81,12 +118,25 @@ dialog button.p{background:var(--ac);color:#10211c;border:0;font-weight:600}
   <div id="log" aria-live="polite"></div>
   <div class="chips" id="groups" aria-label="Element groups in this design"></div>
   <div class="chips" id="chips"></div>
-  <form id="form"><textarea id="in" placeholder="Describe the animation, change or problem you see"></textarea><button>Send</button></form>
+  <div id="form-wrap">
+    <div id="attachBar">
+      <button type="button" class="attach-btn" id="btnAttachImg" title="Attach a reference image"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg> Image</button>
+      <button type="button" class="attach-btn" id="btnAttachVid" title="Attach a reference video"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M10 9l5 3-5 3z"/></svg> Video</button>
+      <button type="button" class="attach-btn" id="btnAttachCanvas" title="Capture what you see on the canvas right now"><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg> Canvas</button>
+      <button type="button" class="attach-btn" id="btnAttachArea" title="Click or drag on the canvas to crop a specific area for visual reference"><svg viewBox="0 0 24 24"><path d="M7 2H2v5"/><path d="M17 2h5v5"/><path d="M2 17v5h5"/><path d="M22 17v5h-5"/><rect x="7" y="7" width="10" height="10" stroke-dasharray="2 2"/></svg> Select area</button>
+    </div>
+    <div class="attach-thumbs" id="attachThumbs"></div>
+    <form id="form"><textarea id="in" placeholder="Describe the animation, change or problem you see — attach images or video for visual reference"></textarea><button class="send">Send</button></form>
+    <div id="dropOverlay">Drop image or video here</div>
+  </div>
+  <input type="file" id="fileImg" accept="image/*" multiple hidden>
+  <input type="file" id="fileVid" accept="video/*" hidden>
 </aside>
 
 <button class="fab" id="replay" aria-label="Replay animation" disabled><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.5-5.8"/><path d="M4 4v4.5h4.5"/></svg></button>
 <div id="tip" role="tooltip">Replay · the canvas is always 1:1</div>
 <div id="toast" role="status" hidden></div>
+<div id="areaBanner" hidden><span>Drag a box or click an element on the canvas to select an area</span> <button type="button" id="btnCancelArea" title="Cancel area selection">✕</button></div>
 
 <dialog id="cfg"><form method="dialog">
   <h2 style="margin:0 0 4px;font-size:15px">Model settings</h2>
@@ -97,6 +147,17 @@ dialog button.p{background:var(--ac);color:#10211c;border:0;font-weight:600}
   <menu><button value="x">Cancel</button><button class="p" id="cfgSave" value="ok">Save</button></menu>
 </form></dialog>
 
+<dialog id="menuDialog" aria-label="Choose a menu item">
+  <form method="dialog">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <div><h2 style="margin:0;font-size:16px">Menu item</h2><p style="margin:3px 0 0;color:var(--mu);font-size:11px">Choose from the confirmed brand menu. The design style stays the same.</p></div>
+      <button value="close" aria-label="Close">✕</button>
+    </div>
+    <input id="menuSearch" class="menu-search" type="search" placeholder="Search dishes, drinks, prices…" autocomplete="off">
+    <div id="menuBody"></div>
+  </form>
+</dialog>
+
 <script>
 (() => {
 'use strict';
@@ -105,7 +166,9 @@ const API = 'api';
 const LIB = 'api/library';                      // built by tools/build-library.py (index.json)
 const FEED_STATIC = 'feed/index.json';          // bundled designs + their animations
 const FEED_PUBLISHED = true;                    // GET api/brand-packs/:pack/templates?brandId=…
-const SAVE_ENDPOINT = id => `${API}/designs/${encodeURIComponent(id)}/animations`; // optional server sync (POST); browser save always happens
+const SAVE_ENDPOINT = id => `${API}/designs/${encodeURIComponent(id)}/animations`;
+const MENU_CATALOG_URL = 'data/library/menu-catalog.json';
+const MENU_DESIGNS_URL = 'data/library/menu-designs.json'; // optional server sync (POST); browser save always happens
 const FORMATS = [{id:'orig',label:'Original'},{id:'sq',label:'Square',w:1,h:1,r:'1:1'},{id:'feed',label:'Feed',w:4,h:5,r:'4:5'},{id:'story',label:'Story · Reels',w:9,h:16,r:'9:16'},{id:'wide',label:'Landscape',w:16,h:9,r:'16:9'}];
 const DEF = {local:{url:'http://localhost:11434/api/chat',model:'qwen2.5:14b'},deepseek:{url:'https://api.deepseek.com/chat/completions',model:'deepseek-chat',key:''}};
 
@@ -124,6 +187,7 @@ let DESIGNS = [], cur = null, curAnim = null, fmt = 'orig', fmtOpen = false, T =
 const BRANDS = new Map();
 let BRAND = LS.get('sa.brand', '');
 let SRC = false;
+let MENU_CATALOG = null, MENU_DESIGNS = null, MENU_QUERY = '';
 const IMGS = new Map();
 
 /* ============ animation model ============ */
@@ -168,6 +232,7 @@ const brandKeyOf = value => String(value||'').toLowerCase().replace(/&/g,' and '
 function addDesign(id,comp,src,anims,meta={}){
   let d = DESIGNS.find(x=>x.id===id);
   if(!d){ d = {id,comp,src,anims:[],brandId:'',brandName:'',brandKey:'',packId:''}; DESIGNS.push(d); }
+  if(!d.baseComp) d.baseComp = comp;
   Object.assign(d,meta);
   if(!d.brandKey) d.brandKey = brandKeyOf(d.brandName || d.brandId);
   if(d.brandKey) BRANDS.set(d.brandKey, d.brandName || d.brandId);
@@ -177,6 +242,7 @@ function addDesign(id,comp,src,anims,meta={}){
 const titleCase = value => String(value||'').replace(/[-_]+/g,' ').replace(/\b\w/g,ch=>ch.toUpperCase());
 const visibleDesigns = () => BRAND ? DESIGNS.filter(d=>d.brandKey===BRAND) : DESIGNS;
 async function loadFeed(){
+  try{ [MENU_CATALOG,MENU_DESIGNS] = await Promise.all([jget(MENU_CATALOG_URL).catch(()=>null),jget(MENU_DESIGNS_URL).catch(()=>null)]); }catch{}
   try{ // library first: only designs marked ready, only animations that validated ok
     LIBIDX = await jget(LIB);
     for(const e of (LIBIDX.designs||[])){
@@ -223,6 +289,8 @@ function drawText(ctx,l,bw,bh,basePx){
   if(f.stroke){ ctx.strokeStyle=f.stroke; ctx.lineWidth=(f.strokeWidthPct||0.5)/100*basePx; ctx.lineJoin='round';
     lines.forEach((s,i)=>ctx.strokeText(s,x,y0+i*lh+lh/2)); }
 }
+let LAST_RECT = {cx:0,cy:0,cw:0,ch:0,S:1080};
+let AREA_MODE = false, AREA_BOX = null, AREA_DRAG = null;
 function draw(ctx,S,d,anim,t,fid){
   const comp=d.comp, fm=FORMATS.find(f=>f.id===fid)||FORMATS[0];
   const ar = fm.w ? fm.w/fm.h : comp.width/comp.height;
@@ -232,6 +300,7 @@ function draw(ctx,S,d,anim,t,fid){
   ctx.save(); ctx.beginPath(); ctx.rect(ox,oy,W,H); ctx.clip(); ctx.fillStyle='#1b1a21'; ctx.fillRect(ox,oy,W,H);
   const car=comp.width/comp.height; let cw=W, ch=H; car>W/H ? ch=W/car : cw=H*car;
   const cx=ox+(W-cw)/2, cy=oy+(H-ch)/2;
+  LAST_RECT = {cx,cy,cw,ch,S};
   ctx.beginPath(); ctx.rect(cx,cy,cw,ch); ctx.clip();
   [...comp.layers].sort((a,b)=>(a.z||0)-(b.z||0)).forEach(l=>{
     if(l.visible===false) return;
@@ -248,6 +317,14 @@ function draw(ctx,S,d,anim,t,fid){
   });
   if(d===cur && SEL.size && d.lib){ ctx.strokeStyle='#8fd3c1'; ctx.lineWidth=Math.max(2,S/300); ctx.setLineDash([8,6]);
     d.lib.groups.filter(g=>SEL.has(g.id)).forEach(g=>ctx.strokeRect(cx+g.bbox.x/100*cw,cy+g.bbox.y/100*ch,g.bbox.w/100*cw,g.bbox.h/100*ch)); }
+  if(d===cur && AREA_BOX){
+    ctx.strokeStyle='#8fd3c1'; ctx.fillStyle='#8fd3c12b'; ctx.lineWidth=Math.max(2,S/350); ctx.setLineDash([6,4]);
+    const rx = cx + AREA_BOX.x/100*cw, ry = cy + AREA_BOX.y/100*ch;
+    const rw = AREA_BOX.w/100*cw, rh = AREA_BOX.h/100*ch;
+    ctx.fillRect(rx, ry, rw, rh);
+    ctx.strokeRect(rx, ry, rw, rh);
+    ctx.setLineDash([]);
+  }
   ctx.restore();
 }
 const cv = $('#cv'), cx2 = cv.getContext('2d');
@@ -310,12 +387,155 @@ async function exportVideo(){
 }
 function showTip(){ const t=$('#tip'); t.classList.add('on'); setTimeout(()=>t.classList.remove('on'),4200); }
 $('#replay').onclick = play;
-cv.onclick = () => { if(!curAnim) return; if(playing){ cancelAnimationFrame(raf); playing=false; } else if(T>=dur()) play(); else { tStart=performance.now()-T; playing=true; raf=requestAnimationFrame(frame); } };
+cv.onclick = () => { if(AREA_MODE||!curAnim) return; if(playing){ cancelAnimationFrame(raf); playing=false; } else if(T>=dur()) play(); else { tStart=performance.now()-T; playing=true; raf=requestAnimationFrame(frame); } };
 
 /* ============ designs panel ============ */
 const panel = $('#panel');
 function openPanel(on){ panel.hidden=!on; $('#tDesigns').setAttribute('aria-expanded',on); if(on) renderPanel(); }
 $('#tDesigns').onclick = () => openPanel(panel.hidden);
+
+/* ============ confirmed menu / product swaps ============ */
+function menuDesign(d=cur){ return d && MENU_DESIGNS && MENU_DESIGNS.designs ? MENU_DESIGNS.designs[d.id] : null; }
+function menuBrand(brandId){ return MENU_CATALOG && MENU_CATALOG.brands ? MENU_CATALOG.brands[brandId] : null; }
+function catalogItem(brandId,itemId){
+  const brand=menuBrand(brandId); if(!brand) return null;
+  for(const menu of brand.menus||[]) for(const section of menu.sections||[]) for(const item of section.items||[])
+    if(item.id===itemId) return {...item,menuId:menu.id,menuName:menu.name,section:section.name};
+  return null;
+}
+function menuPrices(item){ return String(item.price||'').split(/\s*\/\s*/).filter(Boolean); }
+function menuText(template,item){
+  const prices=menuPrices(item);
+  const vars={
+    name:item.name||'', description:item.description||'', descriptionUpper:(item.description||'').toUpperCase(),
+    price:item.price||'', price1:prices[0]||item.price||'', price2:prices[1]||prices[0]||item.price||'',
+    dietary:(item.dietary||[]).join(' · '), note:item.note||''
+  };
+  return String(template||'{name}').replace(/\{(\w+)\}/g,(_,key)=>vars[key]??'');
+}
+function fitMenuText(layer,baseComp){
+  if(!layer || layer.type!=='text') return layer;
+  const font=layer.font||{}, original=Number(font.sizePct)||5;
+  const canvas=document.createElement('canvas'), ctx=canvas.getContext('2d');
+  const W=baseComp.width||1080, H=baseComp.height||1080;
+  const bw=Math.max(1,(layer.w||100)/100*W), bh=Math.max(1,(layer.h||100)/100*H);
+  let text=String(layer.text||''); if(font.transform==='uppercase') text=text.toUpperCase();
+  const sizeFor=p=>{
+    const fs=p/100*W;
+    ctx.font=`${font.style==='italic'?'italic ':''}${font.weight||400} ${fs}px "${font.family||'sans-serif'}",sans-serif`;
+    if('letterSpacing' in ctx) ctx.letterSpacing=((font.letterSpacingEm||0)*fs)+'px';
+    return fs*(font.lineHeight||1.2);
+  };
+  let size=original;
+  const min=Math.max(1.5,original*.45);
+  while(size>min && wrap(ctx,text,bw).length*sizeFor(size)>bh*.82) size-=.4;
+  layer.font={...font,sizePct:Math.round(size*10)/10};
+  return layer;
+}
+function menuOverrides(baseComp,mapping,item){
+  const out=[];
+  for(const slot of mapping.slots||[]){
+    const src=(baseComp.layers||[]).find(layer=>layer.id===slot.layerId);
+    if(!src) continue;
+    let text=menuText(slot.template,item);
+    if(slot.uppercase) text=text.toUpperCase();
+    const layer=clone(src); layer.text=text; fitMenuText(layer,baseComp);
+    out.push({layerId:layer.id,text:layer.text,font:layer.font});
+  }
+  if(mapping.imageLayerId && item.image) out.push({layerId:mapping.imageLayerId,url:item.image});
+  return out;
+}
+function applyMenuOverrides(baseComp,overrides){
+  const comp=clone(baseComp||cur.comp);
+  for(const patch of overrides||[]){
+    const layer=(comp.layers||[]).find(l=>l.id===patch.layerId); if(!layer) continue;
+    if(patch.text!=null) layer.text=patch.text;
+    if(patch.font) layer.font={...layer.font,...patch.font};
+    if(patch.url) layer.url=patch.url;
+  }
+  return comp;
+}
+async function persistMenuAnimation(data){
+  const store=LS.get('sa.anims',{}); (store[cur.id]=store[cur.id]||[]).push(data); LS.set('sa.anims',store);
+  if(cur.fromLib){ try{ await fetch('api/library/animations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({designId:cur.id,animation:data})}); }catch{} }
+}
+async function createMenuVariation(item){
+  const mapping=menuDesign(cur); if(!mapping) return;
+  const existing=cur.anims.find(a=>a.data.origin==='menu'&&a.data.menu&&a.data.menu.itemId===item.id);
+  if(existing){ selectAnim(existing); return; }
+  const base=cur.baseComp||cur.comp;
+  const original=cur.anims.find(a=>a.data.origin==='original');
+  const baseAnim=original?clone(original.data):compMotion(base); if(baseAnim.byId) delete baseAnim.byId;
+  const overrides=menuOverrides(base,mapping,item);
+  const id='menu-'+item.id.replace(/[^a-z0-9]+/g,'-').slice(0,55)+'-'+Date.now().toString(36);
+  const data={...baseAnim,id,name:'Menu variation — '+item.name,origin:'menu',compositionId:cur.id,createdAt:new Date().toISOString(),duration:baseAnim.duration||base.duration||10000,menu:{itemId:item.id,itemName:item.name,price:item.price,description:item.description,menuId:item.menuId,menuName:item.menuName,section:item.section,overrides,image:item.image||''}};
+  const obj={id,data:prep(data),saved:true}; obj.data.id=id; cur.anims.push(obj);
+  await persistMenuAnimation(data);
+  selectAnim(obj); toast('Menu variation created.'); if(panel.hidden) openPanel(true);
+}
+function deleteMenuVariation(event,item){
+  event.stopPropagation();
+  if(!confirm(`Delete “${item.data.name}”?`)) return;
+  cur.anims=cur.anims.filter(a=>a!==item);
+  const store=LS.get('sa.anims',{}); if(store[cur.id]){store[cur.id]=store[cur.id].filter(a=>a.id!==item.data.id);LS.set('sa.anims',store);}
+  if(cur.fromLib) fetch('api/library/animations/'+encodeURIComponent(item.data.id)+'?designId='+encodeURIComponent(cur.id),{method:'DELETE'}).catch(()=>{});
+  if(curAnim===item.data){curAnim=null;cur.comp=cur.baseComp||cur.comp;showSource(true,false);renderPanel();paintMain();}
+  else renderPanel();
+  toast('Menu variation deleted.');
+}
+function menuFileToDataUrl(file){
+  return new Promise((resolve,reject)=>{
+    const img=new Image(), url=URL.createObjectURL(file);
+    img.onload=()=>{
+      let w=img.naturalWidth,h=img.naturalHeight, max=1600;
+      if(w>max||h>max){const s=Math.min(max/w,max/h);w=Math.round(w*s);h=Math.round(h*s);}
+      const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);
+      URL.revokeObjectURL(url);resolve(c.toDataURL('image/jpeg',.86));
+    };
+    img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('That image could not be read.'));};
+    img.src=url;
+  });
+}
+async function setMenuImage(file){
+  if(!curAnim||!curAnim.menu) return;
+  try{
+    const mapping=menuDesign(cur); if(!mapping||!mapping.imageLayerId) return;
+    const dataUrl=await menuFileToDataUrl(file);
+    const overrides=(curAnim.menu.overrides||[]).filter(o=>o.layerId!==mapping.imageLayerId);
+    overrides.push({layerId:mapping.imageLayerId,url:dataUrl});
+    curAnim.menu.overrides=overrides; curAnim.menu.image=dataUrl;
+    cur.comp=applyMenuOverrides(cur.baseComp||cur.comp,overrides);
+    const store=LS.get('sa.anims',{}); const list=store[cur.id]||[]; const hit=list.find(a=>a.id===curAnim.id); if(hit){hit.menu=curAnim.menu;LS.set('sa.anims',store);}
+    if(cur.fromLib){ try{ const payload=clone(curAnim); delete payload.byId; await fetch('api/library/animations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({designId:cur.id,animation:payload})}); }catch{} }
+    paintMain(); renderPanel(); toast('Product image added to this menu variation.');
+  }catch(error){ toast(error.message||'Could not use that image.','err'); }
+}
+function openMenuPicker(){
+  const mapping=menuDesign(cur), brand=menuBrand(cur.brandId); if(!mapping||!brand) return;
+  MENU_QUERY=''; $('#menuSearch').value=''; renderMenuPicker(); $('#menuDialog').showModal(); setTimeout(()=>$('#menuSearch').focus(),30);
+}
+function renderMenuPicker(){
+  const mapping=menuDesign(cur), brand=menuBrand(cur.brandId), body=$('#menuBody'); if(!mapping||!brand||!body) return;
+  const q=MENU_QUERY.trim().toLowerCase(); body.replaceChildren();
+  const menus=(brand.menus||[]).filter(menu=>!mapping.allowedMenus||mapping.allowedMenus.includes(menu.id));
+  let count=0;
+  for(const menu of menus) for(const section of menu.sections||[]){
+    const items=(section.items||[]).filter(item=>!q||[item.name,item.description,item.price,section.name,menu.name].join(' ').toLowerCase().includes(q));
+    if(!items.length) continue;
+    const group=mk('div',{className:'menu-group'},mk('h3',{},`${menu.name} · ${section.name}`));
+    for(const item of items){ count++;
+      const current=curAnim&&curAnim.menu&&curAnim.menu.itemId===item.id;
+      const b=mk('button',{type:'button',className:'menu-pick',onclick:()=>{ $('#menuDialog').close(); createMenuVariation({...item,menuId:menu.id,menuName:menu.name,section:section.name}); }},
+        mk('span',{className:'price'},item.price||''),mk('b',{},item.name+(current?' · current':'')),
+        mk('small',{},[item.description,item.dietary?.length?item.dietary.join(' · '):''].filter(Boolean).join(' — ')));
+      group.append(b);
+    }
+    body.append(group);
+  }
+  if(!count) body.append(mk('p',{style:'color:var(--mu);font-size:12px'},'No menu items match that search.'));
+}
+$('#menuSearch').oninput=e=>{MENU_QUERY=e.target.value;renderMenuPicker();};
+
 function renderPanel(){
   panel.replaceChildren();
   $('#tAdmin').setAttribute('aria-pressed', String(ADMIN));
@@ -342,9 +562,36 @@ function renderPanel(){
   const fm = FORMATS.find(f=>f.id===fmt);
   if(!fmtOpen){
     body.append(mk('div',{className:'sec',style:'margin-top:0'},'Animations'));
-    cur.anims.forEach(a => body.append(mk('button',{className:'row',onclick:()=>selectAnim(a)},mk('span',{},animLabel(a.data,cur),mk('br'),mk('small',{},((a.data.duration||0)/1000).toFixed(1)+' s')),mk('span',{},...(a.saved?[mk('span',{className:'tag'},'Saved')]:[]),...(ADMIN&&a.data._status&&a.data._status!=='ok'?[mk('span',{className:'tag',style:'margin-left:4px'},a.data._status)]:[])))));
+    cur.anims.forEach(a => body.append(mk('button',{className:'row',onclick:()=>selectAnim(a)},mk('span',{},animLabel(a.data,cur),mk('br'),mk('small',{},((a.data.duration||0)/1000).toFixed(1)+' s')),mk('span',{},...(a.saved?[mk('span',{className:'tag'},'Saved')]:[]),...(a.data.origin==='menu'?[mk('span',{className:'tag',style:'margin-left:4px'},'Menu')]:[]),...(a.data.origin==='menu'?[mk('button',{type:'button',className:'tag',style:'margin-left:4px;padding:0 5px',title:'Delete this menu variation',onclick:ev=>deleteMenuVariation(ev,a)},'×')]:[]),...(ADMIN&&a.data._status&&a.data._status!=='ok'?[mk('span',{className:'tag',style:'margin-left:4px'},a.data._status)]:[])))));
     body.querySelectorAll('.row').forEach((r,i)=>r.setAttribute('aria-current',!!cur.anims[i]&&cur.anims[i].data===curAnim));
     if(!cur.anims.length) body.append(mk('p',{style:'color:var(--mu)'},'No animations yet. Ask the assistant to create one.'));
+    const mapping=menuDesign(cur);
+    if(mapping){
+      const brand=menuBrand(cur.brandId);
+      const current=curAnim&&curAnim.menu?{...curAnim.menu,menuName:curAnim.menu.menuName,section:curAnim.menu.section}:catalogItem(cur.brandId,mapping.currentItemId);
+      const menuName=current&&(current.menuName||(brand&&(brand.menus.find(m=>m.id===current.menuId)||{}).name));
+      const menuCard=mk('div',{className:'menu-card'},
+        mk('div',{className:'mk'},'Menu item',mk('span',{title:'This design uses a confirmed menu item. You can change it without changing the layout, type or visual style.',style:'cursor:help;color:#ffb39e'},'ⓘ')),
+        mk('h3',{},current?current.itemName||current.name:'—'),
+        mk('p',{},current?[current.price,menuName,current.section].filter(Boolean).join(' · '):'No menu item selected.'),
+        ...(current&&current.description?[mk('p',{style:'font-size:10.5px;color:#b7aea5;margin-bottom:6px'},current.description)]:[]),
+        ...(current&&current.dietary&&current.dietary.length?[mk('p',{style:'font-size:10px;color:#b7aea5;margin-bottom:6px'},'Dietary: '+current.dietary.join(' · '))]:[]),
+        mk('div',{className:'menu-actions'},mk('button',{type:'button',onclick:openMenuPicker},'Change item')),
+        mk('span',{className:'menu-note'},'Changes create a separate Menu variation; the source Original motion stays untouched.'));
+      if(curAnim&&curAnim.menu&&curAnim.menu.overrides&&mapping.imageLayerId){
+        const image=curAnim.menu.image;
+        const row=mk('div',{className:'menu-img'});
+        if(image) row.append(mk('img',{src:image,alt:''}));
+        const file=mk('input',{type:'file',accept:'image/*',hidden:true,onchange:async ev=>{const f=ev.target.files&&ev.target.files[0];if(!f)return;await setMenuImage(f);}});
+        row.append(file,mk('button',{type:'button',onclick:()=>file.click()},image?'Replace image':'Add product image'),
+          mk('button',{type:'button',onclick:()=>window.open('https://www.google.com/search?tbm=isch&q='+encodeURIComponent((brand?brand.name:'')+' '+(curAnim.menu.itemName||'product image')),'_blank','noopener')},'Search online'));
+        menuCard.append(row);
+        if(!image) menuCard.append(mk('span',{className:'menu-note'},'No product image is attached to this menu item. Add one, or search online and upload the image you choose.'));
+      } else if(curAnim&&curAnim.menu){
+        menuCard.append(mk('span',{className:'menu-note'},'This design has no separate product-image slot; the product text is updated.'));
+      }
+      body.append(menuCard);
+    }
   }
   const tg = mk('button',{className:'row',style:'margin-top:10px',onclick:()=>{fmtOpen=!fmtOpen;renderPanel();}},mk('span',{},'Formats',mk('br'),mk('small',{},fm.label+(fm.r?' · '+fm.r:''))),mk('span',{},fmtOpen?'▴':'▾'));
   tg.setAttribute('aria-expanded',fmtOpen); body.append(tg);
@@ -364,8 +611,8 @@ function showSource(on, playIt=false){
     img.src=(cur.sourcePoster||'')+(cur.sourcePoster?('?v='+Date.now()):''); img.hidden=false; img.classList.add('on');
   }
 }
-function selectDesign(d){ SEL=new Set(); cur=d; curAnim=null; fmt='orig'; fmtOpen=false; T=0; $('#tExport').disabled=false; showSource(true,false); fontFor(d.comp); d.comp.layers.forEach(l=>l.url&&getImg(l.url)); ctxLbl(); paintMain(); renderPanel(); renderGroups(); loadLib(d); }
-function selectAnim(a){ if(!a.data.byId) a.data=prep(a.data); curAnim=a.data; $('#replay').disabled=false; renderPanel(); const original=(a.data.origin==='original'); showSource(original,original); if(!original) play(); showTip(); if(innerWidth-Math.min(innerWidth,innerHeight)<2*346) openPanel(false); }
+function selectDesign(d){ SEL=new Set(); cur=d; cur.comp=d.baseComp||d.comp; curAnim=null; fmt='orig'; fmtOpen=false; T=0; $('#tExport').disabled=false; showSource(true,false); fontFor(d.comp); d.comp.layers.forEach(l=>l.url&&getImg(l.url)); ctxLbl(); paintMain(); renderPanel(); renderGroups(); loadLib(d); }
+function selectAnim(a){ if(!a.data.byId) a.data=prep(a.data); curAnim=a.data; cur.comp=a.data.menu&&a.data.menu.overrides?applyMenuOverrides(cur.baseComp||cur.comp,a.data.menu.overrides):(cur.baseComp||cur.comp); $('#replay').disabled=false; renderPanel(); const original=(a.data.origin==='original'); showSource(original,original); if(!original) play(); showTip(); if(innerWidth-Math.min(innerWidth,innerHeight)<2*346) openPanel(false); }
 
 /* ============ library: groups + clips ============ */
 async function loadLib(d){ if(!d.detail||d.lib) return; try{ d.lib=await jget(d.detail); if(!CLIPS) CLIPS=(await jget(LIBIDX.files.clips)).clips; }catch(e){ console.warn(e); } if(cur===d) renderGroups(); }
@@ -386,20 +633,235 @@ const CFG = () => Object.assign({local:{...DEF.local},deepseek:{...DEF.deepseek}
 const chat = $('#chat'), log = $('#log'); let HIST = [];
 const ctxLbl = () => { $('#ctxLbl').textContent = cur ? (dTitle(cur)+(curAnim?' · '+animLabel(curAnim,cur):'')) : 'Pick a design first'; };
 function say(text,cls,extra){ const m=mk('div',{className:'m '+(cls||'')},text); if(extra) m.append(extra); log.append(m); log.scrollTop=log.scrollHeight; return m; }
+function sayMedia(items){ // show attached media in chat as user message
+  if(!items.length) return;
+  const row=mk('div',{style:'display:flex;gap:5px;flex-wrap:wrap;margin-top:4px'});
+  items.forEach(att=>{
+    if(att.type==='image') row.append(mk('img',{src:att.dataUrl,alt:att.name,style:'width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid var(--line)'}));
+    else if(att.type==='video'){ const v=mk('video',{src:att.dataUrl,muted:true,style:'width:64px;height:48px;object-fit:cover;border-radius:6px;border:1px solid var(--line)'}); v.onloadeddata=()=>{v.currentTime=0.5}; row.append(v); }
+    else if(att.type==='canvas') row.append(mk('img',{src:att.dataUrl,alt:'Canvas capture',style:'width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid var(--ac)'}));
+    else if(att.type==='area') row.append(mk('img',{src:att.dataUrl,alt:att.name,style:'max-width:80px;height:48px;object-fit:cover;border-radius:6px;border:1px solid var(--ac)'}));
+  });
+  log.append(row); log.scrollTop=log.scrollHeight;
+}
 $('#tAsk').onclick = () => { chat.hidden=!chat.hidden; $('#tAsk').setAttribute('aria-expanded',!chat.hidden); if(!chat.hidden) $('#in').focus(); };
 $('#prov').value = LS.get('sa.prov','local'); $('#prov').onchange = e => LS.set('sa.prov',e.target.value);
-[['New animation','Create a new animation for this design: '],['Change this one','Modify the current animation: '],['Review & correct','Review the composition and the current animation. My feedback: ']].forEach(([l,t])=>$('#chips').append(mk('button',{type:'button',onclick:()=>{$('#in').value=t;$('#in').focus();}},l)));
+[['New animation','Create a new animation for this design: '],['Change this one','Modify the current animation: '],['New composition','Generate a new composition variation based on: '],['Review & correct','Review the composition and the current animation. My feedback: ']].forEach(([l,t])=>$('#chips').append(mk('button',{type:'button',onclick:()=>{$('#in').value=t;$('#in').focus();}},l)));
 $('#cfgBtn').onclick = () => { const c=CFG(); $('#lUrl').value=c.local.url; $('#lMod').value=c.local.model; $('#dUrl').value=c.deepseek.url; $('#dMod').value=c.deepseek.model; $('#dKey').value=c.deepseek.key||''; $('#cfg').showModal(); };
 $('#cfgSave').onclick = () => LS.set('sa.cfg',{local:{url:$('#lUrl').value.trim(),model:$('#lMod').value.trim()},deepseek:{url:$('#dUrl').value.trim(),model:$('#dMod').value.trim(),key:$('#dKey').value.trim()}});
+
+/* ============ attachments: images, video, canvas capture ============ */
+let ATTACHMENTS = []; // [{type:'image'|'video'|'canvas', name, dataUrl, mimeType}]
+function fileToDataUrl(file, maxDim=1600){
+  return new Promise((resolve,reject)=>{
+    if(file.type.startsWith('video/')){
+      const reader=new FileReader();
+      reader.onload=()=>resolve(reader.result);
+      reader.onerror=()=>reject(new Error('Could not read video file'));
+      reader.readAsDataURL(file);
+      return;
+    }
+    const img=new Image(), url=URL.createObjectURL(file);
+    img.onload=()=>{
+      let w=img.naturalWidth, h=img.naturalHeight;
+      if(w>maxDim||h>maxDim){const s=Math.min(maxDim/w,maxDim/h);w=Math.round(w*s);h=Math.round(h*s);}
+      const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);
+      URL.revokeObjectURL(url);resolve(c.toDataURL('image/jpeg',.88));
+    };
+    img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Could not read image'));};
+    img.src=url;
+  });
+}
+function extractVideoFrames(dataUrl, count=3){
+  return new Promise((resolve)=>{
+    const video=document.createElement('video');
+    video.muted=true; video.preload='auto';
+    video.onloadeddata=()=>{
+      const dur=video.duration||1;
+      const times=count<=1?[0]:Array.from({length:count},(_,i)=>i*(dur/(count-1)));
+      const frames=[];
+      let idx=0;
+      const grab=()=>{
+        const c=document.createElement('canvas');
+        const scale=Math.min(800/video.videoWidth,800/video.videoHeight,1);
+        c.width=Math.round(video.videoWidth*scale); c.height=Math.round(video.videoHeight*scale);
+        c.getContext('2d').drawImage(video,0,0,c.width,c.height);
+        frames.push(c.toDataURL('image/jpeg',.82));
+        idx++;
+        if(idx<times.length){video.currentTime=times[idx];}
+        else{resolve(frames);}
+      };
+      video.onseeked=grab;
+      video.currentTime=times[0];
+    };
+    video.onerror=()=>resolve([]);
+    video.src=dataUrl;
+  });
+}
+function captureCanvas(){
+  if(!cur) return null;
+  const S=720, c=document.createElement('canvas');c.width=S;c.height=S;
+  draw(c.getContext('2d'),S,{...cur,lib:null},curAnim,T,fmt);
+  return c.toDataURL('image/jpeg',.88);
+}
+function addAttachment(att){
+  ATTACHMENTS.push(att);
+  renderAttachThumbs();
+}
+function removeAttachment(idx){
+  ATTACHMENTS.splice(idx,1);
+  renderAttachThumbs();
+}
+function clearAttachments(){
+  ATTACHMENTS=[];
+  renderAttachThumbs();
+}
+function renderAttachThumbs(){
+  const box=$('#attachThumbs'); box.replaceChildren();
+  ATTACHMENTS.forEach((att,i)=>{
+    const wrap=mk('div',{className:'att'});
+    if(att.type==='video'){
+      const v=mk('video',{src:att.dataUrl,muted:true});
+      v.onloadeddata=()=>{v.currentTime=0.5;};
+      wrap.append(v);
+    } else {
+      wrap.append(mk('img',{src:att.dataUrl,alt:att.name||att.type}));
+    }
+    wrap.append(mk('button',{className:'att-x',type:'button',onclick:()=>removeAttachment(i),title:'Remove'},'×'));
+    wrap.append(mk('span',{className:'att-label'},att.name||att.type));
+    box.append(wrap);
+  });
+}
+$('#btnAttachImg').onclick=()=>$('#fileImg').click();
+$('#btnAttachVid').onclick=()=>$('#fileVid').click();
+$('#btnAttachCanvas').onclick=()=>{
+  const snap=captureCanvas();
+  if(!snap) return toast('Pick a design first to capture the canvas.','err');
+  addAttachment({type:'canvas',name:'Canvas snapshot',dataUrl:snap,mimeType:'image/jpeg'});
+  toast('Canvas captured as reference.');
+};
+function cropArea(box){ // box in {x, y, w, h} in % of composition
+  if(!cur||!LAST_RECT.cw) return null;
+  const S=1080, c=document.createElement('canvas');c.width=S;c.height=S;
+  draw(c.getContext('2d'),S,{...cur,lib:null},curAnim,T,fmt);
+  const {cx,cy,cw,ch}=LAST_RECT;
+  const rx=Math.max(0,cx+(box.x/100)*cw), ry=Math.max(0,cy+(box.y/100)*ch);
+  const rw=Math.max(12,(box.w/100)*cw), rh=Math.max(12,(box.h/100)*ch);
+  const out=document.createElement('canvas');out.width=Math.round(rw);out.height=Math.round(rh);
+  out.getContext('2d').drawImage(c,rx,ry,rw,rh,0,0,out.width,out.height);
+  return out.toDataURL('image/jpeg',.90);
+}
+function findLayersInBox(box){
+  if(!cur||!cur.comp) return [];
+  const bx2=box.x+box.w, by2=box.y+box.h;
+  return cur.comp.layers.filter(l=>l.visible!==false&&l.x<bx2&&(l.x+l.w)>box.x&&l.y<by2&&(l.y+l.h)>box.y);
+}
+function findLayerAtPoint(px,py){
+  if(!cur||!cur.comp) return null;
+  const sorted=[...cur.comp.layers].sort((a,b)=>(b.z||0)-(a.z||0));
+  return sorted.find(l=>l.visible!==false&&px>=l.x&&px<=(l.x+l.w)&&py>=l.y&&py<=(l.y+l.h));
+}
+function startAreaSelect(){
+  if(!cur) return toast('Pick a design first.','err');
+  AREA_MODE=true; AREA_BOX=null; AREA_DRAG=null;
+  $('#cv').classList.add('area-mode');
+  $('#areaBanner').hidden=false;
+}
+function stopAreaSelect(){
+  AREA_MODE=false; AREA_BOX=null; AREA_DRAG=null;
+  $('#cv').classList.remove('area-mode');
+  $('#areaBanner').hidden=true;
+  paintMain();
+}
+$('#btnAttachArea').onclick=startAreaSelect;
+$('#btnCancelArea').onclick=stopAreaSelect;
+
+function pointerToCompPct(e){
+  const r=cv.getBoundingClientRect();
+  const scale=cv.width/r.width;
+  const px=(e.clientX-r.left)*scale, py=(e.clientY-r.top)*scale;
+  const {cx,cy,cw,ch}=LAST_RECT;
+  if(!cw||!ch) return {x:0,y:0};
+  return {x:Math.round(((px-cx)/cw*100)*10)/10, y:Math.round(((py-cy)/ch*100)*10)/10};
+}
+
+cv.addEventListener('pointerdown',e=>{
+  if(!AREA_MODE) return;
+  e.preventDefault();
+  const p=pointerToCompPct(e);
+  AREA_DRAG={x0:p.x,y0:p.y,cx0:e.clientX,cy0:e.clientY};
+  AREA_BOX={x:p.x,y:p.y,w:0,h:0};
+});
+window.addEventListener('pointermove',e=>{
+  if(!AREA_MODE||!AREA_DRAG) return;
+  const p=pointerToCompPct(e);
+  const x=Math.min(AREA_DRAG.x0,p.x), y=Math.min(AREA_DRAG.y0,p.y);
+  const w=Math.max(1,Math.abs(p.x-AREA_DRAG.x0)), h=Math.max(1,Math.abs(p.y-AREA_DRAG.y0));
+  AREA_BOX={x,y,w,h};
+  paintMain();
+});
+window.addEventListener('pointerup',e=>{
+  if(!AREA_MODE||!AREA_DRAG) return;
+  const dist=Math.hypot(e.clientX-AREA_DRAG.cx0,e.clientY-AREA_DRAG.cy0);
+  let finalBox=AREA_BOX;
+  if(dist<8){
+    // Clicked a layer
+    const l=findLayerAtPoint(AREA_DRAG.x0,AREA_DRAG.y0);
+    if(l) finalBox={x:l.x,y:l.y,w:l.w,h:l.h};
+    else finalBox={x:Math.max(0,AREA_DRAG.x0-10),y:Math.max(0,AREA_DRAG.y0-10),w:20,h:20};
+  }
+  if(finalBox && finalBox.w>=1 && finalBox.h>=1){
+    const crop=cropArea(finalBox);
+    const layers=findLayersInBox(finalBox);
+    const label=layers.length ? 'Area: '+layers.map(l=>l.name||l.id).slice(0,2).join(' + ') : `Area: ${Math.round(finalBox.w)}×${Math.round(finalBox.h)}%`;
+    addAttachment({type:'area',name:label,dataUrl:crop,mimeType:'image/jpeg',bbox:finalBox,layers:layers.map(l=>l.id)});
+    toast('Captured area for the assistant.');
+    chat.hidden=false; $('#tAsk').setAttribute('aria-expanded','true'); $('#in').focus();
+  }
+  stopAreaSelect();
+});
+$('#fileImg').onchange=async e=>{
+  for(const f of e.target.files||[]){
+    try{const url=await fileToDataUrl(f);addAttachment({type:'image',name:f.name,dataUrl:url,mimeType:'image/jpeg'});}
+    catch(err){toast(err.message,'err');}
+  }
+  e.target.value='';
+};
+$('#fileVid').onchange=async e=>{
+  const f=e.target.files&&e.target.files[0]; if(!f) return;
+  try{
+    const url=await fileToDataUrl(f);
+    addAttachment({type:'video',name:f.name,dataUrl:url,mimeType:f.type||'video/mp4'});
+    toast('Video attached — frames will be extracted and sent as visual context.');
+  }catch(err){toast(err.message,'err');}
+  e.target.value='';
+};
+// drag & drop onto the chat area
+const formWrap=$('#form-wrap');
+['dragenter','dragover'].forEach(ev=>formWrap.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();$('#dropOverlay').classList.add('on');}));
+['dragleave','drop'].forEach(ev=>formWrap.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();$('#dropOverlay').classList.remove('on');}));
+formWrap.addEventListener('drop',async e=>{
+  for(const f of e.dataTransfer.files||[]){
+    try{
+      if(f.type.startsWith('image/')){const url=await fileToDataUrl(f);addAttachment({type:'image',name:f.name,dataUrl:url,mimeType:'image/jpeg'});}
+      else if(f.type.startsWith('video/')){const url=await fileToDataUrl(f);addAttachment({type:'video',name:f.name,dataUrl:url,mimeType:f.type});}
+      else toast('Only images and videos can be attached.','err');
+    }catch(err){toast(err.message,'err');}
+  }
+});
 
 const r3 = v => Math.round(v*1000)/1000;
 const thin = (fr,n=14) => fr.length<=n ? fr : Array.from({length:n},(_,i)=>fr[Math.round(i*(fr.length-1)/(n-1))]);
 const SYSTEM = `You are the animation and layout assistant inside a design studio. You receive a COMPOSITION (layers with x,y,w,h in % of the artboard) and the CURRENT ANIMATION (tracks).
+You may also receive reference IMAGES or VIDEO FRAMES from the user. Use these visual inputs to understand what the user wants: the mood, motion style, layout, or specific visual elements they are referring to. When images are provided, analyse them carefully — they may show a desired animation style, a visual problem to fix, a reference composition, or a specific area of the design the user wants to change.
 Animation schema "agent-studio/animation/2": {"name":string,"duration":ms,"tracks":[{"layerId":string,"segments":[{"preset":"keyframes","start":0,"duration":ms,"loop":false,"frames":[{"t":ms,"dx":n,"dy":n,"sx":n,"sy":n,"a":n,"e":"linear|in|out|inOut"}]}]}]}.
 dx,dy are offsets as fractions of the artboard added to the layer's own x,y (0.1 = 10%). sx,sy multiply the layer size (default 1). a is opacity 0..1 (default 1). Omitted dx,dy default 0. e is the easing used to reach that frame. Frame times are relative to the segment start. Layers without a track stay static.
 Reply with ONE JSON object and nothing else:
-{"reply":"short plain-language answer","animation":{"name":"...","duration":ms,"keepOthers":bool,"tracks":[...]} (only when creating or changing motion),"composition_fixes":[{"layerId":"...","set":{"x":n,"y":n,"w":n,"h":n,"text":"...","color":"#hex","font.sizePct":n,"opacity":n,"visible":bool}}] (only when correcting the composition),"review":[{"layerId":"...","observation":"...","suggestion":"..."}] (only when asked for a review)}.
-Rules: keepOthers=true means unlisted layers keep their current motion (use for modifications); false means unlisted layers are static (use for brand-new animations). Keep layer ids exact. Keep duration between 3000 and 15000. Use few, well-eased keyframes. Never invent layer ids. Do not change copy unless asked.
+{"reply":"short plain-language answer","animation":{"name":"...","duration":ms,"keepOthers":bool,"tracks":[...]} (omit or tracks:[] when only fixing layout or user asks not to change animation),"composition_fixes":[{"layerId":"...","set":{"x":n,"y":n,"w":n,"h":n,"text":"...","color":"#hex","font.sizePct":n,"opacity":n,"visible":bool}}] (only when correcting the composition),"review":[{"layerId":"...","observation":"...","suggestion":"..."}] (only when asked for a review)}.
+Rules:
+1. When fixing text overlap: give each text layer its own distinct vertical slot (y and h range) so they never collide. Make boxes wide enough and font sizes small enough that single-line text does not wrap unexpectedly.
+2. If the user asks to only correct composition or not touch motion, return composition_fixes and do NOT include new animation tracks.
+3. keepOthers=true means unlisted layers keep their current motion; false means unlisted layers are static. Keep layer ids exact. Keep duration between 3000 and 15000. Use few, well-eased keyframes. Never invent layer ids. Do not change copy unless asked.
 When "library" and "clips" are in the context, prefer assembling motion from them: return "steps":[{"target":"<group id or layer id>","clip":"<clip id>","start":ms,"duration":ms,"stagger":ms}] plus "name", instead of raw tracks. Use only ids that appear in the context. If selectedGroups is not empty, restrict changes to those groups.`;
 function context(){ const c=cur.comp; return {composition:{name:c.name,width:c.width,height:c.height,duration:c.duration,palette:(c.brandKit?.palette||[]).map(p=>p.hex).slice(0,8),fonts:[...new Set((c.brandKit?.fonts||[]).map(f=>f.family))],layers:c.layers.map(l=>({id:l.id,name:l.name,type:l.type,text:l.text,x:l.x,y:l.y,w:l.w,h:l.h,z:l.z,color:l.color,align:l.align,opacity:l.opacity,font:l.font&&{family:l.font.family,weight:l.font.weight,sizePct:l.font.sizePct}}))},
   currentAnimation: curAnim ? {name:curAnim.name,duration:curAnim.duration,tracks:curAnim.tracks.map(t=>({layerId:t.layerId,segments:t.segments.map(s=>({start:s.start,duration:s.duration,loop:s.loop,frames:thin(s.frames).map(f=>({t:f.t,dx:r3(f.dx),dy:r3(f.dy),sx:r3(f.sx),sy:r3(f.sy),a:r3(f.a)}))}))}))} : null}; }
@@ -412,6 +874,36 @@ async function callLLM(msgs){
   if(!r.ok) throw new Error(prov+' returned '+r.status+' '+(await r.text().catch(()=>'')).slice(0,160));
   const j = await r.json(); return oai ? j.choices[0].message.content : j.message.content;
 }
+/* build a multimodal user message: text + images as vision content parts */
+async function buildUserMessage(text, attachments){
+  const prov=$('#prov').value, c=CFG()[prov], oai=/chat\/completions/.test(c.url);
+  if(!attachments.length){
+    // Plain text — works for both Ollama and OpenAI-compatible
+    if(oai) return {role:'user',content:text};
+    return {role:'user',content:text};
+  }
+  // Collect all image data URLs (for images/canvas/area directly, for video extract frames)
+  const imageUrls=[];
+  for(const att of attachments){
+    if(att.type==='image'||att.type==='canvas'||att.type==='area'){
+      imageUrls.push({url:att.dataUrl, label:att.name||att.type});
+    } else if(att.type==='video'){
+      const frames=await extractVideoFrames(att.dataUrl, 4);
+      frames.forEach((f,i)=>imageUrls.push({url:f, label:`${att.name} frame ${i+1}/${frames.length}`}));
+    }
+  }
+  if(oai){
+    // OpenAI-compatible vision format
+    const content=[{type:'text',text}];
+    for(const img of imageUrls){
+      content.push({type:'image_url',image_url:{url:img.url,detail:'low'}});
+    }
+    return {role:'user',content};
+  }
+  // Ollama format: images as base64 array
+  const images=imageUrls.map(img=>img.url.replace(/^data:[^;]+;base64,/,''));
+  return {role:'user',content:text,images};
+}
 const parseJSON = s => { s=String(s).replace(/^```(?:json)?|```$/gm,'').trim(); try{return JSON.parse(s)}catch{ const a=s.indexOf('{'),b=s.lastIndexOf('}'); return JSON.parse(s.slice(a,b+1)); } };
 const setPath = (o,p,v) => { const k=p.split('.'); let t=o; k.slice(0,-1).forEach(x=>t=t[x]=t[x]||{}); t[k.at(-1)]=v; };
 const OKKEYS = /^(x|y|w|h|z|opacity|rotation|text|color|align|verticalAlign|visible|font\.(sizePct|family|weight|lineHeight|letterSpacingEm|style|transform))$/;
@@ -419,26 +911,65 @@ const OKKEYS = /^(x|y|w|h|z|opacity|rotation|text|color|align|verticalAlign|visi
 $('#form').onsubmit = async e => {
   e.preventDefault(); const q=$('#in').value.trim(); if(!q) return;
   if(!cur){ say('Pick a design first (top-left), then ask.','err'); return; }
-  $('#in').value=''; say(q,'u'); const wait=say('Working on it…');
+  const pendingAttachments=[...ATTACHMENTS];
+  $('#in').value=''; clearAttachments();
+  say(q,'u');
+  if(pendingAttachments.length) sayMedia(pendingAttachments);
+  const wait=say('Working on it…');
   try{
-    const msgs=[{role:'system',content:SYSTEM},...HIST.slice(-6),{role:'user',content:'CONTEXT:\n'+JSON.stringify(ctxWithLib())+'\n\nREQUEST: '+q}];
-    const out = parseJSON(await callLLM(msgs)); wait.remove();
-    HIST.push({role:'user',content:q},{role:'assistant',content:String(out.reply||'')});
-    if(out.reply) say(out.reply);
-    if(Array.isArray(out.review)&&out.review.length) say(out.review.map(r=>`• ${r.layerId}: ${r.observation}${r.suggestion?' → '+r.suggestion:''}`).join('\n'));
-    if(Array.isArray(out.composition_fixes)&&out.composition_fixes.length) applyFixes(out.composition_fixes);
-    if(Array.isArray(out.steps)&&out.steps.length) await composeSteps(out);
-    else if(out.animation&&Array.isArray(out.animation.tracks)) saveAnimation(out.animation);
+    const contextText='CONTEXT:\n'+JSON.stringify(ctxWithLib())+'\n\nREQUEST: '+q;
+    if(pendingAttachments.length){
+      const mediaDesc=pendingAttachments.map(a=>{
+        if(a.type==='area'&&a.bbox) return `[Attached visual reference area: "${a.name}" at x:${a.bbox.x}%, y:${a.bbox.y}%, w:${a.bbox.w}%, h:${a.bbox.h}% with layers: ${(a.layers||[]).join(', ')}]`;
+        return `[Attached ${a.type}: ${a.name}]`;
+      }).join(' ');
+      const fullText=contextText+'\n\n'+mediaDesc;
+      const userMsg=await buildUserMessage(fullText, pendingAttachments);
+      const msgs=[{role:'system',content:SYSTEM},...HIST.slice(-6),userMsg];
+      const out = parseJSON(await callLLM(msgs)); wait.remove();
+      HIST.push({role:'user',content:q+' '+mediaDesc},{role:'assistant',content:String(out.reply||'')});
+      if(out.reply) say(out.reply);
+      if(Array.isArray(out.review)&&out.review.length) say(out.review.map(r=>`• ${r.layerId}: ${r.observation}${r.suggestion?' → '+r.suggestion:''}`).join('\n'));
+      if(out.new_composition&&Array.isArray(out.new_composition.layers)) saveNewComposition(out.new_composition);
+      else if(Array.isArray(out.composition_fixes)&&out.composition_fixes.length) applyFixes(out.composition_fixes);
+      if(Array.isArray(out.steps)&&out.steps.length) await composeSteps(out);
+      else if(out.animation&&Array.isArray(out.animation.tracks)&&out.animation.tracks.length) saveAnimation(out.animation);
+      else if(out.animation&&Array.isArray(out.animation.tracks)&&out.animation.tracks.length===0&&Array.isArray(out.composition_fixes)&&out.composition_fixes.length) say('Animation motion preserved as requested.','ok');
+    } else {
+      const msgs=[{role:'system',content:SYSTEM},...HIST.slice(-6),{role:'user',content:contextText}];
+      const out = parseJSON(await callLLM(msgs)); wait.remove();
+      HIST.push({role:'user',content:q},{role:'assistant',content:String(out.reply||'')});
+      if(out.reply) say(out.reply);
+      if(Array.isArray(out.review)&&out.review.length) say(out.review.map(r=>`• ${r.layerId}: ${r.observation}${r.suggestion?' → '+r.suggestion:''}`).join('\n'));
+      if(out.new_composition&&Array.isArray(out.new_composition.layers)) saveNewComposition(out.new_composition);
+      else if(Array.isArray(out.composition_fixes)&&out.composition_fixes.length) applyFixes(out.composition_fixes);
+      if(Array.isArray(out.steps)&&out.steps.length) await composeSteps(out);
+      else if(out.animation&&Array.isArray(out.animation.tracks)&&out.animation.tracks.length) saveAnimation(out.animation);
+      else if(out.animation&&Array.isArray(out.animation.tracks)&&out.animation.tracks.length===0&&Array.isArray(out.composition_fixes)&&out.composition_fixes.length) say('Animation motion preserved as requested.','ok');
+    }
   }catch(err){ wait.remove(); say(err.message,'err'); }
 };
+
+function saveNewComposition(raw){
+  const id=cur.id+'-var-'+Date.now().toString(36).slice(-5);
+  const name=raw.name?`${cur.comp.name.split(' — ')[0]} — ${raw.name}`:`${cur.comp.name} (Variation)`;
+  const comp={...clone(cur.comp),id,name,layers:raw.layers};
+  const d=addDesign(id,comp,'Generated',[],{brandId:cur.brandId,brandName:cur.brandName,brandKey:cur.brandKey});
+  d.baseComp=comp;
+  const all=LS.get('sa.comp',{}); all[id]=comp; LS.set('sa.comp',all);
+  selectDesign(d);
+  if(panel.hidden) openPanel(true);
+  say(`Generated new composition variation “${name}”. Added to your Designs panel.`,'ok');
+  toast('Composition variation created');
+}
 
 function applyFixes(fixes){
   const prev=clone(cur.comp), next=clone(cur.comp); let n=0;
   fixes.forEach(f=>{ const l=next.layers.find(x=>x.id===f.layerId); if(!l||!f.set) return; Object.entries(f.set).forEach(([k,v])=>{ if(!OKKEYS.test(k)) return; if(/^(x|y|w|h|z|opacity|rotation|font\.(sizePct|weight|lineHeight|letterSpacingEm))$/.test(k)&&!Number.isFinite(+v)) return; setPath(l,k,/^(text|color|align|verticalAlign|font\.(family|style|transform))$/.test(k)?String(v):typeof v==='boolean'?v:+v); n++; }); });
   if(!n) return say('No valid composition changes to apply.','err');
-  cur.comp=next; const all=LS.get('sa.comp',{}); all[cur.id]=next; const ok=LS.set('sa.comp',all);
+  cur.comp=next; cur.baseComp=clone(next); const all=LS.get('sa.comp',{}); all[cur.id]=next; const ok=LS.set('sa.comp',all);
   fontFor(next); paintMain(); paintThumbs();
-  const undo=mk('button',{type:'button',onclick:()=>{cur.comp=prev; const a=LS.get('sa.comp',{}); a[cur.id]=prev; LS.set('sa.comp',a); paintMain(); toast('Composition change undone');}},'Undo');
+  const undo=mk('button',{type:'button',onclick:()=>{cur.comp=prev; cur.baseComp=clone(prev); const a=LS.get('sa.comp',{}); a[cur.id]=prev; LS.set('sa.comp',a); paintMain(); toast('Composition change undone');}},'Undo');
   say(ok?`Composition corrected and saved (${n} change${n===1?'':'s'}).`:'Composition corrected, but this browser could not store it.',ok?'ok':'err',undo);
   if(ok) toast('Composition saved');
 }
@@ -459,7 +990,18 @@ async function saveAnimation(raw){
 }
 
 /* ============ boot ============ */
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ openPanel(false); chat.hidden=true; $('#tAsk').setAttribute('aria-expanded','false'); } if(e.code==='Space'&&!/INPUT|TEXTAREA|SELECT|BUTTON/.test(document.activeElement.tagName)&&curAnim){ e.preventDefault(); play(); } });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(AREA_MODE){ stopAreaSelect(); return; } openPanel(false); chat.hidden=true; $('#tAsk').setAttribute('aria-expanded','false'); } if(e.code==='Space'&&!/INPUT|TEXTAREA|SELECT|BUTTON/.test(document.activeElement.tagName)&&curAnim){ e.preventDefault(); play(); } });
+// paste images from clipboard directly into chat
+$('#in').addEventListener('paste', async e=>{
+  const items=[...e.clipboardData.items].filter(i=>i.type.startsWith('image/'));
+  if(!items.length) return;
+  e.preventDefault();
+  for(const item of items){
+    const file=item.getAsFile(); if(!file) continue;
+    try{const url=await fileToDataUrl(file);addAttachment({type:'image',name:'Pasted image',dataUrl:url,mimeType:'image/jpeg'});}
+    catch(err){toast(err.message,'err');}
+  }
+});
 addEventListener('resize',paintAll);
 $('#tAdmin').setAttribute('aria-pressed', String(ADMIN));
 $('#tAdmin').onclick = () => { LS.set('agentLibrary.admin', !ADMIN); location.reload(); };
@@ -478,7 +1020,7 @@ window.__agentFirstQA = {
   },
 };
 (async()=>{ paintMain(); try{ const f=await jget(API+'/fonts'); for(const x of f.fonts||[]) if(x.family&&x.url){ try{ const ff=new FontFace(x.family,`url("${x.url}")`,{weight:'100 1000'}); await ff.load(); document.fonts.add(ff);}catch{} } }catch{}
-  await loadFeed(); say('Pick a design, choose an animation, then ask me for a new animation, a change, or a review of what you see.'); })();
+  await loadFeed(); say('Pick a design, choose an animation, then ask me for a new animation, a change, or a review. You can attach images or video as visual references.'); })();
 })();
 </script>
 </body>

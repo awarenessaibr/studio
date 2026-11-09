@@ -1,0 +1,15 @@
+[
+  {"file":"/Users/leandrodisconzi/repos/image-to-layers/html-examples/02-brutal.html","id":"tartan-guys-brutal-01","stage":0,"width":1080,"height":1920,"duration":9000},
+  {"file":"/Users/leandrodisconzi/repos/image-to-layers/html-examples/02-brutal.html","id":"tartan-guys-brutal-02","stage":1,"width":1080,"height":1920,"duration":11000},
+  {"file":"/Users/leandrodisconzi/repos/image-to-layers/html-examples/02-brutal.html","id":"tartan-guys-brutal-03","stage":2,"width":1080,"height":1920,"duration":10000},
+  {"file":"/Users/leandrodisconzi/Downloads/html-parse/html/03-immersive-2.html","id":"tartan-guys-immersive-2-01","stage":0,"width":1080,"height":1920,"duration":11000},
+  {"file":"/Users/leandrodisconzi/Downloads/html-parse/html/02-impact.html","id":"tartan-guys-impact-01","stage":0,"width":1080,"height":1920,"duration":10000},
+  {"file":"/Users/leandrodisconzi/Downloads/html-parse/html/02-impact.html","id":"tartan-guys-impact-02","stage":1,"width":1080,"height":1920,"duration":10000},
+  {"file":"/Users/leandrodisconzi/Downloads/html-parse/html/02-impact.html","id":"tartan-guys-impact-03","stage":2,"width":1080,"height":1920,"duration":10500},
+  {"file":"/Users/leandrodisconzi/Downloads/html-parse/html/01-noir.html","id":"tartan-guys-noir-01","stage":0,"width":1080,"height":1920,"duration":11000},
+  {"file":"/Users/leandrodisconzi/Downloads/html-parse/html/01-noir.html","id":"tartan-guys-noir-02","stage":1,"width":1080,"height":1920,"duration":13000},
+  {"file":"/Users/leandrodisconzi/Downloads/html-parse/html/01-noir.html","id":"tartan-guys-noir-03","stage":2,"width":1080,"height":1920,"duration":11000},
+  {"file":"/Users/leandrodisconzi/Downloads/html-parse/html/01-cinematic.html","id":"tartan-guys-cinematic-01","stage":0,"width":1080,"height":1920,"duration":12000},
+  {"file":"/Users/leandrodisconzi/Downloads/html-parse/html/01-cinematic.html","id":"tartan-guys-cinematic-02","stage":1,"width":1080,"height":1920,"duration":12000},
+  {"file":"/Users/leandrodisconzi/Downloads/html-parse/html/01-cinematic.html","id":"tartan-guys-cinematic-03","stage":2,"width":1080,"height":1920,"duration":12500}
+]

@@ -1,0 +1,30 @@
+{
+  "name": "agent-first-studio",
+  "version": "1.0.0",
+  "updated": "2026-11-09",
+  "entrypoint": "agent.md",
+  "skill": "SKILL.md",
+  "systemPromptFile": "agent.md",
+  "references": [
+    "01-runtime-contract.md",
+    "02-composition-editing.md",
+    "03-animation-authoring.md",
+    "04-workflows.md",
+    "05-quality-gates.md",
+    "06-skills-crosswalk.md"
+  ],
+  "examples": [
+    "examples/animation-response.json",
+    "examples/composition-fixes.json",
+    "examples/compose-steps.json",
+    "examples/review.json",
+    "examples/menu-guidance.json"
+  ],
+  "studio": {
+    "page": "pages/agent-first-studio.html",
+    "library": "data/library/index.json",
+    "menuCatalog": "data/library/menu-catalog.json",
+    "menuDesigns": "data/library/menu-designs.json",
+    "sourceRecordings": "data/library/sources"
+  }
+}
