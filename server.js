@@ -33,6 +33,7 @@ const AssetService = require('./src/server/asset-service.js');
 const SocialStore = require('./src/server/social-store.js');
 const { generateSegmentTexture } = require('./src/server/segment-texture.js');
 const AgentLibrary = require('./src/server/agent-library.js');
+const LibraryService = require('./src/server/library-service.js');
 
 // Load local API keys (SERPAPI_KEY, GOOGLE_PLACES_API_KEY, …) from .env.
 // The crawler children inherit process.env, so this is the only place keys
@@ -55,6 +56,7 @@ const GROUP_SETTINGS_FILE = path.join(SETTINGS_DIR, 'groups.json');
 const STUDIO_ANIMATION_LIBRARY_FILE = path.join(SETTINGS_DIR, 'studio-animation-library.json');
 const AGENT_CANVAS_ANIMATIONS_FILE = path.join(SETTINGS_DIR, 'agent-canvas-animations.json');
 const AGENT_LIBRARY_FILE = path.join(SETTINGS_DIR, 'agent-library.json');
+const LIBRARY_DIR = path.join(DATA_DIR, 'library');
 const STUDIO_PROJECT_ARCHIVE_FILE = path.join(SETTINGS_DIR, 'studio-project-archive.json');
 // The management UI is a developer surface. With a key configured, every
 // admin call must present it; without one, only loopback callers are allowed.
@@ -6147,6 +6149,55 @@ async function handleApi(req, res, pathname) {
         return;
     }
 
+    if (pathname === '/api/library' && req.method === 'GET') {
+        sendJson(res, 200, await LibraryService.readIndex(LIBRARY_DIR));
+        return;
+    }
+
+    const libraryDesignMatch = pathname.match(/^\/api\/library\/designs\/([A-Za-z0-9_-]{1,140})$/);
+    if (libraryDesignMatch && req.method === 'GET') {
+        sendJson(res, 200, await LibraryService.readDesign(LIBRARY_DIR, libraryDesignMatch[1]));
+        return;
+    }
+
+    if (pathname === '/api/library/animations' && req.method === 'POST') {
+        const body = await readBody(req, 8 * 1024 * 1024);
+        let payload;
+        try { payload = JSON.parse(body.toString('utf8')); }
+        catch { throw httpError(400, 'The animation save request must be valid JSON.'); }
+        try {
+            sendJson(res, 200, await LibraryService.saveAnimation({
+                libraryDir: LIBRARY_DIR,
+                projectsDir: PROJECTS_DIR,
+                designId: payload && payload.designId,
+                animation: payload && payload.animation,
+            }));
+        } catch (error) {
+            throw httpError(error.statusCode || 400, error.message);
+        }
+        return;
+    }
+
+    if (pathname === '/api/library/compose' && req.method === 'POST') {
+        const body = await readBody(req, 8 * 1024 * 1024);
+        let payload;
+        try { payload = JSON.parse(body.toString('utf8')); }
+        catch { throw httpError(400, 'The compose request must be valid JSON.'); }
+        try {
+            sendJson(res, 200, await LibraryService.composeAnimation({
+                libraryDir: LIBRARY_DIR,
+                projectsDir: PROJECTS_DIR,
+                designId: payload && payload.designId,
+                name: payload && payload.name,
+                steps: payload && payload.steps,
+                save: Boolean(payload && payload.save),
+            }));
+        } catch (error) {
+            throw httpError(error.statusCode || 400, error.message);
+        }
+        return;
+    }
+
     if (pathname === '/api/agent-library' && req.method === 'GET') {
         const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
         // The full index is large (many compositions with sampled keyframes),
@@ -6418,13 +6469,29 @@ function importPublicFile(pathname) {
 }
 
 function projectPublicFile(pathname) {
-    const match = pathname.match(/^\/data\/projects\/([A-Za-z0-9_-]{1,80})\/(assets|images)\/(.+)$/);
-    if (!match || !IMPORT_PUBLIC_FILE.test(match[3])) return null;
+    const match = pathname.match(/^\/data\/projects\/([A-Za-z0-9_-]{1,80})\/(assets|images|compositions)\/(.+)$/);
+    if (!match) return null;
+    const isComposition = match[2] === 'compositions' && /\.composition\.json$/i.test(match[3]);
+    if (!isComposition && !IMPORT_PUBLIC_FILE.test(match[3])) return null;
     const relative = safeRelativePath(match[3]);
     if (!relative) return null;
     const projectRoot = path.join(PROJECTS_DIR, match[1]);
     const target = path.resolve(projectRoot, match[2], ...relative.split('/'));
     return target.startsWith(path.resolve(projectRoot) + path.sep) ? target : null;
+}
+
+function libraryPublicFile(pathname) {
+    const match = pathname.match(/^\/data\/library\/(.+)$/);
+    if (!match) return null;
+    if (!/\.(?:json|webm|jpe?g|png|webp)$/i.test(match[1])) return null;
+    const relative = safeRelativePath(match[1]);
+    if (!relative) return null;
+    // JSON metadata is public; source recordings/posters are only exposed
+    // from the dedicated sources folder.
+    if (!/\.json$/i.test(relative) && !relative.startsWith('sources/')) return null;
+    const root = path.resolve(LIBRARY_DIR);
+    const target = path.resolve(root, ...relative.split('/'));
+    return target.startsWith(root + path.sep) ? target : null;
 }
 
 function serveStatic(req, res, pathname) {
@@ -6441,6 +6508,11 @@ function serveStatic(req, res, pathname) {
     const projectFile = projectPublicFile(pathname);
     if (projectFile) {
         sendFile(req, res, projectFile);
+        return;
+    }
+    const libraryFile = libraryPublicFile(pathname);
+    if (libraryFile) {
+        sendFile(req, res, libraryFile);
         return;
     }
     // Never serve local state, secrets or test/dev material as static files.
@@ -6571,6 +6643,7 @@ async function main() {
         console.log(`[studio] imports stored in ${IMPORTS_DIR}`);
         console.log(`[studio] brand packs stored in ${BRAND_PACKS_DIR}`);
         console.log(`[studio] agent library stored in ${AGENT_LIBRARY_FILE}`);
+        console.log(`[studio] Agent First library stored in ${LIBRARY_DIR}`);
         watchAgentLibrary();
     });
 }
@@ -6645,4 +6718,5 @@ module.exports = {
     getCanvasAgentCatalog,
     getAgentLibrary,
     rebuildAgentLibrary,
+    LibraryService,
 };

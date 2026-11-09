@@ -26,7 +26,7 @@ The content file is the only place to edit menus by hand. `pack.json` is a
 copy with the schema applied, written by the sync script:
 
 ```bash
-node scripts/sync-brand-content.js --pack=singl-end-merchant-city-20261107164459-34ab
+node scripts/sync-brand-content.js --pack=singl-end-merchant-city-20261107164459-3-20261109103425-e780
 node scripts/sync-brand-content.js              # every pack, after any content edit
 ```
 
@@ -202,7 +202,7 @@ menu. Re-index after changing documents:
 ```bash
 curl -X POST http://127.0.0.1:8008/api/assets/index-pack \
   -H 'content-type: application/json' \
-  -d '{"packId":"singl-end-merchant-city-20261107164459-34ab"}'
+  -d '{"packId":"singl-end-merchant-city-20261107164459-3-20261109103425-e780"}'
 ```
 
 ---
@@ -249,7 +249,7 @@ Rules that keep this honest:
 ```bash
 node --test tests/menu-content.test.js   # model, formatting, assets, real pack
 node tests/menus.js                      # browser: Menus tab drop + Asset Studio source
-node scripts/export-menu-register.js --pack=singl-end-merchant-city-20261107164459-34ab
+node scripts/export-menu-register.js --pack=singl-end-merchant-city-20261107164459-3-20261109103425-e780
 ```
 
 The `deliverables/singl-end-merchant-city/menus-and-venue.md` register is

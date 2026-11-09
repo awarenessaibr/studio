@@ -15,7 +15,7 @@ const Brand = require('../src/shared/brand-pack.js');
 
 const ROOT = path.join(__dirname, '..');
 const SINGL_END_PACK = path.join(
-    ROOT, 'data', 'brand-packs', 'singl-end-merchant-city-20261107164459-34ab', 'pack.json',
+    ROOT, 'data', 'brand-packs', 'singl-end-merchant-city-20261107164459-3-20261109103425-e780', 'pack.json',
 );
 
 const sample = () => ({

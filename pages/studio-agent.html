@@ -160,28 +160,49 @@
         .clean-icon-btn:hover, .clean-icon-btn[aria-expanded="true"] { border-color:#eb5b3c; }
         .clean-icon-btn .ico { display:grid; grid-template-columns:repeat(2,5px); gap:2px; }
         .clean-icon-btn .ico i { width:5px; height:5px; border-radius:1px; background:currentColor; display:block; }
-        .clean-drawer { pointer-events:auto; position:absolute; z-index:82; left:18px; top:70px; bottom:18px; width:min(360px,calc(100vw - 36px)); border:1px solid #ffffff1f; border-radius:18px; background:#131319f2; box-shadow:0 30px 80px #0008; backdrop-filter:blur(20px); overflow:auto; padding:14px; box-sizing:border-box; }
+        .clean-drawer { pointer-events:auto; position:absolute; z-index:82; left:18px; top:70px; bottom:18px; width:min(360px,calc(100vw - 36px)); border:1px solid #ffffff14; border-radius:14px; background:#131319f2; box-shadow:0 18px 48px #0006; backdrop-filter:blur(20px); overflow-x:hidden; overflow-y:auto; padding:10px 12px; box-sizing:border-box; scrollbar-width:thin; scrollbar-color:transparent transparent; }
+        .clean-drawer:hover, .clean-drawer:focus-within { scrollbar-color:#ffffff30 transparent; }
+        .clean-drawer::-webkit-scrollbar, .clean-design-grid::-webkit-scrollbar, .clean-anim-list::-webkit-scrollbar { width:4px; height:4px; }
+        .clean-drawer::-webkit-scrollbar-track, .clean-design-grid::-webkit-scrollbar-track, .clean-anim-list::-webkit-scrollbar-track { background:transparent; }
+        .clean-drawer::-webkit-scrollbar-thumb, .clean-design-grid::-webkit-scrollbar-thumb, .clean-anim-list::-webkit-scrollbar-thumb { background:transparent; border-radius:99px; }
+        .clean-drawer:hover::-webkit-scrollbar-thumb, .clean-drawer:focus-within::-webkit-scrollbar-thumb, .clean-design-grid:hover::-webkit-scrollbar-thumb, .clean-anim-list:hover::-webkit-scrollbar-thumb { background:#ffffff30; }
         .clean-drawer[hidden], .clean-agent[hidden] { display:none; }
-        .clean-drawer-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:11px; }
-        .clean-drawer-head h2 { margin:0; font-size:15px; letter-spacing:-.01em; }
-        .clean-drawer-head p { margin:3px 0 0; color:#a9a5b4; font-size:11px; }
-        .clean-drawer-head .clean-provider { margin-top:7px; }
-        .clean-close { border:0; background:transparent; color:#a9a5b4; font-size:20px; line-height:1; padding:0 3px; }
+        .clean-drawer-head { display:flex; align-items:center; justify-content:flex-end; gap:6px; margin-bottom:5px; min-height:22px; }
+        .clean-close { width:22px; height:22px; border:0; border-radius:6px; background:transparent; color:#8f8b9a; font-size:16px; line-height:1; padding:0; }
         .clean-close:hover { color:#fff; }
-        .clean-design-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; max-height:34vh; overflow:auto; padding-right:2px; scrollbar-width:thin; }
-        .clean-design { border:1px solid #ffffff17; border-radius:11px; background:#1b1b23; padding:7px; text-align:left; display:grid; gap:6px; min-width:0; }
+        .clean-section-toggle { width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px; border:0; background:transparent; padding:2px 0; text-align:left; }
+        .clean-section-heading { margin:0; font-size:14px; letter-spacing:-.01em; }
+        .clean-chevron { width:6px; height:6px; margin:0 2px 3px 0; border-right:1px solid #777381; border-bottom:1px solid #777381; transform:rotate(45deg); transition:transform .16s ease; }
+        .clean-section-toggle[aria-expanded="false"] .clean-chevron { transform:rotate(-45deg); }
+        .clean-browse-view[hidden], .clean-library-selected-view[hidden], .clean-design-grid[hidden], #cleanGroupSection[hidden] { display:none; }
+        .clean-design-section { margin-bottom:10px; }
+        .clean-design-section > p { margin:3px 0 0; color:#a9a5b4; font-size:10px; }
+        .clean-design-section .clean-provider { width:100%; margin-top:6px; }
+        .clean-design-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; max-height:34vh; overflow:auto; padding-right:1px; scrollbar-width:thin; scrollbar-color:transparent transparent; }
+        .clean-design-grid:hover, .clean-anim-list:hover { scrollbar-color:#ffffff30 transparent; }
+        .clean-design { border:1px solid #ffffff17; border-radius:10px; background:#1b1b23; padding:6px; text-align:left; display:grid; gap:5px; min-width:0; }
         .clean-design:hover { border-color:#ffffff45; }
         .clean-design.is-on { border-color:#eb5b3c; box-shadow:inset 0 0 0 1px #eb5b3c; }
-        .clean-design canvas { width:100%; height:96px; object-fit:contain; display:block; background:#101015; border-radius:6px; }
+        .clean-subhead { display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin:8px 0 5px; }
+        .clean-subhead button { width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px; border:0; background:transparent; padding:2px 0; text-align:left; }
+        .clean-subhead { width:100%; margin:0; font-size:10px; letter-spacing:.13em; text-transform:uppercase; color:#9b96a6; font-weight:700; }
+        .clean-subhead-label { color:#9b96a6; }
+        .clean-subhead span { color:#7f7a89; font-size:10px; }
+        .clean-subhead .clean-chevron { flex:none; }
+        .clean-library-grid { max-height:27vh; }
+        .clean-design canvas, .clean-design img { width:100%; height:96px; object-fit:contain; display:block; background:#101015; border-radius:6px; }
+        .clean-design img { object-fit:cover; }
+        .clean-design .lib-status { color:#8fd3c1; }
+        #cleanAdminBtn[aria-pressed="true"] { color:#eb5b3c; }
         .clean-design strong { font-size:11px; font-weight:600; line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
         .clean-design small { color:#8f8b9a; font-size:9.5px; text-transform:uppercase; letter-spacing:.05em; }
         .clean-design-badge { display:inline-block; margin-left:5px; padding:1px 4px; border:1px solid #ffffff22; border-radius:4px; color:#bdb8c6; font-size:8px; vertical-align:1px; }
-        .clean-sec { margin-top:15px; border-top:1px solid #ffffff12; padding-top:12px; }
+        .clean-sec { margin-top:12px; }
         .clean-sec-head { display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:7px; }
         .clean-sec-head h3 { margin:0; font-size:10px; letter-spacing:.13em; text-transform:uppercase; color:#9b96a6; font-weight:700; }
         .clean-sec-head span { color:#7f7a89; font-size:10px; }
-        .clean-anim-list { display:grid; gap:5px; max-height:27vh; overflow:auto; padding-right:2px; scrollbar-width:thin; }
-        .clean-anim { border:1px solid #ffffff14; border-radius:9px; background:#1a1a22; padding:8px 9px; text-align:left; display:flex; align-items:center; gap:8px; min-height:35px; }
+        .clean-anim-list { display:grid; gap:5px; max-height:34vh; overflow:auto; padding-right:1px; scrollbar-width:thin; scrollbar-color:transparent transparent; }
+        .clean-anim { border:1px solid #ffffff14; border-radius:8px; background:#1a1a22; padding:7px 8px; text-align:left; display:flex; align-items:center; gap:8px; min-height:34px; }
         .clean-anim:hover { border-color:#ffffff3d; }
         .clean-anim.is-on { border-color:#eb5b3c; background:#2a1d1b; }
         .clean-anim i { width:6px; height:6px; border-radius:50%; background:#6f6a7b; flex:none; }
@@ -192,6 +213,15 @@
         .clean-anim .clean-del { margin-left:auto; border:0; background:transparent; color:#716c7d; font-size:14px; padding:0 2px; }
         .clean-anim .clean-del:hover { color:#ff8c73; }
         .clean-empty { color:#85808f; font-size:11px; line-height:1.45; padding:4px 0; }
+        .clean-library-selected-view { display:grid; gap:8px; }
+        .clean-library-back { justify-self:end; border:0; background:transparent; color:#9b96a6; padding:2px 0 2px 8px; font-size:10px; }
+        .clean-library-back:hover { color:#fff; }
+        .clean-selected-card { display:flex; align-items:center; gap:10px; min-width:0; padding:7px; border:1px solid #ffffff16; border-radius:9px; background:#1b1b23; }
+        .clean-selected-card img { width:48px; height:62px; flex:none; object-fit:cover; border-radius:5px; background:#101015; }
+        .clean-selected-card-copy { min-width:0; }
+        .clean-selected-card strong { display:block; font-size:11.5px; font-weight:600; line-height:1.3; }
+        .clean-selected-card small { display:block; margin-top:4px; color:#8f8b9a; font-size:9px; text-transform:uppercase; letter-spacing:.04em; }
+        .clean-subhead button:focus-visible, .clean-section-toggle:focus-visible, .clean-library-back:focus-visible { outline:1px solid #ffffff55; outline-offset:3px; border-radius:3px; }
         .clean-group-list { display:flex; flex-wrap:wrap; gap:5px; }
         .clean-group { border:1px solid #ffffff18; border-radius:99px; background:#1a1a22; padding:5px 9px; display:inline-flex; align-items:center; gap:5px; color:#bdb8c6; font-size:10px; }
         .clean-group:hover { border-color:#ffffff3d; color:#fff; }
@@ -220,6 +250,12 @@
         .clean-replay:hover::after, .clean-replay.tip::after { opacity:1; }
         .clean-ask { pointer-events:auto; position:absolute; right:18px; bottom:18px; display:inline-flex; align-items:center; gap:7px; height:40px; padding:0 14px; border:1px solid #ffffff24; border-radius:12px; background:#15151ce8; box-shadow:0 8px 28px #0006; backdrop-filter:blur(14px); font-size:12px; font-weight:600; }
         .clean-ask:hover, .clean-ask[aria-expanded="true"] { border-color:#eb5b3c; }
+        .clean-export { pointer-events:auto; position:absolute; right:18px; top:18px; display:inline-flex; align-items:center; gap:7px; height:40px; padding:0 13px; border:1px solid #ffffff24; border-radius:12px; background:#15151ce8; box-shadow:0 8px 28px #0006; backdrop-filter:blur(14px); font-size:12px; font-weight:600; }
+        .clean-export:hover:not(:disabled) { border-color:#eb5b3c; }
+        .clean-export:disabled { opacity:.42; cursor:default; }
+        #cleanSourceVideo, #cleanSourcePoster { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); max-width:100vw; max-height:100vh; width:auto; height:auto; display:none; z-index:2; pointer-events:none; background:#0e0d12; }
+        #cleanSourceVideo.on, #cleanSourcePoster.on { display:block; }
+        body.clean-source .stage { visibility:hidden; }
         .clean-agent { pointer-events:auto; position:absolute; z-index:83; right:18px; bottom:70px; width:min(380px,calc(100vw - 36px)); max-height:min(620px,calc(100vh - 100px)); border:1px solid #ffffff1f; border-radius:18px; background:#131319f5; box-shadow:0 30px 80px #0008; backdrop-filter:blur(20px); display:flex; flex-direction:column; overflow:hidden; }
         .clean-agent-head { display:flex; align-items:center; gap:8px; padding:12px 13px 10px; border-bottom:1px solid #ffffff12; }
         .clean-agent-head strong { font-size:12.5px; }
@@ -519,14 +555,36 @@
 
         <aside id="cleanDrawer" class="clean-drawer" aria-label="Designs and animations" hidden>
             <header class="clean-drawer-head">
-                <div>
-                    <h2>Designs</h2>
-                    <p id="cleanBrandLine">Saved and published templates</p>
-                    <select id="cleanBrandSelect" class="clean-provider" aria-label="Brand"></select>
-                </div>
+                <button type="button" class="clean-close" id="cleanAdminBtn" aria-pressed="false" aria-label="Admin library view" title="Admin: show all library designs">A</button>
                 <button type="button" class="clean-close" id="cleanDrawerClose" aria-label="Close designs">×</button>
             </header>
-            <div id="cleanDesignGrid" class="clean-design-grid"></div>
+            <div id="cleanBrowseView" class="clean-browse-view">
+                <section class="clean-design-section">
+                    <h2 class="clean-section-heading">
+                        <button type="button" class="clean-section-toggle" id="cleanDesignsToggle" aria-expanded="true" aria-controls="cleanDesignContent">
+                            <span>Designs</span><span class="clean-chevron" aria-hidden="true"></span>
+                        </button>
+                    </h2>
+                    <div id="cleanDesignContent">
+                        <p id="cleanBrandLine">Saved and published templates</p>
+                        <select id="cleanBrandSelect" class="clean-provider" aria-label="Brand"></select>
+                        <div id="cleanDesignGrid" class="clean-design-grid"></div>
+                    </div>
+                </section>
+                <section>
+                    <h3 class="clean-subhead">
+                        <button type="button" id="cleanLibraryToggle" aria-expanded="true" aria-controls="cleanLibraryGrid">
+                            <span class="clean-subhead-label">Library</span><span id="cleanLibraryMeta"></span><span class="clean-chevron" aria-hidden="true"></span>
+                        </button>
+                    </h3>
+                    <div id="cleanLibraryGrid" class="clean-design-grid clean-library-grid"></div>
+                </section>
+            </div>
+
+            <section id="cleanLibrarySelectedView" class="clean-library-selected-view" hidden>
+                <button type="button" id="cleanLibraryBack" class="clean-library-back" aria-label="Back to designs">← Designs</button>
+                <div id="cleanSelectedCard" class="clean-selected-card"></div>
+            </section>
 
             <section class="clean-sec" id="cleanAnimSection">
                 <div class="clean-sec-head"><h3>Animations</h3><span id="cleanAnimMeta">select a design</span></div>
@@ -538,7 +596,7 @@
                 <div id="cleanGroupList" class="clean-group-list"></div>
             </section>
 
-            <section class="clean-sec">
+            <section class="clean-sec" id="cleanFormatsSection">
                 <button type="button" id="cleanFormatsToggle" class="clean-format-toggle" aria-expanded="false" aria-controls="cleanFormatList">
                     <b>Formats</b><span id="cleanFormatNow">—</span><span class="chev">⌄</span>
                 </button>
@@ -549,6 +607,10 @@
         <button type="button" id="cleanReplay" class="clean-replay" data-tip="Replay the selected animation" title="Replay the selected animation">
             <span class="rr" aria-hidden="true">↺</span><b>Replay</b><small id="cleanReplayTip">No animation selected</small>
         </button>
+
+        <video id="cleanSourceVideo" muted playsinline loop preload="auto" aria-label="Source-exact original motion"></video>
+        <img id="cleanSourcePoster" alt="Source-exact original design" hidden>
+        <button type="button" id="cleanExport" class="clean-export" disabled title="Export the current animation as a WebM video"><span aria-hidden="true">⤓</span> Video</button>
 
         <button type="button" id="cleanAskBtn" class="clean-ask" aria-expanded="false" aria-controls="cleanAgent" title="Ask the canvas agent">✦ Ask</button>
 
@@ -626,7 +688,11 @@
         let CLEAN_INIT = false, CLEAN_DESIGN_KEY = '', CLEAN_CHOICES = [], CLEAN_CHOICES_TEMPLATE = '';
         let CLEAN_SELECTED = null, CLEAN_LIBRARY = null, CLEAN_ANIM_TOKEN = 0, CLEAN_FORMATS_OPEN = false;
         let CLEAN_LIBRARY_SUMMARY = null, CLEAN_LIBRARY_COMPOSITION = null;
+        let CLEAN_LIBRARY_INDEX = null, CLEAN_LIBRARY_ENTRY = null, CLEAN_LIBRARY_DESIGN = null, CLEAN_LIBRARY_DETAIL_VIEW = false;
+        let CLEAN_LIBRARY_KEY = '', CLEAN_LIBRARY_TEMPLATE_ID = '';
+        let CLEAN_ADMIN = (() => { try { return JSON.parse(localStorage.getItem('agentLibrary.admin') || 'false'); } catch { return false; } })();
         let CLEAN_GROUPS = [], CLEAN_GROUP_SELECTION = new Set(), CLEAN_GROUPS_TEMPLATE = '';
+        let CLEAN_SRC = false;
         let S = null, hist = [], focusKey = null, selTok = 0, rt = 0;
         let focusMode = false; /* true: only the chosen design is shown, with its variations and edit controls */
         const preview = $('#previewCanvas');
@@ -1127,6 +1193,12 @@
                 context.textAlign = 'left';
                 context.textBaseline = 'alphabetic';
                 layout.lines.forEach(line => context.fillText(line.text, line.x, line.baselineY, Math.max(1, width - line.x)));
+                if (layer.font && layer.font.stroke) {
+                    context.strokeStyle = layer.font.stroke;
+                    context.lineWidth = (Number(layer.font.strokeWidthPct) || .5) / 100 * size.w;
+                    context.lineJoin = 'round';
+                    layout.lines.forEach(line => context.strokeText(line.text, line.x, line.baselineY, Math.max(1, width - line.x)));
+                }
             } else {
                 const image = BRAND_TEMPLATE_IMAGES.get(layer.url);
                 if (image) {
@@ -1478,10 +1550,17 @@
                 const f = Animation.atTrack((S.anim || {})[id], t); if (f.a <= 0) return;
                 const wp = f.wipe; if (wp && wp.p <= 0) return;
                 c.save(); c.globalAlpha = f.a;
+                if (f.filter) c.filter = f.filter;
                 /* Clip before the transform, like a CSS clip-path on the element. */
                 const bx = box.x * W, by = box.y * H, bw = box.w * W, bh = box.h * H;
                 if (f.clip) {
-                    if (f.clip.shape === 'circle') {
+                    if (f.clip.shape === 'rect') {
+                        c.beginPath();
+                        c.rect((Number(f.clip.x) || 0) / 100 * W, (Number(f.clip.y) || 0) / 100 * H,
+                               (f.clip.w == null ? 100 : Number(f.clip.w)) / 100 * W,
+                               (f.clip.h == null ? 100 : Number(f.clip.h)) / 100 * H);
+                        c.clip();
+                    } else if (f.clip.shape === 'circle') {
                         c.beginPath();
                         c.arc(bx + f.clip.cx * bw, by + f.clip.cy * bh, Math.max(0, f.clip.r * Math.hypot(bw, bh)), 0, Math.PI * 2);
                         c.clip();
@@ -3028,7 +3107,7 @@
                 root: $('#cleanCanvas'), drawings: $('#cleanDesignGrid'), animList: $('#cleanAnimList'),
                 animMeta: $('#cleanAnimMeta'), formats: $('#cleanFormatList'), formatToggle: $('#cleanFormatsToggle'),
                 formatNow: $('#cleanFormatNow'), replay: $('#cleanReplay'), replayTip: $('#cleanReplayTip'),
-                drawer: $('#cleanDrawer'), ask: $('#cleanAskBtn'), agent: $('#cleanAgent'), chat: $('#cleanChat'),
+                drawer: $('#cleanDrawer'), ask: $('#cleanAskBtn'), export: $('#cleanExport'), agent: $('#cleanAgent'), chat: $('#cleanChat'),
                 prompt: $('#cleanPrompt'), send: $('#cleanSend'), provider: $('#cleanProvider'), brandLine: $('#cleanBrandLine'),
                 brandSelect: $('#cleanBrandSelect'),
             };
@@ -3096,6 +3175,8 @@
                         s: 1,
                         sx: keyW / box.w,
                         sy: keyH / box.h,
+                        ...(key.clip ? { clip: key.clip } : {}),
+                        ...(key.filter ? { filter: key.filter } : {}),
                     };
                 });
                 return { preset: String(event.preset || 'keyframes'), label: String(event.label || 'Original motion'), start: first, duration: Math.max(1, frames[frames.length - 1].t), loop: event.loop === true, frames };
@@ -3188,7 +3269,7 @@
         }
         function cleanChoicePayload(choice) {
             if (!choice) return null;
-            if (choice.kind === 'original' || choice.kind === 'saved') return choice.payload || null;
+            if (choice.kind === 'original' || choice.kind === 'saved' || choice.kind === 'library-file') return choice.payload || null;
             if (choice.kind === 'library') return cleanLibraryPayload(choice.entry);
             return null;
         }
@@ -3221,6 +3302,21 @@
             const template = tplOf(S);
             const composition = template && template.composition;
             if (!composition || !Array.isArray(composition.layers)) return [];
+            if (template.library && CLEAN_LIBRARY_DESIGN && Array.isArray(CLEAN_LIBRARY_DESIGN.groups) && CLEAN_LIBRARY_DESIGN.groups.length) {
+                const byId = new Map(composition.layers.map((layer) => [String(layer.id), layer]));
+                return CLEAN_LIBRARY_DESIGN.groups.map((group) => {
+                    const layers = (group.layerIds || []).map((id) => byId.get(String(id))).filter(Boolean);
+                    return {
+                        id: group.id,
+                        kind: group.kind || 'group',
+                        label: group.label || group.kind || 'Group',
+                        layerIds: layers.map((layer) => String(layer.id)),
+                        layers,
+                        assets: layers.map((layer) => layer.url).filter(Boolean),
+                        window: group.window,
+                    };
+                });
+            }
             const labels = {
                 background: 'Background', artwork: 'Artwork', photos: 'Photography', shape: 'Shapes',
                 headline: 'Headlines', menu: 'Menu items', price: 'Prices', body: 'Body copy',
@@ -3350,15 +3446,62 @@
             cleanUpdateAgentContext();
         }
         async function cleanLoadLibrary() {
-            try {
-                CLEAN_LIBRARY_SUMMARY = await jget(`${API}/agent-library?summary=1`);
-            } catch {
-                CLEAN_LIBRARY_SUMMARY = null;
-            }
+            try { CLEAN_LIBRARY_SUMMARY = await jget(`${API}/agent-library?summary=1`); }
+            catch { CLEAN_LIBRARY_SUMMARY = null; }
+            try { CLEAN_LIBRARY_INDEX = await jget(`${API}/library`); }
+            catch { CLEAN_LIBRARY_INDEX = null; }
             await cleanRefreshLibraryComposition();
-            if (CLEAN_INIT) cleanUpdateDesigns(false);
+            if (CLEAN_INIT) { cleanUpdateDesigns(false); cleanRenderLibraryCards(true); }
+        }
+        async function cleanLoadLibraryAnimations(template) {
+            const token = ++CLEAN_ANIM_TOKEN;
+            CLEAN_CHOICES_TEMPLATE = template.id;
+            CLEAN_CHOICES = [];
+            const els = cleanEls();
+            els.animMeta.textContent = 'loading…';
+            els.animList.innerHTML = '<div class="clean-empty">Loading library motion…</div>';
+            const entries = (CLEAN_LIBRARY_ENTRY && Array.isArray(CLEAN_LIBRARY_ENTRY.animations) ? CLEAN_LIBRARY_ENTRY.animations : [])
+                .filter((entry) => entry && entry.file && (CLEAN_ADMIN ? entry.status !== 'broken' : entry.status === 'ok'));
+            const loaded = await Promise.all(entries.map(async (entry) => {
+                try {
+                    const payload = await jget(entry.file);
+                    return { id: entry.id, kind: 'library-file', name: entry.name || payload.name || 'Library motion', note: `${entry.origin || 'library'} · ${entry.status || 'ok'}`, payload, entry };
+                } catch { return null; }
+            }));
+            if (token !== CLEAN_ANIM_TOKEN) return;
+            CLEAN_CHOICES = loaded.filter(Boolean);
+            CLEAN_CHOICES.push({ id: 'none', kind: 'none', name: 'No animation', note: 'Stop and clear motion' });
+            els.animMeta.textContent = CLEAN_CHOICES.length > 1 ? `${CLEAN_CHOICES.length - 1} library motion${CLEAN_CHOICES.length === 2 ? '' : 's'}` : 'no library motion';
+            cleanRenderChoices();
+            cleanUpdateAgentContext();
         }
         function cleanAgentLibraryContext() {
+            if (CLEAN_LIBRARY_DESIGN && CLEAN_LIBRARY_ENTRY && tplOf(S) && tplOf(S).library) {
+                const detail = CLEAN_LIBRARY_DESIGN;
+                const selected = cleanSelectedGroups();
+                return {
+                    business: { id: detail.brand && detail.brand.id, name: detail.brand && detail.brand.name, tagline: '', url: '', palette: [] },
+                    composition: {
+                        id: detail.id, name: detail.name, collection: detail.kind,
+                        width: detail.width, height: detail.height, duration: detail.duration,
+                        format: detail.aspect, menuItems: detail.menuItems || [], entities: detail.entities || {},
+                        availableGroups: (detail.groups || []).map((group) => ({ id: group.id, kind: group.kind, label: group.label, layerIds: group.layerIds })),
+                    },
+                    groups: selected.map((group) => ({
+                        id: group.id, kind: group.kind, label: group.label,
+                        layerIds: group.layerIds,
+                        layers: group.layers.map((layer) => ({
+                            id: layer.id, name: layer.name, type: layer.type,
+                            text: String(layer.text || '').slice(0, 180), x: layer.x, y: layer.y, w: layer.w, h: layer.h,
+                            url: layer.url || '',
+                        })),
+                        assets: group.assets,
+                    })),
+                    animations: CLEAN_CHOICES
+                        .filter((choice) => choice.kind !== 'none')
+                        .map((choice) => ({ id: choice.id, name: choice.name, kind: choice.kind, status: choice.entry && choice.entry.status })),
+                };
+            }
             const matched = CLEAN_LIBRARY_COMPOSITION && CLEAN_LIBRARY_COMPOSITION.composition;
             const business = matched && CLEAN_LIBRARY_SUMMARY
                 ? (CLEAN_LIBRARY_SUMMARY.businesses || []).find((entry) => entry.id === matched.businessId)
@@ -3390,6 +3533,148 @@
             };
         }
 
+        function cleanLibraryDesigns() {
+            const designs = (CLEAN_LIBRARY_INDEX && Array.isArray(CLEAN_LIBRARY_INDEX.designs)) ? CLEAN_LIBRARY_INDEX.designs : [];
+            return designs.filter((entry) => CLEAN_ADMIN || entry.status === 'ready');
+        }
+        function cleanUpdateDrawerView() {
+            const template = S && tplOf(S);
+            const selected = Boolean(CLEAN_LIBRARY_DETAIL_VIEW && CLEAN_LIBRARY_ENTRY && CLEAN_LIBRARY_DESIGN && template && template.library);
+            const browse = $('#cleanBrowseView'), selectedView = $('#cleanLibrarySelectedView');
+            const admin = $('#cleanAdminBtn'), groups = $('#cleanGroupSection');
+            if (browse) browse.hidden = selected;
+            if (selectedView) selectedView.hidden = !selected;
+            if (admin) admin.hidden = selected;
+            if (groups) groups.hidden = selected;
+            if (!selected) return;
+
+            const card = $('#cleanSelectedCard');
+            if (!card) return;
+            card.replaceChildren();
+            if (CLEAN_LIBRARY_ENTRY.thumbnail) {
+                const image = document.createElement('img');
+                image.src = CLEAN_LIBRARY_ENTRY.thumbnail;
+                image.alt = '';
+                card.append(image);
+            }
+            const copy = document.createElement('div');
+            copy.className = 'clean-selected-card-copy';
+            const name = document.createElement('strong');
+            name.textContent = CLEAN_LIBRARY_ENTRY.name || CLEAN_LIBRARY_DESIGN.name || 'Library design';
+            const meta = document.createElement('small');
+            const motions = (CLEAN_LIBRARY_ENTRY.animations || []).length;
+            meta.textContent = `${CLEAN_LIBRARY_ENTRY.status || 'library'} · ${CLEAN_LIBRARY_ENTRY.kind || 'design'} · ${motions} motion${motions === 1 ? '' : 's'}`;
+            copy.append(name, meta);
+            card.append(copy);
+        }
+        function cleanRenderLibraryCards(force = false) {
+            const grid = $('#cleanLibraryGrid'), meta = $('#cleanLibraryMeta'), admin = $('#cleanAdminBtn');
+            if (!grid) return;
+            if (admin) admin.setAttribute('aria-pressed', String(CLEAN_ADMIN));
+            const designs = cleanLibraryDesigns();
+            if (meta) {
+                const all = CLEAN_LIBRARY_INDEX && Array.isArray(CLEAN_LIBRARY_INDEX.designs) ? CLEAN_LIBRARY_INDEX.designs.length : 0;
+                meta.textContent = CLEAN_ADMIN ? `all ${all}` : `${designs.length} ready`;
+            }
+            const key = `${CLEAN_ADMIN}:${designs.map((entry) => entry.id + ':' + entry.status).join('|')}`;
+            if (force || key !== CLEAN_LIBRARY_KEY) {
+                CLEAN_LIBRARY_KEY = key;
+                grid.innerHTML = '';
+                if (!designs.length) {
+                    grid.innerHTML = '<div class="clean-empty">No library designs are marked ready.</div>';
+                }
+                designs.forEach((entry) => {
+                    const card = document.createElement('button');
+                    card.type = 'button';
+                    card.className = 'clean-design' + (entry.status !== 'ready' ? ' is-review' : '');
+                    card.dataset.library = entry.id;
+                    card.title = `${entry.name}${entry.status ? ` · ${entry.status}` : ''}${entry.issues ? ` · ${entry.issues} issue${entry.issues === 1 ? '' : 's'}` : ''}`;
+                    if (entry.thumbnail) {
+                        const img = document.createElement('img');
+                        img.src = entry.thumbnail;
+                        img.alt = '';
+                        img.loading = 'lazy';
+                        card.append(img);
+                    } else {
+                        const blank = document.createElement('canvas');
+                        blank.width = 160; blank.height = 96;
+                        card.append(blank);
+                    }
+                    const name = document.createElement('strong');
+                    name.textContent = entry.name;
+                    const small = document.createElement('small');
+                    small.textContent = `${entry.status || 'library'} · ${entry.kind || 'design'} · ${(entry.animations || []).length} motion${(entry.animations || []).length === 1 ? '' : 's'}`;
+                    card.append(name, small);
+                    card.onclick = () => cleanOpenLibraryDesign(entry).catch((error) => toast(`Could not open that library design: ${error.message}`, true));
+                    grid.append(card);
+                });
+            }
+            const current = CLEAN_LIBRARY_TEMPLATE_ID || (tplOf(S) && tplOf(S).id);
+            grid.querySelectorAll('[data-library]').forEach((card) => card.classList.toggle('is-on', card.dataset.library === String(CLEAN_LIBRARY_ENTRY && CLEAN_LIBRARY_ENTRY.id)));
+        }
+        function cleanShowSource(on, playIt = false) {
+            const design = CLEAN_LIBRARY_DESIGN;
+            const video = $('#cleanSourceVideo'), poster = $('#cleanSourcePoster');
+            CLEAN_SRC = !!(on && design && design.sourceVideo);
+            document.body.classList.toggle('clean-source', CLEAN_SRC);
+            if (!CLEAN_SRC) {
+                video.pause(); video.classList.remove('on');
+                poster.classList.remove('on'); poster.hidden = true;
+                return false;
+            }
+            if (playIt) {
+                poster.classList.remove('on'); poster.hidden = true;
+                video.classList.add('on');
+                if (video.dataset.id !== design.id) { video.dataset.id = design.id; video.src = design.sourceVideo; video.poster = design.sourcePoster || ''; video.load(); }
+                video.currentTime = 0; video.play().catch(() => {});
+            } else {
+                video.pause(); video.classList.remove('on');
+                poster.src = (design.sourcePoster || '') + (design.sourcePoster ? '?v=' + Date.now() : '');
+                poster.hidden = false; poster.classList.add('on');
+            }
+            return true;
+        }
+        async function cleanOpenLibraryDesign(entry) {
+            if (!entry || !S) return;
+            const [composition, detail] = await Promise.all([
+                jget(entry.composition),
+                entry.detail ? jget(entry.detail) : Promise.resolve(null),
+            ]);
+            const template = {
+                id: `library:${entry.id}`,
+                n: entry.name,
+                brandComposition: true,
+                composition,
+                published: entry.status === 'ready',
+                library: true,
+                libraryEntry: entry,
+                channel: 'social',
+            };
+            const urls = [...new Set((composition.layers || []).flatMap((layer) => [layer.url, layer.src, layer.videoUrl]).filter((url) => typeof url === 'string' && url))];
+            await Promise.all(urls.map(async (url) => {
+                try { const image = await loadImg(url); if (image) BRAND_TEMPLATE_IMAGES.set(url, image); } catch { }
+            }));
+            const cat = S.cat;
+            const list = BRAND_TEMPLATES[cat] || (BRAND_TEMPLATES[cat] = []);
+            let listIndex = list.findIndex((item) => item.id === template.id);
+            if (listIndex < 0) { list.push(template); listIndex = list.length - 1; } else list[listIndex] = template;
+            const designIndex = categoryDesigns(cat).findIndex((item) => item.id === template.id);
+            if (designIndex < 0) throw new Error('The library design could not be added to the current category.');
+            CLEAN_LIBRARY_ENTRY = entry;
+            CLEAN_LIBRARY_DESIGN = detail;
+            CLEAN_LIBRARY_TEMPLATE_ID = template.id;
+            CLEAN_LIBRARY_DETAIL_VIEW = true;
+            CLEAN_SELECTED = null;
+            cleanShowSource(true, false);
+            CLEAN_CHOICES_TEMPLATE = '';
+            CLEAN_GROUPS_TEMPLATE = '';
+            stopP();
+            commit([{ t: 'tpl', i: designIndex }], { focus: true });
+            cleanUpdateDrawerView();
+            cleanRenderLibraryCards(false);
+            toast(`${entry.name} · ${entry.status || 'library'}`);
+        }
+
         function cleanUpdateReplay() {
             const els = cleanEls();
             if (!els.replay) return;
@@ -3400,6 +3685,7 @@
             els.replay.dataset.tip = active;
             els.replay.title = active;
             els.replay.classList.add('tip');
+            if (els.export) els.export.disabled = !(hasAnim() || (CLEAN_SRC && CLEAN_LIBRARY_DESIGN && CLEAN_LIBRARY_DESIGN.sourceVideo));
             clearTimeout(cleanUpdateReplay.timer);
             cleanUpdateReplay.timer = setTimeout(() => els.replay.classList.remove('tip'), 1600);
         }
@@ -3452,6 +3738,10 @@
                 cleanRenderChoices();
                 return;
             }
+            if (template.library && CLEAN_LIBRARY_ENTRY) {
+                await cleanLoadLibraryAnimations(template);
+                return;
+            }
             const token = ++CLEAN_ANIM_TOKEN;
             CLEAN_CHOICES_TEMPLATE = template.id;
             CLEAN_CHOICES = [];
@@ -3487,11 +3777,19 @@
         }
         async function cleanApplyChoice(choice) {
             if (!choice) return;
+            const isOriginal = choice.kind === 'original' || (choice.entry && choice.entry.origin === 'original');
+            if (isOriginal && CLEAN_LIBRARY_DESIGN && CLEAN_LIBRARY_DESIGN.sourceVideo) {
+                cleanShowSource(true, true);
+                CLEAN_SELECTED = { id: choice.id, kind: choice.kind, name: choice.name, source: true };
+                cleanRenderChoices(); cleanUpdateReplay(); return;
+            }
             if (choice.kind === 'none') {
+                cleanShowSource(false);
                 hist.push(clone(S)); S.anim = {}; S.motion = ''; recalcAnimDuration(S); afterChange(true);
                 CLEAN_SELECTED = { id: 'none', kind: 'none', name: 'No animation' };
                 cleanRenderChoices(); cleanUpdateReplay(); return;
             }
+            cleanShowSource(false);
             try {
                 const payload = cleanChoicePayload(choice);
                 if (!payload) throw new Error('That animation has no frames for this design.');
@@ -3568,6 +3866,13 @@
                     card.onclick = () => {
                         if (tplOf(S) && tplOf(S).id === template.id) return;
                         saveState(); stopP();
+                        if (!template.library) {
+                            CLEAN_LIBRARY_ENTRY = null;
+                            CLEAN_LIBRARY_DESIGN = null;
+                            CLEAN_LIBRARY_TEMPLATE_ID = '';
+                            CLEAN_LIBRARY_DETAIL_VIEW = false;
+                            cleanShowSource(false);
+                        }
                         CLEAN_SELECTED = null;
                         CLEAN_FORMATS_OPEN = false;
                         commit([{ t: 'cat', id: cat }, { t: 'tpl', i: index }], { focus: true });
@@ -3586,6 +3891,8 @@
         function cleanUpdate(force = false) {
             if (!CLEAN || !CLEAN_INIT || !S || !B) return;
             cleanUpdateDesigns(force);
+            cleanRenderLibraryCards(false);
+            cleanUpdateDrawerView();
             cleanUpdateFormats();
             cleanUpdateGroups();
             cleanUpdateReplay();
@@ -3631,6 +3938,26 @@
             const template = tplOf(S);
             const name = animation.name || meta.name || 'Agent animation';
             try {
+                if (template.library && CLEAN_LIBRARY_ENTRY) {
+                    const saved = await jget(`${API}/library/animations`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ designId: CLEAN_LIBRARY_ENTRY.id, animation: { ...animation, name } }),
+                    });
+                    const entry = {
+                        id: saved.animation.id, name: saved.animation.name, origin: saved.animation.origin || 'llm',
+                        file: saved.file, duration: saved.animation.duration, tracks: saved.animation.tracks.length,
+                        status: saved.status, issues: saved.issues,
+                    };
+                    CLEAN_LIBRARY_ENTRY.animations = [entry, ...(CLEAN_LIBRARY_ENTRY.animations || []).filter((item) => item.id !== entry.id)];
+                    if (CLEAN_LIBRARY_DESIGN) CLEAN_LIBRARY_DESIGN.animations = CLEAN_LIBRARY_ENTRY.animations;
+                    CLEAN_CHOICES_TEMPLATE = '';
+                    CLEAN_SELECTED = { id: entry.id, kind: 'library-file', name: entry.name };
+                    await cleanUpdateAnimations(true);
+                    cleanUpdateReplay();
+                    cleanAddMessage('agent', `Saved “${entry.name}” to the library. It is now available for this design.`, { saved: true });
+                    toast('Animation saved to the library.');
+                    return saved.animation;
+                }
                 const saved = await jget(`${API}/agent-animations`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -3754,6 +4081,11 @@
                 els.drawer.hidden = !open;
                 $('#cleanDesignsBtn').setAttribute('aria-expanded', String(open));
             };
+            const toggleSection = (button, content) => {
+                const expanded = button.getAttribute('aria-expanded') !== 'true';
+                button.setAttribute('aria-expanded', String(expanded));
+                content.hidden = !expanded;
+            };
             const setAgent = (open) => {
                 els.agent.hidden = !open;
                 els.ask.setAttribute('aria-expanded', String(open));
@@ -3761,11 +4093,43 @@
             };
             $('#cleanDesignsBtn').onclick = () => setDrawer(els.drawer.hidden);
             $('#cleanDrawerClose').onclick = () => setDrawer(false);
+            $('#cleanDesignsToggle').onclick = () => toggleSection($('#cleanDesignsToggle'), $('#cleanDesignContent'));
+            $('#cleanLibraryToggle').onclick = () => toggleSection($('#cleanLibraryToggle'), $('#cleanLibraryGrid'));
+            $('#cleanLibraryBack').onclick = () => {
+                CLEAN_LIBRARY_DETAIL_VIEW = false;
+                $('#cleanLibraryToggle').setAttribute('aria-expanded', 'true');
+                $('#cleanLibraryGrid').hidden = false;
+                cleanUpdateDrawerView();
+                els.drawer.scrollTop = 0;
+            };
+            $('#cleanAdminBtn').onclick = () => {
+                CLEAN_ADMIN = !CLEAN_ADMIN;
+                try { localStorage.setItem('agentLibrary.admin', JSON.stringify(CLEAN_ADMIN)); } catch { }
+                $('#cleanAdminBtn').setAttribute('aria-pressed', String(CLEAN_ADMIN));
+                CLEAN_LIBRARY_KEY = '';
+                CLEAN_CHOICES_TEMPLATE = '';
+                cleanRenderLibraryCards(true);
+                cleanUpdateAnimations(true);
+                toast(CLEAN_ADMIN ? 'Admin view: showing every library design.' : 'Showing ready library designs.');
+            };
             els.ask.onclick = () => setAgent(els.agent.hidden);
             $('#cleanAgentClose').onclick = () => setAgent(false);
             els.replay.onclick = () => {
+                if (CLEAN_SRC) { cleanShowSource(true, true); return; }
                 if (!hasAnim()) { toast('Select an animation first.', true); return; }
                 play(0);
+            };
+            els.export.onclick = () => {
+                if (CLEAN_SRC && CLEAN_LIBRARY_DESIGN && CLEAN_LIBRARY_DESIGN.sourceVideo) {
+                    const a = document.createElement('a'); a.href = CLEAN_LIBRARY_DESIGN.sourceVideo;
+                    a.download = CLEAN_LIBRARY_DESIGN.id + '-original.webm'; document.body.append(a); a.click(); a.remove();
+                    toast('Source video exported.'); return;
+                }
+                if (!hasAnim()) { toast('Select an animation first.', true); return; }
+                els.export.disabled = true;
+                toast('Recording the animation…');
+                record();
+                setTimeout(() => { if (els.export) els.export.disabled = !hasAnim(); }, DUR + 1600);
             };
             els.formatToggle.onclick = () => {
                 CLEAN_FORMATS_OPEN = !CLEAN_FORMATS_OPEN;
@@ -3779,6 +4143,7 @@
             document.querySelectorAll('[data-clean-prompt]').forEach((button) => {
                 button.onclick = () => { els.prompt.value = button.dataset.cleanPrompt; cleanSendPrompt(els.prompt.value); };
             });
+            $('#cleanAdminBtn').setAttribute('aria-pressed', String(CLEAN_ADMIN));
             cleanLoadProviders();
             cleanLoadLibrary().catch(() => {});
             cleanUpdate(true);
@@ -3808,7 +4173,10 @@
         /* ---------- selection flow ---------- */
         async function selectBrand(id, restore) {
             const b = (P.brands || []).find(x => x.id === id); if (!b) return; const tok = ++selTok;
-            if (CLEAN) { CLEAN_SELECTED = null; CLEAN_CHOICES_TEMPLATE = ''; CLEAN_FORMATS_OPEN = false; }
+            if (CLEAN) {
+                CLEAN_SELECTED = null; CLEAN_CHOICES_TEMPLATE = ''; CLEAN_FORMATS_OPEN = false;
+                CLEAN_LIBRARY_ENTRY = null; CLEAN_LIBRARY_DESIGN = null; CLEAN_LIBRARY_TEMPLATE_ID = ''; CLEAN_LIBRARY_KEY = ''; CLEAN_LIBRARY_DETAIL_VIEW = false;
+            }
             document.querySelectorAll('#brandSwitch button').forEach(x => x.disabled = true);
             B = b; BRAND_TEMPLATES = {}; BRAND_TEMPLATE_IMAGES = new Map(); IMAGE_LIB = { status: 'idle', brandId: b.id, items: [], error: '' }; deriveTheme(b); BF = brandFonts(b); hist = []; focusKey = null;
             try {

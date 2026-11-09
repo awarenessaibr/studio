@@ -12,11 +12,19 @@ button{font:inherit;color:inherit;cursor:pointer}
 :focus-visible{outline:2px solid var(--ac);outline-offset:2px}
 #stage{position:fixed;inset:0;display:grid;place-items:center}
 #cv{width:min(100vw,100vh);height:min(100vw,100vh);display:block;cursor:pointer}
+#cv[hidden]{display:none!important}
+#srcVideo{display:none;max-width:min(100vw,100vh);max-height:min(100vw,100vh);width:auto;height:auto;background:#0e0d12;box-shadow:0 20px 60px #0008}
+#srcVideo.on,#srcPoster.on{display:block}#srcPoster{max-width:min(100vw,100vh);max-height:min(100vw,100vh);width:auto;height:auto;background:#0e0d12;box-shadow:0 20px 60px #0008}
 .fab{position:fixed;z-index:5;width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--pan);display:grid;place-items:center}
 .fab:hover:not(:disabled),.fab[aria-expanded=true]{border-color:var(--ac)}
 .fab:disabled{opacity:.4;cursor:default}
 .fab svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 #tDesigns{top:14px;left:14px}#tAsk{top:14px;right:14px}
+#tExport{top:14px;right:68px}
+#tAdmin{top:19px;left:68px;width:34px;height:34px;font-size:13px;font-weight:700;font-family:ui-monospace,Menlo,monospace}
+.brandbar{display:grid;gap:5px;margin:0 0 10px;color:var(--mu);font-size:11px}
+.brandbar select{width:100%}
+#tAdmin[aria-pressed=true]{border-color:var(--ac);background:#2a3532;color:var(--ac)}
 #replay{bottom:16px;left:50%;transform:translateX(-50%)}
 #tip{position:fixed;z-index:6;bottom:70px;left:50%;transform:translateX(-50%);background:var(--ink);color:#1b1a20;padding:7px 11px;border-radius:9px;font-size:12.5px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .2s}
 #tip.on,#replay:hover+#tip,#replay:focus-visible+#tip{opacity:1}
@@ -29,7 +37,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .db{flex:1;overflow:auto;padding:12px;min-height:0}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .card{border:1px solid var(--line);border-radius:10px;background:#1a1920;padding:6px;text-align:left}
-.card:hover{border-color:var(--ac)}.card canvas{width:100%;aspect-ratio:1;border-radius:6px;display:block}
+.card:hover{border-color:var(--ac)}.card canvas,.card img.poster{width:100%;aspect-ratio:1;border-radius:6px;display:block;object-fit:cover}
 .card b{display:block;font-size:12px;margin-top:6px;line-height:1.3}.card small{color:var(--mu);font-size:11px}
 .row{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:transparent;margin-bottom:7px;text-align:left}
 .row:hover{border-color:var(--ac)}.row[aria-current=true]{border-color:var(--ac);background:#2a3532}
@@ -42,7 +50,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .m.u{align-self:flex-end;background:var(--ink);color:#1b1a20}.m.ok{border:1px solid var(--ac)}.m.err{border:1px solid var(--warn)}
 .m button{margin-top:6px;border:1px solid var(--line);border-radius:8px;background:transparent;padding:2px 9px}
 .chips{display:flex;flex-wrap:wrap;gap:5px;padding:8px 12px 0}
-.chips button{font-size:11.5px;border:1px solid var(--line);border-radius:99px;background:transparent;padding:2px 9px}.chips button:hover{border-color:var(--ac)}
+.chips button{font-size:11.5px;border:1px solid var(--line);border-radius:99px;background:transparent;padding:2px 9px}.chips button:hover,.chips button[aria-pressed=true]{border-color:var(--ac)}.chips button[aria-pressed=true]{background:#2a3532}
 #form{display:flex;gap:6px;padding:10px 12px}
 #in{flex:1;min-width:0;resize:none;height:54px;border:1px solid var(--line);border-radius:9px;background:#17161b;color:var(--ink);font:inherit;padding:7px 9px}
 #form button{border:0;background:var(--ac);color:#10211c;font-weight:600;border-radius:9px;padding:0 14px}
@@ -58,10 +66,12 @@ dialog button.p{background:var(--ac);color:#10211c;border:0;font-weight:600}
 </style>
 </head>
 <body>
-<main id="stage"><canvas id="cv" aria-label="Design canvas, fixed 1:1"></canvas></main>
+<main id="stage"><canvas id="cv" aria-label="Design canvas, fixed 1:1"></canvas><video id="srcVideo" muted playsinline loop preload="auto" aria-label="Source-exact original motion"></video><img id="srcPoster" alt="Source-exact original design" hidden></main>
 
 <button class="fab" id="tDesigns" aria-label="Designs" aria-expanded="false" title="Designs"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg></button>
+<button class="fab" id="tAdmin" aria-label="Admin animation view" aria-pressed="false" title="Admin: include broken animations">A</button>
 <button class="fab" id="tAsk" aria-label="Ask the assistant" aria-expanded="false" title="Ask for a new animation, a change or a review"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M18.5 16l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/></svg></button>
+<button class="fab" id="tExport" aria-label="Export video" title="Export the current design as a WebM video" disabled><svg viewBox="0 0 24 24"><path d="M12 3v11"/><path d="M8 10l4 4 4-4"/><path d="M5 20h14"/></svg></button>
 
 <aside class="drawer" id="panel" hidden aria-label="Designs and animations"></aside>
 
@@ -69,6 +79,7 @@ dialog button.p{background:var(--ac);color:#10211c;border:0;font-weight:600}
   <div class="dh"><h2>Assistant<small id="ctxLbl">Pick a design first</small></h2>
     <span><select id="prov" aria-label="Model"><option value="local">Local</option><option value="deepseek">DeepSeek</option></select> <button class="lnk" id="cfgBtn" aria-label="Model settings">⚙</button></span></div>
   <div id="log" aria-live="polite"></div>
+  <div class="chips" id="groups" aria-label="Element groups in this design"></div>
   <div class="chips" id="chips"></div>
   <form id="form"><textarea id="in" placeholder="Describe the animation, change or problem you see"></textarea><button>Send</button></form>
 </aside>
@@ -91,6 +102,7 @@ dialog button.p{background:var(--ac);color:#10211c;border:0;font-weight:600}
 'use strict';
 /* ============ CONFIG: where the feed comes from ============ */
 const API = 'api';
+const LIB = 'api/library';                      // built by tools/build-library.py (index.json)
 const FEED_STATIC = 'feed/index.json';          // bundled designs + their animations
 const FEED_PUBLISHED = true;                    // GET api/brand-packs/:pack/templates?brandId=…
 const SAVE_ENDPOINT = id => `${API}/designs/${encodeURIComponent(id)}/animations`; // optional server sync (POST); browser save always happens
@@ -106,12 +118,23 @@ let toastT = 0;
 const toast = (m,err) => { const t=$('#toast'); t.textContent=m; t.className=err?'err':''; t.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true,3600); };
 
 /* ============ state ============ */
+let LIBIDX = null, CLIPS = null, SEL = new Set();
+let ADMIN = LS.get('agentLibrary.admin', false);
 let DESIGNS = [], cur = null, curAnim = null, fmt = 'orig', fmtOpen = false, T = 0, playing = false, tStart = 0, raf = 0;
+const BRANDS = new Map();
+let BRAND = LS.get('sa.brand', '');
+let SRC = false;
 const IMGS = new Map();
 
 /* ============ animation model ============ */
 const EASE = {linear:x=>x, in:x=>x*x*x, out:x=>1-(1-x)**3, inOut:x=>x<.5?4*x*x*x:1-(-2*x+2)**3/2};
-const nf = f => ({t:f.t||0,dx:f.dx??0,dy:f.dy??0,sx:f.sx??1,sy:f.sy??1,a:f.a??1,r:f.r??0,e:EASE[f.e]?f.e:'linear'});
+const nf = f => ({t:f.t||0,dx:f.dx??0,dy:f.dy??0,sx:f.sx??1,sy:f.sy??1,a:f.a??1,r:f.r??0,e:EASE[f.e]?f.e:'linear',clip:f.clip||null,filter:f.filter||''});
+const lerp = (a,b,k) => a+(b-a)*k;
+function interpClip(a,b,k){
+  if(!a) return b||null; if(!b) return a;
+  if(a.shape==='rect' && b.shape==='rect') return {shape:'rect',x:lerp(a.x||0,b.x||0,k),y:lerp(a.y||0,b.y||0,k),w:lerp(a.w||100,b.w||100,k),h:lerp(a.h||100,b.h||100,k)};
+  return k<.5?a:b;
+}
 function interp(frames,t){
   if(!frames.length) return nf({});
   if(t<=frames[0].t) return frames[0];
@@ -119,6 +142,8 @@ function interp(frames,t){
   let i = 0; while(frames[i+1].t<=t) i++;
   const a = frames[i], b = frames[i+1], k = EASE[b.e]((t-a.t)/((b.t-a.t)||1)), o = {};
   for(const p of ['dx','dy','sx','sy','a','r']) o[p] = a[p]+(b[p]-a[p])*k;
+  o.clip = interpClip(a.clip,b.clip,k);
+  o.filter = b.filter || a.filter || '';
   return o;
 }
 function segState(segs,t){
@@ -135,17 +160,34 @@ function prep(data){ // normalise frames once, index tracks by layer
 function compMotion(comp){ // composition keyframes → animation tracks
   return {schema:'agent-studio/animation/2',kind:'studio-animation',name:comp.name,duration:comp.duration||10000,fps:25,tracks:comp.layers.filter(l=>l.animation&&(l.animation.keyframes||[]).length).map(l=>({layerId:l.id,layerName:l.name,segments:[{preset:'keyframes',label:'Keyframes',start:0,duration:l.animation.duration||comp.duration,loop:false,frames:l.animation.keyframes.map(k=>({t:k.time,dx:(k.x-l.x)/100,dy:(k.y-l.y)/100,sx:l.w?k.w/l.w:1,sy:l.h?k.h/l.h:1,a:k.opacity}))}]}))};
 }
+const dTitle = d => d.comp.name.split(' — ').slice(-2).join(' — ');
 const animLabel = (a,d) => ((a.name||'Animation').replace(d.comp.name,'').replace(/^[\s—–-]+/,'').replace(/^\d+$/,'')||'Original motion');
 
 /* ============ feed ============ */
-function addDesign(id,comp,src,anims){
+const brandKeyOf = value => String(value||'').toLowerCase().replace(/&/g,' and ').replace(/\b(?:the|and)\b/g,' ').replace(/[^a-z0-9]+/g,'');
+function addDesign(id,comp,src,anims,meta={}){
   let d = DESIGNS.find(x=>x.id===id);
-  if(!d){ d = {id,comp,src,anims:[]}; DESIGNS.push(d); }
+  if(!d){ d = {id,comp,src,anims:[],brandId:'',brandName:'',brandKey:'',packId:''}; DESIGNS.push(d); }
+  Object.assign(d,meta);
+  if(!d.brandKey) d.brandKey = brandKeyOf(d.brandName || d.brandId);
+  if(d.brandKey) BRANDS.set(d.brandKey, d.brandName || d.brandId);
   (anims||[]).forEach(a => { if(a && a.tracks && !d.anims.some(x=>x.data.id===a.id)) d.anims.push({id:a.id||('a'+Math.random().toString(36).slice(2,8)),data:a,saved:!!a._saved}); });
   return d;
 }
+const titleCase = value => String(value||'').replace(/[-_]+/g,' ').replace(/\b\w/g,ch=>ch.toUpperCase());
+const visibleDesigns = () => BRAND ? DESIGNS.filter(d=>d.brandKey===BRAND) : DESIGNS;
 async function loadFeed(){
-  if(FEED_STATIC) try{
+  try{ // library first: only designs marked ready, only animations that validated ok
+    LIBIDX = await jget(LIB);
+    for(const e of (LIBIDX.designs||[])){
+      try{
+        const comp = await jget(e.composition);
+        const anims = (await Promise.all((e.animations||[]).filter(a=>ADMIN?true:a.status!=='broken').map(a=>jget(a.file).then(x=>Object.assign(x,{_saved:x.origin!=='original',_status:a.status,_issues:a.issues})).catch(()=>null)))).filter(Boolean);
+        const d = addDesign(e.id,comp,'Library',anims,{brandId:e.brandId,brandName:titleCase(e.brandId),brandKey:brandKeyOf(e.brandId),sourceVideo:e.sourceVideo||'',sourcePoster:e.sourcePoster||'',sourceWidth:e.sourceWidth||0,sourceHeight:e.sourceHeight||0,sourceDuration:e.sourceDuration||0}); d.detail=e.detail; d.fromLib=true; d.status=e.status; d.issues=e.issues;
+      }catch(err){ console.warn('library item failed',e.id,err); }
+    }
+  }catch(e){ console.warn('library unavailable',e.message); }
+  if(FEED_STATIC && !DESIGNS.length) try{
     const idx = await jget(FEED_STATIC);
     for(const e of idx.designs||[]){
       try{ const comp = await jget(e.composition); const anims = (await Promise.all((e.animations||[]).map(u=>jget(u).catch(()=>null)))).filter(Boolean); addDesign(e.id||comp.id,comp,'Feed',anims); }catch(err){ console.warn('feed item failed',e,err); }
@@ -155,19 +197,21 @@ async function loadFeed(){
     const packs = (await jget(API+'/brand-packs')).packs||[];
     for(const p of packs) for(const b of p.brands||[]){
       try{ const r = await jget(`${API}/brand-packs/${encodeURIComponent(p.id)}/templates?brandId=${encodeURIComponent(b.id)}`);
-        (r.templates||[]).filter(t=>t.composition).forEach(t=>addDesign(t.id,t.composition,'Published')); }catch{}
+        (r.templates||[]).filter(t=>t.composition).forEach(t=>addDesign(t.id,t.composition,'Published',[],{brandId:b.id,brandName:b.name,brandKey:brandKeyOf(b.name),packId:p.id})); }catch{}
     }
   }catch(e){ console.warn('published feed unavailable',e.message); }
   const ov = LS.get('sa.comp',{}), sv = LS.get('sa.anims',{});
   DESIGNS.forEach(d => { if(ov[d.id]) d.comp = ov[d.id]; (sv[d.id]||[]).forEach(a=>addDesign(d.id,d.comp,d.src,[{...a,_saved:true}])); if(!d.anims.length){ const m=compMotion(d.comp); if(m.tracks.length) addDesign(d.id,d.comp,d.src,[{...m,id:'motion-'+d.id}]); } });
+  if(BRAND && !BRANDS.has(BRAND)) { BRAND = ''; LS.set('sa.brand',''); }
 }
 
 /* ============ rendering ============ */
-const getImg = url => { let i = IMGS.get(url); if(!i){ i = new Image(); i.crossOrigin='anonymous'; i.onload=()=>{i.ok=true;paintAll()}; i.onerror=()=>{i.failed=true}; i.src=url; IMGS.set(url,i); } return i; };
+const sameOriginAsset = url => { try{ const u=new URL(String(url),location.href); if((u.hostname==='localhost'||u.hostname==='127.0.0.1'||u.hostname==='[::1]')&&u.origin!==location.origin) return u.pathname+u.search+u.hash; }catch{} return url; };
+const getImg = url => { let i = IMGS.get(url); if(!i){ i = new Image(); i.crossOrigin='anonymous'; i.onload=()=>{i.ok=true;paintAll()}; i.onerror=()=>{i.failed=true}; i.src=sameOriginAsset(url); IMGS.set(url,i); } return i; };
 function fontFor(comp){ const fams=new Set(); comp.layers.forEach(l=>l.font&&l.font.family&&fams.add(l.font.family)); [...fams].forEach(f=>{ const id='gf-'+f.replace(/\W/g,''); if(!document.getElementById(id)) document.head.append(mk('link',{id,rel:'stylesheet',href:`https://fonts.googleapis.com/css2?family=${encodeURIComponent(f).replace(/%20/g,'+')}:wght@400;700&display=swap`})); document.fonts.load(`700 40px "${f}"`).then(paintAll).catch(()=>{}); }); }
 function wrap(ctx,txt,w){ const out=[]; String(txt).split('\n').forEach(par=>{ let line=''; par.split(' ').forEach(wd=>{ const t=line?line+' '+wd:wd; if(line&&ctx.measureText(t).width>w){out.push(line);line=wd}else line=t; }); out.push(line); }); return out; }
-function drawText(ctx,l,bw,bh,chPx){
-  const f=l.font||{}, fs=(f.sizePct||5)/100*chPx;
+function drawText(ctx,l,bw,bh,basePx){
+  const f=l.font||{}, fs=(f.sizePct||5)/100*basePx;
   ctx.font=`${f.style==='italic'?'italic ':''}${f.weight||400} ${fs}px "${f.family||'sans-serif'}",sans-serif`;
   if('letterSpacing' in ctx) ctx.letterSpacing=((f.letterSpacingEm||0)*fs)+'px';
   ctx.fillStyle=l.color||'#fff'; ctx.textBaseline='middle';
@@ -176,6 +220,8 @@ function drawText(ctx,l,bw,bh,chPx){
   const y0 = l.verticalAlign==='top'?-bh/2:l.verticalAlign==='bottom'?bh/2-tot:-tot/2;
   const al = l.align||'left'; ctx.textAlign=al; const x = al==='left'?-bw/2:al==='right'?bw/2:0;
   lines.forEach((s,i)=>ctx.fillText(s,x,y0+i*lh+lh/2));
+  if(f.stroke){ ctx.strokeStyle=f.stroke; ctx.lineWidth=(f.strokeWidthPct||0.5)/100*basePx; ctx.lineJoin='round';
+    lines.forEach((s,i)=>ctx.strokeText(s,x,y0+i*lh+lh/2)); }
 }
 function draw(ctx,S,d,anim,t,fid){
   const comp=d.comp, fm=FORMATS.find(f=>f.id===fid)||FORMATS[0];
@@ -192,11 +238,16 @@ function draw(ctx,S,d,anim,t,fid){
     const tr = anim && anim.byId[l.id], st = tr ? segState(tr.segments,t) : nf({});
     const a = (l.opacity??1)*st.a; if(a<=0.001) return;
     const w=(l.w/100)*st.sx*cw, h=(l.h/100)*st.sy*ch, x=cx+((l.x/100)+st.dx)*cw, y=cy+((l.y/100)+st.dy)*ch;
-    ctx.save(); ctx.globalAlpha=Math.min(1,a); ctx.translate(x+w/2,y+h/2); ctx.rotate(((l.rotation||0)+(st.r||0))*Math.PI/180);
-    if(l.type==='text'){ const bw=(l.w/100)*cw, bh=(l.h/100)*ch; ctx.scale(w/bw||1,h/bh||1); drawText(ctx,l,bw,bh,ch); }
+    ctx.save(); ctx.globalAlpha=Math.min(1,a);
+    if(st.filter) ctx.filter=st.filter;
+    if(st.clip&&st.clip.shape==='rect'){ ctx.beginPath(); ctx.rect((st.clip.x||0)/100*S,(st.clip.y||0)/100*S,(st.clip.w??100)/100*S,(st.clip.h??100)/100*S); ctx.clip(); }
+    ctx.translate(x+w/2,y+h/2); ctx.rotate(((l.rotation||0)+(st.r||0))*Math.PI/180);
+    if(l.type==='text'){ const bw=(l.w/100)*cw, bh=(l.h/100)*ch; ctx.scale(w/bw||1,h/bh||1); drawText(ctx,l,bw,bh,cw); }
     else if(l.url){ const im=getImg(l.url); if(im.ok) ctx.drawImage(im,-w/2,-h/2,w,h); else if(im.failed){ ctx.fillStyle='#2a2832'; ctx.fillRect(-w/2,-h/2,w,h); } }
     ctx.restore();
   });
+  if(d===cur && SEL.size && d.lib){ ctx.strokeStyle='#8fd3c1'; ctx.lineWidth=Math.max(2,S/300); ctx.setLineDash([8,6]);
+    d.lib.groups.filter(g=>SEL.has(g.id)).forEach(g=>ctx.strokeRect(cx+g.bbox.x/100*cw,cy+g.bbox.y/100*ch,g.bbox.w/100*cw,g.bbox.h/100*ch)); }
   ctx.restore();
 }
 const cv = $('#cv'), cx2 = cv.getContext('2d');
@@ -208,7 +259,55 @@ let pend=0; function paintAll(){ if(pend) return; pend=requestAnimationFrame(()=
 /* ============ playback ============ */
 const dur = () => (curAnim && curAnim.duration) || (cur && cur.comp.duration) || 10000;
 function frame(now){ T=Math.min(dur(),now-tStart); paintMain(); if(T>=dur()){ playing=false; return; } raf=requestAnimationFrame(frame); }
-function play(){ cancelAnimationFrame(raf); if(!curAnim) return; playing=true; tStart=performance.now(); raf=requestAnimationFrame(frame); }
+function play(){ if(SRC){ const v=$('#srcVideo'), img=$('#srcPoster'); img.classList.remove('on'); img.hidden=true; v.classList.add('on'); if(v.dataset.id!==cur.id){v.dataset.id=cur.id;v.src=cur.sourceVideo;v.poster=cur.sourcePoster||'';v.load();} v.currentTime=0; v.play().catch(()=>{}); return; } cancelAnimationFrame(raf); if(!curAnim) return; playing=true; tStart=performance.now(); raf=requestAnimationFrame(frame); }
+
+/* Export exactly what the canvas shows, at the current format, as WebM. */
+async function exportVideo(){
+  if(!cur){ toast('Pick a design first.','err'); return; }
+  if(SRC && cur.sourceVideo){
+    const a=document.createElement('a'); a.href=cur.sourceVideo; a.download=(cur.id||'design')+'-original.webm'; document.body.append(a); a.click(); a.remove(); toast('Source video exported.'); return;
+  }
+  if(!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream){ toast('This browser cannot record video.','err'); return; }
+  const btn = $('#tExport'); btn.disabled = true; toast('Recording the design…');
+  try{
+    const S = 1080;
+    const target = document.createElement('canvas');
+    target.width = S; target.height = S;
+    target.style.cssText = 'position:fixed;left:-10000px;top:0;width:1px;height:1px';
+    document.body.append(target);
+    const ctx = target.getContext('2d');
+    const duration = curAnim ? Math.max(500, curAnim.duration || 10000) : Math.min(3000, cur.comp.duration || 3000);
+    const exportDesign = { ...cur, lib: null };
+    const mime = ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].find(type=>MediaRecorder.isTypeSupported(type));
+    const chunks = [];
+    const recorder = new MediaRecorder(target.captureStream(30), mime ? { mimeType:mime, videoBitsPerSecond:8e6 } : undefined);
+    recorder.ondataavailable = event => { if(event.data && event.data.size) chunks.push(event.data); };
+    const stopped = new Promise(resolve => { recorder.onstop = resolve; });
+    recorder.start(100);
+    const started = performance.now();
+    await new Promise(resolve => {
+      const tick = () => {
+        const t = Math.min(duration, performance.now() - started);
+        draw(ctx, S, exportDesign, curAnim, t, fmt);
+        if(t < duration) requestAnimationFrame(tick);
+        else setTimeout(resolve, 120);
+      };
+      tick();
+    });
+    recorder.stop();
+    await stopped;
+    const safe = String(cur.comp.name || 'design').normalize('NFKD').replace(/[^A-Za-z0-9]+/g,'-').replace(/^-+|-+$/g,'').toLowerCase() || 'design';
+    const motion = (curAnim ? animLabel(curAnim, cur) : 'still').replace(/[^A-Za-z0-9]+/g,'-').replace(/^-+|-+$/g,'').toLowerCase() || 'still';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(chunks,{type:'video/webm'}));
+    a.download = `${safe}-${motion}-${fmt}.webm`;
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+    target.remove();
+    toast('Video exported.');
+  }catch(error){ toast('Could not export video: '+error.message,'err'); }
+  finally{ btn.disabled = !cur; }
+}
 function showTip(){ const t=$('#tip'); t.classList.add('on'); setTimeout(()=>t.classList.remove('on'),4200); }
 $('#replay').onclick = play;
 cv.onclick = () => { if(!curAnim) return; if(playing){ cancelAnimationFrame(raf); playing=false; } else if(T>=dur()) play(); else { tStart=performance.now()-T; playing=true; raf=requestAnimationFrame(frame); } };
@@ -219,21 +318,31 @@ function openPanel(on){ panel.hidden=!on; $('#tDesigns').setAttribute('aria-expa
 $('#tDesigns').onclick = () => openPanel(panel.hidden);
 function renderPanel(){
   panel.replaceChildren();
+  $('#tAdmin').setAttribute('aria-pressed', String(ADMIN));
+  $('#tAdmin').title = ADMIN ? 'Admin view: showing broken animations too' : 'Admin: include broken animations';
   if(!cur){
     panel.append(mk('div',{className:'dh'},mk('h2',{},'Designs')));
     const body = mk('div',{className:'db'}); panel.append(body);
-    if(!DESIGNS.length){ body.append(mk('p',{style:'color:var(--mu)'},'No designs found. Add them to feed/index.json or publish a template, then reload.')); return; }
+    const brandBar = mk('label',{className:'brandbar'},mk('span',{},'Brand'));
+    const brandSelect = mk('select',{id:'brandSel','aria-label':'Filter designs by brand'},
+      mk('option',{value:''},'All brands'),
+      [...BRANDS.entries()].sort((a,b)=>a[1].localeCompare(b[1])).map(([id,name])=>mk('option',{value:id},name)));
+    brandSelect.value = BRANDS.has(BRAND) ? BRAND : '';
+    brandSelect.onchange = () => { BRAND = brandSelect.value; LS.set('sa.brand',BRAND); renderPanel(); };
+    brandBar.append(brandSelect); body.append(brandBar);
+    const list = visibleDesigns();
+    if(!list.length){ body.append(mk('p',{style:'color:var(--mu)'},'No designs for this brand. Choose another brand or publish a template.')); return; }
     const g = mk('div',{className:'grid'}); body.append(g);
-    DESIGNS.forEach(d => { const c = mk('canvas',{width:300,height:300}); c.dataset.did=d.id;
-      g.append(mk('button',{className:'card',onclick:()=>selectDesign(d)},c,mk('b',{},d.comp.name.split(' — ').pop()||d.comp.name),mk('small',{},`${d.src} · ${d.anims.length} animation${d.anims.length===1?'':'s'}`))); });
+    list.forEach(d => { const c = d.sourcePoster ? mk('img',{className:'poster',src:d.sourcePoster,alt:'',loading:'lazy'}) : mk('canvas',{width:300,height:300}); if(c.dataset)c.dataset.did=d.id;
+      g.append(mk('button',{className:'card',onclick:()=>selectDesign(d)},c,mk('b',{},dTitle(d)),mk('small',{},`${d.src}${d.status&&d.status!=='ready'?' · '+d.status:''} · ${d.anims.length} animation${d.anims.length===1?'':'s'}`))); });
     paintThumbs(); return;
   }
-  panel.append(mk('div',{className:'dh'},mk('div',{},mk('h2',{},cur.comp.name.split(' — ').pop()||cur.comp.name),mk('small',{},cur.comp.name.split(' — ')[0])),mk('button',{className:'lnk',onclick:()=>{cur=null;curAnim=null;cancelAnimationFrame(raf);fmtOpen=false;ctxLbl();paintMain();$('#replay').disabled=true;renderPanel();}},'← Designs')));
+  panel.append(mk('div',{className:'dh'},mk('div',{},mk('h2',{},dTitle(cur)),mk('small',{},cur.comp.name.split(' — ')[0])),mk('button',{className:'lnk',onclick:()=>{cur=null;curAnim=null;SRC=false;$('#srcVideo').classList.remove('on');$('#srcVideo').pause();$('#srcPoster').classList.remove('on');$('#srcPoster').hidden=true;$('#cv').hidden=false;cancelAnimationFrame(raf);fmtOpen=false;ctxLbl();paintMain();$('#replay').disabled=true;$('#tExport').disabled=true;renderPanel();}},'← Designs')));
   const body = mk('div',{className:'db'}); panel.append(body);
   const fm = FORMATS.find(f=>f.id===fmt);
   if(!fmtOpen){
     body.append(mk('div',{className:'sec',style:'margin-top:0'},'Animations'));
-    cur.anims.forEach(a => body.append(mk('button',{className:'row',onclick:()=>selectAnim(a)},mk('span',{},animLabel(a.data,cur),mk('br'),mk('small',{},((a.data.duration||0)/1000).toFixed(1)+' s')),a.saved?mk('span',{className:'tag'},'Saved'):'')));
+    cur.anims.forEach(a => body.append(mk('button',{className:'row',onclick:()=>selectAnim(a)},mk('span',{},animLabel(a.data,cur),mk('br'),mk('small',{},((a.data.duration||0)/1000).toFixed(1)+' s')),mk('span',{},...(a.saved?[mk('span',{className:'tag'},'Saved')]:[]),...(ADMIN&&a.data._status&&a.data._status!=='ok'?[mk('span',{className:'tag',style:'margin-left:4px'},a.data._status)]:[])))));
     body.querySelectorAll('.row').forEach((r,i)=>r.setAttribute('aria-current',!!cur.anims[i]&&cur.anims[i].data===curAnim));
     if(!cur.anims.length) body.append(mk('p',{style:'color:var(--mu)'},'No animations yet. Ask the assistant to create one.'));
   }
@@ -241,13 +350,41 @@ function renderPanel(){
   tg.setAttribute('aria-expanded',fmtOpen); body.append(tg);
   if(fmtOpen){ const f = mk('div',{className:'fmt'}); FORMATS.forEach(o=>f.append(mk('button',{className:'row',onclick:()=>{fmt=o.id;fmtOpen=false;paintMain();renderPanel();}},mk('span',{},o.label),mk('small',{},o.r||(cur.comp.width+'×'+cur.comp.height))))); f.querySelectorAll('.row').forEach((r,i)=>r.setAttribute('aria-current',FORMATS[i].id===fmt)); body.append(f); }
 }
-function selectDesign(d){ cur=d; curAnim=null; fmt='orig'; fmtOpen=false; T=0; fontFor(d.comp); d.comp.layers.forEach(l=>l.url&&getImg(l.url)); ctxLbl(); paintMain(); renderPanel(); }
-function selectAnim(a){ if(!a.data.byId) a.data=prep(a.data); curAnim=a.data; $('#replay').disabled=false; renderPanel(); play(); showTip(); }
+function showSource(on, playIt=false){
+  SRC = !!(on && cur && cur.sourceVideo);
+  const v=$('#srcVideo'), img=$('#srcPoster'), c=$('#cv');
+  if(!SRC){ v.pause(); v.classList.remove('on'); img.classList.remove('on'); img.hidden=true; c.hidden=false; return; }
+  c.hidden=true;
+  if(playIt){
+    img.classList.remove('on'); img.hidden=true;
+    if(v.dataset.id!==cur.id){ v.dataset.id=cur.id; v.src=cur.sourceVideo; v.poster=cur.sourcePoster||''; v.load(); }
+    v.classList.add('on'); v.currentTime=0; v.play().catch(()=>{});
+  } else {
+    v.pause(); v.classList.remove('on');
+    img.src=(cur.sourcePoster||'')+(cur.sourcePoster?('?v='+Date.now()):''); img.hidden=false; img.classList.add('on');
+  }
+}
+function selectDesign(d){ SEL=new Set(); cur=d; curAnim=null; fmt='orig'; fmtOpen=false; T=0; $('#tExport').disabled=false; showSource(true,false); fontFor(d.comp); d.comp.layers.forEach(l=>l.url&&getImg(l.url)); ctxLbl(); paintMain(); renderPanel(); renderGroups(); loadLib(d); }
+function selectAnim(a){ if(!a.data.byId) a.data=prep(a.data); curAnim=a.data; $('#replay').disabled=false; renderPanel(); const original=(a.data.origin==='original'); showSource(original,original); if(!original) play(); showTip(); if(innerWidth-Math.min(innerWidth,innerHeight)<2*346) openPanel(false); }
+
+/* ============ library: groups + clips ============ */
+async function loadLib(d){ if(!d.detail||d.lib) return; try{ d.lib=await jget(d.detail); if(!CLIPS) CLIPS=(await jget(LIBIDX.files.clips)).clips; }catch(e){ console.warn(e); } if(cur===d) renderGroups(); }
+function renderGroups(){ const box=$('#groups'); box.replaceChildren(); if(!cur||!cur.lib) return;
+  cur.lib.groups.filter(g=>g.kind!=='photo').forEach(g=>{ const b=mk('button',{type:'button',onclick:()=>{ SEL.has(g.id)?SEL.delete(g.id):SEL.add(g.id); b.setAttribute('aria-pressed',SEL.has(g.id)); paintMain(); }},g.kind.replace(/-/g,' ')+': '+(g.label||'').slice(0,18)); b.setAttribute('aria-pressed',SEL.has(g.id)); box.append(b); }); }
+function ctxWithLib(){ const c=context(); if(cur.lib){ c.library={brand:cur.lib.brand.name,kind:cur.lib.kind,groups:cur.lib.groups.map(g=>({id:g.id,kind:g.kind,label:g.label,layerIds:g.layerIds,start:g.window.start,end:g.window.end})),menuItems:cur.lib.menuItems.map(m=>({name:m.name,price:m.price&&m.price.raw})),entities:cur.lib.entities}; c.selectedGroups=[...SEL]; }
+  if(CLIPS) c.clips=[...CLIPS.filter(k=>k.origin==='preset'),...CLIPS.filter(k=>k.origin!=='preset').slice(0,25)].map(k=>({id:k.id,effect:k.effect,direction:k.direction,duration:k.duration,mode:k.mode})); return c; }
+async function composeSteps(out){
+  if(!cur.fromLib) return say('Composing from clips needs the library server. Ask for a new animation instead.','err');
+  try{ const r=await fetch('api/library/compose',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({designId:cur.id,name:out.name||(out.animation&&out.animation.name)||'Composed animation',steps:out.steps,save:true})});
+    const j=await r.json(); if(!r.ok) throw new Error(j.error||r.status);
+    const data=Object.assign(j.animation,{_saved:true}); const item={id:data.id,data:prep(data),saved:true}; item.data.id=data.id; cur.anims.push(item);
+    say(`Saved “${data.name}”. Find it under Animations for this design (stored in the library).`,'ok'); toast('Animation saved'); selectAnim(item); if(panel.hidden) openPanel(true);
+  }catch(err){ say('Could not build that animation: '+err.message,'err'); } }
 
 /* ============ assistant ============ */
 const CFG = () => Object.assign({local:{...DEF.local},deepseek:{...DEF.deepseek}},LS.get('sa.cfg',{}));
 const chat = $('#chat'), log = $('#log'); let HIST = [];
-const ctxLbl = () => { $('#ctxLbl').textContent = cur ? (cur.comp.name.split(' — ').pop()+(curAnim?' · '+animLabel(curAnim,cur):'')) : 'Pick a design first'; };
+const ctxLbl = () => { $('#ctxLbl').textContent = cur ? (dTitle(cur)+(curAnim?' · '+animLabel(curAnim,cur):'')) : 'Pick a design first'; };
 function say(text,cls,extra){ const m=mk('div',{className:'m '+(cls||'')},text); if(extra) m.append(extra); log.append(m); log.scrollTop=log.scrollHeight; return m; }
 $('#tAsk').onclick = () => { chat.hidden=!chat.hidden; $('#tAsk').setAttribute('aria-expanded',!chat.hidden); if(!chat.hidden) $('#in').focus(); };
 $('#prov').value = LS.get('sa.prov','local'); $('#prov').onchange = e => LS.set('sa.prov',e.target.value);
@@ -262,7 +399,8 @@ Animation schema "agent-studio/animation/2": {"name":string,"duration":ms,"track
 dx,dy are offsets as fractions of the artboard added to the layer's own x,y (0.1 = 10%). sx,sy multiply the layer size (default 1). a is opacity 0..1 (default 1). Omitted dx,dy default 0. e is the easing used to reach that frame. Frame times are relative to the segment start. Layers without a track stay static.
 Reply with ONE JSON object and nothing else:
 {"reply":"short plain-language answer","animation":{"name":"...","duration":ms,"keepOthers":bool,"tracks":[...]} (only when creating or changing motion),"composition_fixes":[{"layerId":"...","set":{"x":n,"y":n,"w":n,"h":n,"text":"...","color":"#hex","font.sizePct":n,"opacity":n,"visible":bool}}] (only when correcting the composition),"review":[{"layerId":"...","observation":"...","suggestion":"..."}] (only when asked for a review)}.
-Rules: keepOthers=true means unlisted layers keep their current motion (use for modifications); false means unlisted layers are static (use for brand-new animations). Keep layer ids exact. Keep duration between 3000 and 15000. Use few, well-eased keyframes. Never invent layer ids. Do not change copy unless asked.`;
+Rules: keepOthers=true means unlisted layers keep their current motion (use for modifications); false means unlisted layers are static (use for brand-new animations). Keep layer ids exact. Keep duration between 3000 and 15000. Use few, well-eased keyframes. Never invent layer ids. Do not change copy unless asked.
+When "library" and "clips" are in the context, prefer assembling motion from them: return "steps":[{"target":"<group id or layer id>","clip":"<clip id>","start":ms,"duration":ms,"stagger":ms}] plus "name", instead of raw tracks. Use only ids that appear in the context. If selectedGroups is not empty, restrict changes to those groups.`;
 function context(){ const c=cur.comp; return {composition:{name:c.name,width:c.width,height:c.height,duration:c.duration,palette:(c.brandKit?.palette||[]).map(p=>p.hex).slice(0,8),fonts:[...new Set((c.brandKit?.fonts||[]).map(f=>f.family))],layers:c.layers.map(l=>({id:l.id,name:l.name,type:l.type,text:l.text,x:l.x,y:l.y,w:l.w,h:l.h,z:l.z,color:l.color,align:l.align,opacity:l.opacity,font:l.font&&{family:l.font.family,weight:l.font.weight,sizePct:l.font.sizePct}}))},
   currentAnimation: curAnim ? {name:curAnim.name,duration:curAnim.duration,tracks:curAnim.tracks.map(t=>({layerId:t.layerId,segments:t.segments.map(s=>({start:s.start,duration:s.duration,loop:s.loop,frames:thin(s.frames).map(f=>({t:f.t,dx:r3(f.dx),dy:r3(f.dy),sx:r3(f.sx),sy:r3(f.sy),a:r3(f.a)}))}))}))} : null}; }
 async function callLLM(msgs){
@@ -283,13 +421,14 @@ $('#form').onsubmit = async e => {
   if(!cur){ say('Pick a design first (top-left), then ask.','err'); return; }
   $('#in').value=''; say(q,'u'); const wait=say('Working on it…');
   try{
-    const msgs=[{role:'system',content:SYSTEM},...HIST.slice(-6),{role:'user',content:'CONTEXT:\n'+JSON.stringify(context())+'\n\nREQUEST: '+q}];
+    const msgs=[{role:'system',content:SYSTEM},...HIST.slice(-6),{role:'user',content:'CONTEXT:\n'+JSON.stringify(ctxWithLib())+'\n\nREQUEST: '+q}];
     const out = parseJSON(await callLLM(msgs)); wait.remove();
     HIST.push({role:'user',content:q},{role:'assistant',content:String(out.reply||'')});
     if(out.reply) say(out.reply);
     if(Array.isArray(out.review)&&out.review.length) say(out.review.map(r=>`• ${r.layerId}: ${r.observation}${r.suggestion?' → '+r.suggestion:''}`).join('\n'));
     if(Array.isArray(out.composition_fixes)&&out.composition_fixes.length) applyFixes(out.composition_fixes);
-    if(out.animation&&Array.isArray(out.animation.tracks)) saveAnimation(out.animation);
+    if(Array.isArray(out.steps)&&out.steps.length) await composeSteps(out);
+    else if(out.animation&&Array.isArray(out.animation.tracks)) saveAnimation(out.animation);
   }catch(err){ wait.remove(); say(err.message,'err'); }
 };
 
@@ -310,9 +449,10 @@ async function saveAnimation(raw){
   const tracks = [...base.map(t=>({layerId:t.layerId,layerName:t.layerName,segments:t.segments.map(s=>({preset:s.preset||'keyframes',label:s.label||'Keyframes',start:s.start,duration:s.duration,loop:!!s.loop,frames:s.frames.map(f=>({t:f.t,dx:f.dx,dy:f.dy,sx:f.sx,sy:f.sy,a:f.a,r:f.r,e:f.e}))}))})),
     ...good.map(t=>{ const l=cur.comp.layers.find(x=>x.id===t.layerId); return {layerId:t.layerId,layerName:l.name,layerType:l.type,role:l.type,text:l.text||'',box:{x:l.x/100,y:l.y/100,w:l.w/100,h:l.h/100},segments:t.segments.map(s=>({preset:'keyframes',label:'Keyframes',start:+s.start||0,duration:+s.duration||raw.duration||10000,loop:!!s.loop,frames:(s.frames||[]).map(f=>({t:+f.t||0,dx:f.dx,dy:f.dy,sx:f.sx,sy:f.sy,a:f.a,e:f.e}))}))}; })];
   const id='studio-animation-'+Date.now().toString(36);
-  const data={schema:'agent-studio/animation/2',kind:'studio-animation',id,name:`${cur.comp.name} — ${raw.name||'New animation'}`,createdAt:new Date().toISOString(),duration:Math.min(15000,Math.max(1000,+raw.duration||10000)),fps:25,source:{app:'studio-agent',design:cur.comp.name,layerCount:cur.comp.layers.length},tracks};
+  const data={schema:'agent-studio/animation/2',kind:'studio-animation',id,compositionId:cur.id,origin:'llm',name:`${cur.comp.name} — ${raw.name||'New animation'}`,createdAt:new Date().toISOString(),duration:Math.min(15000,Math.max(1000,+raw.duration||10000)),fps:25,source:{app:'studio-agent',design:cur.comp.name,layerCount:cur.comp.layers.length},tracks};
+  let synced=false;
+  if(cur.fromLib){ try{ const r=await fetch('api/library/animations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({designId:cur.id,animation:data})}); const j=await r.json().catch(()=>({})); if(r.status===400) return say('That animation does not fit this design, so it was not saved: '+(j.error||'validation failed'),'err'); synced=r.ok; }catch{} }
   const store=LS.get('sa.anims',{}); (store[cur.id]=store[cur.id]||[]).push(data); const ok=LS.set('sa.anims',store);
-  let synced=false; try{ const r=await fetch(SAVE_ENDPOINT(cur.id),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}); synced=r.ok; }catch{}
   const item={id,data:Object.assign(prep(data),{}),saved:true}; item.data.id=id; cur.anims.push(item);
   if(!ok&&!synced) return say('The animation was created but could not be saved: browser storage is full. Free some space and ask again.','err');
   say(`Saved “${raw.name||'New animation'}”. Find it under Animations for this design${synced?' (also stored on the server)':' (stored in this browser)'}.`,'ok'); toast('Animation saved'); selectAnim(item); if(panel.hidden) openPanel(true);
@@ -321,6 +461,22 @@ async function saveAnimation(raw){
 /* ============ boot ============ */
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ openPanel(false); chat.hidden=true; $('#tAsk').setAttribute('aria-expanded','false'); } if(e.code==='Space'&&!/INPUT|TEXTAREA|SELECT|BUTTON/.test(document.activeElement.tagName)&&curAnim){ e.preventDefault(); play(); } });
 addEventListener('resize',paintAll);
+$('#tAdmin').setAttribute('aria-pressed', String(ADMIN));
+$('#tAdmin').onclick = () => { LS.set('agentLibrary.admin', !ADMIN); location.reload(); };
+$('#tExport').onclick = exportVideo;
+// Diagnostic seam for the source-vs-composition fidelity review.
+window.__agentFirstQA = {
+  designs: () => DESIGNS.map((d) => ({ id:d.id, name:d.name, brand:d.brandName, anims:d.anims.map(a=>a.data.id), fmt })),
+  select: (id) => { const d = DESIGNS.find(x => x.id === id); if (!d) return false; selectDesign(d); return true; },
+  anim: (id) => { if (!cur) return false; const a = cur.anims.find(x => x.id === id || x.data.id === id); if (!a) return false; selectAnim(a); return true; },
+  frame: (t, fmtId = null) => {
+    if (!cur) return null;
+    const S = 1080, out = document.createElement('canvas');
+    out.width = S; out.height = S;
+    draw(out.getContext('2d'), S, { ...cur, lib: null }, curAnim, Math.max(0, Number(t) || 0), fmtId || fmt);
+    return out.toDataURL('image/png');
+  },
+};
 (async()=>{ paintMain(); try{ const f=await jget(API+'/fonts'); for(const x of f.fonts||[]) if(x.family&&x.url){ try{ const ff=new FontFace(x.family,`url("${x.url}")`,{weight:'100 1000'}); await ff.load(); document.fonts.add(ff);}catch{} } }catch{}
   await loadFeed(); say('Pick a design, choose an animation, then ask me for a new animation, a change, or a review of what you see.'); })();
 })();

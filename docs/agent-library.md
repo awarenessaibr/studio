@@ -160,3 +160,5 @@ That lets the user say "use the menu item and price groups for a two-beat
 reveal, then use the photography group for a slow push" and have the model
 return a new animation using existing layer ids/assets. The generated
 animation is then saved per template by the existing Agent Canvas flow.
+
+See [Agent First library](agent-first-library.md) for the `data/library` catalogue used by both new UIs.

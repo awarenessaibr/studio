@@ -22,6 +22,13 @@ same clean mode.
   - **Shared animation library** — entries from `/api/animation-library`, matched
     to the current design's layers by id, name, role and box.
   - **No animation** clears the timeline.
+- **Admin (`A`)** in the drawer header toggles the shared
+  `localStorage["agentLibrary.admin"]` setting. It shows every design from
+  `data/library` (including `review` designs) and warning animations; normal
+  mode stays curated to ready designs and `ok` animations.
+- **Library** under the template grid lists ready `data/library` designs.
+  Selecting one loads its source composition, semantic groups and its
+  animation files. Admin mode lists all 13 library designs.
 - **Groups** lists the semantic groups for the selected HTML composition
   (background, photography, menu items, prices, badges, body copy, contact,
   CTA). Clicking a group toggles it into the agent context. The group's layer
@@ -35,6 +42,13 @@ same clean mode.
   returns to the animations.
 - **Replay** is always visible at the bottom. Its label and tooltip show the
   selected animation, and it replays from zero.
+- **Video** in the top-right exports the selected animation as a WebM video.
+- For source-derived library designs, the clean canvas shows the source poster
+  and plays the source recording for **Original motion**. Generated animations
+  switch back to the editable composition. Export downloads the source
+  recording while Original motion is active.
+
+  It is disabled until an animation is selected.
 - **Ask** opens a compact agent drawer for design changes, new/modified
   animations and reviews.
 
@@ -132,3 +146,5 @@ API.
   deltas so resizing layers (`sx`/`sy`) keeps their edges aligned.
 - Clip-path motion is preserved when the source provides clip keyframes or
   frames.
+
+See [Agent First library](agent-first-library.md) for the `data/library` catalogue used by both new UIs.

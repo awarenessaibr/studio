@@ -106,6 +106,7 @@
             sy: Number.isFinite(source.sy) ? source.sy : 1,
             r: Number.isFinite(source.r) ? source.r : 0,
             clip: source.clip && typeof source.clip === 'object' ? source.clip : null,
+            filter: typeof source.filter === 'string' ? source.filter : '',
         };
     }
     const lerp = (from, to, p) => from + (to - from) * p;
@@ -114,6 +115,15 @@
         if (!to) return from;
         if (from.shape === 'circle' && to.shape === 'circle') {
             return { shape: 'circle', cx: lerp(from.cx, to.cx, p), cy: lerp(from.cy, to.cy, p), r: lerp(from.r, to.r, p) };
+        }
+        if (from.shape === 'rect' && to.shape === 'rect') {
+            return {
+                shape: 'rect',
+                x: lerp(from.x == null ? 0 : from.x, to.x == null ? 0 : to.x, p),
+                y: lerp(from.y == null ? 0 : from.y, to.y == null ? 0 : to.y, p),
+                w: lerp(from.w == null ? 100 : from.w, to.w == null ? 100 : to.w, p),
+                h: lerp(from.h == null ? 100 : from.h, to.h == null ? 100 : to.h, p),
+            };
         }
         if (from.shape === 'poly' && to.shape === 'poly'
             && Array.isArray(from.points) && Array.isArray(to.points)
@@ -155,6 +165,7 @@
             sy: lerp(from.sy, to.sy, p),
             r: lerp(from.r, to.r, p),
             clip: lerpClip(from.clip, to.clip, p),
+            filter: p < .5 ? from.filter : to.filter,
         };
     }
     function bakedDuration(event) {

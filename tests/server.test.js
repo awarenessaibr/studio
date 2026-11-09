@@ -179,7 +179,7 @@ test('importPublicFile exposes import media only', () => {
     assert.strictEqual(server.importPublicFile('/data/imports/demo/assets/page.html'), null);
 });
 
-test('projectPublicFile exposes generated project images only', () => {
+test('projectPublicFile exposes project images and composition JSON only', () => {
     const projects = path.join(__dirname, '..', 'data', 'projects');
     assert.strictEqual(
         server.projectPublicFile('/data/projects/demo/images/Book/cover.png'),
@@ -189,7 +189,11 @@ test('projectPublicFile exposes generated project images only', () => {
         server.projectPublicFile('/data/projects/demo/assets/segments/01.webp'),
         path.join(projects, 'demo', 'assets', 'segments', '01.webp'),
     );
-    assert.strictEqual(server.projectPublicFile('/data/projects/demo/compositions/demo.composition.json'), null);
+    assert.strictEqual(
+        server.projectPublicFile('/data/projects/demo/compositions/demo.composition.json'),
+        path.join(projects, 'demo', 'compositions', 'demo.composition.json'),
+    );
+    assert.strictEqual(server.projectPublicFile('/data/projects/demo/compositions/page.html'), null);
     assert.strictEqual(server.projectPublicFile('/data/projects/demo/images/../../.env'), null);
     assert.strictEqual(server.projectPublicFile('/data/projects/demo/images/page.html'), null);
 });
