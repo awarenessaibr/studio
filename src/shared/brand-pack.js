@@ -718,6 +718,23 @@
                 menuId: text(item.menuId, 60),
             };
         }).filter((item) => item.title);
+        // A townhouse can be hired room by room, and a hire brief needs the
+        // capacity, AV and access of each one — not a paragraph of prose.
+        const rooms = (Array.isArray(source.rooms) ? source.rooms : []).slice(0, 12).map((entry, index) => {
+            const item = entry && typeof entry === 'object' ? entry : {};
+            return {
+                id: slugId(item.id || item.name, `room-${index + 1}`).slice(0, 60),
+                name: text(item.name, 80),
+                location: text(item.location, 140),
+                capacity: text(item.capacity, 180),
+                layout: text(item.layout, 300),
+                av: text(item.av, 240),
+                toilets: text(item.toilets, 240),
+                accessibility: text(item.accessibility, 300),
+                available: text(item.available, 180),
+                note: text(item.note, 300),
+            };
+        }).filter((item) => item.name);
         // `hire.*` is the nested shape a hand-written file may use; the flat
         // fields are what this function writes back. Reading both keeps a
         // saved pack idempotent — re-normalising it must not drop the fee.
@@ -748,6 +765,7 @@
             notes: normalizeStringList(source.notes, 300, 10),
             faqs,
             entertainment,
+            rooms,
             offers,
         };
         const filled = Object.values(out).some((entry) => (
@@ -1014,7 +1032,7 @@
                         label: item.name,
                         text: menuItemLine(item),
                         meta: [section.name, item.price].filter(Boolean).join(' · '),
-                        detail: item.description,
+                        detail: [item.description, item.note].filter(Boolean).join(' · '),
                         price: item.price,
                         menuId: menu.id,
                         sectionName: section.name,

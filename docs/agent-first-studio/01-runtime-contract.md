@@ -56,6 +56,42 @@ Relevant localStorage keys:
 The model does not click these controls; it must understand the state and
 respond with the correct JSON channel.
 
+
+## 1a. Model transport
+
+The sidebar uses the server proxy, not a browser API key, by default:
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/agent-first/providers` | Ollama models/defaults + DeepSeek Flash availability |
+| `POST` | `/api/agent-first/chat` | Send `{provider, model, messages}`; server injects the documentation pack as the system prompt and returns `{content}` |
+
+Provider ids are `ollama` and `deepseek`; the browser settings key for the local
+provider is still `local`. The client maps `ollama ↔ local`.
+
+The server builds the system prompt from this pack:
+
+- **Ollama / local:** `local-system-prompt.md` (compact schema; small-context safe).
+- **DeepSeek Flash:** `agent.md` + `01`–`05` (full contract).
+
+DeepSeek requires server-side env configuration:
+
+```
+STUDIO_DEEPSEEK_API_KEY=...
+STUDIO_DEEPSEEK_MODEL=deepseek-flash
+STUDIO_DEEPSEEK_BASE_URL=https://api.deepseek.com/v1   # optional
+```
+
+Ollama is discovered from `STUDIO_OLLAMA_URL`, `OLLAMA_HOST`, then
+`127.0.0.1:11434/11436`.
+
+If the server proxy is unavailable, the client has a direct fallback for an
+older server or a browser-only DeepSeek key. The preferred path is the proxy.
+
+The server also normalizes a requested duration in an animation response: if
+the user wrote “5 seconds”, the animation duration is clamped to 3–15 s and set
+to 5000 ms even when a small local model returned a shorter value.
+
 ## 2. Selection state
 
 The user can select:
@@ -108,9 +144,12 @@ to the source design and are never mutated by the model.
       }
     ]
   },
+  "format": { "id": "orig", "label": "Original", "ratio": "Original" },
   "currentAnimation": {
     "name": "...",
     "duration": 10000,
+    "origin": "original",
+    "sourceExact": true,
     "tracks": [
       {
         "layerId": "...",
@@ -153,9 +192,14 @@ Important limits:
   **authoritative** product list is the Menu item card, backed by
   `menu-catalog.json`.
 - `clips` contains presets plus up to 25 extracted clips. Use only listed ids.
-- **Current format is not included in context.** If a request depends on
-  format-specific safe area, ask the user which format is active.
+- `format` carries the active preview/export format (`orig`, `sq`, `feed`,
+  `story`, `wide`). Use it for safe-area reasoning; do not change composition
+  coordinates because of it.
+- `currentAnimation.origin` distinguishes `original` (source recording) from a
+  generated animation/menu variation.
 - Only the last six chat messages are included in history.
+- If the user changes the selected design while a request is in flight, the
+  client discards that response rather than applying it to the new design.
 
 The system also receives visual parts for image/canvas/area attachments and up
 to four frames for a video, if the selected model supports vision.
@@ -224,10 +268,13 @@ image, changing composition metadata.
 The client’s `saveAnimation()` additionally:
 
 - keeps unlisted tracks only when `keepOthers: true`;
-- clamps duration to 1–15 s;
+- clamps duration to 3–15 s (the server also normalizes an explicitly requested duration);
 - creates an `origin: "llm"` animation;
 - saves to localStorage and, for library designs, the server;
 - selects the new animation and opens the panel.
+
+The 3–15 s rule is a **quality policy**, not just a clamp; do not rely on the
+clamp to make a badly timed animation acceptable.
 
 Important: the client’s track mapper currently forwards only
 `t, dx, dy, sx, sy, a, e`. Do **not** put `r`, `clip` or `filter` in a generated
@@ -262,7 +309,9 @@ Rules:
 
 ## 8. New composition
 
-`new_composition` is an advanced client capability:
+`new_composition` is an advanced client capability. Use it only for explicit
+“new design/version/variation/new composition” requests — never for restyle,
+redesign or ordinary correction.
 
 ```json
 {
@@ -276,7 +325,10 @@ Rules:
 The client creates a new design card from the current composition and the
 supplied `layers`. There is no schema validation beyond “layers is an array”.
 Use only when the user explicitly asks for a new composition/design. Prefer
-`composition_fixes` for edits.
+`composition_fixes` for edits. Do not use it to avoid a difficult correction.
+
+The server proxy strips `new_composition` when the user did not use an explicit
+new-design trigger; the reply is replaced with an instruction to ask for one.
 
 ---
 

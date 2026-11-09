@@ -34,6 +34,7 @@ const SocialStore = require('./src/server/social-store.js');
 const { generateSegmentTexture } = require('./src/server/segment-texture.js');
 const AgentLibrary = require('./src/server/agent-library.js');
 const LibraryService = require('./src/server/library-service.js');
+const AgentFirstPrompt = require('./src/server/agent-first-prompt.js');
 
 // Load local API keys (SERPAPI_KEY, GOOGLE_PLACES_API_KEY, …) from .env.
 // The crawler children inherit process.env, so this is the only place keys
@@ -2259,6 +2260,125 @@ function getDeepSeekDirectorConfig() {
 function getDeepSeekDirectorStatus() {
     const { available, model, error } = getDeepSeekDirectorConfig();
     return { available, model: model || null, error };
+}
+
+async function getAgentFirstProviderCatalog() {
+    const ollama = await getLlmCatalog();
+    const deepseek = getDeepSeekDirectorStatus();
+    const providers = [
+        {
+            id: 'ollama',
+            label: 'Ollama · local',
+            available: ollama.available && ollama.models.length > 0,
+            url: ollama.url,
+            models: ollama.models,
+            defaults: ollama.defaults,
+            error: ollama.available
+                ? (ollama.models.length ? null : 'No Ollama model is installed.')
+                : (ollama.error || 'Ollama is not running.'),
+        },
+        {
+            id: 'deepseek',
+            label: 'DeepSeek Flash · API',
+            available: deepseek.available,
+            model: deepseek.model || 'deepseek-flash',
+            error: deepseek.error,
+        },
+    ];
+    const defaultProvider = deepseek.available
+        ? 'deepseek'
+        : (ollama.available && ollama.models.length ? 'ollama' : 'deepseek');
+    return {
+        providers,
+        defaultProvider,
+        available: providers.some((provider) => provider.available),
+        prompt: {
+            local: AgentFirstPrompt.promptFiles('ollama'),
+            deepseek: AgentFirstPrompt.promptFiles('deepseek'),
+        },
+    };
+}
+
+function agentMessageText(messages) {
+    const last = [...(messages || [])].reverse().find((message) => message && message.role !== 'assistant');
+    if (!last) return '';
+    if (typeof last.content === 'string') return last.content;
+    if (Array.isArray(last.content)) return last.content.filter((part) => part && part.type === 'text').map((part) => part.text || '').join(' ');
+    return '';
+}
+
+function requestedAnimationDuration(messages) {
+    const text = agentMessageText(messages);
+    const patterns = [
+        /(?:total|duration|length)\s*(?:of|:)?\s*(\d+(?:\.\d+)?)\s*(ms|milliseconds?|s|secs?|seconds?)\b/i,
+        /(?:make|set)\s+(?:it|the animation|this)\s+(?:to\s+)?(\d+(?:\.\d+)?)\s*(ms|milliseconds?|s|secs?|seconds?)\b/i,
+        /(?:create|make|build|render)\s+(?:a\s+)?(?:new\s+)?(\d+(?:\.\d+)?)\s*(ms|milliseconds?|s|secs?|seconds?)\s*(?:animation|reel|video|clip)\b/i,
+        /(\d+(?:\.\d+)?)\s*(ms|milliseconds?|s|secs?|seconds?)\s*(?:animation|reel|video|clip|duration|total)\b/i,
+    ];
+    for (const re of patterns) {
+        const match = text.match(re);
+        if (!match) continue;
+        const value = Number(match[1]);
+        const unit = match[2].toLowerCase();
+        if (!Number.isFinite(value) || value <= 0) continue;
+        return Math.round(/^ms|milli/.test(unit) ? value : value * 1000);
+    }
+    return null;
+}
+
+function explicitNewComposition(messages) {
+    const text = agentMessageText(messages).toLowerCase();
+    return /\b(new\s+(?:design|composition|version|variant|post|reel)|create\s+(?:a\s+)?(?:new\s+)?(?:design|composition|version|variant)|separate\s+(?:design|composition|version)|another\s+(?:design|composition|version|variant))\b/.test(text);
+}
+
+function normaliseAgentFirstResponse(content, messages) {
+    const parsed = extractJsonObject(content);
+    if (!parsed) return content;
+    if (parsed.new_composition && !explicitNewComposition(messages)) {
+        delete parsed.new_composition;
+        parsed.reply = 'I kept this as an edit rather than creating a new design. If you want a separate design/version, say “create a new composition” explicitly.';
+    }
+    if (!parsed.animation || !Array.isArray(parsed.animation.tracks)) return JSON.stringify(parsed);
+    const requested = requestedAnimationDuration(messages);
+    const duration = (requested && (!parsed.animation.keepOthers || /\b(?:total|duration|length|make it|new)\b/i.test(agentMessageText(messages))))
+        ? requested
+        : (Number(parsed.animation.duration) || 10000);
+    parsed.animation.duration = Math.min(15000, Math.max(3000, Math.round(duration)));
+    return JSON.stringify(parsed);
+}
+
+async function runAgentFirstChat(payload) {
+    const requested = String(payload.provider || '');
+    const catalog = await getAgentFirstProviderCatalog();
+    const provider = ['ollama', 'deepseek'].includes(requested) ? requested : catalog.defaultProvider;
+    let model;
+    if (provider === 'deepseek') {
+        const config = getDeepSeekDirectorConfig();
+        if (!config.available) throw httpError(503, config.error || 'DeepSeek Flash is not configured on the studio server.');
+        model = config.model;
+    } else {
+        const llm = await getLlmCatalog();
+        if (!llm.available) throw httpError(503, llm.error || 'The local Ollama server is unavailable.');
+        model = resolveModelId(payload.model, llm.defaults.text, llm.models) || llm.defaults.text || llm.models[0]?.id;
+        if (!model) throw httpError(503, 'No Ollama model is installed.');
+    }
+    const messages = (Array.isArray(payload.messages) ? payload.messages : [])
+        .filter((message) => message && message.role !== 'system')
+        .map((message) => {
+            const out = { role: message.role === 'assistant' ? 'assistant' : 'user', content: message.content };
+            if (Array.isArray(message.images)) out.images = message.images;
+            return out;
+        })
+        .filter((message) => typeof message.content === 'string' || Array.isArray(message.content));
+    if (!messages.length) throw httpError(400, 'The agent request has no messages.');
+    const system = AgentFirstPrompt.systemPrompt(provider);
+    const requestMessages = [{ role: 'system', content: system }, ...messages];
+    const result = provider === 'deepseek'
+        ? await callDeepSeek(model, requestMessages)
+        : await callOllama(model, requestMessages, { temperature: 0.35, numPredict: 8000, numCtx: 16384, think: false });
+    const content = result?.message?.content;
+    if (typeof content !== 'string' || !content.trim()) throw httpError(502, 'The model returned an empty response.');
+    return { ok: true, provider, model, content: normaliseAgentFirstResponse(content, messages) };
 }
 
 async function getAnimationDirectorCatalog() {
@@ -5192,6 +5312,20 @@ async function handleApi(req, res, pathname) {
         return;
     }
 
+    if (pathname === '/api/agent-first/providers' && req.method === 'GET') {
+        sendJson(res, 200, await getAgentFirstProviderCatalog());
+        return;
+    }
+
+    if (pathname === '/api/agent-first/chat' && req.method === 'POST') {
+        const body = await readBody(req, 10 * 1024 * 1024);
+        let payload;
+        try { payload = JSON.parse(body.toString('utf8')); }
+        catch { throw httpError(400, 'The Agent First request must be valid JSON.'); }
+        sendJson(res, 200, await runAgentFirstChat(payload || {}));
+        return;
+    }
+
     if (pathname === '/api/agent-canvas/providers' && req.method === 'GET') {
         sendJson(res, 200, await getCanvasAgentCatalog());
         return;
@@ -6698,6 +6832,8 @@ module.exports = {
     getLlmCatalog,
     getAnimationDirectorCatalog,
     getDeepSeekDirectorStatus,
+    normaliseAgentFirstResponse,
+    requestedAnimationDuration,
     isVisionModel,
     supportsThinking,
     buildWriterPrompt,

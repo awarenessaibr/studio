@@ -9,7 +9,7 @@ description: >
   Studio.
 metadata:
   short-description: "Agent First Studio composition and animation operator"
-  entrypoint: "docs/agent-first-studio/agent.md"
+  entrypoint: "agent.md"
 ---
 
 # Agent First Studio
@@ -21,7 +21,8 @@ Load [agent.md](agent.md) first. Then load the reference needed for the task:
 - `03-animation-authoring.md` — tracks, timing, easing, clips/steps.
 - `04-workflows.md` — create, modify, correct, review, references, menu.
 - `05-quality-gates.md` — hard rejects and pre-response checklist.
-- `06-skills-crosswalk.md` — which external skills apply and which do not.
+- `07-glossary.md` — terms and the % vs fraction invariant.
+- `06-skills-crosswalk.md` — optional provenance; which external skills apply.
 
 Treat `agent.md` as the system manual. Return one JSON object only when handling
 a Studio request.

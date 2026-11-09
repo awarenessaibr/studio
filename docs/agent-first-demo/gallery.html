@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent First Studio · DeepSeek demo set</title>
+<style>
+  :root{--bg:#0d0c11;--pan:#16151c;--line:#2a2832;--ink:#f2efe9;--mu:#a49e96;--ac:#8fd3c1}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 ui-sans-serif,system-ui,-apple-system,sans-serif}
+  header{max-width:1500px;margin:0 auto;padding:42px 32px 10px}
+  h1{font-size:34px;line-height:1.1;margin:0 0 8px;letter-spacing:-.02em}
+  header p{color:var(--mu);max-width:760px;margin:0}
+  .badge{display:inline-block;color:var(--ac);border:1px solid #8fd3c155;border-radius:999px;padding:3px 9px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px}
+  main{max-width:1500px;margin:0 auto;padding:18px 32px 48px;display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  .card{background:var(--pan);border:1px solid var(--line);border-radius:16px;padding:14px;min-width:0}
+  .card h2{font-size:17px;line-height:1.25;margin:0 0 3px}
+  .meta{color:var(--mu);font-size:11px;margin:0 0 10px;word-break:break-all}
+  video{width:100%;aspect-ratio:1;background:#000;border-radius:10px;display:block}
+  .strip{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:8px}
+  .strip img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:5px;border:1px solid var(--line)}
+  .strip figure{margin:0;position:relative}
+  .strip figcaption{position:absolute;left:4px;bottom:4px;background:#000b;color:#fff;font-size:9px;padding:1px 4px;border-radius:3px}
+  .note{color:var(--mu);font-size:11px;margin:10px 0 0}
+  footer{max-width:1500px;margin:0 auto;padding:0 32px 40px;color:var(--mu);font-size:12px}
+  code{color:#ffb39e}
+  @media (max-width:1000px){main{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <div class="badge">Generated through the sidebar · DeepSeek Flash</div>
+  <h1>Agent First Studio — demo set</h1>
+  <p>Three animations created by interacting with the Studio, not hand-authored. Each is saved on its source design and can be opened under <b>Animations</b>. The source recordings remain untouched.</p>
+</header>
+<main>
+  <section class="card">
+    <h2>Noir — editorial reveal</h2>
+    <p class="meta">Tartan Guys · Noir — 01 · 6.5 s</p>
+    <video src="videos/noir.webm" controls loop muted playsinline></video>
+    <div class="strip">
+      <figure><img src="frames/noir-0.png" alt="Noir at start"><figcaption>0.0 s</figcaption></figure>
+      <figure><img src="frames/noir-3000.png" alt="Noir at 3 seconds"><figcaption>3.0 s</figcaption></figure>
+      <figure><img src="frames/noir-6000.png" alt="Noir at 6 seconds"><figcaption>6.0 s</figcaption></figure>
+    </div>
+    <p class="note">Photo settles 1.03→1.0; first headline rises in; cross-fade to the second headline; caption and item label stagger in.</p>
+  </section>
+  <section class="card">
+    <h2>Dostoevsky — quote reveal</h2>
+    <p class="meta">Deep Thinkers · cinematic reels — 03 · 9.0 s</p>
+    <video src="videos/thinkers.webm" controls loop muted playsinline></video>
+    <div class="strip">
+      <figure><img src="frames/thinkers-0.png" alt="Dostoevsky at start"><figcaption>0.0 s</figcaption></figure>
+      <figure><img src="frames/thinkers-4000.png" alt="Dostoevsky at 4 seconds"><figcaption>4.0 s</figcaption></figure>
+      <figure><img src="frames/thinkers-8500.png" alt="Dostoevsky at 8.5 seconds"><figcaption>8.5 s</figcaption></figure>
+    </div>
+    <p class="note">The five quote layers share one box, so they are driven as a single quote slot: one visible at a time, each fading out before the next beat.</p>
+  </section>
+  <section class="card">
+    <h2>Brutal — headline swap</h2>
+    <p class="meta">Tartan Guys · Brutal — 01 · 7.0 s</p>
+    <video src="videos/brutal.webm" controls loop muted playsinline></video>
+    <div class="strip">
+      <figure><img src="frames/brutal-0.png" alt="Brutal at start"><figcaption>0.0 s</figcaption></figure>
+      <figure><img src="frames/brutal-1500.png" alt="Brutal at 1.5 seconds"><figcaption>1.5 s</figcaption></figure>
+      <figure><img src="frames/brutal-5000.png" alt="Brutal at 5 seconds"><figcaption>5.0 s</figcaption></figure>
+    </div>
+    <p class="note">“EVERY DETAIL” holds, then cross-fades to “YOURS NEXT”; photo settles subtly; the duplicate “01” layer is hidden throughout.</p>
+  </section>
+</main>
+<footer>
+  Saved animation IDs: <code>studio-animation-mw9h0t2z</code> · <code>studio-animation-mw9haend</code> · <code>studio-animation-mw9hcd36</code>.
+  Open <code>/agent-first-studio.html</code>, choose the design, then select the “Demo — …” animation.
+</footer>
+</body>
+</html>

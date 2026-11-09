@@ -124,8 +124,8 @@ function renderBrand(brand) {
             if (section.note) lines.push(`${section.note}`, '');
             if (section.items.length) {
                 lines.push(table(
-                    ['Item', 'Description', 'Price', 'Dietary'],
-                    section.items.map((item) => [item.name, item.description, item.price, item.dietary.join(', ')]),
+                    ['Item', 'Description', 'Price', 'Dietary', 'Note'],
+                    section.items.map((item) => [item.name, item.description, item.price, item.dietary.join(', '), item.note]),
                 ));
             }
         });
@@ -167,6 +167,20 @@ function renderBrand(brand) {
                 ['Catering', venue.catering.join(' · ')],
             ].filter(([, value]) => value),
         ));
+        if (venue.rooms.length) {
+            lines.push('', '### Rooms', '');
+            lines.push(table(
+                ['Room', 'Location', 'Capacity', 'Layout', 'AV', 'Toilets', 'Access', 'Available'],
+                venue.rooms.map((room) => [
+                    room.name, room.location, room.capacity, room.layout,
+                    room.av, room.toilets, room.accessibility, room.available,
+                ]),
+            ));
+            const notes = venue.rooms.filter((room) => room.note);
+            if (notes.length) {
+                notes.forEach((room) => lines.push('', `- **${room.name}**: ${room.note}`));
+            }
+        }
         if (venue.offers.length) {
             lines.push('', '### Offers', '');
             lines.push(table(

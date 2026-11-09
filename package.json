@@ -22,6 +22,7 @@
     "crawl": ".venv/bin/python scripts/crawler-combined.py",
     "publish:templates": "node scripts/publish-brand-templates.js",
     "test:crawler": "node --test tests/crawler.test.js",
+    "check:agent-pack": "node scripts/check-agent-pack.js",
     "build:agent-library": "node tools/build-agent-library.js"
   }
 }

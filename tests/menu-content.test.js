@@ -129,6 +129,36 @@ test('venue hire, terms, FAQs and offers are bounded and kept', () => {
     assert.equal(again.minGuests, '40');
 });
 
+test('venue rooms keep the capacity, AV and access of each space', () => {
+    const brand = brandFrom({
+        venue: {
+            name: 'A townhouse',
+            rooms: [
+                {
+                    name: 'The Drawing Room',
+                    location: 'First floor',
+                    capacity: 'Two long tables of 20',
+                    layout: 'Dining or afternoon tea',
+                    av: 'Sound system',
+                    toilets: 'On this floor',
+                    accessibility: 'No disabled access',
+                    available: 'Any time of day',
+                    note: 'The largest room.',
+                },
+                { name: '' },
+            ],
+        },
+    });
+    const venue = brand.content.venue;
+    assert.equal(venue.rooms.length, 1, 'a room without a name is dropped');
+    assert.equal(venue.rooms[0].id, 'the-drawing-room');
+    assert.equal(venue.rooms[0].capacity, 'Two long tables of 20');
+    assert.equal(venue.rooms[0].av, 'Sound system');
+    const again = Brand.normalizeContent(JSON.parse(JSON.stringify(brand.content))).venue;
+    assert.equal(again.rooms[0].accessibility, 'No disabled access');
+    assert.equal(again.rooms[0].available, 'Any time of day');
+});
+
 test('locations and documents are lifted onto the brand for the library', () => {
     const brand = brandFrom(sample());
     assert.equal(brand.content.locations.length, 2);

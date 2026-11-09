@@ -11,6 +11,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font:14px/1
 button{font:inherit;color:inherit;cursor:pointer}
 :focus-visible{outline:2px solid var(--ac);outline-offset:2px}
 #stage{position:fixed;inset:0;display:grid;place-items:center}
+#cv{width:min(100vw,100vh);height:min(100vw,100vh);display:block;background:#0e0d12}
 #cv.area-mode{cursor:crosshair}
 #areaBanner{position:fixed;top:18px;left:50%;transform:translateX(-50%);background:#1b2824;color:var(--ac);border:1px solid var(--ac);padding:8px 16px;border-radius:24px;font-size:12px;font-weight:600;z-index:20;display:flex;align-items:center;gap:10px;box-shadow:0 8px 30px #000c}
 #areaBanner button{background:transparent;border:0;color:inherit;font-size:14px;cursor:pointer;padding:0 4px}
@@ -141,6 +142,7 @@ dialog button.p{background:var(--ac);color:#10211c;border:0;font-weight:600}
 <dialog id="cfg"><form method="dialog">
   <h2 style="margin:0 0 4px;font-size:15px">Model settings</h2>
   <p style="margin:0;color:var(--mu);font-size:12px">Saved in this browser only. Local uses an Ollama-style endpoint; any URL ending in /chat/completions is treated as OpenAI-compatible.</p>
+  <p id="providerStatus" style="margin:6px 0 0;color:var(--ac);font-size:11px"></p>
   <label>Local endpoint<input id="lUrl"></label><label>Local model<input id="lMod"></label>
   <label>DeepSeek endpoint<input id="dUrl"></label><label>DeepSeek model<input id="dMod"></label>
   <label>DeepSeek API key<input id="dKey" type="password" autocomplete="off"></label>
@@ -170,7 +172,7 @@ const SAVE_ENDPOINT = id => `${API}/designs/${encodeURIComponent(id)}/animations
 const MENU_CATALOG_URL = 'data/library/menu-catalog.json';
 const MENU_DESIGNS_URL = 'data/library/menu-designs.json'; // optional server sync (POST); browser save always happens
 const FORMATS = [{id:'orig',label:'Original'},{id:'sq',label:'Square',w:1,h:1,r:'1:1'},{id:'feed',label:'Feed',w:4,h:5,r:'4:5'},{id:'story',label:'Story · Reels',w:9,h:16,r:'9:16'},{id:'wide',label:'Landscape',w:16,h:9,r:'16:9'}];
-const DEF = {local:{url:'http://localhost:11434/api/chat',model:'qwen2.5:14b'},deepseek:{url:'https://api.deepseek.com/chat/completions',model:'deepseek-chat',key:''}};
+const DEF = {local:{url:'http://localhost:11434/api/chat',model:'granite3.2-vision:2b'},deepseek:{url:'https://api.deepseek.com/chat/completions',model:'deepseek-flash',key:''}};
 
 const $ = s => document.querySelector(s);
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -188,6 +190,7 @@ const BRANDS = new Map();
 let BRAND = LS.get('sa.brand', '');
 let SRC = false;
 let MENU_CATALOG = null, MENU_DESIGNS = null, MENU_QUERY = '';
+let PROVIDER_CATALOG = null;
 const IMGS = new Map();
 
 /* ============ animation model ============ */
@@ -618,7 +621,7 @@ function selectAnim(a){ if(!a.data.byId) a.data=prep(a.data); curAnim=a.data; cu
 async function loadLib(d){ if(!d.detail||d.lib) return; try{ d.lib=await jget(d.detail); if(!CLIPS) CLIPS=(await jget(LIBIDX.files.clips)).clips; }catch(e){ console.warn(e); } if(cur===d) renderGroups(); }
 function renderGroups(){ const box=$('#groups'); box.replaceChildren(); if(!cur||!cur.lib) return;
   cur.lib.groups.filter(g=>g.kind!=='photo').forEach(g=>{ const b=mk('button',{type:'button',onclick:()=>{ SEL.has(g.id)?SEL.delete(g.id):SEL.add(g.id); b.setAttribute('aria-pressed',SEL.has(g.id)); paintMain(); }},g.kind.replace(/-/g,' ')+': '+(g.label||'').slice(0,18)); b.setAttribute('aria-pressed',SEL.has(g.id)); box.append(b); }); }
-function ctxWithLib(){ const c=context(); if(cur.lib){ c.library={brand:cur.lib.brand.name,kind:cur.lib.kind,groups:cur.lib.groups.map(g=>({id:g.id,kind:g.kind,label:g.label,layerIds:g.layerIds,start:g.window.start,end:g.window.end})),menuItems:cur.lib.menuItems.map(m=>({name:m.name,price:m.price&&m.price.raw})),entities:cur.lib.entities}; c.selectedGroups=[...SEL]; }
+function ctxWithLib(){ const c=context(); c.format={id:fmt,label:(FORMATS.find(f=>f.id===fmt)||FORMATS[0]).label,ratio:(FORMATS.find(f=>f.id===fmt)||FORMATS[0]).r||'Original'}; if(cur.lib){ c.library={brand:cur.lib.brand.name,kind:cur.lib.kind,groups:cur.lib.groups.map(g=>({id:g.id,kind:g.kind,label:g.label,layerIds:g.layerIds,start:g.window.start,end:g.window.end})),menuItems:cur.lib.menuItems.map(m=>({name:m.name,price:m.price&&m.price.raw})),entities:cur.lib.entities}; c.selectedGroups=[...SEL]; }
   if(CLIPS) c.clips=[...CLIPS.filter(k=>k.origin==='preset'),...CLIPS.filter(k=>k.origin!=='preset').slice(0,25)].map(k=>({id:k.id,effect:k.effect,direction:k.direction,duration:k.duration,mode:k.mode})); return c; }
 async function composeSteps(out){
   if(!cur.fromLib) return say('Composing from clips needs the library server. Ask for a new animation instead.','err');
@@ -630,6 +633,8 @@ async function composeSteps(out){
 
 /* ============ assistant ============ */
 const CFG = () => Object.assign({local:{...DEF.local},deepseek:{...DEF.deepseek}},LS.get('sa.cfg',{}));
+const providerId = () => { const value=$('#prov').value; return value==='local'?'ollama':(value||'ollama'); };
+const providerConfigKey = () => providerId()==='deepseek'?'deepseek':'local';
 const chat = $('#chat'), log = $('#log'); let HIST = [];
 const ctxLbl = () => { $('#ctxLbl').textContent = cur ? (dTitle(cur)+(curAnim?' · '+animLabel(curAnim,cur):'')) : 'Pick a design first'; };
 function say(text,cls,extra){ const m=mk('div',{className:'m '+(cls||'')},text); if(extra) m.append(extra); log.append(m); log.scrollTop=log.scrollHeight; return m; }
@@ -864,19 +869,63 @@ Rules:
 3. keepOthers=true means unlisted layers keep their current motion; false means unlisted layers are static. Keep layer ids exact. Keep duration between 3000 and 15000. Use few, well-eased keyframes. Never invent layer ids. Do not change copy unless asked.
 When "library" and "clips" are in the context, prefer assembling motion from them: return "steps":[{"target":"<group id or layer id>","clip":"<clip id>","start":ms,"duration":ms,"stagger":ms}] plus "name", instead of raw tracks. Use only ids that appear in the context. If selectedGroups is not empty, restrict changes to those groups.`;
 function context(){ const c=cur.comp; return {composition:{name:c.name,width:c.width,height:c.height,duration:c.duration,palette:(c.brandKit?.palette||[]).map(p=>p.hex).slice(0,8),fonts:[...new Set((c.brandKit?.fonts||[]).map(f=>f.family))],layers:c.layers.map(l=>({id:l.id,name:l.name,type:l.type,text:l.text,x:l.x,y:l.y,w:l.w,h:l.h,z:l.z,color:l.color,align:l.align,opacity:l.opacity,font:l.font&&{family:l.font.family,weight:l.font.weight,sizePct:l.font.sizePct}}))},
-  currentAnimation: curAnim ? {name:curAnim.name,duration:curAnim.duration,tracks:curAnim.tracks.map(t=>({layerId:t.layerId,segments:t.segments.map(s=>({start:s.start,duration:s.duration,loop:s.loop,frames:thin(s.frames).map(f=>({t:f.t,dx:r3(f.dx),dy:r3(f.dy),sx:r3(f.sx),sy:r3(f.sy),a:r3(f.a)}))}))}))} : null}; }
+  currentAnimation: curAnim ? {name:curAnim.name,duration:curAnim.duration,origin:curAnim.origin||'',sourceExact:curAnim.origin==='original',tracks:curAnim.tracks.map(t=>({layerId:t.layerId,segments:t.segments.map(s=>({start:s.start,duration:s.duration,loop:s.loop,frames:thin(s.frames).map(f=>({t:f.t,dx:r3(f.dx),dy:r3(f.dy),sx:r3(f.sx),sy:r3(f.sy),a:r3(f.a)}))}))}))} : null}; }
+function providerDefault(provider) {
+  const entry = PROVIDER_CATALOG && Array.isArray(PROVIDER_CATALOG.providers)
+    ? PROVIDER_CATALOG.providers.find((item) => item.id === provider) : null;
+  if (!entry) return DEF[provider];
+  if (provider === 'deepseek') return { ...DEF.deepseek, model: entry.model || DEF.deepseek.model };
+  return { ...DEF.local, url: entry.url || DEF.local.url, model: entry.defaults?.text || entry.defaults?.vision || DEF.local.model };
+}
+async function loadProviderCatalog(){
+  try{
+    PROVIDER_CATALOG = await jget('api/agent-first/providers');
+    const options = PROVIDER_CATALOG.providers || [];
+    const current = LS.get('sa.prov','') || PROVIDER_CATALOG.defaultProvider || 'ollama';
+    const select = $('#prov'); select.replaceChildren();
+    for(const item of options){
+      const label = item.label + (item.available ? '' : ' · unavailable');
+      const option = mk('option',{value:item.id},label); select.append(option);
+    }
+    const available = options.find((item) => item.id === current && item.available) || options.find((item) => item.available) || options[0];
+    if(available){ select.value = available.id; LS.set('sa.prov',available.id); }
+    const saved = LS.get('sa.cfg',{});
+    for(const provider of ['local','deepseek']){
+      const base = providerDefault(provider==='local'?'ollama':'deepseek');
+      if(!saved[provider]) saved[provider] = { ...base, key:'' };
+      if(provider==='deepseek' && PROVIDER_CATALOG.providers?.find(p=>p.id==='deepseek')?.model) saved[provider].model = PROVIDER_CATALOG.providers.find(p=>p.id==='deepseek').model;
+      if(provider==='local' && PROVIDER_CATALOG.providers?.find(p=>p.id==='ollama')?.defaults?.text) saved[provider].model = PROVIDER_CATALOG.providers.find(p=>p.id==='ollama').defaults.text;
+      if(provider==='local' && PROVIDER_CATALOG.providers?.find(p=>p.id==='ollama')?.url) saved[provider].url = PROVIDER_CATALOG.providers.find(p=>p.id==='ollama').url + '/api/chat';
+    }
+    LS.set('sa.cfg',saved);
+    $('#prov').title = options.map(item=>`${item.label}: ${item.available?'ready':item.error||'unavailable'}`).join('\n');
+    const status=$('#providerStatus'); if(status) status.textContent=options.map(item=>`${item.label}: ${item.available?'ready':(item.error||'unavailable')}`).join(' · ');
+  }catch(error){ console.warn('provider catalog unavailable',error); }
+}
 async function callLLM(msgs){
-  const prov=$('#prov').value, c=CFG()[prov], oai=/chat\/completions/.test(c.url);
+  const prov=providerId(), c=CFG()[providerConfigKey()], oai=/chat\/completions/.test(c.url);
+  const clean=msgs.filter(message=>message.role!=='system');
+  // Prefer the server proxy: it loads the documentation pack as system prompt,
+  // keeps API keys server-side and discovers Ollama models.
+  let proxyStatus=0, proxyError='';
+  try{
+    const response=await fetch('api/agent-first/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:prov,model:c.model,messages:clean})});
+    proxyStatus=response.status;
+    if(response.ok){ const payload=await response.json(); if(payload && typeof payload.content==='string') return payload.content; }
+    proxyError=(await response.text().catch(()=>'')).slice(0,180);
+  }catch(error){ proxyError=error.message; }
+  // Backward-compatible direct path for an older server or a browser-only key.
+  if(proxyStatus && proxyStatus!==404 && !(proxyStatus===503 && c.key)) throw new Error('Agent proxy failed ('+proxyStatus+'): '+proxyError);
   const headers={'Content-Type':'application/json'}; if(c.key) headers.Authorization='Bearer '+c.key;
-  if(prov==='deepseek'&&!c.key) throw new Error('Add your DeepSeek API key in ⚙ settings.');
+  if(prov==='deepseek'&&!c.key) throw new Error('DeepSeek Flash is not configured on the server and no browser API key is set.');
   const body = oai ? {model:c.model,messages:msgs,temperature:.4,max_tokens:8000,response_format:{type:'json_object'}} : {model:c.model,messages:msgs,stream:false,format:'json',options:{temperature:.4,num_ctx:32768}};
-  let r; try{ r=await fetch(c.url,{method:'POST',headers,body:JSON.stringify(body)}); }catch{ throw new Error(prov==='local'?'Cannot reach the local model at '+c.url+'. Is it running?':'Cannot reach DeepSeek from the browser (network or CORS). Point the endpoint at a server-side proxy in ⚙ settings.'); }
+  let r; try{ r=await fetch(c.url,{method:'POST',headers,body:JSON.stringify(body)}); }catch{ throw new Error(prov==='ollama'?'Cannot reach the local model at '+c.url+'. Is Ollama running?':'Cannot reach DeepSeek from the browser (network or CORS).'); }
   if(!r.ok) throw new Error(prov+' returned '+r.status+' '+(await r.text().catch(()=>'')).slice(0,160));
   const j = await r.json(); return oai ? j.choices[0].message.content : j.message.content;
 }
 /* build a multimodal user message: text + images as vision content parts */
 async function buildUserMessage(text, attachments){
-  const prov=$('#prov').value, c=CFG()[prov], oai=/chat\/completions/.test(c.url);
+  const prov=providerId(), c=CFG()[providerConfigKey()], oai=/chat\/completions/.test(c.url);
   if(!attachments.length){
     // Plain text — works for both Ollama and OpenAI-compatible
     if(oai) return {role:'user',content:text};
@@ -907,16 +956,34 @@ async function buildUserMessage(text, attachments){
 const parseJSON = s => { s=String(s).replace(/^```(?:json)?|```$/gm,'').trim(); try{return JSON.parse(s)}catch{ const a=s.indexOf('{'),b=s.lastIndexOf('}'); return JSON.parse(s.slice(a,b+1)); } };
 const setPath = (o,p,v) => { const k=p.split('.'); let t=o; k.slice(0,-1).forEach(x=>t=t[x]=t[x]||{}); t[k.at(-1)]=v; };
 const OKKEYS = /^(x|y|w|h|z|opacity|rotation|text|color|align|verticalAlign|visible|font\.(sizePct|family|weight|lineHeight|letterSpacingEm|style|transform))$/;
+const displayNameFor = (rawName, compName, fallback='New animation') => {
+  const n=String(rawName||'').trim()||fallback;
+  const base=String(compName||'').split(' — ')[0];
+  return n.startsWith(compName) || (base && n.startsWith(base)) ? n : `${compName} — ${n}`;
+};
+const requestedDurationFromText = (text) => {
+  const src=String(text||'');
+  const patterns=[
+    /(?:total|duration|length)\s*(?:of|:)?\s*(\d+(?:\.\d+)?)\s*(ms|milliseconds?|s|secs?|seconds?)\b/i,
+    /(?:make|set)\s+(?:it|the animation|this)\s+(?:to\s+)?(\d+(?:\.\d+)?)\s*(ms|milliseconds?|s|secs?|seconds?)\b/i,
+    /(?:create|make|build|render)\s+(?:a\s+)?(?:new\s+)?(\d+(?:\.\d+)?)\s*(ms|milliseconds?|s|secs?|seconds?)\s*(?:animation|reel|video|clip)\b/i,
+    /(\d+(?:\.\d+)?)\s*(ms|milliseconds?|s|secs?|seconds?)\s*(?:animation|reel|video|clip|duration|total)\b/i,
+  ];
+  for(const re of patterns){ const m=src.match(re); if(!m) continue; const n=Number(m[1]); const unit=m[2]; if(!Number.isFinite(n)||n<=0) continue; return Math.round(/^ms|milli/i.test(unit)?n:n*1000); }
+  return null;
+};
 
 $('#form').onsubmit = async e => {
   e.preventDefault(); const q=$('#in').value.trim(); if(!q) return;
   if(!cur){ say('Pick a design first (top-left), then ask.','err'); return; }
+  const requestDesignId=cur.id;
   const pendingAttachments=[...ATTACHMENTS];
   $('#in').value=''; clearAttachments();
   say(q,'u');
   if(pendingAttachments.length) sayMedia(pendingAttachments);
   const wait=say('Working on it…');
   try{
+    const requestedDuration=requestedDurationFromText(q);
     const contextText='CONTEXT:\n'+JSON.stringify(ctxWithLib())+'\n\nREQUEST: '+q;
     if(pendingAttachments.length){
       const mediaDesc=pendingAttachments.map(a=>{
@@ -926,25 +993,29 @@ $('#form').onsubmit = async e => {
       const fullText=contextText+'\n\n'+mediaDesc;
       const userMsg=await buildUserMessage(fullText, pendingAttachments);
       const msgs=[{role:'system',content:SYSTEM},...HIST.slice(-6),userMsg];
-      const out = parseJSON(await callLLM(msgs)); wait.remove();
+      const out = parseJSON(await callLLM(msgs));
+      if(cur.id!==requestDesignId){ wait.remove(); say('Design changed while the model was working. I discarded that response so it could not land on the wrong design.','err'); return; }
+      wait.remove();
       HIST.push({role:'user',content:q+' '+mediaDesc},{role:'assistant',content:String(out.reply||'')});
       if(out.reply) say(out.reply);
       if(Array.isArray(out.review)&&out.review.length) say(out.review.map(r=>`• ${r.layerId}: ${r.observation}${r.suggestion?' → '+r.suggestion:''}`).join('\n'));
       if(out.new_composition&&Array.isArray(out.new_composition.layers)) saveNewComposition(out.new_composition);
       else if(Array.isArray(out.composition_fixes)&&out.composition_fixes.length) applyFixes(out.composition_fixes);
       if(Array.isArray(out.steps)&&out.steps.length) await composeSteps(out);
-      else if(out.animation&&Array.isArray(out.animation.tracks)&&out.animation.tracks.length) saveAnimation(out.animation);
+      else if(out.animation&&Array.isArray(out.animation.tracks)&&out.animation.tracks.length) saveAnimation(out.animation,requestedDuration);
       else if(out.animation&&Array.isArray(out.animation.tracks)&&out.animation.tracks.length===0&&Array.isArray(out.composition_fixes)&&out.composition_fixes.length) say('Animation motion preserved as requested.','ok');
     } else {
       const msgs=[{role:'system',content:SYSTEM},...HIST.slice(-6),{role:'user',content:contextText}];
-      const out = parseJSON(await callLLM(msgs)); wait.remove();
+      const out = parseJSON(await callLLM(msgs));
+      if(cur.id!==requestDesignId){ wait.remove(); say('Design changed while the model was working. I discarded that response so it could not land on the wrong design.','err'); return; }
+      wait.remove();
       HIST.push({role:'user',content:q},{role:'assistant',content:String(out.reply||'')});
       if(out.reply) say(out.reply);
       if(Array.isArray(out.review)&&out.review.length) say(out.review.map(r=>`• ${r.layerId}: ${r.observation}${r.suggestion?' → '+r.suggestion:''}`).join('\n'));
       if(out.new_composition&&Array.isArray(out.new_composition.layers)) saveNewComposition(out.new_composition);
       else if(Array.isArray(out.composition_fixes)&&out.composition_fixes.length) applyFixes(out.composition_fixes);
       if(Array.isArray(out.steps)&&out.steps.length) await composeSteps(out);
-      else if(out.animation&&Array.isArray(out.animation.tracks)&&out.animation.tracks.length) saveAnimation(out.animation);
+      else if(out.animation&&Array.isArray(out.animation.tracks)&&out.animation.tracks.length) saveAnimation(out.animation,requestedDuration);
       else if(out.animation&&Array.isArray(out.animation.tracks)&&out.animation.tracks.length===0&&Array.isArray(out.composition_fixes)&&out.composition_fixes.length) say('Animation motion preserved as requested.','ok');
     }
   }catch(err){ wait.remove(); say(err.message,'err'); }
@@ -952,7 +1023,7 @@ $('#form').onsubmit = async e => {
 
 function saveNewComposition(raw){
   const id=cur.id+'-var-'+Date.now().toString(36).slice(-5);
-  const name=raw.name?`${cur.comp.name.split(' — ')[0]} — ${raw.name}`:`${cur.comp.name} (Variation)`;
+  const name=raw.name?displayNameFor(raw.name,cur.comp.name,'Variation'):`${cur.comp.name} (Variation)`;
   const comp={...clone(cur.comp),id,name,layers:raw.layers};
   const d=addDesign(id,comp,'Generated',[],{brandId:cur.brandId,brandName:cur.brandName,brandKey:cur.brandKey});
   d.baseComp=comp;
@@ -973,20 +1044,22 @@ function applyFixes(fixes){
   say(ok?`Composition corrected and saved (${n} change${n===1?'':'s'}).`:'Composition corrected, but this browser could not store it.',ok?'ok':'err',undo);
   if(ok) toast('Composition saved');
 }
-async function saveAnimation(raw){
+async function saveAnimation(raw,requestedDuration=null){
   const base = raw.keepOthers && curAnim ? curAnim.tracks.filter(t=>!raw.tracks.some(n=>n.layerId===t.layerId)) : [];
   const ids = new Set(cur.comp.layers.map(l=>l.id)), good = raw.tracks.filter(t=>ids.has(t.layerId)&&Array.isArray(t.segments)&&t.segments.length);
   if(!good.length) return say('The model returned an animation with no usable layers. Try rephrasing.','err');
   const tracks = [...base.map(t=>({layerId:t.layerId,layerName:t.layerName,segments:t.segments.map(s=>({preset:s.preset||'keyframes',label:s.label||'Keyframes',start:s.start,duration:s.duration,loop:!!s.loop,frames:s.frames.map(f=>({t:f.t,dx:f.dx,dy:f.dy,sx:f.sx,sy:f.sy,a:f.a,r:f.r,e:f.e}))}))})),
     ...good.map(t=>{ const l=cur.comp.layers.find(x=>x.id===t.layerId); return {layerId:t.layerId,layerName:l.name,layerType:l.type,role:l.type,text:l.text||'',box:{x:l.x/100,y:l.y/100,w:l.w/100,h:l.h/100},segments:t.segments.map(s=>({preset:'keyframes',label:'Keyframes',start:+s.start||0,duration:+s.duration||raw.duration||10000,loop:!!s.loop,frames:(s.frames||[]).map(f=>({t:+f.t||0,dx:f.dx,dy:f.dy,sx:f.sx,sy:f.sy,a:f.a,e:f.e}))}))}; })];
   const id='studio-animation-'+Date.now().toString(36);
-  const data={schema:'agent-studio/animation/2',kind:'studio-animation',id,compositionId:cur.id,origin:'llm',name:`${cur.comp.name} — ${raw.name||'New animation'}`,createdAt:new Date().toISOString(),duration:Math.min(15000,Math.max(1000,+raw.duration||10000)),fps:25,source:{app:'studio-agent',design:cur.comp.name,layerCount:cur.comp.layers.length},tracks};
+  const duration = requestedDuration || (raw.keepOthers && curAnim ? curAnim.duration : null) || +raw.duration || 10000;
+  const animationName=displayNameFor(raw.name,cur.comp.name);
+  const data={schema:'agent-studio/animation/2',kind:'studio-animation',id,compositionId:cur.id,origin:'llm',name:animationName,createdAt:new Date().toISOString(),duration:Math.min(15000,Math.max(3000,duration)),fps:25,source:{app:'studio-agent',design:cur.comp.name,layerCount:cur.comp.layers.length},tracks};
   let synced=false;
   if(cur.fromLib){ try{ const r=await fetch('api/library/animations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({designId:cur.id,animation:data})}); const j=await r.json().catch(()=>({})); if(r.status===400) return say('That animation does not fit this design, so it was not saved: '+(j.error||'validation failed'),'err'); synced=r.ok; }catch{} }
   const store=LS.get('sa.anims',{}); (store[cur.id]=store[cur.id]||[]).push(data); const ok=LS.set('sa.anims',store);
   const item={id,data:Object.assign(prep(data),{}),saved:true}; item.data.id=id; cur.anims.push(item);
   if(!ok&&!synced) return say('The animation was created but could not be saved: browser storage is full. Free some space and ask again.','err');
-  say(`Saved “${raw.name||'New animation'}”. Find it under Animations for this design${synced?' (also stored on the server)':' (stored in this browser)'}.`,'ok'); toast('Animation saved'); selectAnim(item); if(panel.hidden) openPanel(true);
+  say(`Saved “${animationName}”. Find it under Animations for this design${synced?' (also stored on the server)':' (stored in this browser)'}.`,'ok'); toast('Animation saved'); selectAnim(item); if(panel.hidden) openPanel(true);
 }
 
 /* ============ boot ============ */
@@ -1011,6 +1084,9 @@ window.__agentFirstQA = {
   designs: () => DESIGNS.map((d) => ({ id:d.id, name:d.name, brand:d.brandName, anims:d.anims.map(a=>a.data.id), fmt })),
   select: (id) => { const d = DESIGNS.find(x => x.id === id); if (!d) return false; selectDesign(d); return true; },
   anim: (id) => { if (!cur) return false; const a = cur.anims.find(x => x.id === id || x.data.id === id); if (!a) return false; selectAnim(a); return true; },
+  context: () => ctxWithLib(),
+  seek: (t) => { playing=false; cancelAnimationFrame(raf); T=Math.max(0,Math.min(dur(),Number(t)||0)); paintMain(); return T; },
+  state: () => ({design:cur&&cur.id,animation:curAnim&&curAnim.name,T,cvHidden:$('#cv').hidden,posterHidden:$('#srcPoster').hidden,src:SRC}),
   frame: (t, fmtId = null) => {
     if (!cur) return null;
     const S = 1080, out = document.createElement('canvas');
@@ -1020,6 +1096,7 @@ window.__agentFirstQA = {
   },
 };
 (async()=>{ paintMain(); try{ const f=await jget(API+'/fonts'); for(const x of f.fonts||[]) if(x.family&&x.url){ try{ const ff=new FontFace(x.family,`url("${x.url}")`,{weight:'100 1000'}); await ff.load(); document.fonts.add(ff);}catch{} } }catch{}
+  await loadProviderCatalog();
   await loadFeed(); say('Pick a design, choose an animation, then ask me for a new animation, a change, or a review. You can attach images or video as visual references.'); })();
 })();
 </script>

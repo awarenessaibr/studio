@@ -15,14 +15,18 @@ and respect the source-menu boundaries.
 | [03-animation-authoring.md](03-animation-authoring.md) | Animation schema, timing, easing, clips/steps, validation. |
 | [04-workflows.md](04-workflows.md) | Create, modify, correct, review, reference, menu, composition variation. |
 | [05-quality-gates.md](05-quality-gates.md) | Pre-response checklist and hard failure modes. |
-| [06-skills-crosswalk.md](06-skills-crosswalk.md) | Which external skills were used and how they map to this Studio. |
+| [07-glossary.md](07-glossary.md) | Six-term vocabulary and the two unit systems. |
+| [local-system-prompt.md](local-system-prompt.md) | Compact prompt used for local Ollama models. |
 | [examples/](examples/) | Machine-readable response examples. |
+| [06-skills-crosswalk.md](06-skills-crosswalk.md) | Optional provenance; load only when needed. |
 
 ## Quick facts
 
 - Page: `pages/agent-first-studio.html`
 - Library index: `/api/library` → `data/library/index.json`
 - Design detail: `/api/library/designs/:id`
+- Agent providers: `GET /api/agent-first/providers`
+- Agent chat proxy: `POST /api/agent-first/chat`
 - Save animation: `POST /api/library/animations`
 - Compose from clips: `POST /api/library/compose`
 - Delete animation: `DELETE /api/library/animations/:id?designId=:id`
@@ -33,13 +37,16 @@ and respect the source-menu boundaries.
 At the time of writing: 63 designs, 61 source-derived recordings, 12
 menu-enabled designs, 5 confirmed Singl-end menus (128 items).
 
+All artifacts listed in `pack.json` are supplied. Run
+`npm run check:agent-pack` to lint links and examples.
+
 ## How to use the pack
 
 If you can only inject one file, inject [agent.md](agent.md). If you can inject
 a system prompt plus references, use `agent.md` + `01` + `02` + `03` + the one
 workflow needed. Keep `05` in context for review/correction tasks.
 
-The Studio's current internal system prompt is a subset of this pack. This pack
-is the fuller contract; where it describes a capability that is not in the
-current internal prompt, the capability still exists in the client parser
-(namely `new_composition` and full `steps`).
+The sidebar proxy now loads this pack as the system prompt. Ollama uses the
+compact `local-system-prompt.md`; DeepSeek uses the full pack. The direct browser
+fallback still carries the older internal prompt, but the preferred path is the
+server proxy.

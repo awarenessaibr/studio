@@ -80,6 +80,7 @@ scoped to one or both branches.
 | `source` | the document and page the menu was read from — never lose it |
 | `sections[].price` | a set menu's price (`£15.00 per person`) |
 | `items[].dietary` | `V`, `Ve`, `GFi`, `GF`, `DF`; the studio prints them in brackets |
+| `items[].note` | a dish-level qualifier (`Order as your main for £16`, `+ £1.50 each`); the register prints it and the Menus tab shows it on hover |
 | `packages[]` | set menus / bundles (`name`, `description`, `price`, `unit`, `minOrder`, `includes`) |
 | `notes` | the allergen line and other standing copy |
 
@@ -104,10 +105,27 @@ short list that becomes draggable offer cards:
     "faqs": [{ "q": "Is there a hire fee?", "a": "Yes. £250…" }],
     "occasions": ["Weddings", "Christmas parties"],
     "entertainment": [{ "name": "Whisky tasting", "detail": "…", "price": "Priced on application" }],
+    "rooms": [{
+      "name": "The Drawing Room",
+      "location": "First floor, up the grand spiral staircase",
+      "capacity": "Two long tables of 20, or five separate tables",
+      "layout": "Dining, afternoon tea, drinks & mingling, or U-shape/top table",
+      "av": "Sound system",
+      "toilets": "Toilets and baby changing on this floor",
+      "accessibility": "No disabled access on this level",
+      "available": "Any time of day",
+      "note": "One of the largest private dining spaces."
+    }],
     "offers": [{ "title": "Private hire", "detail": "7pm–12am · 40–100 guests", "price": "£250", "branches": ["garnethill"] }]
   }
 }
 ```
+
+`rooms[]` is for a multi-room venue: one entry per hireable space, with the
+capacity, layout, AV, toilets and access a function brief asks about. It is
+reference detail — the register prints it and the Menus tab lists it under
+**Venue & functions** — while each hireable package stays in `offers[]` so it
+can be dragged onto a canvas.
 
 **Contradictions are recorded, not resolved.** The Singl-end's 2026 Terms &
 Conditions state a £1,800 minimum spend while its 2026 brochure states there

@@ -54,12 +54,22 @@ absolute layer positions here; composition geometry belongs in
 | `loop` | repeat the segment while the animation runs |
 | `frames` | ordered keyframes |
 
-### Important geometry note
+### HARD TRAP — `sx/sy` is top-left scaling, not centred
 
-`dx/dy` shift the layer; `sx/sy` scale **from the layer’s left/top box**, not
-from its centre. A scale-in therefore grows right/down. If you need a centred
-pop, use `dx/dy` to compensate or prefer a fade/slide. Do not assume CSS
-`transform-origin: center`.
+`dx/dy` shift the layer; `sx/sy` scale **from the layer's left/top box**, not
+from its centre. A scale-in grows right/down. CSS intuition is wrong here.
+
+To pop around the centre, compensate explicitly:
+
+```json
+[
+  { "t": 0,   "dx": 0.01, "dy": 0.02, "sx": 0.98, "sy": 0.98, "a": 0.8 },
+  { "t": 300, "dx": 0,    "dy": 0,    "sx": 1,    "sy": 1,    "a": 1 }
+]
+```
+
+If you cannot compute the compensation, prefer a fade or slide. Never claim a
+centred scale when only `sx/sy` was supplied.
 
 ### Fields that are NOT part of generated animation
 
@@ -78,7 +88,9 @@ static rotation, and do not promise animated clip/filter effects.
 ## 2. `keepOthers`
 
 - `true` — unlisted layers keep the current animation’s tracks. Use for
-  “make this slower”, “change only the headline”, “add a beat”.
+  “make this slower”, “change only the headline”, “add a beat”. Preserve the
+  current animation duration unless the user explicitly asks to change the
+  total length.
 - `false` or omitted — unlisted layers are static in the new animation. Use for
   a complete new motion concept.
 
@@ -129,7 +141,9 @@ Apply these before returning a proposal:
 6. **Readability** — text should not move during the moment it must be read.
 7. **No accidental hiding** — do not fade the only product name to 0 or move it
    off-canvas.
-8. **No strobe** — no rapid full-canvas opacity flashing.
+8. **Stacked text is a swap slot** — if multiple text layers share a box/z, keep
+   only one visible at a time with a full fade-out before the next fade-in.
+9. **No strobe** — no rapid full-canvas opacity flashing.
 
 Adapted from `game-animation-frames`: loop closure, continuity, the “flip test”
 (view frames in order and narrate the motion), and energy matching the ask.
@@ -291,7 +305,7 @@ Common failures:
 | Frame beyond segment duration | Set `t ≤ duration` |
 | One-frame segment | Add a second frame or a hold endpoint |
 | `r`, `clip`, `filter` in frame | Remove; unsupported in the save path |
-| Duration < 3 s or > 15 s | Use 3000–15000 |
+| Duration < 3 s or > 15 s | Use 3000–15000 (policy is stricter than the client clamp) |
 | `keepOthers` missing on an edit | Add `true` |
 | Text layer moved off-canvas | Use `composition_fixes`, not animation |
 

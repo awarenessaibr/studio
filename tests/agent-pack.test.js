@@ -3,6 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 
 const ROOT = path.resolve(__dirname, '..');
 const PACK = path.join(ROOT, 'docs', 'agent-first-studio');
@@ -38,4 +39,20 @@ test('the skills crosswalk records relevant and excluded skills', () => {
   for (const skill of ['auth', 'building-games', 'controls', 'threejs']) {
     assert.ok(text.includes(skill), `${skill} is deliberately excluded`);
   }
+});
+
+test('the runtime prompt loader uses the compact local prompt and the full DeepSeek pack', () => {
+  const Prompt = require('../src/server/agent-first-prompt.js');
+  const local = Prompt.systemPrompt('ollama');
+  const full = Prompt.systemPrompt('deepseek');
+  assert.match(local, /compact local-model prompt/i);
+  assert.match(local, /Every track MUST have/);
+  assert.match(full, /01-runtime-contract/);
+  assert.match(full, /03-animation-authoring/);
+  assert.ok(full.length > local.length);
+});
+
+test('the pack linter passes', () => {
+  const result = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'check-agent-pack.js')], { encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
 });
