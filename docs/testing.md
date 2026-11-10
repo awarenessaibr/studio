@@ -8,7 +8,7 @@ Four suites: three Node unit/integration suites, three Chromium harnesses
 ## 1. Quick reference
 
 ```bash
-npm test                  # 134 Node tests
+npm test                  # Node unit/integration tests (284 at the time of writing)
 npm run test:smoke        # 68 checks, Layer Studio in Chromium
 npm run test:asset-studio # 57 checks, Asset Studio in Chromium
 npm run test:visual       # 8 fixtures, 11 renders, visual gate
@@ -52,6 +52,7 @@ test-only dependency; the application itself has none.
 | `tests/server.test.js` | Server guards and stores: saveComposition merge rules, font upload validation, brief parsing (CSV + real `.xlsx`), brand kits, director catalog, ZIP helpers, import-media privacy, optional H.264 transcode |
 | `tests/brand.test.js` | Brand packs, the DOCX reader, kit mapping, template compositions (print + animated digital), saved-template publish/open/delete |
 | `tests/generator.test.js` | The CLI in scaffold and brief modes, invalid rows, usage errors |
+| `tests/segment-library.test.js` | Segment-group index integrity, preview files, motion references, agent insert blocks, search, and static serving |
 
 Fixtures live in `tests/fixtures/` (a 3-row `.xlsx` campaign brief). The
 suites use `node:test` and `node:assert`; they write only to temp

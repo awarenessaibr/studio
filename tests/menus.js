@@ -156,6 +156,27 @@ async function main() {
             check(offers === 1, `a venue offer drops as an offer block (found ${offers})`);
         }
 
+        // A room is a hire product too. When the brand has rooms, each is a
+        // card that drops as an offer block and stays editable text.
+        const rooms = brand.content?.venue?.rooms || [];
+        if (rooms.length) {
+            const roomRows = await page.locator('.menu-room').count();
+            check(roomRows === rooms.length, `the panel lists all ${rooms.length} rooms (found ${roomRows})`);
+            const roomChip = page.locator('.menu-rooms .menu-chip').first();
+            check(await roomChip.count() === 1, 'the first room is a draggable card');
+            const roomName = await roomChip.locator('.mc-n').textContent();
+            const before = await page.locator('#stage .L.mb-host').count();
+            await roomChip.dragTo(stage, {
+                targetPosition: { x: stageBox.width * 0.5, y: stageBox.height * 0.85 },
+            });
+            await page.waitForTimeout(400);
+            const after = await page.locator('#stage .L.mb-host').count();
+            check(after === before + 1, `a room drops as a block (found ${after})`);
+            const lastBlock = page.locator('#stage .L.mb-host').last();
+            check((await lastBlock.innerText().catch(() => '')).includes(String(roomName || '').trim()),
+                'the room block carries the room that was dragged');
+        }
+
         // Asset Studio: the same menus prefill a menu design.
         const assetPage = await browser.newPage({ viewport: { width: 1600, height: 1100 } });
         assetPage.on('pageerror', (error) => errors.push(error.message));

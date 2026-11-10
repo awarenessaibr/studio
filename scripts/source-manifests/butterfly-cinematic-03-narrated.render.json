@@ -1,0 +1,12 @@
+{
+  "file": "deliverables/butterfly-cinematic-03-narrated/stage/cinematic-03-narrated.html",
+  "width": 1080,
+  "height": 1920,
+  "durationMs": 35720,
+  "fps": 25,
+  "audio": "deliverables/butterfly-cinematic-03-narrated/narration/narration-mix.wav",
+  "outMp4": "deliverables/butterfly-cinematic-03-narrated/render/cinematic-03-narrated.mp4",
+  "outWebm": "data/library/sources/butterfly-the-pig---cinematic-03-narrated.webm",
+  "poster": "data/library/sources/butterfly-the-pig---cinematic-03-narrated.jpg",
+  "posterAt": 33.4
+}

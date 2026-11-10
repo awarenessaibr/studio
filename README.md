@@ -22,6 +22,7 @@ runs unchanged under Node for tests.
 | **Brand identity** | sidebar of the studio | Import a brand-kit ZIP, read the Word guides, browse palette/type/logos/guidelines, create print and digital templates, and publish edited scenes back as reusable brand templates with GIF/MP4 export. Also available as a drawer inside Asset Studio. | [brand-packs.md](docs/brand-packs.md) |
 | **Brand intake** | `/crawler.html` | Search a business, confirm its website/social profiles, queue several restaurants as a group, run the combined crawler one by one and import the finished group ZIP into Asset Studio. | [crawler.md](docs/crawler.md) |
 | **Asset library** | `/library.html` | Business Asset Intelligence: index pack assets and uploads, review and classify them, apply usage rules and feed the Asset Studio photo slot and print gate. | [asset-library.md](docs/asset-library.md) |
+| **Segment library** | `/segments` (also `/segment-library`) | The reusable groups of cut-out segments — clouds, sea and waves, birds, characters, props, effects — with previews, source compositions and motion recipes an agent can insert into a scene. | [segment-library.md](docs/segment-library.md) |
 | **Voice Studio** | `/voice.html` | Local MLX-Audio speech, two-direction voice design, auditions and saving spoken audio to the asset library. | [voice-studio.md](docs/voice-studio.md) |
 | **Social intelligence** | `/social.html` | Channels, reputation, review themes and voice read from scraped social profiles, with a per-brand tab; enabled businesses can launch a granular social re-crawl from here. | [social-intelligence.md](docs/social-intelligence.md) |
 | **Management** (dev only) | `/admin.html` | Choose which brand groups and businesses every studio surface shows, and their order. Local-only unless `STUDIO_ADMIN_KEY` is set. | [management.md](docs/management.md) |
@@ -72,6 +73,7 @@ the browser's own MP4/WebM recording is used. Application modules: none.
 | Layered scene animation | You have PNG cut-outs and want motion, parallax, sprites | Layer Studio | [layer-studio.md](docs/layer-studio.md) |
 | Asset Studio Agent animation | Animate captured text, logos, or the whole artwork with short presets | `/studio-agent.html` → Timeline | [asset-studio-animation.md](docs/asset-studio-animation.md) |
 | Segment import + auto-align | You have a segments ZIP and the assembled image | Layer Studio → *Import ZIP + image* | [layer-studio.md](docs/layer-studio.md#3-projects-and-imports) |
+| Fill segment holes | A cut-out is transparent where a segment in front was removed, and motion exposes the gap | Layers → segment fill-holes icon | [layer-studio.md](docs/layer-studio.md#3-projects-and-imports) |
 | 19 animation presets + keyframes | A layer needs life in one click, or exact timing | Inspector / Keyframes | [layer-studio.md](docs/layer-studio.md#6-animation) |
 | Character rigs (face, eyes, speech) | A portrait needs blinks, gaze, expressions, lip-sync | Inspector → Character | [layer-studio.md](docs/layer-studio.md#character-rigs) |
 | Multi-format templates | One design must fit feed, story, leaderboard, print | Format bar / Variables | [layer-studio.md](docs/layer-studio.md#7-formats-and-templates) |
@@ -79,7 +81,7 @@ the browser's own MP4/WebM recording is used. Application modules: none.
 | Brief ingestion | One CSV/XLSX row per creative → N exports | Tools → *Brief…* or CLI | [api-and-cli.md](docs/api-and-cli.md#5-briefs-in-detail) |
 | New business intake | A name needs a complete brand pack, not a hand-built ZIP | Brand intake | [crawler.md](docs/crawler.md) |
 | Existing business assets | A team already owns logos, photos, menus and documents and needs to find, verify and reuse them | Asset library | [asset-library.md](docs/asset-library.md) |
-| Menus, prices and venue hire | A brand's dishes, set menus, dates, hire fees and Christmas offer should be draggable onto a canvas instead of retyped | Asset Studio / Agent Studio → *Menus* | [menus.md](docs/menus.md) |
+| Menus, prices and venue hire | A brand's dishes, set menus, dates, hire fees, rooms and Christmas offer should be draggable onto a canvas instead of retyped | Asset Studio / Agent Studio → *Menus* | [menus.md](docs/menus.md) · [function-hire.md](docs/function-hire.md) |
 | One dish, one finished post | A menu item should become a formatted feed post, one of twelve 9:16 reel layouts, or a storytelling collab — with its caption, hashtags, motion idea **and a playing animation** that matches the reference | Asset Studio → *Post Ideas* / *Reel Ideas* / *Story Reels* | [asset-studio.md](docs/asset-studio.md#post-ideas--2-designs) |
 | A spoken brand line | Copy needs a voice, or a voice needs to be designed from a description | Voice Studio | [voice-studio.md](docs/voice-studio.md) |
 | What the public says | Channels, reviews, themes and voice need to be read together, with the gaps visible | Social intelligence | [social-intelligence.md](docs/social-intelligence.md) |
@@ -92,6 +94,7 @@ the browser's own MP4/WebM recording is used. Application modules: none.
 | AI animation director | You want project-specific motion ideas from the final image | Layer Studio → *Animation ideas* | [layer-studio.md](docs/layer-studio.md#10-ai-assistance) |
 | Segment organiser | Cut-out names are meaningless (`image-042.png`) | Layers → *Organize with AI* | [layer-studio.md](docs/layer-studio.md#10-ai-assistance) |
 | Agent protocol | An LLM should direct the scene or drive a character | `exportAgentSpec` / `applyAgentCommands` | [agent-protocol.md](docs/agent-protocol.md) |
+| Narrated stage cut + music bed | A spoken track must drive the card timing, and the cut needs a background bed with levels and timings | `build-narrated-composition.py` → `render-narrated-video.js` → `install-narrated-design.py`; Audio drawer in Agent Studio | [agent-first-library.md](docs/agent-first-library.md#narrated-html-stage-cuts) |
 | Safe zones + guardrails | Exports must respect channel chrome and brand rules | Tools → *Validate brand* | [layer-studio.md](docs/layer-studio.md#8-safe-zones-and-guardrails) |
 
 A single end-to-end tour, with use cases and inputs/outputs, lives in
@@ -115,6 +118,7 @@ studio-layers/
 │   ├── asset-studio.html   ← final-asset surface
 │   ├── crawler.html        ← brand intake (search → crawl → import)
 │   ├── library.html        ← Business Asset Intelligence
+│   ├── segments.html       ← segment-group library (groups, designs, animations)
 │   ├── voice.html          ← Voice Studio
 │   ├── social.html         ← Social intelligence
 │   └── admin.html          ← developer management (unlisted)
@@ -133,7 +137,7 @@ studio-layers/
 │   │   └── voice/tts-server.mjs, voice-design-agent.mjs, tts-config.mjs
 │   └── client/             ← browser-only modules
 │       ├── shared/_.js / _.css ← Layer Studio engine + shared styles
-│       ├── studio/studio-v2.js, studio-minimal/
+│       ├── studio/studio-v2.js, studio/segment-fill.js, studio-minimal/
 │       ├── brand/brand-identity.js / .css
 │       ├── asset-studio/app.js, app.css, engine.js, categories.js, print.js
 │       │   └── vendor/qrcode.min.js
@@ -172,6 +176,7 @@ git; back it up like any other document folder.
 | [brand-packs.md](docs/brand-packs.md) | Brand-kit ZIP structure, what the importer reads, identity UI, templates, brand kits |
 | [crawler.md](docs/crawler.md) | Brand intake UI, combined website + social crawler, search/discovery, run jobs and output contract |
 | [asset-library.md](docs/asset-library.md) | Business Asset Intelligence: record schema, store, review library, usage rules and Asset Studio integration |
+| [segment-library.md](docs/segment-library.md) | Segment groups: detection, index/group/motion schema, previews, API, agent insertion contract and rebuild |
 | [voice-studio.md](docs/voice-studio.md) | Local speech, the MLX-Audio lifecycle, the two-direction voice-design agent and audio library integration |
 | [social-intelligence.md](docs/social-intelligence.md) | Scraped social channels, reputation, themes, voice and the deterministic reading behind them |
 | [architecture.md](docs/architecture.md) | Module boundaries, data model, single render path, storage layout |
@@ -188,8 +193,9 @@ git; back it up like any other document folder.
 ## Verify a checkout
 
 ```bash
-npm test                  # 130 Node tests: schema, render path, server guards, crawler safety, asset intelligence, social intelligence, voice design, CLI
-npm run test:smoke        # 68 checks in Chromium against the real studio
+npm test                  # 277 Node tests: schema, render path, server guards, hole filling, crawler safety, asset intelligence, social intelligence, voice design, CLI
+npm run test:smoke        # 76 checks in Chromium against the real studio
+npm run test:fill         # 19 checks: hole detection and fill on a real project in Chromium
 npm run test:asset-studio # 57 checks in Chromium across all five brand groups
 npm run test:visual       # 8 fixtures × formats, DOM vs canvas vs SVG
 npm run test:all          # everything (slow: real-time video, three Chromium runs)

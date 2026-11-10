@@ -528,7 +528,7 @@ h3[data-sec]:focus-visible {
   line-height: 1.35;
 }
 .menu-room b { font-weight: 600; }
-.menu-room span,
+.menu-room .mr-meta,
 .menu-room small { display: block; color: var(--mu); font-size: 10px; }
 .menu-terms { margin: 2px 10px 8px; }
 .menu-terms > summary { cursor: pointer; list-style: none; }
@@ -3039,7 +3039,7 @@ function menuPanel(){
   h+=`<div class="menu-group"><h3>Venue &amp; functions<small>${esc(v.name||'')}</small></h3><div class="note">${esc(facts||'Hire fees, set menus, cakes and entertainment — drag one on to make an offer card.')}</div><div class="menu-drop" style="padding:0 10px 4px">${cat.offers.map(asset=>menuChip(asset,' menu-offer')).join('')}</div>`;
   const rooms=Array.isArray(v.rooms)?v.rooms:[];
   if(rooms.length){
-   h+=`<div class="menu-rooms"><h4>Rooms · ${rooms.length}</h4>${rooms.map(room=>`<div class="menu-room"><b>${esc(room.name)}</b><span>${esc([room.capacity,room.location,room.available].filter(Boolean).join(' · '))}</span>${room.accessibility?`<small>${esc(room.accessibility)}</small>`:''}</div>`).join('')}</div>`;
+   h+=`<div class="menu-rooms"><h4>Rooms · ${rooms.length}</h4><div class="menu-drop" style="padding:0">${rooms.map(room=>{const asset=(cat.rooms||[]).find(entry=>entry.roomId===room.id);return `<div class="menu-room">${asset?menuChip(asset,' menu-offer'):''}<span class="mr-meta">${esc([room.capacity,room.location,room.available].filter(Boolean).join(' · '))}</span>${room.accessibility?`<small>${esc(room.accessibility)}</small>`:''}</div>`;}).join('')}</div></div>`;
   }
   const terms=Array.isArray(v.terms)?v.terms:[];
   if(terms.length){
@@ -5657,6 +5657,7 @@ async function openImport(){
  await openDialog({
   title:'Import a composition',
   body:`<div class="dlg-h">Compositions on this server</div>`+
+   `<label class="fld">Search compositions<input id="impSearch" type="search" autocomplete="off" placeholder="Name, project, or import"></label>`+
    `<div class="imp-list" id="impList"><div class="note">Looking for compositions…</div></div>`+
    `<p class="note">Layers, artwork and keyframes load onto this stage. Nothing is written back — edit the file itself in <a href="studio-import.html">Studio Import</a>.</p>`+
    `<div class="dlg-h">Or use a link or JSON</div>`+
@@ -5670,7 +5671,19 @@ async function openImport(){
    }},
   ],
   onMount:(body,finish)=>{
-   const list=body.querySelector('#impList');
+   const list=body.querySelector('#impList'),search=body.querySelector('#impSearch');
+   let candidates=[];
+   const renderCandidates=()=>{
+    const query=search.value.trim().toLocaleLowerCase();
+    const matches=candidates.filter(candidate=>candidate.kind==='error'||
+     [candidate.label,candidate.note].some(value=>String(value||'').toLocaleLowerCase().includes(query)));
+    const entries=matches.map(c=>c.key
+     ?`<button type="button" class="imp-row" data-cand="${esc(c.key)}" data-label="${esc(c.label)}"><b>${esc(c.label)}</b><small>${esc(c.note)}</small><em>${esc(c.kind)}</em></button>`
+     :`<div class="note warn">${esc(c.label)} — ${esc(c.note)}</div>`);
+    if(query&&!matches.some(candidate=>candidate.key))entries.unshift('<div class="note">No compositions match your search.</div>');
+    list.innerHTML=entries.join('');
+   };
+   search.addEventListener('input',renderCandidates);
    list.addEventListener('click',async event=>{
     const row=event.target.closest('[data-cand]');
     if(!row||row.disabled)return;
@@ -5688,11 +5701,9 @@ async function openImport(){
      row.disabled=false;
     }
    });
-   compositionCandidates().then(candidates=>{
-    if(!candidates.length){list.innerHTML='';return}
-    list.innerHTML=candidates.map(c=>c.key
-     ?`<button type="button" class="imp-row" data-cand="${esc(c.key)}" data-label="${esc(c.label)}"><b>${esc(c.label)}</b><small>${esc(c.note)}</small><em>${esc(c.kind)}</em></button>`
-     :`<div class="note warn">${esc(c.label)} — ${esc(c.note)}</div>`).join('');
+   compositionCandidates().then(results=>{
+    candidates=results;
+    renderCandidates();
    }).catch(error=>{list.innerHTML=`<div class="note warn">${esc(error.message)}</div>`});
   },
  });

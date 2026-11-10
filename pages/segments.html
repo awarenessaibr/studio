@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Segment library — the reusable groups of cut-out layers, their source compositions and the motion recipes an agent can apply.">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231a1a2e'/%3E%3Ctext x='16' y='23' font-family='Georgia,serif' font-size='18' fill='%23f2eee7' text-anchor='middle'%3ES%3C/text%3E%3C/svg%3E">
+    <title>Segment library — Studio Layers</title>
+    <link rel="stylesheet" href="/src/client/asset-studio/app.css">
+    <link rel="stylesheet" href="/src/client/segments/segments.css">
+</head>
+
+<body class="seg-page">
+    <header class="seg-topbar">
+        <a class="seg-brand" href="/studio-v2.html" aria-label="Studio Layers home">
+            <span class="seg-mark">S</span>
+            <span class="seg-brand-copy"><strong>Studio Layers</strong><small>Segment library</small></span>
+        </a>
+        <nav class="seg-nav" aria-label="Studio surfaces">
+            <a href="/studio-v2.html">Studio</a>
+            <a href="/asset-studio.html">Asset Studio</a>
+            <a href="/library.html">Library</a>
+            <a class="is-current" href="/segments">Segments</a>
+        </nav>
+        <div class="seg-top-actions">
+            <a class="button small" href="/data/library/segment-groups/index.json" target="_blank" rel="noreferrer">Index JSON</a>
+        </div>
+    </header>
+
+    <main class="segments">
+        <section class="seg-hero">
+            <div class="seg-hero-copy">
+                <p class="eyebrow">Reusable layer sets</p>
+                <h1>Segment groups.</h1>
+                <p class="seg-lede">Every group of cut-out segments that forms a layer — clouds, sea and waves, birds,
+                    characters, props, light effects — indexed with its source composition, a composited preview and the
+                    motion recipes that fit it. Pick a group, preview it moving, and copy the agent block into a scene.</p>
+            </div>
+            <div class="seg-hero-actions">
+                <div class="seg-hero-note">
+                    <strong>Built from</strong>
+                    <span><code>data/library/designs</code>, <code>data/imports</code> and the bar-santa project.</span>
+                </div>
+                <button type="button" class="button" id="helpBtn">How to use a group</button>
+            </div>
+        </section>
+
+        <section class="seg-stats" id="stats" aria-label="Library totals">
+            <div class="seg-stat"><span>Groups</span><strong id="statGroups">—</strong><small id="statGroupsNote">loading</small></div>
+            <div class="seg-stat"><span>Segments</span><strong id="statLayers">—</strong><small id="statLayersNote">—</small></div>
+            <div class="seg-stat"><span>Categories</span><strong id="statCategories">—</strong><small>semantic families</small></div>
+            <div class="seg-stat"><span>Motion recipes</span><strong id="statMotions">—</strong><small>reusable animations</small></div>
+            <div class="seg-stat"><span>Sources</span><strong id="statSources">—</strong><small>source projects</small></div>
+            <div class="seg-stat"><span>Library animations</span><strong id="statAnimations">—</strong><small id="statClipsNote">—</small></div>
+        </section>
+
+        <nav class="seg-tabs" aria-label="Sections">
+            <button type="button" class="seg-tab is-active" data-view="groups">Segment groups <span id="tabGroups">—</span></button>
+            <button type="button" class="seg-tab" data-view="library">Design library <span id="tabLibrary">—</span></button>
+            <button type="button" class="seg-tab" data-view="animations">Animations <span id="tabAnimations">—</span></button>
+        </nav>
+
+        <section class="seg-view" id="view-groups">
+            <div class="seg-toolbar">
+                <label class="field grow">
+                    <span>Search</span>
+                    <input id="groupSearch" type="search" placeholder="Clouds, waves, gull, character…" autocomplete="off">
+                </label>
+                <label class="field">
+                    <span>Category</span>
+                    <select id="groupCategory"><option value="">All categories</option></select>
+                </label>
+                <label class="field">
+                    <span>Detected as</span>
+                    <select id="groupOrigin">
+                        <option value="">Declared + inferred</option>
+                        <option value="declared">Declared</option>
+                        <option value="inferred">Inferred</option>
+                    </select>
+                </label>
+                <label class="field">
+                    <span>Motion</span>
+                    <select id="groupMotion"><option value="">Any motion</option></select>
+                </label>
+                <label class="field">
+                    <span>Source</span>
+                    <select id="groupProject"><option value="">Any source</option></select>
+                </label>
+                <label class="field">
+                    <span>Sort</span>
+                    <select id="groupSort">
+                        <option value="category">Category</option>
+                        <option value="layers">Most layers</option>
+                        <option value="sources">Most sources</option>
+                        <option value="name">Name</option>
+                    </select>
+                </label>
+                <label class="check"><input type="checkbox" id="groupPreviewOnly"> Has preview</label>
+                <button type="button" class="button small" id="groupClear">Clear</button>
+            </div>
+            <div class="seg-resultbar">
+                <span id="groupCount">Loading…</span>
+                <span class="seg-legend"><i class="dot declared"></i> declared <i class="dot inferred"></i> inferred <i class="dot missing"></i> missing art</span>
+            </div>
+            <div id="groupGrid" class="seg-group-grid" aria-live="polite"></div>
+            <div id="groupEmpty" class="seg-empty" hidden>
+                <strong>No groups match.</strong>
+                <p>Clear a filter, or rebuild the index with <code>npm run build:segments</code>.</p>
+            </div>
+            <div class="seg-more"><button type="button" class="button" id="groupMore" hidden>Load more groups</button></div>
+        </section>
+
+        <section class="seg-view" id="view-library" hidden>
+            <div class="seg-toolbar">
+                <label class="field grow">
+                    <span>Search</span>
+                    <input id="libSearch" type="search" placeholder="Design, brand, kind…" autocomplete="off">
+                </label>
+                <label class="field">
+                    <span>Brand</span>
+                    <select id="libBrand"><option value="">All brands</option></select>
+                </label>
+                <label class="field">
+                    <span>Status</span>
+                    <select id="libStatus">
+                        <option value="">Any status</option>
+                        <option value="ready">Ready</option>
+                        <option value="review">Review</option>
+                        <option value="blocked">Blocked</option>
+                    </select>
+                </label>
+                <button type="button" class="button small" id="libClear">Clear</button>
+            </div>
+            <div class="seg-resultbar"><span id="libCount">Loading…</span><span class="seg-legend">designs that hold the segment groups and animations</span></div>
+            <div id="libGrid" class="seg-lib-grid" aria-live="polite"></div>
+            <div id="libEmpty" class="seg-empty" hidden><strong>No designs match.</strong></div>
+        </section>
+
+        <section class="seg-view" id="view-animations" hidden>
+            <div class="seg-subtabs" role="tablist" aria-label="Animation source">
+                <button type="button" class="seg-subtab is-active" data-anim="library">Library animations</button>
+                <button type="button" class="seg-subtab" data-anim="clips">Motion clips</button>
+                <button type="button" class="seg-subtab" data-anim="recipes">Group motion recipes</button>
+            </div>
+            <div class="seg-toolbar">
+                <label class="field grow">
+                    <span>Search</span>
+                    <input id="animSearch" type="search" placeholder="Design, animation, effect…" autocomplete="off">
+                </label>
+                <label class="field" id="animOriginField">
+                    <span>Origin</span>
+                    <select id="animOrigin">
+                        <option value="">Any origin</option>
+                        <option value="original">Original motion</option>
+                        <option value="studio">Studio</option>
+                        <option value="llm">LLM</option>
+                        <option value="composed">Composed</option>
+                        <option value="variant">Variant</option>
+                    </select>
+                </label>
+                <label class="field" id="animStatusField">
+                    <span>Status</span>
+                    <select id="animStatus">
+                        <option value="">Any status</option>
+                        <option value="ok">OK</option>
+                        <option value="warn">Warning</option>
+                        <option value="broken">Broken</option>
+                    </select>
+                </label>
+                <button type="button" class="button small" id="animClear">Clear</button>
+            </div>
+            <div class="seg-resultbar"><span id="animCount">Loading…</span><span class="seg-legend" id="animLegend"></span></div>
+            <div id="animList" class="seg-anim-list" aria-live="polite"></div>
+            <div id="animEmpty" class="seg-empty" hidden><strong>No animations match.</strong></div>
+            <div class="seg-more"><button type="button" class="button" id="animMore" hidden>Load more animations</button></div>
+        </section>
+    </main>
+
+    <aside id="detail" class="seg-drawer" hidden aria-label="Segment group detail">
+        <div class="seg-scrim" data-close></div>
+        <article class="seg-panel" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+            <header class="seg-panel-head">
+                <div class="seg-panel-title">
+                    <p class="eyebrow" id="detailCategory">Group</p>
+                    <h2 id="detailTitle">Group</h2>
+                    <p class="seg-panel-sub" id="detailSub"></p>
+                </div>
+                <button type="button" class="seg-icon" data-close aria-label="Close">×</button>
+            </header>
+            <div class="seg-panel-body">
+                <div class="seg-stage-wrap">
+                    <div class="seg-stage" id="detailStage">
+                        <div class="seg-stage-inner" id="detailStageInner"></div>
+                        <img class="seg-stage-ref" id="detailRef" alt="" hidden>
+                        <div class="seg-stage-empty" id="detailStageEmpty" hidden>No preview art is available for this group.</div>
+                    </div>
+                    <div class="seg-stage-controls">
+                        <button type="button" class="button small primary" id="previewToggle">Pause</button>
+                        <label class="field compact">
+                            <span>Motion</span>
+                            <select id="previewMotion"></select>
+                        </label>
+                        <label class="field compact">
+                            <span>Speed</span>
+                            <select id="previewSpeed">
+                                <option value="0.5">0.5×</option>
+                                <option value="1" selected>1×</option>
+                                <option value="2">2×</option>
+                            </select>
+                        </label>
+                        <label class="check"><input type="checkbox" id="previewBackdrop"> Reference backdrop</label>
+                        <button type="button" class="button small" id="previewReset">Reset</button>
+                    </div>
+                    <p class="seg-help" id="detailPreviewNote" hidden></p>
+                </div>
+
+                <div class="seg-detail-grid">
+                    <section class="seg-card-block">
+                        <div class="seg-block-head">
+                            <h3>Members</h3>
+                            <span id="detailMemberCount" class="seg-muted">—</span>
+                        </div>
+                        <p class="seg-help">Toggle a member to isolate it in the preview. Boxes are percentages of the source canvas.</p>
+                        <div id="detailMembers" class="seg-members"></div>
+                    </section>
+                    <section class="seg-card-block">
+                        <div class="seg-block-head"><h3>Where it comes from</h3><span id="detailOccurrenceCount" class="seg-muted">—</span></div>
+                        <div id="detailSources" class="seg-sources"></div>
+                        <div class="seg-block-head seg-block-head-spaced">
+                            <h3>Agent block</h3>
+                            <button type="button" class="button small" id="copyAgent">Copy JSON</button>
+                        </div>
+                        <p class="seg-help">Paste <code>insert.layers</code> into a composition, then apply <code>motion</code> to each layer. The motion note spells out the maths.</p>
+                        <pre class="seg-code" id="detailAgent">—</pre>
+                    </section>
+                </div>
+            </div>
+        </article>
+    </aside>
+
+    <aside id="animViewer" class="seg-drawer" hidden aria-label="Animation preview">
+        <div class="seg-scrim" data-anim-close></div>
+        <article class="seg-panel seg-anim-panel" role="dialog" aria-modal="true" aria-labelledby="animTitle">
+            <header class="seg-panel-head">
+                <div class="seg-panel-title">
+                    <p class="eyebrow" id="animEyebrow">Animation preview</p>
+                    <h2 id="animTitle">Animation</h2>
+                    <p class="seg-panel-sub" id="animSub"></p>
+                </div>
+                <button type="button" class="seg-icon" data-anim-close aria-label="Close">×</button>
+            </header>
+            <div class="seg-panel-body">
+                <div class="seg-stage-wrap">
+                    <div class="seg-stage" id="animStage">
+                        <div class="seg-stage-inner" id="animStageInner"></div>
+                        <video class="seg-anim-video" id="animVideo" muted playsinline loop preload="auto" hidden></video>
+                        <img class="seg-anim-poster" id="animPoster" alt="" hidden>
+                        <div class="seg-stage-empty" id="animStageEmpty" hidden></div>
+                    </div>
+                    <div class="seg-stage-controls">
+                        <button type="button" class="button small primary" id="animPlay">Pause</button>
+                        <button type="button" class="button small" id="animRestart">Restart</button>
+                        <label class="field compact">
+                            <span>Speed</span>
+                            <select id="animSpeed">
+                                <option value="0.5">0.5×</option>
+                                <option value="1" selected>1×</option>
+                                <option value="2">2×</option>
+                            </select>
+                        </label>
+                        <label class="check"><input type="checkbox" id="animLoop" checked> Loop</label>
+                        <label class="field compact" id="animTargetField" hidden>
+                            <span>Preview on</span>
+                            <select id="animTargetGroup"></select>
+                        </label>
+                    </div>
+                    <div class="seg-scrub">
+                        <input type="range" id="animScrub" min="0" max="1000" value="0" step="1" aria-label="Animation time">
+                        <span class="seg-muted" id="animTime">0.0s / 0.0s</span>
+                    </div>
+                </div>
+
+                <div class="seg-detail-grid">
+                    <section class="seg-card-block">
+                        <div class="seg-block-head">
+                            <h3>Animated layers</h3>
+                            <span id="animTrackCount" class="seg-muted">—</span>
+                        </div>
+                        <p class="seg-help" id="animTrackHelp">Tracks that move layers in this animation. Toggle one to isolate it.</p>
+                        <div id="animTrackList" class="seg-members"></div>
+                    </section>
+                    <section class="seg-card-block">
+                        <div class="seg-block-head">
+                            <h3>Animation</h3>
+                            <span id="animOrigin" class="seg-muted">—</span>
+                        </div>
+                        <div id="animMeta" class="seg-sources"></div>
+                        <p class="seg-help" id="animNote"></p>
+                        <div id="animSegments" class="seg-chips"></div>
+                    </section>
+                </div>
+            </div>
+        </article>
+    </aside>
+
+    <dialog id="helpDialog" class="seg-dialog">
+        <form method="dialog" class="seg-dialog-card">
+            <header class="seg-dialog-head">
+                <div><p class="eyebrow">Agent workflow</p><h2>Use a group in a scene</h2></div>
+                <button class="seg-icon" value="close" aria-label="Close">×</button>
+            </header>
+            <ol class="seg-steps">
+                <li><strong>Find.</strong> Search this page or <code>GET /api/segment-library/groups?q=clouds</code>.</li>
+                <li><strong>Read.</strong> Open the group and copy the <em>Agent block</em>, or <code>GET /api/segment-library/groups/&lt;id&gt;</code>.</li>
+                <li><strong>Insert.</strong> Add <code>agent.insert.layers</code> to the composition. Coordinates are percentages, z order is the cut-out order.</li>
+                <li><strong>Animate.</strong> Apply <code>agent.motion</code>. For each layer: <code>x + dx×100</code>, <code>y + dy×100</code>, <code>w×s</code>, <code>h×s</code>, <code>rotation + rot</code>, <code>opacity×a</code>.</li>
+                <li><strong>Check.</strong> Preview here first; a moving group that reads well in isolation still has to sit inside the scene.</li>
+            </ol>
+            <p class="seg-help">Every animation row has a <strong>View</strong> button. Library animations render their
+                design tracks; motion clips play on a segment group you can change; group motion recipes open a
+                representative group with the recipe selected.</p>
+            <p class="seg-help">Full contract: <code>docs/segment-library.md</code> in the repository · generated notes:
+                <code>data/library/segment-groups/README.md</code>.</p>
+        </form>
+    </dialog>
+
+    <script src="/src/client/segments/segments.js" defer></script>
+</body>
+
+</html>

@@ -34,6 +34,7 @@ const SocialStore = require('./src/server/social-store.js');
 const { generateSegmentTexture } = require('./src/server/segment-texture.js');
 const AgentLibrary = require('./src/server/agent-library.js');
 const LibraryService = require('./src/server/library-service.js');
+const SegmentLibrary = require('./src/server/segment-library.js');
 const AgentFirstPrompt = require('./src/server/agent-first-prompt.js');
 
 // Load local API keys (SERPAPI_KEY, GOOGLE_PLACES_API_KEY, …) from .env.
@@ -152,6 +153,13 @@ const MIME = {
     '.svg': 'image/svg+xml',
     '.mp4': 'video/mp4',
     '.webm': 'video/webm',
+    '.mp3': 'audio/mpeg',
+    '.wav': 'audio/wav',
+    '.m4a': 'audio/mp4',
+    '.aac': 'audio/aac',
+    '.ogg': 'audio/ogg',
+    '.opus': 'audio/ogg',
+    '.flac': 'audio/flac',
     '.woff2': 'font/woff2',
     '.ico': 'image/x-icon',
 };
@@ -5241,6 +5249,81 @@ function voiceModules() {
     return voiceModulesPromise;
 }
 
+async function loadManagerVoiceCatalog() {
+    const managerUrl = String(process.env.STUDIO_VOICE_MANAGER_URL || 'http://127.0.0.1:3229')
+        .replace(/\/+$/, '');
+    let voicesResponse, designsResponse;
+    try {
+        [voicesResponse, designsResponse] = await Promise.all([
+            fetch(`${managerUrl}/api/book/tts-voices`, {
+                headers: { Accept: 'application/json' },
+                signal: AbortSignal.timeout(5000),
+            }),
+            fetch(`${managerUrl}/api/book/voice-designs`, {
+                headers: { Accept: 'application/json' },
+                signal: AbortSignal.timeout(5000),
+            }),
+        ]);
+    } catch (error) {
+        throw httpError(502, `The voice manager is unavailable: ${error.message || error}`);
+    }
+    if (!voicesResponse.ok || !designsResponse.ok) {
+        throw httpError(502, `The voice manager returned HTTP ${voicesResponse.status || designsResponse.status}.`);
+    }
+    let catalog, designsCatalog;
+    try {
+        [catalog, designsCatalog] = await Promise.all([voicesResponse.json(), designsResponse.json()]);
+    } catch {
+        throw httpError(502, 'The voice manager returned invalid JSON.');
+    }
+    if (!catalog || !Array.isArray(catalog.voices) || !designsCatalog || !Array.isArray(designsCatalog.designs)) {
+        throw httpError(502, 'The voice manager returned an invalid voice catalog.');
+    }
+
+    const managerRoot = path.resolve(process.env.STUDIO_VOICE_MANAGER_ROOT || path.resolve(ROOT, '..', 'olivia'));
+    const referenceDir = path.resolve(managerRoot, 'uploads', 'books', '_voice-designs');
+    const designById = new Map(designsCatalog.designs.map((design) => [String(design?.id || ''), design]));
+    const voiceOptions = catalog.voices.flatMap((voice) => {
+        if (!voice || typeof voice.id !== 'string' || !voice.id
+            || typeof voice.model !== 'string' || !voice.model) return [];
+        const option = {
+            id: voice.id,
+            label: String(voice.label || voice.id),
+            model: voice.model,
+            voice: String(voice.voice || 'default'),
+            kind: String(voice.kind || ''),
+            instruct: String(voice.instruct || ''),
+            langCode: String(voice.langCode || ''),
+        };
+        if (option.kind !== 'designed') return [option];
+
+        const design = designById.get(String(voice.designId || voice.id.replace(/^design::/, '')));
+        if (!design) return [];
+        const audioChoices = [
+            [design.referenceAudioFile, design.referenceText],
+            [design.audioFile, design.sample],
+        ];
+        const reference = audioChoices.find(([filename, text]) => (
+            typeof filename === 'string'
+            && /^[A-Za-z0-9_-]{1,120}\.(?:mp3|wav|m4a|aac|ogg|opus|flac)$/i.test(filename)
+            && typeof text === 'string' && text.trim()
+            && fs.existsSync(path.join(referenceDir, filename))
+        ));
+        if (!reference) return [];
+        const referencePath = path.resolve(referenceDir, reference[0]);
+        if (!referencePath.startsWith(referenceDir + path.sep)) return [];
+        option.designId = String(design.id);
+        option.referenceAudioAvailable = true;
+        option.referenceText = String(reference[1]).trim();
+        option.referencePath = referencePath;
+        return [option];
+    });
+    const defaultId = voiceOptions.some((voice) => voice.id === catalog.defaultId)
+        ? catalog.defaultId
+        : (voiceOptions[0]?.id || '');
+    return { voiceOptions, defaultId };
+}
+
 async function askVoiceEngine(prompt) {
     const llm = await getLlmCatalog();
     if (!llm.available) throw httpError(503, llm.error || 'The local voice-design engine is unavailable.');
@@ -5294,6 +5377,85 @@ function fallbackProposals(message, context, agent) {
 
 function analysisUnavailable(reason) {
     return `${reason} Image analysis is still available; confirm the class in the library.`;
+}
+
+
+// ─── Library audio: narration level, background music, mix render ───────
+const AUDIO_DIR = path.join(LIBRARY_DIR, 'audio');
+const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.m4a', '.aac', '.ogg', '.opus', '.flac']);
+const MAX_AUDIO_BYTES = 60 * 1024 * 1024;
+
+function audioSlug(value, max = 60) {
+    return String(value || 'music').normalize('NFKD').replace(/[^A-Za-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '').toLowerCase().slice(0, max) || 'music';
+}
+
+function audioFileFromUrl(url) {
+    const prefix = '/data/library/audio/';
+    const raw = String(url || '');
+    if (!raw.startsWith(prefix)) return null;
+    const relative = raw.slice(prefix.length);
+    if (!relative || relative.includes('..') || !/^[A-Za-z0-9_-][A-Za-z0-9_./-]*$/.test(relative)) return null;
+    const target = path.resolve(AUDIO_DIR, relative);
+    if (!target.startsWith(path.resolve(AUDIO_DIR) + path.sep)) return null;
+    return target;
+}
+
+function normaliseAudioMix(config, fallbackDuration = 0) {
+    const clamp = (value, min, max, fallback) => {
+        const n = Number(value);
+        return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
+    };
+    const raw = config && typeof config === 'object' ? config : {};
+    const narration = raw.narration && typeof raw.narration === 'object' ? raw.narration : {};
+    const music = raw.music && typeof raw.music === 'object' ? raw.music : {};
+    const url = String(music.url || '');
+    const file = audioFileFromUrl(url);
+    const endDefault = Math.round(clamp(fallbackDuration, 0, 4 * 60 * 60 * 1000, 0));
+    const endMs = Math.round(clamp(music.endMs, 0, 4 * 60 * 60 * 1000, endDefault));
+    const startMs = Math.round(clamp(music.startMs, 0, 4 * 60 * 60 * 1000, 0));
+    return {
+        narration: { volume: clamp(narration.volume, 0, 1, 1), muted: !!narration.muted },
+        music: {
+            enabled: !!(music.enabled && file),
+            url: file ? url : '',
+            name: String(music.name || '').slice(0, 140),
+            durationMs: Math.round(clamp(music.durationMs, 0, 4 * 60 * 60 * 1000, 0)),
+            volume: clamp(music.volume, 0, 1, 0.28),
+            startMs: Math.min(startMs, Math.max(0, endMs)),
+            endMs,
+            inMs: Math.round(clamp(music.inMs, 0, 4 * 60 * 60 * 1000, 0)),
+            loop: music.loop !== false,
+            fadeInMs: Math.round(clamp(music.fadeInMs, 0, 10000, 800)),
+            fadeOutMs: Math.round(clamp(music.fadeOutMs, 0, 10000, 1200)),
+            duck: music.duck !== false,
+            duckDb: clamp(music.duckDb, -24, 0, -9),
+        },
+        updatedAt: Date.now(),
+    };
+}
+
+function probeAudioMs(file) {
+    return new Promise((resolve) => {
+        execFile('ffprobe', [
+            '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file,
+        ], { timeout: 20000, windowsHide: true }, (error, stdout) => {
+            if (error) return resolve(0);
+            const value = Number(String(stdout).trim());
+            resolve(Number.isFinite(value) ? Math.max(0, Math.round(value * 1000)) : 0);
+        });
+    });
+}
+
+function probeStreamTypes(file) {
+    return new Promise((resolve) => {
+        execFile('ffprobe', [
+            '-v', 'error', '-show_entries', 'stream=codec_type', '-of', 'csv=p=0', file,
+        ], { timeout: 20000, windowsHide: true }, (error, stdout) => {
+            if (error) return resolve([]);
+            resolve(String(stdout).trim().split(/\s+/).filter(Boolean));
+        });
+    });
 }
 
 async function handleApi(req, res, pathname) {
@@ -5512,6 +5674,15 @@ async function handleApi(req, res, pathname) {
         return;
     }
 
+    if (pathname === '/api/tts/design/voices' && req.method === 'GET') {
+        const { voiceOptions, defaultId } = await loadManagerVoiceCatalog();
+        sendJson(res, 200, {
+            voiceOptions: voiceOptions.map(({ referencePath, referenceText, ...voice }) => voice),
+            defaultId,
+        });
+        return;
+    }
+
     if (pathname === '/api/tts/models' && req.method === 'GET') {
         const { server } = await voiceModules();
         try {
@@ -5540,14 +5711,27 @@ async function handleApi(req, res, pathname) {
     if (pathname === '/api/tts/speech' && req.method === 'POST') {
         const body = await readJsonRequest(req);
         const input = String(body?.input ?? body?.text ?? '').trim();
-        const model = String(body?.model ?? '').trim();
+        let model = String(body?.model ?? '').trim();
         if (!input) throw httpError(400, 'The text to speak is required.');
         if (!model) throw httpError(400, 'A TTS model is required.');
         if (input.length > 20000) throw httpError(413, 'Text is limited to 20,000 characters.');
         const payload = { model, input };
-        for (const key of ['instruct', 'voice', 'speed', 'lang_code', 'ref_audio', 'ref_text',
+        for (const key of ['instruct', 'voice', 'speed', 'lang_code',
             'temperature', 'top_p', 'top_k', 'repetition_penalty', 'response_format', 'stream']) {
             if (body[key] !== undefined && body[key] !== null && body[key] !== '') payload[key] = body[key];
+        }
+        const requestedVoice = String(body?.voice || '');
+        if (requestedVoice.startsWith('design::')) {
+            const { voiceOptions } = await loadManagerVoiceCatalog();
+            const selected = voiceOptions.find((voice) => voice.id === requestedVoice && voice.kind === 'designed');
+            if (!selected) throw httpError(409, 'The selected designed voice has no available reference audio.');
+            model = selected.model;
+            payload.model = model;
+            delete payload.voice;
+            payload.ref_audio = selected.referencePath;
+            payload.ref_text = selected.referenceText;
+            delete payload.instruct;
+            delete payload.lang_code;
         }
         if (!payload.response_format) payload.response_format = 'wav';
         if (/voicedesign/i.test(model) && !payload.instruct) {
@@ -6283,6 +6467,188 @@ async function handleApi(req, res, pathname) {
         return;
     }
 
+    if (pathname === '/api/segment-library' && req.method === 'GET') {
+        const index = await SegmentLibrary.readIndex(LIBRARY_DIR);
+        sendJson(res, 200, index);
+        return;
+    }
+
+    if (pathname === '/api/segment-library/summary' && req.method === 'GET') {
+        const index = await SegmentLibrary.readIndex(LIBRARY_DIR);
+        sendJson(res, 200, { ...SegmentLibrary.summary(index), projects: SegmentLibrary.projectList(index) });
+        return;
+    }
+
+    if (pathname === '/api/segment-library/motions' && req.method === 'GET') {
+        sendJson(res, 200, await SegmentLibrary.readMotions(LIBRARY_DIR));
+        return;
+    }
+
+    if (pathname === '/api/segment-library/categories' && req.method === 'GET') {
+        const index = await SegmentLibrary.readIndex(LIBRARY_DIR);
+        sendJson(res, 200, { generatedAt: index.generatedAt, categories: index.categories });
+        return;
+    }
+
+    if (pathname === '/api/segment-library/groups' && req.method === 'GET') {
+        const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+        const index = await SegmentLibrary.readIndex(LIBRARY_DIR);
+        sendJson(res, 200, SegmentLibrary.search(index, {
+            q: url.searchParams.get('q') || '',
+            category: url.searchParams.get('category') || '',
+            origin: url.searchParams.get('origin') || '',
+            motion: url.searchParams.get('motion') || '',
+            project: url.searchParams.get('project') || '',
+            hasPreview: url.searchParams.get('hasPreview') || '',
+            sort: url.searchParams.get('sort') || 'category',
+            limit: url.searchParams.get('limit') || 60,
+            offset: url.searchParams.get('offset') || 0,
+        }));
+        return;
+    }
+
+    const segmentGroupMatch = pathname.match(/^\/api\/segment-library\/groups\/([a-z0-9-]{1,120})$/);
+    if (segmentGroupMatch && req.method === 'GET') {
+        try {
+            sendJson(res, 200, await SegmentLibrary.readGroup(LIBRARY_DIR, segmentGroupMatch[1]));
+        } catch (error) {
+            throw httpError(error.statusCode || 400, error.message);
+        }
+        return;
+    }
+
+
+    if (pathname === '/api/library/audio/upload' && req.method === 'POST') {
+        const url = new URL(req.url, 'http://localhost');
+        const designId = String(url.searchParams.get('designId') || '');
+        const name = String(url.searchParams.get('name') || 'music');
+        if (!/^[A-Za-z0-9_-]{1,140}$/.test(designId)) throw httpError(400, 'A design id is required.');
+        const detailFile = path.join(LIBRARY_DIR, 'designs', `${designId}.json`);
+        if (!fs.existsSync(detailFile)) throw httpError(404, 'Design not found.');
+        const extension = path.extname(name).toLowerCase();
+        if (!AUDIO_EXTENSIONS.has(extension)) {
+            throw httpError(400, 'Use an MP3, WAV, M4A, AAC, OGG, Opus or FLAC file.');
+        }
+        const body = await readBody(req, MAX_AUDIO_BYTES);
+        if (!body.length) throw httpError(400, 'The audio file is empty.');
+        const dir = path.join(AUDIO_DIR, designId);
+        await fsp.mkdir(dir, { recursive: true });
+        const file = path.join(dir, `${Date.now().toString(36)}-${audioSlug(path.basename(name, extension))}${extension}`);
+        await fsp.writeFile(file, body);
+        const durationMs = await probeAudioMs(file);
+        sendJson(res, 201, {
+            url: `/data/library/audio/${designId}/${path.basename(file)}`,
+            name,
+            durationMs,
+            bytes: body.length,
+        });
+        return;
+    }
+
+    if (pathname === '/api/library/audio' && req.method === 'POST') {
+        const body = await readBody(req, 4 * 1024 * 1024);
+        let payload;
+        try { payload = JSON.parse(body.toString('utf8')); }
+        catch { throw httpError(400, 'The audio request must be valid JSON.'); }
+        const designId = String(payload?.designId || '');
+        const animationId = String(payload?.animationId || 'default');
+        if (!/^[A-Za-z0-9_-]{1,140}$/.test(designId)) throw httpError(400, 'A design id is required.');
+        if (!/^[A-Za-z0-9_-]{1,160}$/.test(animationId)) throw httpError(400, 'Invalid animation id.');
+        const detailFile = path.join(LIBRARY_DIR, 'designs', `${designId}.json`);
+        let detail;
+        try { detail = JSON.parse(await fsp.readFile(detailFile, 'utf8')); }
+        catch { throw httpError(404, 'Design not found.'); }
+        const animation = (detail.animations || []).find((item) => item?.id === animationId) || null;
+        const config = normaliseAudioMix(
+            payload?.config,
+            Number(animation?.duration) || Number(detail.duration) || 0,
+        );
+        detail.audioMixes = detail.audioMixes && typeof detail.audioMixes === 'object' ? detail.audioMixes : {};
+        detail.audioMixes[animationId] = config;
+        if (animationId !== 'default' && !detail.audioMixes.default) detail.audioMixes.default = config;
+        await fsp.writeFile(detailFile, `${JSON.stringify(detail, null, 2)}\n`, 'utf8');
+        sendJson(res, 200, { ok: true, audioMixes: detail.audioMixes });
+        return;
+    }
+
+    if (pathname === '/api/library/audio/render' && req.method === 'POST') {
+        const body = await readBody(req, 1024 * 1024);
+        let payload;
+        try { payload = JSON.parse(body.toString('utf8')); }
+        catch { throw httpError(400, 'The mix request must be valid JSON.'); }
+        const designId = String(payload?.designId || '');
+        const animationId = String(payload?.animationId || 'default');
+        if (!/^[A-Za-z0-9_-]{1,140}$/.test(designId)) throw httpError(400, 'A design id is required.');
+        if (!/^[A-Za-z0-9_-]{1,160}$/.test(animationId)) throw httpError(400, 'Invalid animation id.');
+        const detailFile = path.join(LIBRARY_DIR, 'designs', `${designId}.json`);
+        let detail;
+        try { detail = JSON.parse(await fsp.readFile(detailFile, 'utf8')); }
+        catch { throw httpError(404, 'Design not found.'); }
+        const config = detail.audioMixes?.[animationId] || detail.audioMixes?.default;
+        const music = config?.music;
+        if (!music?.enabled || !music.url) throw httpError(400, 'Add a background music track first.');
+        const musicFile = audioFileFromUrl(music.url);
+        if (!musicFile || !fs.existsSync(musicFile)) throw httpError(404, 'The music file is missing.');
+        const animation = (detail.animations || []).find((item) => item?.id === animationId) || null;
+        const videoUrl = animation?.sourceVideo || detail.sourceVideo || '';
+        const videoFile = videoUrl ? path.join(ROOT, videoUrl.replace(/^\//, '')) : '';
+        if (!videoFile || !fs.existsSync(videoFile)) throw httpError(404, 'The source recording is missing.');
+        if (!(await ffmpegExists())) {
+            throw httpError(501, 'Mixing audio requires ffmpeg. Install ffmpeg or set STUDIO_FFMPEG.');
+        }
+        const totalMs = Math.max(500, Number(animation?.duration) || Number(detail.duration) || 0);
+        const total = totalMs / 1000;
+        const start = Math.max(0, Math.min(total, (Number(music.startMs) || 0) / 1000));
+        const end = Math.max(start + 0.2, Math.min(total, (Number(music.endMs) || totalMs) / 1000));
+        const span = Math.max(0.2, end - start);
+        const inSec = Math.max(0, (Number(music.inMs) || 0) / 1000);
+        const volume = Math.max(0, Math.min(1, Number(music.volume)));
+        const fadeIn = Math.max(0, Math.min(span, (Number(music.fadeInMs) || 0) / 1000));
+        const fadeOut = Math.max(0, Math.min(span, (Number(music.fadeOutMs) || 0) / 1000));
+        const streams = await probeStreamTypes(videoFile);
+        const hasNarration = streams.includes('audio');
+        const outDir = path.join(LIBRARY_DIR, 'sources');
+        await fsp.mkdir(outDir, { recursive: true });
+        const outFile = path.join(outDir, `${audioSlug(animationId, 80)}-mix.webm`);
+        const args = ['-y', '-v', 'error', '-i', videoFile];
+        if (music.loop !== false) args.push('-stream_loop', '-1');
+        args.push('-i', musicFile);
+        const musicBits = [
+            `atrim=start=${inSec.toFixed(3)}:end=${(inSec + span + 1).toFixed(3)}`,
+            'asetpts=PTS-STARTPTS',
+            `volume=${volume.toFixed(4)}`,
+        ];
+        if (fadeIn > 0) musicBits.push(`afade=t=in:st=0:d=${fadeIn.toFixed(3)}`);
+        if (fadeOut > 0) musicBits.push(`afade=t=out:st=${Math.max(0, span - fadeOut).toFixed(3)}:d=${fadeOut.toFixed(3)}`);
+        const graph = [`[1:a]${musicBits.join(',')}[mus]`, `[mus]adelay=${Math.round(start * 1000)}|${Math.round(start * 1000)}[md]`];
+        if (hasNarration) {
+            if (music.duck !== false) {
+                graph.push('[0:a]asplit=2[nar][sc]');
+                graph.push('[md][sc]sidechaincompress=threshold=0.04:ratio=6:attack=12:release=320[duck]');
+                graph.push('[nar][duck]amix=inputs=2:duration=first:normalize=0[a]');
+            } else {
+                graph.push('[0:a][md]amix=inputs=2:duration=first:normalize=0[a]');
+            }
+        } else {
+            graph.push(`[md]apad=whole_dur=${total.toFixed(3)},atrim=0:${total.toFixed(3)}[a]`);
+        }
+        args.push('-filter_complex', graph.join(';'), '-map', '0:v:0', '-map', '[a]',
+            '-c:v', 'copy', '-c:a', 'libopus', '-b:a', '192k', '-shortest', outFile);
+        try {
+            await runFfmpeg(args);
+        } catch (error) {
+            const detailText = String(error.stderr || error.message || '').trim().slice(0, 300);
+            throw httpError(502, `The music bed could not be mixed${detailText ? `: ${detailText}` : '.'}`);
+        }
+        const bytes = (await fsp.stat(outFile)).size;
+        sendJson(res, 200, {
+            url: `/data/library/sources/${path.basename(outFile)}?v=${Date.now().toString(36)}`,
+            bytes,
+            durationMs: totalMs,
+        });
+        return;
+    }
+
     if (pathname === '/api/library' && req.method === 'GET') {
         sendJson(res, 200, await LibraryService.readIndex(LIBRARY_DIR));
         return;
@@ -6552,6 +6918,8 @@ const PAGE_ROUTES = {
     '/studio-agent-canvas.html': 'studio-agent.html',
     '/agent-first-studio': 'agent-first-studio.html',
     '/agent-first-studio.html': 'agent-first-studio.html',
+    '/afs': 'afs.html',
+    '/afs.html': 'afs.html',
     '/studio-import': 'studio-import.html',
     '/studio-import.html': 'studio-import.html',
     '/asset-studio': 'asset-studio.html',
@@ -6560,6 +6928,10 @@ const PAGE_ROUTES = {
     '/crawler.html': 'crawler.html',
     '/library': 'library.html',
     '/library.html': 'library.html',
+    '/segments': 'segments.html',
+    '/segments.html': 'segments.html',
+    '/segment-library': 'segments.html',
+    '/segment-library.html': 'segments.html',
     '/voice': 'voice.html',
     '/voice.html': 'voice.html',
     '/social': 'social.html',
@@ -6616,10 +6988,11 @@ function importPublicFile(pathname) {
 }
 
 function projectPublicFile(pathname) {
-    const match = pathname.match(/^\/data\/projects\/([A-Za-z0-9_-]{1,80})\/(assets|images|compositions)\/(.+)$/);
+    const match = pathname.match(/^\/data\/projects\/([A-Za-z0-9_-]{1,80})\/(assets|images|compositions|animations)\/(.+)$/);
     if (!match) return null;
     const isComposition = match[2] === 'compositions' && /\.composition\.json$/i.test(match[3]);
-    if (!isComposition && !IMPORT_PUBLIC_FILE.test(match[3])) return null;
+    const isAnimation = match[2] === 'animations' && /\.animation\.json$/i.test(match[3]);
+    if (!isComposition && !isAnimation && !IMPORT_PUBLIC_FILE.test(match[3])) return null;
     const relative = safeRelativePath(match[3]);
     if (!relative) return null;
     const projectRoot = path.join(PROJECTS_DIR, match[1]);
@@ -6630,12 +7003,15 @@ function projectPublicFile(pathname) {
 function libraryPublicFile(pathname) {
     const match = pathname.match(/^\/data\/library\/(.+)$/);
     if (!match) return null;
-    if (!/\.(?:json|webm|jpe?g|png|webp)$/i.test(match[1])) return null;
+    if (!/\.(?:json|webm|jpe?g|png|webp|mp3|wav|m4a|aac|ogg|opus|flac)$/i.test(match[1])) return null;
     const relative = safeRelativePath(match[1]);
     if (!relative) return null;
     // JSON metadata is public; source recordings/posters are only exposed
     // from the dedicated sources folder.
-    if (!/\.json$/i.test(relative) && !relative.startsWith('sources/')) return null;
+    if (!/\.json$/i.test(relative)
+        && !relative.startsWith('sources/')
+        && !relative.startsWith('audio/')
+        && !relative.startsWith('segment-groups/thumbs/')) return null;
     const root = path.resolve(LIBRARY_DIR);
     const target = path.resolve(root, ...relative.split('/'));
     return target.startsWith(root + path.sep) ? target : null;
@@ -6824,6 +7200,7 @@ module.exports = {
     saveComposition,
     importPublicFile,
     projectPublicFile,
+    libraryPublicFile,
     readAnimations,
     saveAnimations,
     readStudioAnimationLibrary,

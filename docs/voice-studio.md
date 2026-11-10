@@ -107,6 +107,11 @@ prompt/retry/validation path.
 
 Sessions are local and per `x-oia-user` (default `local`), mirroring OIA’s
 pre-auth persistence. Real auth is not part of this increment.
+Agent First Studio reads its voice catalog from the external Book Studio manager
+at `http://127.0.0.1:3229/api/book/tts-voices` by default. Override the manager
+origin with `STUDIO_VOICE_MANAGER_URL` if it runs elsewhere. AFS preserves the
+manager's stable voice IDs and synthesis settings, then sends speech through the
+managed MLX-Audio endpoint; designed voices do not receive a language override.
 
 ### Asset library
 
@@ -128,6 +133,7 @@ asset store, and not freeform placement in Asset Studio.
 | GET | `/api/tts/models` | proxied `/v1/models` |
 | GET | `/api/tts/voices?model=…` | proxied `/v1/audio/voices` |
 | POST | `/api/tts/speech` | binary WAV/MP3 |
+| GET | `/api/tts/design/voices` | proxied Book Studio voice catalog for Agent First Studio |
 | GET | `/api/tts/design/sessions` | per-user session list |
 | POST | `/api/tts/design/sessions` | create a session |
 | GET/DELETE | `/api/tts/design/sessions/:id` | read/delete |

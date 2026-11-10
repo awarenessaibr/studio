@@ -1,0 +1,2129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Asset Studio · Canvas</title>
+<script>try{document.documentElement.dataset.theme=JSON.parse(localStorage.getItem("sa.theme")||"\"dark\"")}catch(e){}</script>
+<style>
+:root{--bg:#141318;--pan:#201e26;--line:#37343f;--ink:#ece8e1;--mu:#9b97a7;--ac:#8fd3c1;--warn:#e7b46a;
+--card:var(--card);--sel:var(--sel);--inp:var(--inp);--msg:var(--msg);--stagebg:var(--stagebg);--shadow:#000c;--vshadow:#0008;--onac:#10211c;
+--mc-bg:#201a18;--mc-ink:#ffb39e;--mc-btn:#2a2522;--mc-mu:#b7aea5;--mc-line2:#ffffff2b;
+--field:var(--inp);--field-2:var(--inp);--ac-ink:var(--onac);--active:var(--sel);color-scheme:dark}
+:root[data-theme=light]{--bg:#f2f3f6;--pan:#ffffff;--line:#dcdee5;--ink:#1b1a20;--mu:#6a6878;--ac:#1d8a71;--warn:#b8700f;
+--card:#f6f7fa;--sel:#e1f3ee;--inp:#f3f4f7;--msg:#eceef3;--stagebg:#e4e6ec;--shadow:#1b1a2033;--vshadow:#1b1a2022;--onac:#ffffff;
+--mc-bg:#fff3ee;--mc-ink:#b8381c;--mc-btn:#ffffff;--mc-mu:#7a6c64;--mc-line2:#00000024;color-scheme:light}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 "Avenir Next","Segoe UI",system-ui,sans-serif;overflow:hidden}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+#stage{position:fixed;inset:0;display:grid;place-items:center}
+#cv{width:min(100vw,100vh);height:min(100vw,100vh);display:block;background:var(--stagebg)}
+#cv.area-mode{cursor:crosshair}
+#areaBanner{position:fixed;top:18px;left:50%;transform:translateX(-50%);background:var(--sel);color:var(--ac);border:1px solid var(--ac);padding:8px 16px;border-radius:24px;font-size:12px;font-weight:600;z-index:20;display:flex;align-items:center;gap:10px;box-shadow:0 8px 30px var(--shadow)}
+#areaBanner button{background:transparent;border:0;color:inherit;font-size:14px;cursor:pointer;padding:0 4px}
+#areaBanner[hidden]{display:none}
+#cv[hidden]{display:none!important}
+#srcVideo{display:none;max-width:min(100vw,100vh);max-height:min(100vw,100vh);width:auto;height:auto;background:var(--stagebg);box-shadow:0 20px 60px var(--vshadow)}
+#srcVideo.on,#srcPoster.on{display:block}#srcPoster{max-width:min(100vw,100vh);max-height:min(100vw,100vh);width:auto;height:auto;background:var(--stagebg);box-shadow:0 20px 60px var(--vshadow)}
+.fab{position:fixed;z-index:5;width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--pan);display:grid;place-items:center}
+.fab:hover:not(:disabled),.fab[aria-expanded=true]{border-color:var(--ac)}
+.fab:disabled{opacity:.4;cursor:default}
+.fab svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+#tDesigns{top:14px;left:14px}#tAsk{top:14px;right:14px}
+#tExport{top:14px;right:68px}
+#tAdmin{top:19px;left:68px;width:34px;height:34px;font-size:13px;font-weight:700;font-family:ui-monospace,Menlo,monospace}
+.brandbar{display:grid;gap:5px;margin:0 0 10px;color:var(--mu);font-size:11px}
+.brandbar select{width:100%}
+#tAdmin[aria-pressed=true]{border-color:var(--ac);background:var(--sel);color:var(--ac)}
+#replay{bottom:16px;left:50%;transform:translateX(-50%)}
+#tip{position:fixed;z-index:6;bottom:70px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:7px 11px;border-radius:9px;font-size:12.5px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .2s}
+#tip.on,#replay:hover+#tip,#replay:focus-visible+#tip{opacity:1}
+#tip::after{content:"";position:absolute;left:50%;bottom:-5px;width:10px;height:10px;background:inherit;transform:translateX(-50%) rotate(45deg)}
+.drawer{position:fixed;z-index:4;top:68px;bottom:14px;width:min(320px,calc(100vw - 28px));background:var(--pan);border:1px solid var(--line);border-radius:14px;display:flex;flex-direction:column;overflow:hidden}
+.drawer[hidden]{display:none}
+#panel{left:14px}#chat{right:14px;width:min(360px,calc(100vw - 28px))}
+.dh{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;justify-content:space-between}
+.dh h2{margin:0;font-size:14px;font-weight:600}.dh small{color:var(--mu);display:block;font-weight:400}
+.db{flex:1;overflow:auto;padding:12px;min-height:0}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.card{border:1px solid var(--line);border-radius:10px;background:var(--card);padding:6px;text-align:left}
+.card:hover{border-color:var(--ac)}.card canvas,.card img.poster{width:100%;aspect-ratio:1;border-radius:6px;display:block;object-fit:cover}
+.card b{display:block;font-size:12px;margin-top:6px;line-height:1.3}.card small{color:var(--mu);font-size:11px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:transparent;margin-bottom:7px;text-align:left}
+.row:hover{border-color:var(--ac)}.row[aria-current=true]{border-color:var(--ac);background:var(--sel)}
+.row small{color:var(--mu)}.tag{font-size:10.5px;color:var(--ac);border:1px solid var(--ac);border-radius:99px;padding:0 7px}
+.sec{margin:14px 0 8px;color:var(--mu);font-size:12px}
+.lnk{background:none;border:0;color:var(--mu);padding:0}.lnk:hover{color:var(--ink)}
+.fmt{margin-top:6px}.fmt .row{margin:0}
+#log{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:9px;min-height:0}
+.m{max-width:92%;padding:8px 11px;border-radius:12px;background:var(--msg);white-space:pre-wrap;font-size:13px}
+.m.u{align-self:flex-end;background:var(--ink);color:var(--bg)}.m.ok{border:1px solid var(--ac)}.m.err{border:1px solid var(--warn)}
+.m button{margin-top:6px;border:1px solid var(--line);border-radius:8px;background:transparent;padding:2px 9px}
+.chips{display:flex;flex-wrap:wrap;gap:5px;padding:8px 12px 0}
+.chips button{font-size:11.5px;border:1px solid var(--line);border-radius:99px;background:transparent;padding:2px 9px}.chips button:hover,.chips button[aria-pressed=true]{border-color:var(--ac)}.chips button[aria-pressed=true]{background:var(--sel)}
+#form-wrap{border-top:1px solid var(--line);position:relative}
+#attachBar{display:flex;gap:5px;padding:8px 12px 0;align-items:center;flex-wrap:wrap}
+#attachBar:empty{display:none;padding:0}
+.attach-btn{display:inline-flex;align-items:center;gap:4px;font-size:11px;border:1px solid var(--line);border-radius:8px;background:transparent;padding:3px 8px;color:var(--mu);cursor:pointer;white-space:nowrap}
+.attach-btn:hover{border-color:var(--ac);color:var(--ink)}
+.attach-btn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.attach-thumbs{display:flex;gap:6px;flex-wrap:wrap;padding:4px 12px 2px}
+.attach-thumbs:empty{display:none;padding:0}
+.att{position:relative;border-radius:8px;border:1px solid var(--line);overflow:hidden;background:var(--inp)}
+.att img,.att video{width:56px;height:56px;object-fit:cover;display:block}
+.att .att-x{position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;border:0;background:#000b;color:#fff;font-size:11px;display:grid;place-items:center;cursor:pointer;padding:0;line-height:1}
+.att .att-x:hover{background:var(--warn)}
+.att .att-label{position:absolute;bottom:0;left:0;right:0;background:#000a;color:var(--ink);font-size:8px;text-align:center;padding:1px 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#form{display:flex;gap:6px;padding:6px 12px 10px}
+#in{flex:1;min-width:0;resize:none;height:54px;border:1px solid var(--line);border-radius:9px;background:var(--inp);color:var(--ink);font:inherit;padding:7px 9px}
+#form button.send{border:0;background:var(--ac);color:var(--onac);font-weight:600;border-radius:9px;padding:0 14px}
+#dropOverlay{display:none;position:absolute;inset:0;z-index:10;background:color-mix(in srgb,var(--ac) 18%,transparent);border:2px dashed var(--ac);border-radius:14px;place-items:center;font-size:14px;color:var(--ac);font-weight:600;pointer-events:none}
+#dropOverlay.on{display:grid}
+select,input{font:inherit;color:var(--ink);background:var(--inp);border:1px solid var(--line);border-radius:8px;padding:5px 8px}
+#toast{position:fixed;z-index:9;left:50%;top:16px;transform:translateX(-50%);background:var(--ac);color:var(--onac);padding:9px 14px;border-radius:10px;font-weight:600;max-width:calc(100vw - 140px)}
+#toast.err{background:var(--warn)}#toast[hidden]{display:none}
+dialog{background:var(--pan);color:var(--ink);border:1px solid var(--line);border-radius:14px;padding:18px;width:min(420px,92vw)}
+dialog::backdrop{background:#000a}dialog label{display:grid;gap:3px;margin:10px 0;font-size:12px;color:var(--mu)}
+dialog menu{display:flex;gap:8px;justify-content:flex-end;padding:0;margin:14px 0 0}
+dialog button{border:1px solid var(--line);background:transparent;border-radius:8px;padding:6px 12px}
+dialog button.p{background:var(--ac);color:var(--onac);border:0;font-weight:600}
+
+.menu-card{border:1px solid color-mix(in srgb,var(--mc-ink) 35%,transparent);border-radius:10px;background:var(--mc-bg);padding:10px;margin:10px 0}
+.menu-card .mk{display:flex;align-items:center;gap:6px;color:var(--mc-ink);font-size:11px;letter-spacing:.04em;text-transform:uppercase}
+.menu-card .mk b{font-weight:700}.menu-card h3{margin:5px 0 2px;font-size:14px;line-height:1.25}
+.menu-card p{margin:0 0 7px;color:var(--mu);font-size:11px;line-height:1.4}
+.menu-card .menu-actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.menu-card button{border:1px solid var(--mc-line2);background:var(--mc-btn);color:var(--ink);border-radius:7px;padding:5px 8px;font-size:11px}
+.menu-card button:hover{border-color:var(--ac)}
+.menu-card .menu-note{display:block;margin-top:6px;color:var(--mu);font-size:10px;line-height:1.35}
+.menu-card .menu-img{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:7px}
+.menu-card .menu-img img{width:42px;height:42px;object-fit:cover;border-radius:5px;border:1px solid var(--line)}
+#menuDialog{width:min(680px,94vw);max-height:82vh;overflow:auto}
+#menuDialog .menu-search{width:100%;margin:8px 0 10px}
+#menuDialog .menu-group{margin:12px 0}
+#menuDialog .menu-group h3{margin:0 0 5px;font-size:12px;color:var(--mu);text-transform:uppercase;letter-spacing:.05em}
+#menuDialog .menu-pick{display:block;width:100%;text-align:left;border:1px solid var(--line);background:var(--inp);color:var(--ink);border-radius:8px;padding:8px 9px;margin:4px 0;cursor:pointer}
+#menuDialog .menu-pick:hover{border-color:var(--ac);background:var(--mc-bg)}
+#menuDialog .menu-pick b{display:block;font-size:12px}#menuDialog .menu-pick small{display:block;color:var(--mu);font-size:10.5px;line-height:1.35;margin-top:2px}
+#menuDialog .menu-pick .price{float:right;color:var(--mc-ink);font-weight:600}
+@media (prefers-reduced-motion:reduce){#tip{transition:none}}
+
+#tTheme{top:19px;left:108px;width:34px;height:34px;border-radius:10px}#tTheme svg{width:17px;height:17px}
+#tTheme .moon{display:none}:root[data-theme=light] #tTheme .sun{display:none}:root[data-theme=light] #tTheme .moon{display:block}
+#tAudio{top:14px;right:122px}
+#audio{right:14px;width:min(392px,calc(100vw - 28px))}
+#tAudio.has::after{content:"";position:absolute;top:9px;right:9px;width:6px;height:6px;border-radius:50%;background:var(--ac);box-shadow:0 0 0 2px var(--pan)}
+.cast-sum{color:var(--mu);font-size:12px;margin:0 0 10px}
+.tl{border:1px solid var(--line);border-radius:10px;background:var(--card);padding:8px 9px 6px;margin-bottom:4px;cursor:pointer}
+.tl-row{position:relative;height:9px;margin:3px 0;border-radius:3px;background:color-mix(in srgb,var(--line) 45%,transparent)}
+.tl-row i{position:absolute;top:0;bottom:0;border-radius:3px;background:var(--c);opacity:.9}
+.tl-row.mus i{opacity:.45}
+.tl-head{position:absolute;top:6px;bottom:4px;width:2px;background:var(--ink);border-radius:1px;pointer-events:none;left:9px}
+.tl{position:relative}
+.tl-ax{display:flex;justify-content:space-between;color:var(--mu);font-size:10px;margin-top:3px}
+.who{border:1px solid var(--line);border-radius:12px;background:var(--card);margin-bottom:10px;overflow:hidden}
+.who-h{display:flex;gap:10px;padding:10px 11px 8px;align-items:flex-start}
+.av{flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:14px;color:#fff;background:var(--c)}
+.who-h b{display:block;font-size:13.5px;line-height:1.25}
+.who-h .rl{font-size:10.5px;color:var(--mu);margin-left:6px;font-weight:400}
+.who-h p{margin:3px 0 0;color:var(--mu);font-size:12px;line-height:1.4}
+.who-h p em{font-style:normal;color:var(--ink)}
+.lines{border-top:1px solid var(--line);padding:4px 0}
+.ln{display:grid;grid-template-columns:38px 1fr;gap:6px;width:100%;text-align:left;border:0;background:transparent;padding:6px 11px;border-left:3px solid transparent;font-size:12.5px;line-height:1.4}
+.ln:hover{background:color-mix(in srgb,var(--c) 10%,transparent)}
+.ln time{color:var(--mu);font-variant-numeric:tabular-nums;font-size:11px;padding-top:1px}
+.ln.on{border-left-color:var(--c);background:color-mix(in srgb,var(--c) 14%,transparent)}
+.fx{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:7px;font-size:12.5px;line-height:1.35}
+.fx small{display:block;color:var(--mu);font-size:11px;margin-top:2px}
+.fx .tag{flex:none;margin-top:1px}
+.note{color:var(--mu);font-size:11px;border:1px dashed var(--line);border-radius:9px;padding:7px 9px;margin-top:6px}
+/* audio / cast panel */
+.aud-wrap{display:grid;gap:12px}
+.aud-loading{padding:26px 12px;text-align:center;color:var(--mu);font-size:12px}
+.aud-summary{display:flex;gap:6px;flex-wrap:wrap}
+.aud-chip{font-size:11px;color:var(--mu);border:1px solid var(--line);border-radius:99px;padding:3px 9px;background:var(--card)}
+.aud-chip b{color:var(--ink);font-weight:600}
+.aud-track{position:relative;height:30px;border-radius:8px;background:var(--field);border:1px solid var(--line);overflow:hidden}
+.aud-seg{position:absolute;top:8px;height:14px;border:0;border-radius:3px;background:var(--ac);opacity:.5;padding:0;cursor:pointer;transition:opacity .15s}
+.aud-seg:hover,.aud-seg[data-on="1"]{opacity:1}
+.aud-axis{display:flex;justify-content:space-between;color:var(--mu);font-size:10px;margin-top:-6px;font-variant-numeric:tabular-nums}
+.aud-bed{display:flex;align-items:center;gap:9px;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:8px 9px}
+.aud-bed svg{flex:none;width:19px;height:19px;stroke:var(--ac);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.aud-bed-main{min-width:0;flex:1}
+.aud-bed-main b{display:block;font-size:12px}
+.aud-bed-main small{display:block;color:var(--mu);font-size:10.5px;margin-top:1px}
+.aud-bed .tag{margin-left:auto}
+.cast-list{display:grid;gap:7px}
+.cast-card{display:flex;gap:9px;align-items:flex-start;text-align:left;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:8px 9px;width:100%}
+.cast-card:hover{border-color:var(--ac)}
+.cast-card[aria-pressed=true]{border-color:var(--ac);background:var(--active)}
+.cast-num{flex:none;width:30px;height:30px;border-radius:8px;background:var(--active);border:1px solid var(--line);display:grid;place-items:center;font:600 10.5px ui-monospace,Menlo,monospace;color:var(--ac);letter-spacing:.03em}
+.cast-card[aria-pressed=true] .cast-num{background:var(--ac);border-color:var(--ac);color:var(--ac-ink)}
+.cast-main{min-width:0;flex:1}
+.cast-main b{display:block;font-size:12.5px}
+.cast-role{display:block;color:var(--mu);font-size:10.5px;margin-top:1px}
+.cast-main p{margin:4px 0 0;font-size:11px;color:var(--ink);opacity:.8;line-height:1.38}
+.cast-traits{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px}
+.cast-traits em{font-style:normal;font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--mu);border:1px solid var(--line);border-radius:99px;padding:0 6px}
+.cast-count{flex:none;font-size:10px;color:var(--mu);border:1px solid var(--line);border-radius:99px;padding:1px 6px;font-variant-numeric:tabular-nums}
+.aud-note{margin:-3px 0 0;color:var(--mu);font-size:11px;line-height:1.4;border-left:2px solid var(--line);padding-left:8px}
+.sec-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:2px 0 -4px}
+.sec-row .sec{margin:0}
+.aud-sec-right{display:flex;align-items:center;gap:8px;color:var(--mu);font-size:11px}
+.aud-sec-right .lnk{font-size:11px}
+.line-list{display:grid;gap:6px}
+.line-row{text-align:left;border:1px solid var(--line);background:transparent;border-radius:9px;padding:7px 9px;width:100%}
+.line-row[hidden]{display:none}
+.line-row:hover{border-color:var(--ac);background:var(--card)}
+.line-row[aria-current=true]{border-color:var(--ac);background:var(--active)}
+.line-meta{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--mu)}
+.line-meta b{color:var(--ink);font-weight:600;font-size:11px}
+.line-meta time{margin-left:auto;font-variant-numeric:tabular-nums}
+.line-num{min-width:18px;text-align:center;font:600 9px ui-monospace,Menlo,monospace;letter-spacing:.02em;color:var(--ac);background:var(--active);border:1px solid var(--line);border-radius:4px;padding:1px 4px}
+.line-row p{margin:3px 0 0;font-size:12px;line-height:1.4}
+.aud-empty{display:grid;place-items:center;text-align:center;gap:7px;padding:30px 14px;color:var(--mu)}
+.aud-empty .aud-orb{width:54px;height:54px;border-radius:50%;border:1px solid var(--line);background:var(--card);display:grid;place-items:center}
+.aud-empty .aud-orb svg{width:23px;height:23px;stroke:var(--ac);fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.aud-empty h3{margin:4px 0 0;font-size:14px;color:var(--ink)}
+.aud-empty p{margin:0;font-size:12px;line-height:1.45;max-width:280px}
+.aud-cta{border:1px solid var(--ac);background:var(--ac);color:var(--ac-ink);border-radius:9px;padding:6px 12px;font-size:12px;font-weight:600;margin-top:4px}
+.aud-cta:hover{filter:brightness(1.06)}
+.aud-music{display:grid;gap:9px;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:10px}
+.aud-music-head{display:flex;align-items:center;gap:8px}
+.aud-music-head svg{width:19px;height:19px;stroke:var(--ac);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.aud-music-head h3{margin:0;font-size:12px;flex:1}
+.aud-status{font-size:10.5px;color:var(--mu);min-height:14px}
+.aud-row{display:grid;grid-template-columns:66px 1fr 44px;gap:8px;align-items:center;font-size:11px;color:var(--mu)}
+.aud-row input[type=range]{width:100%;accent-color:var(--ac);margin:0}
+.aud-row output{text-align:right;color:var(--ink);font-variant-numeric:tabular-nums}
+.aud-grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.aud-field{display:grid;gap:3px;font-size:10px;color:var(--mu)}
+.aud-field span{letter-spacing:.04em;text-transform:uppercase;font-size:9.5px}
+.aud-field .aud-hint{letter-spacing:0;text-transform:none;font-size:11px;color:var(--ink)}
+.aud-field input,.aud-field select{min-height:28px;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--field);color:var(--ink);font:inherit;font-size:11px}
+.aud-toggles{display:flex;gap:12px;flex-wrap:wrap;align-items:center;font-size:11px;color:var(--mu)}
+.aud-toggles label{display:flex;align-items:center;gap:5px}
+.aud-toggles input,.aud-toggles select{accent-color:var(--ac)}
+.aud-toggles select{min-height:26px;padding:2px 5px;border:1px solid var(--line);border-radius:6px;background:var(--field);color:var(--ink);font:inherit;font-size:10.5px}
+.aud-mix-track{position:relative;height:34px;border-radius:8px;background:var(--field);border:1px solid var(--line);overflow:hidden}
+.aud-mix-track i{position:absolute;top:7px;height:5px;background:var(--ac);opacity:.45;border-radius:2px}
+.aud-mix-track b{position:absolute;bottom:6px;height:9px;background:var(--warn);opacity:.85;border-radius:3px}
+.aud-mix-track b::before,.aud-mix-track b::after{content:"";position:absolute;top:-3px;bottom:-3px;width:1px;background:var(--warn)}
+.aud-mix-track b::before{left:0}.aud-mix-track b::after{right:0}
+.aud-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.aud-actions button{min-height:28px;padding:4px 9px;border:1px solid var(--line);border-radius:6px;background:var(--field-2);color:var(--ink);font:inherit;font-size:11px}
+.aud-actions button.primary{background:var(--ac);border-color:var(--ac);color:var(--ac-ink);font-weight:600}
+.aud-actions button:hover{border-color:var(--ac)}
+.aud-hint{color:var(--mu);font-size:10.5px;line-height:1.45;margin:0}
+.aud-add{display:grid;gap:8px;justify-items:start}
+
+/* audio v2: tabs, follow-along, writer */
+:root{--hl:62%}:root[data-theme=light]{--hl:40%}
+.aud-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;padding:3px;border:1px solid var(--line);border-radius:10px;background:var(--card);margin:-4px 0 12px;position:sticky;top:-12px;z-index:3}
+.aud-tab{border:0;background:transparent;border-radius:7px;padding:6px 4px;font-size:12px;color:var(--mu)}
+.aud-tab:hover{color:var(--ink)}
+.aud-tab[aria-selected=true]{background:var(--pan);color:var(--ink);box-shadow:0 0 0 1px var(--line);font-weight:600}
+.aud-tab small{margin-left:4px;font-size:10px;color:var(--mu);font-weight:400}
+.aud-pane{display:grid;gap:12px}
+.aud-addrow{display:flex;gap:6px;flex-wrap:wrap}
+.aud-addrow button{display:inline-flex;align-items:center;gap:5px;border:1px dashed var(--line);background:transparent;border-radius:8px;padding:5px 10px;font-size:11.5px;color:var(--ink)}
+.aud-addrow button:hover{border-color:var(--ac);border-style:solid;color:var(--ac)}
+.aud-addrow button b{font-weight:600;color:var(--ac);font-size:13px;line-height:1}
+.aud-head{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--ink);left:0;pointer-events:none;z-index:2;border-radius:1px}
+.aud-track{cursor:pointer}
+.aud-seg{background:var(--c,var(--ac))}
+.aud-seg[data-live]{opacity:1;box-shadow:0 0 0 2px var(--pan),0 0 0 3.5px var(--c,var(--ac));z-index:1}
+.line-row{border-left:3px solid var(--c,var(--line))}
+.line-row[data-live]{background:color-mix(in srgb,var(--c,var(--ac)) 15%,transparent);border-color:var(--c,var(--ac))}
+.line-row[data-live] .line-meta::after{content:"";width:7px;height:7px;border-radius:50%;background:var(--c,var(--ac));order:5;animation:audpulse 1s infinite}
+@keyframes audpulse{50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.line-row[data-live] .line-meta::after{animation:none}}
+.line-num{color:var(--c,var(--ac))}
+.line-badge{font-size:9.5px;color:var(--mu);border:1px solid var(--line);border-radius:99px;padding:0 6px}
+.line-edit{border:0;background:transparent;color:var(--mu);font-size:10.5px;padding:0 2px;text-decoration:underline}
+.line-edit:hover{color:var(--ink)}
+.cast-num{background:color-mix(in srgb,var(--c,var(--ac)) 18%,var(--card));color:var(--c,var(--ac));border-color:color-mix(in srgb,var(--c,var(--ac)) 40%,var(--line))}
+.cast-card[aria-pressed=true]{border-color:var(--c,var(--ac))}
+.cast-card[aria-pressed=true] .cast-num{background:var(--c,var(--ac));color:#fff}
+.tts-bar{display:grid;gap:7px;border:1px solid var(--line);border-radius:10px;background:var(--card);padding:9px 10px}
+.tts-top{display:flex;align-items:center;gap:8px;font-size:12px}
+.tts-dot{width:8px;height:8px;border-radius:50%;background:var(--mu);flex:none}
+.tts-dot.ok{background:var(--ac);box-shadow:0 0 0 3px color-mix(in srgb,var(--ac) 22%,transparent)}
+.tts-dot.bad{background:var(--warn);box-shadow:0 0 0 3px color-mix(in srgb,var(--warn) 22%,transparent)}
+.tts-top span{flex:1;min-width:0}
+.tts-bar a,.tts-bar .lnk{font-size:11px;color:var(--mu);text-decoration:underline;background:none;border:0;padding:0}
+.tts-bar a:hover,.tts-bar .lnk:hover{color:var(--ink)}
+.tts-bar details summary{font-size:11px;color:var(--mu);cursor:pointer}
+.tts-bar details input{width:100%;margin-top:6px}
+.vo-sec{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:2px 0 -4px}
+.vo-sec .sec{margin:0}
+.spk{display:grid;gap:7px;border:1px solid var(--line);border-left:3px solid var(--c,var(--line));background:var(--card);border-radius:10px;padding:8px 10px}
+.spk-top{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
+.spk-top b{font-size:12.5px}
+.spk-top small{color:var(--mu);font-size:10.5px}
+.spk p{margin:0;font-size:11px;color:var(--mu);line-height:1.4}
+.spk-row{display:flex;gap:6px;align-items:center}
+.spk-row select{flex:1;min-width:0}
+.vo-in{min-height:28px;padding:3px 7px;border:1px solid var(--line);border-radius:7px;background:var(--field);color:var(--ink);font:inherit;font-size:11.5px;min-width:0}
+.vo-btn{min-height:28px;padding:3px 10px;border:1px solid var(--line);border-radius:7px;background:var(--field-2);color:var(--ink);font:inherit;font-size:11.5px;white-space:nowrap}
+.vo-btn:hover:not(:disabled){border-color:var(--ac)}
+.vo-btn:disabled{opacity:.5;cursor:default}
+.vo-btn.primary{background:var(--ac);border-color:var(--ac);color:var(--ac-ink);font-weight:600}
+.vo-btn.quiet{background:transparent}
+.vo-btn.x{padding:3px 8px;color:var(--mu)}
+.vo-card{display:grid;gap:7px;border:1px solid var(--line);border-left:3px solid var(--c,var(--line));background:var(--card);border-radius:10px;padding:9px 10px}
+.vo-head{display:flex;gap:6px;align-items:center}
+.vo-head select{flex:1;min-width:0}
+.vo-time{display:flex;align-items:center;gap:4px;font-size:10.5px;color:var(--mu)}
+.vo-time input{width:58px}
+.vo-card textarea{width:100%;min-height:62px;resize:vertical;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--field);color:var(--ink);font:inherit;font-size:12.5px;line-height:1.4}
+.vo-card textarea:focus,.vo-in:focus{outline:2px solid var(--ac);outline-offset:1px}
+.vo-foot{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.vo-status{flex:1;min-width:90px;font-size:10.5px;color:var(--mu)}
+.vo-status[data-s=ready]{color:var(--ac)}.vo-status[data-s=stale],.vo-status[data-s=err]{color:var(--warn)}
+.spk-new{display:grid;gap:6px;border:1px dashed var(--line);border-radius:10px;padding:8px 10px}
+.spk-new .spk-row input{flex:1}
+.vo-empty{color:var(--mu);font-size:12px;line-height:1.45;border:1px dashed var(--line);border-radius:10px;padding:12px;text-align:center}
+.aud-pane{grid-template-columns:minmax(0,1fr)}
+.aud-pane>*,.vo-card,.vo-head>*{min-width:0}
+.vo-head select{flex:1 1 0;width:0;min-width:90px}
+.vo-head .vo-time input{width:52px}
+</style>
+</head>
+<body>
+<main id="stage"><canvas id="cv" aria-label="Design canvas, fixed 1:1"></canvas><video id="srcVideo" playsinline loop preload="auto" aria-label="Source-exact original motion, with its audio track"></video><img id="srcPoster" alt="Source-exact original design" hidden><audio id="music" preload="auto" hidden aria-hidden="true"></audio></main>
+
+<button class="fab" id="tDesigns" aria-label="Designs" aria-expanded="false" title="Designs"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg></button>
+<button class="fab" id="tAdmin" aria-label="Admin animation view" aria-pressed="false" title="Admin: include broken animations">A</button>
+<button class="fab" id="tAsk" aria-label="Ask the assistant" aria-expanded="false" title="Ask for a new animation, a change or a review"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M18.5 16l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/></svg></button>
+<button class="fab" id="tExport" aria-label="Export video" title="Export the current design as a WebM video" disabled><svg viewBox="0 0 24 24"><path d="M12 3v11"/><path d="M8 10l4 4 4-4"/><path d="M5 20h14"/></svg></button>
+
+<button class="fab" id="tTheme" aria-label="Toggle light / dark theme" title="Switch theme"><svg class="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/></svg></button>
+<button class="fab" id="tAudio" aria-label="Audio and characters" aria-expanded="false" title="Audio · characters, narration, music" disabled><svg viewBox="0 0 24 24"><path d="M4 10v4M8 6v12M12 3v18M16 8v8M20 11v2"/></svg></button>
+
+<aside class="drawer" id="panel" hidden aria-label="Designs and animations"></aside>
+
+<aside class="drawer" id="audio" hidden aria-label="Narration, cast and audio">
+  <div class="dh"><h2>Audio<small id="audioCtx">No design selected</small></h2><button class="lnk" type="button" id="audioClose" aria-label="Close audio panel" title="Close">✕</button></div>
+  <div class="db" id="audioBody"></div>
+</aside>
+
+<aside class="drawer" id="chat" hidden aria-label="Assistant">
+  <div class="dh"><h2>Assistant<small id="ctxLbl">Pick a design first</small></h2>
+    <span><select id="prov" aria-label="Model"><option value="local">Local</option><option value="deepseek">DeepSeek</option></select> <button class="lnk" id="cfgBtn" aria-label="Model settings">⚙</button></span></div>
+  <div id="log" aria-live="polite"></div>
+  <div class="chips" id="groups" aria-label="Element groups in this design"></div>
+  <div class="chips" id="chips"></div>
+  <div id="form-wrap">
+    <div id="attachBar">
+      <button type="button" class="attach-btn" id="btnAttachImg" title="Attach a reference image"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg> Image</button>
+      <button type="button" class="attach-btn" id="btnAttachVid" title="Attach a reference video"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M10 9l5 3-5 3z"/></svg> Video</button>
+      <button type="button" class="attach-btn" id="btnAttachCanvas" title="Capture what you see on the canvas right now"><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg> Canvas</button>
+      <button type="button" class="attach-btn" id="btnAttachArea" title="Click or drag on the canvas to crop a specific area for visual reference"><svg viewBox="0 0 24 24"><path d="M7 2H2v5"/><path d="M17 2h5v5"/><path d="M2 17v5h5"/><path d="M22 17v5h-5"/><rect x="7" y="7" width="10" height="10" stroke-dasharray="2 2"/></svg> Select area</button>
+    </div>
+    <div class="attach-thumbs" id="attachThumbs"></div>
+    <form id="form"><textarea id="in" placeholder="Describe the animation, change or problem you see — attach images or video for visual reference"></textarea><button class="send">Send</button></form>
+    <div id="dropOverlay">Drop image or video here</div>
+  </div>
+  <input type="file" id="fileImg" accept="image/*" multiple hidden>
+  <input type="file" id="fileVid" accept="video/*" hidden>
+</aside>
+
+<button class="fab" id="replay" aria-label="Replay animation" disabled><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.5-5.8"/><path d="M4 4v4.5h4.5"/></svg></button>
+<div id="tip" role="tooltip">Replay · the canvas is always 1:1</div>
+<div id="toast" role="status" hidden></div>
+<div id="areaBanner" hidden><span>Drag a box or click an element on the canvas to select an area</span> <button type="button" id="btnCancelArea" title="Cancel area selection">✕</button></div>
+
+<dialog id="cfg"><form method="dialog">
+  <h2 style="margin:0 0 4px;font-size:15px">Model settings</h2>
+  <p style="margin:0;color:var(--mu);font-size:12px">Saved in this browser only. Local uses an Ollama-style endpoint; any URL ending in /chat/completions is treated as OpenAI-compatible.</p>
+  <p id="providerStatus" style="margin:6px 0 0;color:var(--ac);font-size:11px"></p>
+  <label>Local endpoint<input id="lUrl"></label><label>Local model<input id="lMod"></label>
+  <label>DeepSeek endpoint<input id="dUrl"></label><label>DeepSeek model<input id="dMod"></label>
+  <label>DeepSeek API key<input id="dKey" type="password" autocomplete="off"></label>
+  <menu><button value="x">Cancel</button><button class="p" id="cfgSave" value="ok">Save</button></menu>
+</form></dialog>
+
+<dialog id="menuDialog" aria-label="Choose a menu item">
+  <form method="dialog">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <div><h2 style="margin:0;font-size:16px">Menu item</h2><p style="margin:3px 0 0;color:var(--mu);font-size:11px">Choose from the confirmed brand menu. The design style stays the same.</p></div>
+      <button value="close" aria-label="Close">✕</button>
+    </div>
+    <input id="menuSearch" class="menu-search" type="search" placeholder="Search dishes, drinks, prices…" autocomplete="off">
+    <div id="menuBody"></div>
+  </form>
+</dialog>
+
+<script>
+(() => {
+'use strict';
+/* ============ CONFIG: where the feed comes from ============ */
+const API = 'api';
+const LIB = 'api/library';                      // built by tools/build-library.py (index.json)
+const FEED_STATIC = 'feed/index.json';          // bundled designs + their animations
+const FEED_PUBLISHED = true;                    // GET api/brand-packs/:pack/templates?brandId=…
+const SAVE_ENDPOINT = id => `${API}/designs/${encodeURIComponent(id)}/animations`;
+const MENU_CATALOG_URL = 'data/library/menu-catalog.json';
+const MENU_DESIGNS_URL = 'data/library/menu-designs.json'; // optional server sync (POST); browser save always happens
+const NARRATION_INDEX = 'data/library/narrations/index.json'; // cast direction + pointer to the narration timeline
+const FORMATS = [{id:'orig',label:'Original'},{id:'sq',label:'Square',w:1,h:1,r:'1:1'},{id:'feed',label:'Feed',w:4,h:5,r:'4:5'},{id:'story',label:'Story · Reels',w:9,h:16,r:'9:16'},{id:'wide',label:'Landscape',w:16,h:9,r:'16:9'}];
+const DEF = {local:{url:'http://localhost:11434/api/chat',model:'granite3.2-vision:2b'},deepseek:{url:'https://api.deepseek.com/chat/completions',model:'deepseek-flash',key:''}};
+
+const $ = s => document.querySelector(s);
+const clone = o => JSON.parse(JSON.stringify(o));
+const LS = {get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true}catch{return false}}};
+const jget = async (u,o) => { const r = await fetch(u,{cache:'no-store',...o}); if(!r.ok) throw new Error(r.status+' '+r.statusText); return r.json(); };
+const mk = (tag,props={},...kids) => { const e = Object.assign(document.createElement(tag),props); kids.flat().filter(k => k !== null && k !== undefined && k !== false).forEach(k => e.append(k)); return e; };
+const svgIcon = paths => { const s=document.createElementNS('http://www.w3.org/2000/svg','svg'); s.setAttribute('viewBox','0 0 24 24'); s.setAttribute('aria-hidden','true'); s.innerHTML=paths; return s; };
+let toastT = 0;
+const toast = (m,err) => { const t=$('#toast'); t.textContent=m; t.className=err?'err':''; t.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true,3600); };
+
+/* ============ state ============ */
+let LIBIDX = null, CLIPS = null, SEL = new Set();
+let ADMIN = LS.get('agentLibrary.admin', false);
+let DESIGNS = [], cur = null, curAnim = null, fmt = 'orig', fmtOpen = false, T = 0, playing = false, tStart = 0, raf = 0;
+const BRANDS = new Map();
+let BRAND = LS.get('sa.brand', '');
+let SRC = false, SRC_VIDEO = '', SRC_POSTER = '', SRC_KEY = '';
+let NARR_INDEX = null, NARR_INDEX_REQ = null;
+const NARR_CACHE = new Map(), NARR_REQ = new Map();
+let AUDIO_DESIGN = null, AUDIO_FILTER = '', AUDIO_LINE = -1, AUDIO_REFS = null, AUDIO_TOKEN = 0;
+let AUDIO_MIX = null, AUDIO_MIX_KEY = '', AUDIO_MUSIC_SRC = '', AUDIO_SAVE_T = 0, AUDIO_STATUS = '', AUDIO_GAIN = 1, AUDIO_RAF = 0, AUDIO_NARRATION = null, AUDIO_NARR_REQ = null, AUDIO_SEEK_AT = 0;
+const audioEl = $('#audio'), musicEl = $('#music');
+let MENU_CATALOG = null, MENU_DESIGNS = null, MENU_QUERY = '';
+let PROVIDER_CATALOG = null;
+const IMGS = new Map();
+const THEMES = {dark:{stage:'#0e0d12',fmt:'#1b1a21',acc:'#8fd3c1',ph:'#2a2832'},light:{stage:'#e4e6ec',fmt:'#d6d9e1',acc:'#1d8a71',ph:'#cfd2da'}};
+let THEME = LS.get('sa.theme','dark'); if(!THEMES[THEME]) THEME='dark';
+const TH = () => THEMES[THEME];
+
+/* ============ animation model ============ */
+const EASE = {linear:x=>x, in:x=>x*x*x, out:x=>1-(1-x)**3, inOut:x=>x<.5?4*x*x*x:1-(-2*x+2)**3/2};
+const nf = f => ({t:f.t||0,dx:f.dx??0,dy:f.dy??0,sx:f.sx??1,sy:f.sy??1,a:f.a??1,r:f.r??0,e:EASE[f.e]?f.e:'linear',clip:f.clip||null,filter:f.filter||''});
+const lerp = (a,b,k) => a+(b-a)*k;
+function interpClip(a,b,k){
+  if(!a) return b||null; if(!b) return a;
+  if(a.shape==='rect' && b.shape==='rect') return {shape:'rect',x:lerp(a.x||0,b.x||0,k),y:lerp(a.y||0,b.y||0,k),w:lerp(a.w||100,b.w||100,k),h:lerp(a.h||100,b.h||100,k)};
+  return k<.5?a:b;
+}
+function interp(frames,t){
+  if(!frames.length) return nf({});
+  if(t<=frames[0].t) return frames[0];
+  const L = frames[frames.length-1]; if(t>=L.t) return L;
+  let i = 0; while(frames[i+1].t<=t) i++;
+  const a = frames[i], b = frames[i+1], k = EASE[b.e]((t-a.t)/((b.t-a.t)||1)), o = {};
+  for(const p of ['dx','dy','sx','sy','a','r']) o[p] = a[p]+(b[p]-a[p])*k;
+  o.clip = interpClip(a.clip,b.clip,k);
+  o.filter = b.filter || a.filter || '';
+  return o;
+}
+function segState(segs,t){
+  let s = segs[0]; for(const x of segs) if(x.start<=t) s = x;
+  let lt = Math.max(0,t-s.start); const d = s.duration||0;
+  lt = s.loop && d ? lt%d : Math.min(lt,d||1e9);
+  return interp(s.frames,lt);
+}
+function prep(data){ // normalise frames once, index tracks by layer
+  const a = clone(data); a.byId = {};
+  (a.tracks||[]).forEach(tr => { (tr.segments||[]).forEach(s => { s.frames = (s.frames||[]).map(nf).sort((p,q)=>p.t-q.t); s.start=s.start||0; }); if(tr.segments&&tr.segments.length) a.byId[tr.layerId]=tr; });
+  return a;
+}
+function compMotion(comp){ // composition keyframes → animation tracks
+  return {schema:'agent-studio/animation/2',kind:'studio-animation',name:comp.name,duration:comp.duration||10000,fps:25,tracks:comp.layers.filter(l=>l.animation&&(l.animation.keyframes||[]).length).map(l=>({layerId:l.id,layerName:l.name,segments:[{preset:'keyframes',label:'Keyframes',start:0,duration:l.animation.duration||comp.duration,loop:false,frames:l.animation.keyframes.map(k=>({t:k.time,dx:(k.x-l.x)/100,dy:(k.y-l.y)/100,sx:l.w?k.w/l.w:1,sy:l.h?k.h/l.h:1,a:k.opacity}))}]}))};
+}
+const dTitle = d => d.comp.name.split(' — ').slice(-2).join(' — ');
+const animLabel = (a,d) => ((a.name||'Animation').replace(d.comp.name,'').replace(/^[\s—–-]+/,'').replace(/^\d+$/,'')||'Original motion');
+
+/* ============ feed ============ */
+const brandKeyOf = value => String(value||'').toLowerCase().replace(/&/g,' and ').replace(/\b(?:the|and)\b/g,' ').replace(/[^a-z0-9]+/g,'');
+function addDesign(id,comp,src,anims,meta={}){
+  let d = DESIGNS.find(x=>x.id===id);
+  if(!d){ d = {id,comp,src,anims:[],brandId:'',brandName:'',brandKey:'',packId:''}; DESIGNS.push(d); }
+  if(!d.baseComp) d.baseComp = comp;
+  Object.assign(d,meta);
+  if(!d.brandKey) d.brandKey = brandKeyOf(d.brandName || d.brandId);
+  if(d.brandKey) BRANDS.set(d.brandKey, d.brandName || d.brandId);
+  (anims||[]).forEach(a => { if(a && a.tracks && !d.anims.some(x=>x.data.id===a.id)) d.anims.push({id:a.id||('a'+Math.random().toString(36).slice(2,8)),data:a,saved:!!a._saved}); });
+  return d;
+}
+const titleCase = value => String(value||'').replace(/[-_]+/g,' ').replace(/\b\w/g,ch=>ch.toUpperCase());
+const visibleDesigns = () => BRAND ? DESIGNS.filter(d=>d.brandKey===BRAND) : DESIGNS;
+async function loadFeed(){
+  try{ [MENU_CATALOG,MENU_DESIGNS] = await Promise.all([jget(MENU_CATALOG_URL).catch(()=>null),jget(MENU_DESIGNS_URL).catch(()=>null)]); }catch{}
+  try{ // library first: only designs marked ready, only animations that validated ok
+    LIBIDX = await jget(LIB);
+    for(const e of (LIBIDX.designs||[])){
+      try{
+        const comp = await jget(e.composition);
+        const anims = (await Promise.all((e.animations||[]).filter(a=>ADMIN?true:a.status!=='broken').map(a=>jget(a.file).then(x=>Object.assign(x,{_saved:x.origin!=='original',_status:a.status,_issues:a.issues,_entry:a,sourceVideo:a.sourceVideo||x.sourceVideo||'',sourcePoster:a.sourcePoster||x.sourcePoster||'',sourceDuration:a.sourceDuration||x.sourceDuration||0,narration:a.narration||x.narration||null})).catch(()=>null)))).filter(Boolean);
+        const d = addDesign(e.id,comp,'Library',anims,{brandId:e.brandId,brandName:titleCase(e.brandId),brandKey:brandKeyOf(e.brandId),sourceVideo:e.sourceVideo||'',sourcePoster:e.sourcePoster||'',sourceWidth:e.sourceWidth||0,sourceHeight:e.sourceHeight||0,sourceDuration:e.sourceDuration||0}); d.detail=e.detail; d.audioUrl=e.audio||''; d.fromLib=true; d.status=e.status; d.issues=e.issues;
+      }catch(err){ console.warn('library item failed',e.id,err); }
+    }
+  }catch(e){ console.warn('library unavailable',e.message); }
+  if(FEED_STATIC && !DESIGNS.length) try{
+    const idx = await jget(FEED_STATIC);
+    for(const e of idx.designs||[]){
+      try{ const comp = await jget(e.composition); const anims = (await Promise.all((e.animations||[]).map(u=>jget(u).catch(()=>null)))).filter(Boolean); addDesign(e.id||comp.id,comp,'Feed',anims); }catch(err){ console.warn('feed item failed',e,err); }
+    }
+  }catch(e){ console.warn('static feed unavailable',e.message); }
+  if(FEED_PUBLISHED) try{
+    const packs = (await jget(API+'/brand-packs')).packs||[];
+    for(const p of packs) for(const b of p.brands||[]){
+      try{ const r = await jget(`${API}/brand-packs/${encodeURIComponent(p.id)}/templates?brandId=${encodeURIComponent(b.id)}`);
+        (r.templates||[]).filter(t=>t.composition).forEach(t=>addDesign(t.id,t.composition,'Published',[],{brandId:b.id,brandName:b.name,brandKey:brandKeyOf(b.name),packId:p.id})); }catch{}
+    }
+  }catch(e){ console.warn('published feed unavailable',e.message); }
+  const ov = LS.get('sa.comp',{}), sv = LS.get('sa.anims',{});
+  DESIGNS.forEach(d => { if(ov[d.id]) d.comp = ov[d.id]; (sv[d.id]||[]).forEach(a=>addDesign(d.id,d.comp,d.src,[{...a,_saved:true}])); if(!d.anims.length){ const m=compMotion(d.comp); if(m.tracks.length) addDesign(d.id,d.comp,d.src,[{...m,id:'motion-'+d.id}]); } });
+  if(BRAND && !BRANDS.has(BRAND)) { BRAND = ''; LS.set('sa.brand',''); }
+}
+
+/* ============ rendering ============ */
+const sameOriginAsset = url => { try{ const u=new URL(String(url),location.href); if((u.hostname==='localhost'||u.hostname==='127.0.0.1'||u.hostname==='[::1]')&&u.origin!==location.origin) return u.pathname+u.search+u.hash; }catch{} return url; };
+const getImg = url => { let i = IMGS.get(url); if(!i){ i = new Image(); i.crossOrigin='anonymous'; i.onload=()=>{i.ok=true;paintAll()}; i.onerror=()=>{i.failed=true}; i.src=sameOriginAsset(url); IMGS.set(url,i); } return i; };
+function fontFor(comp){ const fams=new Set(); comp.layers.forEach(l=>l.font&&l.font.family&&fams.add(l.font.family)); [...fams].forEach(f=>{ const id='gf-'+f.replace(/\W/g,''); if(!document.getElementById(id)) document.head.append(mk('link',{id,rel:'stylesheet',href:`https://fonts.googleapis.com/css2?family=${encodeURIComponent(f).replace(/%20/g,'+')}:wght@400;700&display=swap`})); document.fonts.load(`700 40px "${f}"`).then(paintAll).catch(()=>{}); }); }
+function wrap(ctx,txt,w){ const out=[]; String(txt).split('\n').forEach(par=>{ let line=''; par.split(' ').forEach(wd=>{ const t=line?line+' '+wd:wd; if(line&&ctx.measureText(t).width>w){out.push(line);line=wd}else line=t; }); out.push(line); }); return out; }
+function drawText(ctx,l,bw,bh,basePx){
+  const f=l.font||{}, fs=(f.sizePct||5)/100*basePx;
+  ctx.font=`${f.style==='italic'?'italic ':''}${f.weight||400} ${fs}px "${f.family||'sans-serif'}",sans-serif`;
+  if('letterSpacing' in ctx) ctx.letterSpacing=((f.letterSpacingEm||0)*fs)+'px';
+  ctx.fillStyle=l.color||'#fff'; ctx.textBaseline='middle';
+  let tx=l.text||''; if(f.transform==='uppercase') tx=tx.toUpperCase();
+  const lines=wrap(ctx,tx,bw), lh=fs*(f.lineHeight||1.2), tot=lines.length*lh;
+  const y0 = l.verticalAlign==='top'?-bh/2:l.verticalAlign==='bottom'?bh/2-tot:-tot/2;
+  const al = l.align||'left'; ctx.textAlign=al; const x = al==='left'?-bw/2:al==='right'?bw/2:0;
+  lines.forEach((s,i)=>ctx.fillText(s,x,y0+i*lh+lh/2));
+  if(f.stroke){ ctx.strokeStyle=f.stroke; ctx.lineWidth=(f.strokeWidthPct||0.5)/100*basePx; ctx.lineJoin='round';
+    lines.forEach((s,i)=>ctx.strokeText(s,x,y0+i*lh+lh/2)); }
+}
+let LAST_RECT = {cx:0,cy:0,cw:0,ch:0,S:1080};
+let AREA_MODE = false, AREA_BOX = null, AREA_DRAG = null;
+function draw(ctx,S,d,anim,t,fid,fixed){
+  const C = fixed?THEMES.dark:TH();
+  const comp=d.comp, fm=FORMATS.find(f=>f.id===fid)||FORMATS[0];
+  const ar = fm.w ? fm.w/fm.h : comp.width/comp.height;
+  let W=S,H=S; ar>=1 ? H=S/ar : W=S*ar;
+  const ox=(S-W)/2, oy=(S-H)/2;
+  ctx.fillStyle=C.stage; ctx.fillRect(0,0,S,S);
+  ctx.save(); ctx.beginPath(); ctx.rect(ox,oy,W,H); ctx.clip(); ctx.fillStyle=C.fmt; ctx.fillRect(ox,oy,W,H);
+  const car=comp.width/comp.height; let cw=W, ch=H; car>W/H ? ch=W/car : cw=H*car;
+  const cx=ox+(W-cw)/2, cy=oy+(H-ch)/2;
+  LAST_RECT = {cx,cy,cw,ch,S};
+  ctx.beginPath(); ctx.rect(cx,cy,cw,ch); ctx.clip();
+  [...comp.layers].sort((a,b)=>(a.z||0)-(b.z||0)).forEach(l=>{
+    if(l.visible===false) return;
+    const tr = anim && anim.byId[l.id], st = tr ? segState(tr.segments,t) : nf({});
+    const a = (l.opacity??1)*st.a; if(a<=0.001) return;
+    const w=(l.w/100)*st.sx*cw, h=(l.h/100)*st.sy*ch, x=cx+((l.x/100)+st.dx)*cw, y=cy+((l.y/100)+st.dy)*ch;
+    ctx.save(); ctx.globalAlpha=Math.min(1,a);
+    if(st.filter) ctx.filter=st.filter;
+    if(st.clip&&st.clip.shape==='rect'){ ctx.beginPath(); ctx.rect((st.clip.x||0)/100*S,(st.clip.y||0)/100*S,(st.clip.w??100)/100*S,(st.clip.h??100)/100*S); ctx.clip(); }
+    ctx.translate(x+w/2,y+h/2); ctx.rotate(((l.rotation||0)+(st.r||0))*Math.PI/180);
+    if(l.type==='text'){ const bw=(l.w/100)*cw, bh=(l.h/100)*ch; ctx.scale(w/bw||1,h/bh||1); drawText(ctx,l,bw,bh,cw); }
+    else if(l.url){ const im=getImg(l.url); if(im.ok) ctx.drawImage(im,-w/2,-h/2,w,h); else if(im.failed){ ctx.fillStyle=C.ph; ctx.fillRect(-w/2,-h/2,w,h); } }
+    ctx.restore();
+  });
+  if(d===cur && SEL.size && d.lib){ ctx.strokeStyle=C.acc; ctx.lineWidth=Math.max(2,S/300); ctx.setLineDash([8,6]);
+    d.lib.groups.filter(g=>SEL.has(g.id)).forEach(g=>ctx.strokeRect(cx+g.bbox.x/100*cw,cy+g.bbox.y/100*ch,g.bbox.w/100*cw,g.bbox.h/100*ch)); }
+  if(d===cur && AREA_BOX){
+    ctx.strokeStyle=C.acc; ctx.fillStyle=C.acc+'2b'; ctx.lineWidth=Math.max(2,S/350); ctx.setLineDash([6,4]);
+    const rx = cx + AREA_BOX.x/100*cw, ry = cy + AREA_BOX.y/100*ch;
+    const rw = AREA_BOX.w/100*cw, rh = AREA_BOX.h/100*ch;
+    ctx.fillRect(rx, ry, rw, rh);
+    ctx.strokeRect(rx, ry, rw, rh);
+    ctx.setLineDash([]);
+  }
+  ctx.restore();
+}
+const cv = $('#cv'), cx2 = cv.getContext('2d');
+function sizeCanvas(){ const px=Math.round(cv.clientWidth*(devicePixelRatio||1)); if(cv.width!==px){cv.width=px;cv.height=px;} return px; }
+function paintMain(){ const S=sizeCanvas(); if(!cur){ cx2.fillStyle=TH().stage; cx2.fillRect(0,0,S,S); return; } draw(cx2,S,cur,curAnim,T,fmt); }
+function paintThumbs(){ document.querySelectorAll('canvas[data-did]').forEach(c=>{ const d=DESIGNS.find(x=>x.id===c.dataset.did); if(!d) return; const S=c.width; const a=d.anims[0]?prep(d.anims[0].data):null; draw(c.getContext('2d'),S,d,a,a?Math.min(a.duration||10000,d.comp.duration||10000):0,'orig'); }); }
+let pend=0; function paintAll(){ if(pend) return; pend=requestAnimationFrame(()=>{pend=0;paintMain();paintThumbs();}); }
+
+/* ============ playback ============ */
+const dur = () => (curAnim && curAnim.duration) || (cur && cur.comp.duration) || 10000;
+function frame(now){ T=Math.min(dur(),now-tStart); paintMain(); if(T>=dur()){ playing=false; return; } raf=requestAnimationFrame(frame); }
+function play(){ if(SRC){ const v=$('#srcVideo'), img=$('#srcPoster'); img.classList.remove('on'); img.hidden=true; v.classList.add('on'); if(v.dataset.id!==SRC_KEY){v.dataset.id=SRC_KEY;v.src=SRC_VIDEO;v.poster=SRC_POSTER||'';v.load();} v.currentTime=0; v.play().catch(()=>{}); if(!AUDIO_MIX) loadAudioMix().then(()=>syncAudioMix(true)).catch(()=>{}); else syncAudioMix(true); return; } cancelAnimationFrame(raf); if(!curAnim) return; playing=true; tStart=performance.now(); raf=requestAnimationFrame(frame); }
+
+/* Export exactly what the canvas shows, at the current format, as WebM. */
+async function exportVideo(){
+  if(!cur){ toast('Pick a design first.','err'); return; }
+  if(SRC && SRC_VIDEO){
+    await exportSource(); return;
+  }
+  if(!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream){ toast('This browser cannot record video.','err'); return; }
+  const btn = $('#tExport'); btn.disabled = true; toast('Recording the design…');
+  try{
+    const S = 1080;
+    const target = document.createElement('canvas');
+    target.width = S; target.height = S;
+    target.style.cssText = 'position:fixed;left:-10000px;top:0;width:1px;height:1px';
+    document.body.append(target);
+    const ctx = target.getContext('2d');
+    const duration = curAnim ? Math.max(500, curAnim.duration || 10000) : Math.min(3000, cur.comp.duration || 3000);
+    const exportDesign = { ...cur, lib: null };
+    const mime = ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].find(type=>MediaRecorder.isTypeSupported(type));
+    const chunks = [];
+    const recorder = new MediaRecorder(target.captureStream(30), mime ? { mimeType:mime, videoBitsPerSecond:8e6 } : undefined);
+    recorder.ondataavailable = event => { if(event.data && event.data.size) chunks.push(event.data); };
+    const stopped = new Promise(resolve => { recorder.onstop = resolve; });
+    recorder.start(100);
+    const started = performance.now();
+    await new Promise(resolve => {
+      const tick = () => {
+        const t = Math.min(duration, performance.now() - started);
+        draw(ctx, S, exportDesign, curAnim, t, fmt, true);
+        if(t < duration) requestAnimationFrame(tick);
+        else setTimeout(resolve, 120);
+      };
+      tick();
+    });
+    recorder.stop();
+    await stopped;
+    const safe = String(cur.comp.name || 'design').normalize('NFKD').replace(/[^A-Za-z0-9]+/g,'-').replace(/^-+|-+$/g,'').toLowerCase() || 'design';
+    const motion = (curAnim ? animLabel(curAnim, cur) : 'still').replace(/[^A-Za-z0-9]+/g,'-').replace(/^-+|-+$/g,'').toLowerCase() || 'still';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(chunks,{type:'video/webm'}));
+    a.download = `${safe}-${motion}-${fmt}.webm`;
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+    target.remove();
+    toast('Video exported.');
+  }catch(error){ toast('Could not export video: '+error.message,'err'); }
+  finally{ btn.disabled = !cur; }
+}
+function showTip(){ const t=$('#tip'); t.classList.add('on'); setTimeout(()=>t.classList.remove('on'),4200); }
+$('#replay').onclick = play;
+cv.onclick = () => { if(AREA_MODE||!curAnim) return; if(playing){ cancelAnimationFrame(raf); playing=false; } else if(T>=dur()) play(); else { tStart=performance.now()-T; playing=true; raf=requestAnimationFrame(frame); } };
+
+/* ============ designs panel ============ */
+const panel = $('#panel');
+function openPanel(on){ panel.hidden=!on; $('#tDesigns').setAttribute('aria-expanded',on); if(on) renderPanel(); }
+$('#tDesigns').onclick = () => openPanel(panel.hidden);
+
+/* ============ confirmed menu / product swaps ============ */
+function menuDesign(d=cur){ return d && MENU_DESIGNS && MENU_DESIGNS.designs ? MENU_DESIGNS.designs[d.id] : null; }
+function menuBrand(brandId){ return MENU_CATALOG && MENU_CATALOG.brands ? MENU_CATALOG.brands[brandId] : null; }
+function catalogItem(brandId,itemId){
+  const brand=menuBrand(brandId); if(!brand) return null;
+  for(const menu of brand.menus||[]) for(const section of menu.sections||[]) for(const item of section.items||[])
+    if(item.id===itemId) return {...item,menuId:menu.id,menuName:menu.name,section:section.name};
+  return null;
+}
+function menuPrices(item){ return String(item.price||'').split(/\s*\/\s*/).filter(Boolean); }
+function menuText(template,item){
+  const prices=menuPrices(item);
+  const vars={
+    name:item.name||'', description:item.description||'', descriptionUpper:(item.description||'').toUpperCase(),
+    price:item.price||'', price1:prices[0]||item.price||'', price2:prices[1]||prices[0]||item.price||'',
+    dietary:(item.dietary||[]).join(' · '), note:item.note||''
+  };
+  return String(template||'{name}').replace(/\{(\w+)\}/g,(_,key)=>vars[key]??'');
+}
+function fitMenuText(layer,baseComp){
+  if(!layer || layer.type!=='text') return layer;
+  const font=layer.font||{}, original=Number(font.sizePct)||5;
+  const canvas=document.createElement('canvas'), ctx=canvas.getContext('2d');
+  const W=baseComp.width||1080, H=baseComp.height||1080;
+  const bw=Math.max(1,(layer.w||100)/100*W), bh=Math.max(1,(layer.h||100)/100*H);
+  let text=String(layer.text||''); if(font.transform==='uppercase') text=text.toUpperCase();
+  const sizeFor=p=>{
+    const fs=p/100*W;
+    ctx.font=`${font.style==='italic'?'italic ':''}${font.weight||400} ${fs}px "${font.family||'sans-serif'}",sans-serif`;
+    if('letterSpacing' in ctx) ctx.letterSpacing=((font.letterSpacingEm||0)*fs)+'px';
+    return fs*(font.lineHeight||1.2);
+  };
+  let size=original;
+  const min=Math.max(1.5,original*.45);
+  while(size>min && wrap(ctx,text,bw).length*sizeFor(size)>bh*.82) size-=.4;
+  layer.font={...font,sizePct:Math.round(size*10)/10};
+  return layer;
+}
+function menuOverrides(baseComp,mapping,item){
+  const out=[];
+  for(const slot of mapping.slots||[]){
+    const src=(baseComp.layers||[]).find(layer=>layer.id===slot.layerId);
+    if(!src) continue;
+    let text=menuText(slot.template,item);
+    if(slot.uppercase) text=text.toUpperCase();
+    const layer=clone(src); layer.text=text; fitMenuText(layer,baseComp);
+    out.push({layerId:layer.id,text:layer.text,font:layer.font});
+  }
+  if(mapping.imageLayerId && item.image) out.push({layerId:mapping.imageLayerId,url:item.image});
+  return out;
+}
+function applyMenuOverrides(baseComp,overrides){
+  const comp=clone(baseComp||cur.comp);
+  for(const patch of overrides||[]){
+    const layer=(comp.layers||[]).find(l=>l.id===patch.layerId); if(!layer) continue;
+    if(patch.text!=null) layer.text=patch.text;
+    if(patch.font) layer.font={...layer.font,...patch.font};
+    if(patch.url) layer.url=patch.url;
+  }
+  return comp;
+}
+async function persistMenuAnimation(data){
+  const store=LS.get('sa.anims',{}); (store[cur.id]=store[cur.id]||[]).push(data); LS.set('sa.anims',store);
+  if(cur.fromLib){ try{ await fetch('api/library/animations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({designId:cur.id,animation:data})}); }catch{} }
+}
+async function createMenuVariation(item){
+  const mapping=menuDesign(cur); if(!mapping) return;
+  const existing=cur.anims.find(a=>a.data.origin==='menu'&&a.data.menu&&a.data.menu.itemId===item.id);
+  if(existing){ selectAnim(existing); return; }
+  const base=cur.baseComp||cur.comp;
+  const original=cur.anims.find(a=>a.data.origin==='original');
+  const baseAnim=original?clone(original.data):compMotion(base); if(baseAnim.byId) delete baseAnim.byId;
+  const overrides=menuOverrides(base,mapping,item);
+  const id='menu-'+item.id.replace(/[^a-z0-9]+/g,'-').slice(0,55)+'-'+Date.now().toString(36);
+  const data={...baseAnim,id,name:'Menu variation — '+item.name,origin:'menu',compositionId:cur.id,createdAt:new Date().toISOString(),duration:baseAnim.duration||base.duration||10000,menu:{itemId:item.id,itemName:item.name,price:item.price,description:item.description,menuId:item.menuId,menuName:item.menuName,section:item.section,overrides,image:item.image||''}};
+  const obj={id,data:prep(data),saved:true}; obj.data.id=id; cur.anims.push(obj);
+  await persistMenuAnimation(data);
+  selectAnim(obj); toast('Menu variation created.'); if(panel.hidden) openPanel(true);
+}
+function deleteMenuVariation(event,item){
+  event.stopPropagation();
+  if(!confirm(`Delete “${item.data.name}”?`)) return;
+  cur.anims=cur.anims.filter(a=>a!==item);
+  const store=LS.get('sa.anims',{}); if(store[cur.id]){store[cur.id]=store[cur.id].filter(a=>a.id!==item.data.id);LS.set('sa.anims',store);}
+  if(cur.fromLib) fetch('api/library/animations/'+encodeURIComponent(item.data.id)+'?designId='+encodeURIComponent(cur.id),{method:'DELETE'}).catch(()=>{});
+  if(curAnim===item.data){curAnim=null;cur.comp=cur.baseComp||cur.comp;showSource(true,false);if(!audioEl.hidden)renderAudio();renderPanel();paintMain();}
+  else renderPanel();
+  toast('Menu variation deleted.');
+}
+function menuFileToDataUrl(file){
+  return new Promise((resolve,reject)=>{
+    const img=new Image(), url=URL.createObjectURL(file);
+    img.onload=()=>{
+      let w=img.naturalWidth,h=img.naturalHeight, max=1600;
+      if(w>max||h>max){const s=Math.min(max/w,max/h);w=Math.round(w*s);h=Math.round(h*s);}
+      const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);
+      URL.revokeObjectURL(url);resolve(c.toDataURL('image/jpeg',.86));
+    };
+    img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('That image could not be read.'));};
+    img.src=url;
+  });
+}
+async function setMenuImage(file){
+  if(!curAnim||!curAnim.menu) return;
+  try{
+    const mapping=menuDesign(cur); if(!mapping||!mapping.imageLayerId) return;
+    const dataUrl=await menuFileToDataUrl(file);
+    const overrides=(curAnim.menu.overrides||[]).filter(o=>o.layerId!==mapping.imageLayerId);
+    overrides.push({layerId:mapping.imageLayerId,url:dataUrl});
+    curAnim.menu.overrides=overrides; curAnim.menu.image=dataUrl;
+    cur.comp=applyMenuOverrides(cur.baseComp||cur.comp,overrides);
+    const store=LS.get('sa.anims',{}); const list=store[cur.id]||[]; const hit=list.find(a=>a.id===curAnim.id); if(hit){hit.menu=curAnim.menu;LS.set('sa.anims',store);}
+    if(cur.fromLib){ try{ const payload=clone(curAnim); delete payload.byId; await fetch('api/library/animations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({designId:cur.id,animation:payload})}); }catch{} }
+    paintMain(); renderPanel(); toast('Product image added to this menu variation.');
+  }catch(error){ toast(error.message||'Could not use that image.','err'); }
+}
+function openMenuPicker(){
+  const mapping=menuDesign(cur), brand=menuBrand(cur.brandId); if(!mapping||!brand) return;
+  MENU_QUERY=''; $('#menuSearch').value=''; renderMenuPicker(); $('#menuDialog').showModal(); setTimeout(()=>$('#menuSearch').focus(),30);
+}
+function renderMenuPicker(){
+  const mapping=menuDesign(cur), brand=menuBrand(cur.brandId), body=$('#menuBody'); if(!mapping||!brand||!body) return;
+  const q=MENU_QUERY.trim().toLowerCase(); body.replaceChildren();
+  const menus=(brand.menus||[]).filter(menu=>!mapping.allowedMenus||mapping.allowedMenus.includes(menu.id));
+  let count=0;
+  for(const menu of menus) for(const section of menu.sections||[]){
+    const items=(section.items||[]).filter(item=>!q||[item.name,item.description,item.price,section.name,menu.name].join(' ').toLowerCase().includes(q));
+    if(!items.length) continue;
+    const group=mk('div',{className:'menu-group'},mk('h3',{},`${menu.name} · ${section.name}`));
+    for(const item of items){ count++;
+      const current=curAnim&&curAnim.menu&&curAnim.menu.itemId===item.id;
+      const b=mk('button',{type:'button',className:'menu-pick',onclick:()=>{ $('#menuDialog').close(); createMenuVariation({...item,menuId:menu.id,menuName:menu.name,section:section.name}); }},
+        mk('span',{className:'price'},item.price||''),mk('b',{},item.name+(current?' · current':'')),
+        mk('small',{},[item.description,item.dietary?.length?item.dietary.join(' · '):''].filter(Boolean).join(' — ')));
+      group.append(b);
+    }
+    body.append(group);
+  }
+  if(!count) body.append(mk('p',{style:'color:var(--mu);font-size:12px'},'No menu items match that search.'));
+}
+$('#menuSearch').oninput=e=>{MENU_QUERY=e.target.value;renderMenuPicker();};
+
+function renderPanel(){
+  panel.replaceChildren();
+  $('#tAdmin').setAttribute('aria-pressed', String(ADMIN));
+  $('#tAdmin').title = ADMIN ? 'Admin view: showing broken animations too' : 'Admin: include broken animations';
+  if(!cur){
+    panel.append(mk('div',{className:'dh'},mk('h2',{},'Designs')));
+    const body = mk('div',{className:'db'}); panel.append(body);
+    const brandBar = mk('label',{className:'brandbar'},mk('span',{},'Brand'));
+    const brandSelect = mk('select',{id:'brandSel','aria-label':'Filter designs by brand'},
+      mk('option',{value:''},'All brands'),
+      [...BRANDS.entries()].sort((a,b)=>a[1].localeCompare(b[1])).map(([id,name])=>mk('option',{value:id},name)));
+    brandSelect.value = BRANDS.has(BRAND) ? BRAND : '';
+    brandSelect.onchange = () => { BRAND = brandSelect.value; LS.set('sa.brand',BRAND); renderPanel(); };
+    brandBar.append(brandSelect); body.append(brandBar);
+    const list = visibleDesigns();
+    if(!list.length){ body.append(mk('p',{style:'color:var(--mu)'},'No designs for this brand. Choose another brand or publish a template.')); return; }
+    const g = mk('div',{className:'grid'}); body.append(g);
+    list.forEach(d => { const c = d.sourcePoster ? mk('img',{className:'poster',src:d.sourcePoster,alt:'',loading:'lazy'}) : mk('canvas',{width:300,height:300}); if(c.dataset)c.dataset.did=d.id;
+      g.append(mk('button',{className:'card',onclick:()=>selectDesign(d)},c,mk('b',{},dTitle(d)),mk('small',{},`${d.src}${d.status&&d.status!=='ready'?' · '+d.status:''} · ${d.anims.length} animation${d.anims.length===1?'':'s'}`))); });
+    paintThumbs(); return;
+  }
+  panel.append(mk('div',{className:'dh'},mk('div',{},mk('h2',{},dTitle(cur)),mk('small',{},cur.comp.name.split(' — ')[0])),mk('button',{className:'lnk',onclick:()=>{cur=null;curAnim=null;SRC=false;SRC_VIDEO='';SRC_POSTER='';SRC_KEY='';stopAudioMix();$('#srcVideo').classList.remove('on');$('#srcVideo').pause();$('#srcPoster').classList.remove('on');$('#srcPoster').hidden=true;$('#cv').hidden=false;cancelAnimationFrame(raf);fmtOpen=false;ctxLbl();paintMain();$('#replay').disabled=true;$('#tExport').disabled=true;$('#tAudio').disabled=true;openAudio(false);markAudioHas(false);renderPanel();}},'← Designs')));
+  const body = mk('div',{className:'db'}); panel.append(body);
+  const fm = FORMATS.find(f=>f.id===fmt);
+  if(!fmtOpen){
+    body.append(mk('div',{className:'sec',style:'margin-top:0'},'Animations'));
+    cur.anims.forEach(a => body.append(mk('button',{className:'row',onclick:()=>selectAnim(a)},mk('span',{},animLabel(a.data,cur),mk('br'),mk('small',{},((a.data.duration||0)/1000).toFixed(1)+' s')),mk('span',{},...(a.saved?[mk('span',{className:'tag'},'Saved')]:[]),...(a.data.origin==='menu'?[mk('span',{className:'tag',style:'margin-left:4px'},'Menu')]:[]),...(a.data.origin==='menu'?[mk('button',{type:'button',className:'tag',style:'margin-left:4px;padding:0 5px',title:'Delete this menu variation',onclick:ev=>deleteMenuVariation(ev,a)},'×')]:[]),...(ADMIN&&a.data._status&&a.data._status!=='ok'?[mk('span',{className:'tag',style:'margin-left:4px'},a.data._status)]:[])))));
+    body.querySelectorAll('.row').forEach((r,i)=>r.setAttribute('aria-current',!!cur.anims[i]&&cur.anims[i].data===curAnim));
+    if(!cur.anims.length) body.append(mk('p',{style:'color:var(--mu)'},'No animations yet. Ask the assistant to create one.'));
+    const mapping=menuDesign(cur);
+    if(mapping){
+      const brand=menuBrand(cur.brandId);
+      const current=curAnim&&curAnim.menu?{...curAnim.menu,menuName:curAnim.menu.menuName,section:curAnim.menu.section}:catalogItem(cur.brandId,mapping.currentItemId);
+      const menuName=current&&(current.menuName||(brand&&(brand.menus.find(m=>m.id===current.menuId)||{}).name));
+      const menuCard=mk('div',{className:'menu-card'},
+        mk('div',{className:'mk'},'Menu item',mk('span',{title:'This design uses a confirmed menu item. You can change it without changing the layout, type or visual style.',style:'cursor:help;color:var(--mc-ink)'},'ⓘ')),
+        mk('h3',{},current?current.itemName||current.name:'—'),
+        mk('p',{},current?[current.price,menuName,current.section].filter(Boolean).join(' · '):'No menu item selected.'),
+        ...(current&&current.description?[mk('p',{style:'font-size:10.5px;color:var(--mc-mu);margin-bottom:6px'},current.description)]:[]),
+        ...(current&&current.dietary&&current.dietary.length?[mk('p',{style:'font-size:10px;color:var(--mc-mu);margin-bottom:6px'},'Dietary: '+current.dietary.join(' · '))]:[]),
+        mk('div',{className:'menu-actions'},mk('button',{type:'button',onclick:openMenuPicker},'Change item')),
+        mk('span',{className:'menu-note'},'Changes create a separate Menu variation; the source Original motion stays untouched.'));
+      if(curAnim&&curAnim.menu&&curAnim.menu.overrides&&mapping.imageLayerId){
+        const image=curAnim.menu.image;
+        const row=mk('div',{className:'menu-img'});
+        if(image) row.append(mk('img',{src:image,alt:''}));
+        const file=mk('input',{type:'file',accept:'image/*',hidden:true,onchange:async ev=>{const f=ev.target.files&&ev.target.files[0];if(!f)return;await setMenuImage(f);}});
+        row.append(file,mk('button',{type:'button',onclick:()=>file.click()},image?'Replace image':'Add product image'),
+          mk('button',{type:'button',onclick:()=>window.open('https://www.google.com/search?tbm=isch&q='+encodeURIComponent((brand?brand.name:'')+' '+(curAnim.menu.itemName||'product image')),'_blank','noopener')},'Search online'));
+        menuCard.append(row);
+        if(!image) menuCard.append(mk('span',{className:'menu-note'},'No product image is attached to this menu item. Add one, or search online and upload the image you choose.'));
+      } else if(curAnim&&curAnim.menu){
+        menuCard.append(mk('span',{className:'menu-note'},'This design has no separate product-image slot; the product text is updated.'));
+      }
+      body.append(menuCard);
+    }
+  }
+  const tg = mk('button',{className:'row',style:'margin-top:10px',onclick:()=>{fmtOpen=!fmtOpen;renderPanel();}},mk('span',{},'Formats',mk('br'),mk('small',{},fm.label+(fm.r?' · '+fm.r:''))),mk('span',{},fmtOpen?'▴':'▾'));
+  tg.setAttribute('aria-expanded',fmtOpen); body.append(tg);
+  if(fmtOpen){ const f = mk('div',{className:'fmt'}); FORMATS.forEach(o=>f.append(mk('button',{className:'row',onclick:()=>{fmt=o.id;fmtOpen=false;paintMain();renderPanel();}},mk('span',{},o.label),mk('small',{},o.r||(cur.comp.width+'×'+cur.comp.height))))); f.querySelectorAll('.row').forEach((r,i)=>r.setAttribute('aria-current',FORMATS[i].id===fmt)); body.append(f); }
+}
+function showSource(on, playIt=false, source=null){
+  const video = source ? (source.video||'') : ((cur&&cur.sourceVideo)||'');
+  const poster = source ? (source.poster||'') : ((cur&&cur.sourcePoster)||'');
+  const key = source ? (source.key||'') : ((cur&&cur.id)||'');
+  SRC = !!(on && video);
+  SRC_VIDEO = SRC ? video : '';
+  SRC_POSTER = SRC ? poster : '';
+  SRC_KEY = SRC ? key : '';
+  const v=$('#srcVideo'), img=$('#srcPoster'), c=$('#cv');
+  if(!SRC){ stopAudioMix(); v.pause(); v.classList.remove('on'); img.classList.remove('on'); img.hidden=true; c.hidden=false; return; }
+  c.hidden=true;
+  if(playIt){
+    img.classList.remove('on'); img.hidden=true;
+    if(v.dataset.id!==key){ v.dataset.id=key; v.src=video; v.poster=poster||''; v.load(); }
+    v.classList.add('on'); v.currentTime=0; v.play().catch(()=>{});
+  } else {
+    v.pause(); v.classList.remove('on');
+    img.src=(poster||'')+(poster?('?v='+Date.now()):''); img.hidden=false; img.classList.add('on');
+  }
+  syncAudioMix();
+}
+function selectDesign(d){ SEL=new Set(); cur=d; cur.comp=d.baseComp||d.comp; curAnim=null; fmt='orig'; fmtOpen=false; T=0; $('#tExport').disabled=false; $('#tAudio').disabled=false; showSource(true,false); fontFor(d.comp); d.comp.layers.forEach(l=>l.url&&getImg(l.url)); ctxLbl(); paintMain(); renderPanel(); renderGroups(); loadLib(d); markAudioHas(false); if(!audioEl.hidden) renderAudio(); else narrationFor(d.id).then(narration=>{ if(cur&&cur.id===d.id) markAudioHas(!!narration); }).catch(()=>{}); }
+function selectAnim(a){ if(!a.data.byId) a.data=prep(a.data); curAnim=a.data; cur.comp=a.data.menu&&a.data.menu.overrides?applyMenuOverrides(cur.baseComp||cur.comp,a.data.menu.overrides):(cur.baseComp||cur.comp); $('#replay').disabled=false; renderPanel(); const source=a.data.sourceVideo?{video:a.data.sourceVideo,poster:a.data.sourcePoster||cur.sourcePoster,key:a.data.id||('anim-'+cur.id)}:null; if(source) showSource(true,true,source); else if(a.data.origin==='original') showSource(true,true); else { showSource(false); play(); } loadAudioMix().then(()=>syncAudioMix(true)).catch(()=>{}); if(!audioEl.hidden) renderAudio(); showTip(); if(innerWidth-Math.min(innerWidth,innerHeight)<2*346) openPanel(false); }
+
+/* ============ library: groups + clips ============ */
+async function loadLib(d){ if(!d.detail||d.lib) return; try{ d.lib=await jget(d.detail); if(!CLIPS) CLIPS=(await jget(LIBIDX.files.clips)).clips; }catch(e){ console.warn(e); } if(cur===d) renderGroups(); }
+function renderGroups(){ const box=$('#groups'); box.replaceChildren(); if(!cur||!cur.lib) return;
+  cur.lib.groups.filter(g=>g.kind!=='photo').forEach(g=>{ const b=mk('button',{type:'button',onclick:()=>{ SEL.has(g.id)?SEL.delete(g.id):SEL.add(g.id); b.setAttribute('aria-pressed',SEL.has(g.id)); paintMain(); }},g.kind.replace(/-/g,' ')+': '+(g.label||'').slice(0,18)); b.setAttribute('aria-pressed',SEL.has(g.id)); box.append(b); }); }
+function ctxWithLib(){ const c=context(); c.format={id:fmt,label:(FORMATS.find(f=>f.id===fmt)||FORMATS[0]).label,ratio:(FORMATS.find(f=>f.id===fmt)||FORMATS[0]).r||'Original'}; if(cur.lib){ c.library={brand:cur.lib.brand.name,kind:cur.lib.kind,groups:cur.lib.groups.map(g=>({id:g.id,kind:g.kind,label:g.label,layerIds:g.layerIds,start:g.window.start,end:g.window.end})),menuItems:cur.lib.menuItems.map(m=>({name:m.name,price:m.price&&m.price.raw})),entities:cur.lib.entities}; c.selectedGroups=[...SEL]; }
+  if(CLIPS) c.clips=[...CLIPS.filter(k=>k.origin==='preset'),...CLIPS.filter(k=>k.origin!=='preset').slice(0,25)].map(k=>({id:k.id,effect:k.effect,direction:k.direction,duration:k.duration,mode:k.mode})); return c; }
+async function composeSteps(out){
+  if(!cur.fromLib) return say('Composing from clips needs the library server. Ask for a new animation instead.','err');
+  try{ const r=await fetch('api/library/compose',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({designId:cur.id,name:out.name||(out.animation&&out.animation.name)||'Composed animation',steps:out.steps,save:true})});
+    const j=await r.json(); if(!r.ok) throw new Error(j.error||r.status);
+    const data=Object.assign(j.animation,{_saved:true}); const item={id:data.id,data:prep(data),saved:true}; item.data.id=data.id; cur.anims.push(item);
+    say(`Saved “${data.name}”. Find it under Animations for this design (stored in the library).`,'ok'); toast('Animation saved'); selectAnim(item); if(panel.hidden) openPanel(true);
+  }catch(err){ say('Could not build that animation: '+err.message,'err'); } }
+
+/* ============ assistant ============ */
+const CFG = () => Object.assign({local:{...DEF.local},deepseek:{...DEF.deepseek}},LS.get('sa.cfg',{}));
+const providerId = () => { const value=$('#prov').value; return value==='local'?'ollama':(value||'ollama'); };
+const providerConfigKey = () => providerId()==='deepseek'?'deepseek':'local';
+const chat = $('#chat'), log = $('#log'); let HIST = [];
+const ctxLbl = () => { $('#ctxLbl').textContent = cur ? (dTitle(cur)+(curAnim?' · '+animLabel(curAnim,cur):'')) : 'Pick a design first'; };
+function say(text,cls,extra){ const m=mk('div',{className:'m '+(cls||'')},text); if(extra) m.append(extra); log.append(m); log.scrollTop=log.scrollHeight; return m; }
+function sayMedia(items){ // show attached media in chat as user message
+  if(!items.length) return;
+  const row=mk('div',{style:'display:flex;gap:5px;flex-wrap:wrap;margin-top:4px'});
+  items.forEach(att=>{
+    if(att.type==='image') row.append(mk('img',{src:att.dataUrl,alt:att.name,style:'width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid var(--line)'}));
+    else if(att.type==='video'){ const v=mk('video',{src:att.dataUrl,muted:true,style:'width:64px;height:48px;object-fit:cover;border-radius:6px;border:1px solid var(--line)'}); v.onloadeddata=()=>{v.currentTime=0.5}; row.append(v); }
+    else if(att.type==='canvas') row.append(mk('img',{src:att.dataUrl,alt:'Canvas capture',style:'width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid var(--ac)'}));
+    else if(att.type==='area') row.append(mk('img',{src:att.dataUrl,alt:att.name,style:'max-width:80px;height:48px;object-fit:cover;border-radius:6px;border:1px solid var(--ac)'}));
+  });
+  log.append(row); log.scrollTop=log.scrollHeight;
+}
+$('#tAsk').onclick = () => { if(chat.hidden) openAudio(false); chat.hidden=!chat.hidden; $('#tAsk').setAttribute('aria-expanded',!chat.hidden); if(!chat.hidden) $('#in').focus(); };
+$('#prov').value = LS.get('sa.prov','local'); $('#prov').onchange = e => LS.set('sa.prov',e.target.value);
+[['New animation','Create a new animation for this design: '],['Change this one','Modify the current animation: '],['New composition','Generate a new composition variation based on: '],['Review & correct','Review the composition and the current animation. My feedback: ']].forEach(([l,t])=>$('#chips').append(mk('button',{type:'button',onclick:()=>{$('#in').value=t;$('#in').focus();}},l)));
+$('#cfgBtn').onclick = () => { const c=CFG(); $('#lUrl').value=c.local.url; $('#lMod').value=c.local.model; $('#dUrl').value=c.deepseek.url; $('#dMod').value=c.deepseek.model; $('#dKey').value=c.deepseek.key||''; $('#cfg').showModal(); };
+$('#cfgSave').onclick = () => LS.set('sa.cfg',{local:{url:$('#lUrl').value.trim(),model:$('#lMod').value.trim()},deepseek:{url:$('#dUrl').value.trim(),model:$('#dMod').value.trim(),key:$('#dKey').value.trim()}});
+
+/* ============ attachments: images, video, canvas capture ============ */
+let ATTACHMENTS = []; // [{type:'image'|'video'|'canvas', name, dataUrl, mimeType}]
+function fileToDataUrl(file, maxDim=1600){
+  return new Promise((resolve,reject)=>{
+    if(file.type.startsWith('video/')){
+      const reader=new FileReader();
+      reader.onload=()=>resolve(reader.result);
+      reader.onerror=()=>reject(new Error('Could not read video file'));
+      reader.readAsDataURL(file);
+      return;
+    }
+    const img=new Image(), url=URL.createObjectURL(file);
+    img.onload=()=>{
+      let w=img.naturalWidth, h=img.naturalHeight;
+      if(w>maxDim||h>maxDim){const s=Math.min(maxDim/w,maxDim/h);w=Math.round(w*s);h=Math.round(h*s);}
+      const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);
+      URL.revokeObjectURL(url);resolve(c.toDataURL('image/jpeg',.88));
+    };
+    img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Could not read image'));};
+    img.src=url;
+  });
+}
+function extractVideoFrames(dataUrl, count=3){
+  return new Promise((resolve)=>{
+    const video=document.createElement('video');
+    video.muted=true; video.preload='auto';
+    video.onloadeddata=()=>{
+      const dur=video.duration||1;
+      const times=count<=1?[0]:Array.from({length:count},(_,i)=>i*(dur/(count-1)));
+      const frames=[];
+      let idx=0;
+      const grab=()=>{
+        const c=document.createElement('canvas');
+        const scale=Math.min(800/video.videoWidth,800/video.videoHeight,1);
+        c.width=Math.round(video.videoWidth*scale); c.height=Math.round(video.videoHeight*scale);
+        c.getContext('2d').drawImage(video,0,0,c.width,c.height);
+        frames.push(c.toDataURL('image/jpeg',.82));
+        idx++;
+        if(idx<times.length){video.currentTime=times[idx];}
+        else{resolve(frames);}
+      };
+      video.onseeked=grab;
+      video.currentTime=times[0];
+    };
+    video.onerror=()=>resolve([]);
+    video.src=dataUrl;
+  });
+}
+function captureCanvas(){
+  if(!cur) return null;
+  const S=720, c=document.createElement('canvas');c.width=S;c.height=S;
+  draw(c.getContext('2d'),S,{...cur,lib:null},curAnim,T,fmt);
+  return c.toDataURL('image/jpeg',.88);
+}
+function addAttachment(att){
+  ATTACHMENTS.push(att);
+  renderAttachThumbs();
+}
+function removeAttachment(idx){
+  ATTACHMENTS.splice(idx,1);
+  renderAttachThumbs();
+}
+function clearAttachments(){
+  ATTACHMENTS=[];
+  renderAttachThumbs();
+}
+function renderAttachThumbs(){
+  const box=$('#attachThumbs'); box.replaceChildren();
+  ATTACHMENTS.forEach((att,i)=>{
+    const wrap=mk('div',{className:'att'});
+    if(att.type==='video'){
+      const v=mk('video',{src:att.dataUrl,muted:true});
+      v.onloadeddata=()=>{v.currentTime=0.5;};
+      wrap.append(v);
+    } else {
+      wrap.append(mk('img',{src:att.dataUrl,alt:att.name||att.type}));
+    }
+    wrap.append(mk('button',{className:'att-x',type:'button',onclick:()=>removeAttachment(i),title:'Remove'},'×'));
+    wrap.append(mk('span',{className:'att-label'},att.name||att.type));
+    box.append(wrap);
+  });
+}
+$('#btnAttachImg').onclick=()=>$('#fileImg').click();
+$('#btnAttachVid').onclick=()=>$('#fileVid').click();
+$('#btnAttachCanvas').onclick=()=>{
+  const snap=captureCanvas();
+  if(!snap) return toast('Pick a design first to capture the canvas.','err');
+  addAttachment({type:'canvas',name:'Canvas snapshot',dataUrl:snap,mimeType:'image/jpeg'});
+  toast('Canvas captured as reference.');
+};
+function cropArea(box){ // box in {x, y, w, h} in % of composition
+  if(!cur||!LAST_RECT.cw) return null;
+  const S=1080, c=document.createElement('canvas');c.width=S;c.height=S;
+  draw(c.getContext('2d'),S,{...cur,lib:null},curAnim,T,fmt);
+  const {cx,cy,cw,ch}=LAST_RECT;
+  const rx=Math.max(0,cx+(box.x/100)*cw), ry=Math.max(0,cy+(box.y/100)*ch);
+  const rw=Math.max(12,(box.w/100)*cw), rh=Math.max(12,(box.h/100)*ch);
+  const out=document.createElement('canvas');out.width=Math.round(rw);out.height=Math.round(rh);
+  out.getContext('2d').drawImage(c,rx,ry,rw,rh,0,0,out.width,out.height);
+  return out.toDataURL('image/jpeg',.90);
+}
+function findLayersInBox(box){
+  if(!cur||!cur.comp) return [];
+  const bx2=box.x+box.w, by2=box.y+box.h;
+  return cur.comp.layers.filter(l=>l.visible!==false&&l.x<bx2&&(l.x+l.w)>box.x&&l.y<by2&&(l.y+l.h)>box.y);
+}
+function findLayerAtPoint(px,py){
+  if(!cur||!cur.comp) return null;
+  const sorted=[...cur.comp.layers].sort((a,b)=>(b.z||0)-(a.z||0));
+  return sorted.find(l=>l.visible!==false&&px>=l.x&&px<=(l.x+l.w)&&py>=l.y&&py<=(l.y+l.h));
+}
+function startAreaSelect(){
+  if(!cur) return toast('Pick a design first.','err');
+  AREA_MODE=true; AREA_BOX=null; AREA_DRAG=null;
+  $('#cv').classList.add('area-mode');
+  $('#areaBanner').hidden=false;
+}
+function stopAreaSelect(){
+  AREA_MODE=false; AREA_BOX=null; AREA_DRAG=null;
+  $('#cv').classList.remove('area-mode');
+  $('#areaBanner').hidden=true;
+  paintMain();
+}
+$('#btnAttachArea').onclick=startAreaSelect;
+$('#btnCancelArea').onclick=stopAreaSelect;
+
+function pointerToCompPct(e){
+  const r=cv.getBoundingClientRect();
+  const scale=cv.width/r.width;
+  const px=(e.clientX-r.left)*scale, py=(e.clientY-r.top)*scale;
+  const {cx,cy,cw,ch}=LAST_RECT;
+  if(!cw||!ch) return {x:0,y:0};
+  return {x:Math.round(((px-cx)/cw*100)*10)/10, y:Math.round(((py-cy)/ch*100)*10)/10};
+}
+
+cv.addEventListener('pointerdown',e=>{
+  if(!AREA_MODE) return;
+  e.preventDefault();
+  const p=pointerToCompPct(e);
+  AREA_DRAG={x0:p.x,y0:p.y,cx0:e.clientX,cy0:e.clientY};
+  AREA_BOX={x:p.x,y:p.y,w:0,h:0};
+});
+window.addEventListener('pointermove',e=>{
+  if(!AREA_MODE||!AREA_DRAG) return;
+  const p=pointerToCompPct(e);
+  const x=Math.min(AREA_DRAG.x0,p.x), y=Math.min(AREA_DRAG.y0,p.y);
+  const w=Math.max(1,Math.abs(p.x-AREA_DRAG.x0)), h=Math.max(1,Math.abs(p.y-AREA_DRAG.y0));
+  AREA_BOX={x,y,w,h};
+  paintMain();
+});
+window.addEventListener('pointerup',e=>{
+  if(!AREA_MODE||!AREA_DRAG) return;
+  const dist=Math.hypot(e.clientX-AREA_DRAG.cx0,e.clientY-AREA_DRAG.cy0);
+  let finalBox=AREA_BOX;
+  if(dist<8){
+    // Clicked a layer
+    const l=findLayerAtPoint(AREA_DRAG.x0,AREA_DRAG.y0);
+    if(l) finalBox={x:l.x,y:l.y,w:l.w,h:l.h};
+    else finalBox={x:Math.max(0,AREA_DRAG.x0-10),y:Math.max(0,AREA_DRAG.y0-10),w:20,h:20};
+  }
+  if(finalBox && finalBox.w>=1 && finalBox.h>=1){
+    const crop=cropArea(finalBox);
+    const layers=findLayersInBox(finalBox);
+    const label=layers.length ? 'Area: '+layers.map(l=>l.name||l.id).slice(0,2).join(' + ') : `Area: ${Math.round(finalBox.w)}×${Math.round(finalBox.h)}%`;
+    addAttachment({type:'area',name:label,dataUrl:crop,mimeType:'image/jpeg',bbox:finalBox,layers:layers.map(l=>l.id)});
+    toast('Captured area for the assistant.');
+    openAudio(false); chat.hidden=false; $('#tAsk').setAttribute('aria-expanded','true'); $('#in').focus();
+  }
+  stopAreaSelect();
+});
+$('#fileImg').onchange=async e=>{
+  for(const f of e.target.files||[]){
+    try{const url=await fileToDataUrl(f);addAttachment({type:'image',name:f.name,dataUrl:url,mimeType:'image/jpeg'});}
+    catch(err){toast(err.message,'err');}
+  }
+  e.target.value='';
+};
+$('#fileVid').onchange=async e=>{
+  const f=e.target.files&&e.target.files[0]; if(!f) return;
+  try{
+    const url=await fileToDataUrl(f);
+    addAttachment({type:'video',name:f.name,dataUrl:url,mimeType:f.type||'video/mp4'});
+    toast('Video attached — frames will be extracted and sent as visual context.');
+  }catch(err){toast(err.message,'err');}
+  e.target.value='';
+};
+// drag & drop onto the chat area
+const formWrap=$('#form-wrap');
+['dragenter','dragover'].forEach(ev=>formWrap.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();$('#dropOverlay').classList.add('on');}));
+['dragleave','drop'].forEach(ev=>formWrap.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();$('#dropOverlay').classList.remove('on');}));
+formWrap.addEventListener('drop',async e=>{
+  for(const f of e.dataTransfer.files||[]){
+    try{
+      if(f.type.startsWith('image/')){const url=await fileToDataUrl(f);addAttachment({type:'image',name:f.name,dataUrl:url,mimeType:'image/jpeg'});}
+      else if(f.type.startsWith('video/')){const url=await fileToDataUrl(f);addAttachment({type:'video',name:f.name,dataUrl:url,mimeType:f.type});}
+      else toast('Only images and videos can be attached.','err');
+    }catch(err){toast(err.message,'err');}
+  }
+});
+
+const r3 = v => Math.round(v*1000)/1000;
+const thin = (fr,n=14) => fr.length<=n ? fr : Array.from({length:n},(_,i)=>fr[Math.round(i*(fr.length-1)/(n-1))]);
+const SYSTEM = `You are the animation and layout assistant inside a design studio. You receive a COMPOSITION (layers with x,y,w,h in % of the artboard) and the CURRENT ANIMATION (tracks).
+You may also receive reference IMAGES or VIDEO FRAMES from the user. Use these visual inputs to understand what the user wants: the mood, motion style, layout, or specific visual elements they are referring to. When images are provided, analyse them carefully — they may show a desired animation style, a visual problem to fix, a reference composition, or a specific area of the design the user wants to change.
+Animation schema "agent-studio/animation/2": {"name":string,"duration":ms,"tracks":[{"layerId":string,"segments":[{"preset":"keyframes","start":0,"duration":ms,"loop":false,"frames":[{"t":ms,"dx":n,"dy":n,"sx":n,"sy":n,"a":n,"e":"linear|in|out|inOut"}]}]}]}.
+dx,dy are offsets as fractions of the artboard added to the layer's own x,y (0.1 = 10%). sx,sy multiply the layer size (default 1). a is opacity 0..1 (default 1). Omitted dx,dy default 0. e is the easing used to reach that frame. Frame times are relative to the segment start. Layers without a track stay static.
+Reply with ONE JSON object and nothing else:
+{"reply":"short plain-language answer","animation":{"name":"...","duration":ms,"keepOthers":bool,"tracks":[...]} (omit or tracks:[] when only fixing layout or user asks not to change animation),"composition_fixes":[{"layerId":"...","set":{"x":n,"y":n,"w":n,"h":n,"text":"...","color":"#hex","font.sizePct":n,"opacity":n,"visible":bool}}] (only when correcting the composition),"review":[{"layerId":"...","observation":"...","suggestion":"..."}] (only when asked for a review)}.
+Rules:
+1. When fixing text overlap: give each text layer its own distinct vertical slot (y and h range) so they never collide. Make boxes wide enough and font sizes small enough that single-line text does not wrap unexpectedly.
+2. If the user asks to only correct composition or not touch motion, return composition_fixes and do NOT include new animation tracks.
+3. keepOthers=true means unlisted layers keep their current motion; false means unlisted layers are static. Keep layer ids exact. Keep duration between 3000 and 15000. Use few, well-eased keyframes. Never invent layer ids. Do not change copy unless asked.
+When "library" and "clips" are in the context, prefer assembling motion from them: return "steps":[{"target":"<group id or layer id>","clip":"<clip id>","start":ms,"duration":ms,"stagger":ms}] plus "name", instead of raw tracks. Use only ids that appear in the context. If selectedGroups is not empty, restrict changes to those groups.`;
+function context(){ const c=cur.comp; return {composition:{name:c.name,width:c.width,height:c.height,duration:c.duration,palette:(c.brandKit?.palette||[]).map(p=>p.hex).slice(0,8),fonts:[...new Set((c.brandKit?.fonts||[]).map(f=>f.family))],layers:c.layers.map(l=>({id:l.id,name:l.name,type:l.type,text:l.text,x:l.x,y:l.y,w:l.w,h:l.h,z:l.z,color:l.color,align:l.align,opacity:l.opacity,font:l.font&&{family:l.font.family,weight:l.font.weight,sizePct:l.font.sizePct}}))},
+  currentAnimation: curAnim ? {name:curAnim.name,duration:curAnim.duration,origin:curAnim.origin||'',sourceExact:curAnim.origin==='original',tracks:curAnim.tracks.map(t=>({layerId:t.layerId,segments:t.segments.map(s=>({start:s.start,duration:s.duration,loop:s.loop,frames:thin(s.frames).map(f=>({t:f.t,dx:r3(f.dx),dy:r3(f.dy),sx:r3(f.sx),sy:r3(f.sy),a:r3(f.a)}))}))}))} : null}; }
+function providerDefault(provider) {
+  const entry = PROVIDER_CATALOG && Array.isArray(PROVIDER_CATALOG.providers)
+    ? PROVIDER_CATALOG.providers.find((item) => item.id === provider) : null;
+  if (!entry) return DEF[provider];
+  if (provider === 'deepseek') return { ...DEF.deepseek, model: entry.model || DEF.deepseek.model };
+  return { ...DEF.local, url: entry.url || DEF.local.url, model: entry.defaults?.text || entry.defaults?.vision || DEF.local.model };
+}
+async function loadProviderCatalog(){
+  try{
+    PROVIDER_CATALOG = await jget('api/agent-first/providers');
+    const options = PROVIDER_CATALOG.providers || [];
+    const current = LS.get('sa.prov','') || PROVIDER_CATALOG.defaultProvider || 'ollama';
+    const select = $('#prov'); select.replaceChildren();
+    for(const item of options){
+      const label = item.label + (item.available ? '' : ' · unavailable');
+      const option = mk('option',{value:item.id},label); select.append(option);
+    }
+    const available = options.find((item) => item.id === current && item.available) || options.find((item) => item.available) || options[0];
+    if(available){ select.value = available.id; LS.set('sa.prov',available.id); }
+    const saved = LS.get('sa.cfg',{});
+    for(const provider of ['local','deepseek']){
+      const base = providerDefault(provider==='local'?'ollama':'deepseek');
+      if(!saved[provider]) saved[provider] = { ...base, key:'' };
+      if(provider==='deepseek' && PROVIDER_CATALOG.providers?.find(p=>p.id==='deepseek')?.model) saved[provider].model = PROVIDER_CATALOG.providers.find(p=>p.id==='deepseek').model;
+      if(provider==='local' && PROVIDER_CATALOG.providers?.find(p=>p.id==='ollama')?.defaults?.text) saved[provider].model = PROVIDER_CATALOG.providers.find(p=>p.id==='ollama').defaults.text;
+      if(provider==='local' && PROVIDER_CATALOG.providers?.find(p=>p.id==='ollama')?.url) saved[provider].url = PROVIDER_CATALOG.providers.find(p=>p.id==='ollama').url + '/api/chat';
+    }
+    LS.set('sa.cfg',saved);
+    $('#prov').title = options.map(item=>`${item.label}: ${item.available?'ready':item.error||'unavailable'}`).join('\n');
+    const status=$('#providerStatus'); if(status) status.textContent=options.map(item=>`${item.label}: ${item.available?'ready':(item.error||'unavailable')}`).join(' · ');
+  }catch(error){ console.warn('provider catalog unavailable',error); }
+}
+async function callLLM(msgs){
+  const prov=providerId(), c=CFG()[providerConfigKey()], oai=/chat\/completions/.test(c.url);
+  const clean=msgs.filter(message=>message.role!=='system');
+  // Prefer the server proxy: it loads the documentation pack as system prompt,
+  // keeps API keys server-side and discovers Ollama models.
+  let proxyStatus=0, proxyError='';
+  try{
+    const response=await fetch('api/agent-first/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:prov,model:c.model,messages:clean})});
+    proxyStatus=response.status;
+    if(response.ok){ const payload=await response.json(); if(payload && typeof payload.content==='string') return payload.content; }
+    proxyError=(await response.text().catch(()=>'')).slice(0,180);
+  }catch(error){ proxyError=error.message; }
+  // Backward-compatible direct path for an older server or a browser-only key.
+  if(proxyStatus && proxyStatus!==404 && !(proxyStatus===503 && c.key)) throw new Error('Agent proxy failed ('+proxyStatus+'): '+proxyError);
+  const headers={'Content-Type':'application/json'}; if(c.key) headers.Authorization='Bearer '+c.key;
+  if(prov==='deepseek'&&!c.key) throw new Error('DeepSeek Flash is not configured on the server and no browser API key is set.');
+  const body = oai ? {model:c.model,messages:msgs,temperature:.4,max_tokens:8000,response_format:{type:'json_object'}} : {model:c.model,messages:msgs,stream:false,format:'json',options:{temperature:.4,num_ctx:32768}};
+  let r; try{ r=await fetch(c.url,{method:'POST',headers,body:JSON.stringify(body)}); }catch{ throw new Error(prov==='ollama'?'Cannot reach the local model at '+c.url+'. Is Ollama running?':'Cannot reach DeepSeek from the browser (network or CORS).'); }
+  if(!r.ok) throw new Error(prov+' returned '+r.status+' '+(await r.text().catch(()=>'')).slice(0,160));
+  const j = await r.json(); return oai ? j.choices[0].message.content : j.message.content;
+}
+/* build a multimodal user message: text + images as vision content parts */
+async function buildUserMessage(text, attachments){
+  const prov=providerId(), c=CFG()[providerConfigKey()], oai=/chat\/completions/.test(c.url);
+  if(!attachments.length){
+    // Plain text — works for both Ollama and OpenAI-compatible
+    if(oai) return {role:'user',content:text};
+    return {role:'user',content:text};
+  }
+  // Collect all image data URLs (for images/canvas/area directly, for video extract frames)
+  const imageUrls=[];
+  for(const att of attachments){
+    if(att.type==='image'||att.type==='canvas'||att.type==='area'){
+      imageUrls.push({url:att.dataUrl, label:att.name||att.type});
+    } else if(att.type==='video'){
+      const frames=await extractVideoFrames(att.dataUrl, 4);
+      frames.forEach((f,i)=>imageUrls.push({url:f, label:`${att.name} frame ${i+1}/${frames.length}`}));
+    }
+  }
+  if(oai){
+    // OpenAI-compatible vision format
+    const content=[{type:'text',text}];
+    for(const img of imageUrls){
+      content.push({type:'image_url',image_url:{url:img.url,detail:'low'}});
+    }
+    return {role:'user',content};
+  }
+  // Ollama format: images as base64 array
+  const images=imageUrls.map(img=>img.url.replace(/^data:[^;]+;base64,/,''));
+  return {role:'user',content:text,images};
+}
+const parseJSON = s => { s=String(s).replace(/^```(?:json)?|```$/gm,'').trim(); try{return JSON.parse(s)}catch{ const a=s.indexOf('{'),b=s.lastIndexOf('}'); return JSON.parse(s.slice(a,b+1)); } };
+const setPath = (o,p,v) => { const k=p.split('.'); let t=o; k.slice(0,-1).forEach(x=>t=t[x]=t[x]||{}); t[k.at(-1)]=v; };
+const OKKEYS = /^(x|y|w|h|z|opacity|rotation|text|color|align|verticalAlign|visible|font\.(sizePct|family|weight|lineHeight|letterSpacingEm|style|transform))$/;
+const displayNameFor = (rawName, compName, fallback='New animation') => {
+  const n=String(rawName||'').trim()||fallback;
+  const base=String(compName||'').split(' — ')[0];
+  return n.startsWith(compName) || (base && n.startsWith(base)) ? n : `${compName} — ${n}`;
+};
+const requestedDurationFromText = (text) => {
+  const src=String(text||'');
+  const patterns=[
+    /(?:total|duration|length)\s*(?:of|:)?\s*(\d+(?:\.\d+)?)\s*(ms|milliseconds?|s|secs?|seconds?)\b/i,
+    /(?:make|set)\s+(?:it|the animation|this)\s+(?:to\s+)?(\d+(?:\.\d+)?)\s*(ms|milliseconds?|s|secs?|seconds?)\b/i,
+    /(?:create|make|build|render)\s+(?:a\s+)?(?:new\s+)?(\d+(?:\.\d+)?)\s*(ms|milliseconds?|s|secs?|seconds?)\s*(?:animation|reel|video|clip)\b/i,
+    /(\d+(?:\.\d+)?)\s*(ms|milliseconds?|s|secs?|seconds?)\s*(?:animation|reel|video|clip|duration|total)\b/i,
+  ];
+  for(const re of patterns){ const m=src.match(re); if(!m) continue; const n=Number(m[1]); const unit=m[2]; if(!Number.isFinite(n)||n<=0) continue; return Math.round(/^ms|milli/i.test(unit)?n:n*1000); }
+  return null;
+};
+
+$('#form').onsubmit = async e => {
+  e.preventDefault(); const q=$('#in').value.trim(); if(!q) return;
+  if(!cur){ say('Pick a design first (top-left), then ask.','err'); return; }
+  const requestDesignId=cur.id;
+  const pendingAttachments=[...ATTACHMENTS];
+  $('#in').value=''; clearAttachments();
+  say(q,'u');
+  if(pendingAttachments.length) sayMedia(pendingAttachments);
+  const wait=say('Working on it…');
+  try{
+    const requestedDuration=requestedDurationFromText(q);
+    const contextText='CONTEXT:\n'+JSON.stringify(ctxWithLib())+'\n\nREQUEST: '+q;
+    if(pendingAttachments.length){
+      const mediaDesc=pendingAttachments.map(a=>{
+        if(a.type==='area'&&a.bbox) return `[Attached visual reference area: "${a.name}" at x:${a.bbox.x}%, y:${a.bbox.y}%, w:${a.bbox.w}%, h:${a.bbox.h}% with layers: ${(a.layers||[]).join(', ')}]`;
+        return `[Attached ${a.type}: ${a.name}]`;
+      }).join(' ');
+      const fullText=contextText+'\n\n'+mediaDesc;
+      const userMsg=await buildUserMessage(fullText, pendingAttachments);
+      const msgs=[{role:'system',content:SYSTEM},...HIST.slice(-6),userMsg];
+      const out = parseJSON(await callLLM(msgs));
+      if(cur.id!==requestDesignId){ wait.remove(); say('Design changed while the model was working. I discarded that response so it could not land on the wrong design.','err'); return; }
+      wait.remove();
+      HIST.push({role:'user',content:q+' '+mediaDesc},{role:'assistant',content:String(out.reply||'')});
+      if(out.reply) say(out.reply);
+      if(Array.isArray(out.review)&&out.review.length) say(out.review.map(r=>`• ${r.layerId}: ${r.observation}${r.suggestion?' → '+r.suggestion:''}`).join('\n'));
+      if(out.new_composition&&Array.isArray(out.new_composition.layers)) saveNewComposition(out.new_composition);
+      else if(Array.isArray(out.composition_fixes)&&out.composition_fixes.length) applyFixes(out.composition_fixes);
+      if(Array.isArray(out.steps)&&out.steps.length) await composeSteps(out);
+      else if(out.animation&&Array.isArray(out.animation.tracks)&&out.animation.tracks.length) saveAnimation(out.animation,requestedDuration);
+      else if(out.animation&&Array.isArray(out.animation.tracks)&&out.animation.tracks.length===0&&Array.isArray(out.composition_fixes)&&out.composition_fixes.length) say('Animation motion preserved as requested.','ok');
+    } else {
+      const msgs=[{role:'system',content:SYSTEM},...HIST.slice(-6),{role:'user',content:contextText}];
+      const out = parseJSON(await callLLM(msgs));
+      if(cur.id!==requestDesignId){ wait.remove(); say('Design changed while the model was working. I discarded that response so it could not land on the wrong design.','err'); return; }
+      wait.remove();
+      HIST.push({role:'user',content:q},{role:'assistant',content:String(out.reply||'')});
+      if(out.reply) say(out.reply);
+      if(Array.isArray(out.review)&&out.review.length) say(out.review.map(r=>`• ${r.layerId}: ${r.observation}${r.suggestion?' → '+r.suggestion:''}`).join('\n'));
+      if(out.new_composition&&Array.isArray(out.new_composition.layers)) saveNewComposition(out.new_composition);
+      else if(Array.isArray(out.composition_fixes)&&out.composition_fixes.length) applyFixes(out.composition_fixes);
+      if(Array.isArray(out.steps)&&out.steps.length) await composeSteps(out);
+      else if(out.animation&&Array.isArray(out.animation.tracks)&&out.animation.tracks.length) saveAnimation(out.animation,requestedDuration);
+      else if(out.animation&&Array.isArray(out.animation.tracks)&&out.animation.tracks.length===0&&Array.isArray(out.composition_fixes)&&out.composition_fixes.length) say('Animation motion preserved as requested.','ok');
+    }
+  }catch(err){ wait.remove(); say(err.message,'err'); }
+};
+
+function saveNewComposition(raw){
+  const id=cur.id+'-var-'+Date.now().toString(36).slice(-5);
+  const name=raw.name?displayNameFor(raw.name,cur.comp.name,'Variation'):`${cur.comp.name} (Variation)`;
+  const comp={...clone(cur.comp),id,name,layers:raw.layers};
+  const d=addDesign(id,comp,'Generated',[],{brandId:cur.brandId,brandName:cur.brandName,brandKey:cur.brandKey});
+  d.baseComp=comp;
+  const all=LS.get('sa.comp',{}); all[id]=comp; LS.set('sa.comp',all);
+  selectDesign(d);
+  if(panel.hidden) openPanel(true);
+  say(`Generated new composition variation “${name}”. Added to your Designs panel.`,'ok');
+  toast('Composition variation created');
+}
+
+function applyFixes(fixes){
+  const prev=clone(cur.comp), next=clone(cur.comp); let n=0;
+  fixes.forEach(f=>{ const l=next.layers.find(x=>x.id===f.layerId); if(!l||!f.set) return; Object.entries(f.set).forEach(([k,v])=>{ if(!OKKEYS.test(k)) return; if(/^(x|y|w|h|z|opacity|rotation|font\.(sizePct|weight|lineHeight|letterSpacingEm))$/.test(k)&&!Number.isFinite(+v)) return; setPath(l,k,/^(text|color|align|verticalAlign|font\.(family|style|transform))$/.test(k)?String(v):typeof v==='boolean'?v:+v); n++; }); });
+  if(!n) return say('No valid composition changes to apply.','err');
+  cur.comp=next; cur.baseComp=clone(next); const all=LS.get('sa.comp',{}); all[cur.id]=next; const ok=LS.set('sa.comp',all);
+  fontFor(next); paintMain(); paintThumbs();
+  const undo=mk('button',{type:'button',onclick:()=>{cur.comp=prev; cur.baseComp=clone(prev); const a=LS.get('sa.comp',{}); a[cur.id]=prev; LS.set('sa.comp',a); paintMain(); toast('Composition change undone');}},'Undo');
+  say(ok?`Composition corrected and saved (${n} change${n===1?'':'s'}).`:'Composition corrected, but this browser could not store it.',ok?'ok':'err',undo);
+  if(ok) toast('Composition saved');
+}
+async function saveAnimation(raw,requestedDuration=null){
+  const base = raw.keepOthers && curAnim ? curAnim.tracks.filter(t=>!raw.tracks.some(n=>n.layerId===t.layerId)) : [];
+  const ids = new Set(cur.comp.layers.map(l=>l.id)), good = raw.tracks.filter(t=>ids.has(t.layerId)&&Array.isArray(t.segments)&&t.segments.length);
+  if(!good.length) return say('The model returned an animation with no usable layers. Try rephrasing.','err');
+  const tracks = [...base.map(t=>({layerId:t.layerId,layerName:t.layerName,segments:t.segments.map(s=>({preset:s.preset||'keyframes',label:s.label||'Keyframes',start:s.start,duration:s.duration,loop:!!s.loop,frames:s.frames.map(f=>({t:f.t,dx:f.dx,dy:f.dy,sx:f.sx,sy:f.sy,a:f.a,r:f.r,e:f.e}))}))})),
+    ...good.map(t=>{ const l=cur.comp.layers.find(x=>x.id===t.layerId); return {layerId:t.layerId,layerName:l.name,layerType:l.type,role:l.type,text:l.text||'',box:{x:l.x/100,y:l.y/100,w:l.w/100,h:l.h/100},segments:t.segments.map(s=>({preset:'keyframes',label:'Keyframes',start:+s.start||0,duration:+s.duration||raw.duration||10000,loop:!!s.loop,frames:(s.frames||[]).map(f=>({t:+f.t||0,dx:f.dx,dy:f.dy,sx:f.sx,sy:f.sy,a:f.a,e:f.e}))}))}; })];
+  const id='studio-animation-'+Date.now().toString(36);
+  const duration = requestedDuration || (raw.keepOthers && curAnim ? curAnim.duration : null) || +raw.duration || 10000;
+  const animationName=displayNameFor(raw.name,cur.comp.name);
+  const data={schema:'agent-studio/animation/2',kind:'studio-animation',id,compositionId:cur.id,origin:'llm',name:animationName,createdAt:new Date().toISOString(),duration:Math.min(15000,Math.max(3000,duration)),fps:25,source:{app:'studio-agent',design:cur.comp.name,layerCount:cur.comp.layers.length},tracks};
+  let synced=false;
+  if(cur.fromLib){ try{ const r=await fetch('api/library/animations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({designId:cur.id,animation:data})}); const j=await r.json().catch(()=>({})); if(r.status===400) return say('That animation does not fit this design, so it was not saved: '+(j.error||'validation failed'),'err'); synced=r.ok; }catch{} }
+  const store=LS.get('sa.anims',{}); (store[cur.id]=store[cur.id]||[]).push(data); const ok=LS.set('sa.anims',store);
+  const item={id,data:Object.assign(prep(data),{}),saved:true}; item.data.id=id; cur.anims.push(item);
+  if(!ok&&!synced) return say('The animation was created but could not be saved: browser storage is full. Free some space and ask again.','err');
+  say(`Saved “${animationName}”. Find it under Animations for this design${synced?' (also stored on the server)':' (stored in this browser)'}.`,'ok'); toast('Animation saved'); selectAnim(item); if(panel.hidden) openPanel(true);
+}
+
+/* ============ boot ============ */
+
+/* ============ audio: cast, narration and levels ============ */
+const AUDIO_WAVE = '<path d="M4 10v4"/><path d="M8 7v10"/><path d="M12 4v16"/><path d="M16 8v8"/><path d="M20 10v4"/>';
+const MUSIC_NOTE = '<path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/>';
+const msTime = ms => { const s=Math.max(0,Number(ms)||0)/1000; const m=Math.floor(s/60); return `${m}:${(s-m*60).toFixed(1).padStart(4,'0')}`; };
+const lufsText = value => Number.isFinite(Number(value)) ? `${String(Math.round(Number(value)*10)/10).replace('-','−')} LUFS` : '';
+const kindLabel = kind => kind==='narrator'?'Narrator':kind==='ensemble'?'Duet':kind==='character'?'Character':'Speaker';
+
+function narrationIndex(){
+  if(NARR_INDEX) return Promise.resolve(NARR_INDEX);
+  if(!NARR_INDEX_REQ) NARR_INDEX_REQ = jget(NARRATION_INDEX).then(index=>{ NARR_INDEX=index; return index; }).catch(()=>null);
+  return NARR_INDEX_REQ;
+}
+function narrationEntry(index,designId){
+  const entries=index&&index.narrations?index.narrations:null;
+  if(!entries) return null;
+  if(entries[designId]) return entries[designId];
+  return Object.values(entries).find(entry=>entry&&Array.isArray(entry.aliases)&&entry.aliases.includes(designId))||null;
+}
+function narrationFor(designId){
+  if(!designId) return Promise.resolve(null);
+  if(NARR_CACHE.has(designId)) return Promise.resolve(NARR_CACHE.get(designId));
+  if(NARR_REQ.has(designId)) return NARR_REQ.get(designId);
+  const request=(async()=>{
+    const index=await narrationIndex();
+    const entry=narrationEntry(index,designId);
+    if(!entry){ NARR_CACHE.set(designId,null); return null; }
+    let timeline=null;
+    const sources=[entry.timeline,entry.fallbackTimeline].filter(Boolean);
+    if(sources.length){
+      for(const source of sources){
+        try{ timeline=await jget(source); break; }
+        catch(error){ console.warn('narration timeline unavailable',source,error.message); }
+      }
+      if(!timeline){ NARR_CACHE.set(designId,null); return null; }
+    } else {
+      timeline=entry;
+    }
+    const narration={...timeline,indexKey:designId,cast:Array.isArray(entry.cast)?entry.cast:(timeline.cast||[]),title:entry.title||timeline.designName||'',note:entry.note||'',music:entry.music||null};
+    NARR_CACHE.set(designId,narration);
+    return narration;
+  })();
+  NARR_REQ.set(designId,request);
+  request.then(()=>NARR_REQ.delete(designId),()=>NARR_REQ.delete(designId));
+  return request;
+}
+function markAudioHas(has){ const button=$('#tAudio'); if(button) button.classList.toggle('has',!!has); }
+function openAudio(on){
+  const show=!!on;
+  audioEl.hidden=!show;
+  $('#tAudio').setAttribute('aria-expanded',String(show));
+  if(!show) return;
+  chat.hidden=true; $('#tAsk').setAttribute('aria-expanded','false');
+  renderAudio();
+}
+function resetAudioState(designId){
+  if(AUDIO_DESIGN===designId) return;
+  AUDIO_DESIGN=designId; AUDIO_FILTER=''; AUDIO_LINE=-1; AUDIO_REFS=null;
+}
+function applyAudioFilter(){
+  if(!AUDIO_REFS) return;
+  let shown=0;
+  AUDIO_REFS.rows.forEach(row=>{ const visible=!AUDIO_FILTER||AUDIO_FILTER===row.name; row.el.hidden=!visible; if(visible) shown++; });
+  AUDIO_REFS.casts.forEach(cast=>cast.el.setAttribute('aria-pressed',String(cast.name===AUDIO_FILTER)));
+  if(AUDIO_REFS.count) AUDIO_REFS.count.textContent=AUDIO_FILTER?`${shown} of ${AUDIO_REFS.lines.length}`:String(AUDIO_REFS.lines.length);
+  if(AUDIO_REFS.clear) AUDIO_REFS.clear.hidden=!AUDIO_FILTER;
+}
+function setAudioLine(index){ if(AUDIO_REFS&&AUDIO_REFS.lines[index]) seekAudio(AUDIO_REFS.lines[index]._s); }
+function castList(narration,lines){
+  const defs=new Map((narration.cast||[]).filter(member=>member&&member.name).map(member=>[member.name,member]));
+  const names=[];
+  (narration.cast||[]).forEach(member=>{ if(member&&member.name&&!names.includes(member.name)) names.push(member.name); });
+  lines.forEach(line=>{ if(line.speaker&&!names.includes(line.speaker)) names.push(line.speaker); });
+  return names.map(name=>{
+    const def=defs.get(name)||{};
+    return {name,kind:def.kind||'',role:def.role||'',voice:def.voice||'',traits:Array.isArray(def.traits)?def.traits:[],count:lines.filter(line=>line.speaker===name).length};
+  });
+}
+function audioEmpty(design){
+  const wrap=mk('div',{className:'aud-empty'});
+  wrap.append(mk('div',{className:'aud-orb'},svgIcon(AUDIO_WAVE)));
+  if(!design){
+    wrap.append(mk('h3',{},'No design loaded'),
+      mk('p',{},'Open Designs, pick a composition, then come back here to see its cast, voices and lines.'),
+      mk('button',{type:'button',className:'aud-cta',onclick:()=>{ openAudio(false); openPanel(true); }},'Open Designs'));
+  } else {
+    wrap.append(mk('h3',{},'No narration yet'),
+      mk('p',{},`“${dTitle(design)}” has no voice track yet. Write a line and give it a voice, or add a recording.`),
+      mk('div',{className:'aud-actions',style:'justify-content:center'},
+        mk('button',{type:'button',className:'aud-cta',style:'margin-top:0',onclick:()=>addLine()},'Write a line'),
+        mk('button',{type:'button',onclick:()=>{ openAudio(false); chat.hidden=false; $('#tAsk').setAttribute('aria-expanded','true'); $('#in').value='Add narration and background audio to this composition. Write the cast, the voice description of each speaker and their lines.'; $('#in').focus(); }},'Ask the assistant')));
+  }
+  return wrap;
+}
+async function copyScript(lines){
+  const text=lines.map(line=>`${line.speaker||'Voice'}: ${line.text||''}`).join('\n');
+  try{ await navigator.clipboard.writeText(text); toast('Narration script copied.'); }
+  catch{ toast('Could not copy the script.','err'); }
+}
+function renderNarration(body,narration){
+  const lines=(narration.lines||[]).slice().sort((a,b)=>Number(a.speechStartMs??a.startMs??0)-Number(b.speechStartMs??b.startMs??0));
+  lines.forEach(l=>{ l._s=Number(l.speechStartMs??l.startMs??0); l._e=Number(l.speechEndMs??(l.bubble&&l.bubble.endMs)??l._s+800); });
+  const cast=castList(narration,lines);
+  const castOrder=new Map(cast.map((member,index)=>[member.name,index]));
+  const colorOf=name=>castOrder.has(name)?hue(castOrder.get(name)):'var(--ac)';
+  const total=Number(narration.durationMs||narration.audio?.durationMs||0)||lines.reduce((max,line)=>Math.max(max,line._e),0)||1;
+  const wrap=mk('div',{className:'aud-wrap'});
+  wrap.append(mk('div',{className:'aud-summary'},
+    mk('span',{className:'aud-chip'},mk('b',{},String(cast.length)),` ${cast.length===1?'voice':'voices'}`),
+    mk('span',{className:'aud-chip'},mk('b',{},String(lines.length)),` ${lines.length===1?'line':'lines'}`),
+    mk('span',{className:'aud-chip'},mk('b',{},`${(total/1000).toFixed(1)} s`),' runtime')));
+
+  if(narration.hasBase){
+    const audio=narration.audio||{};
+    const detail=[lufsText(audio.integratedLufs),audio.sampleRate?`${(audio.sampleRate/1000).toFixed(audio.sampleRate%1000?1:0)} kHz`:'',audio.channels?`${audio.channels===2?'stereo':audio.channels===1?'mono':audio.channels+' channels'}`:'',audio.truePeakDb!=null?`${String(audio.truePeakDb).replace('-','−')} dBTP`:''].filter(Boolean).join(' · ');
+    wrap.append(mk('div',{className:'aud-bed'},svgIcon(AUDIO_WAVE),mk('div',{className:'aud-bed-main'},mk('b',{},audio.mix?'Narration mix':'Voice track'),mk('small',{},detail||'Narration bed')),mk('span',{className:'tag'},'Mixed')));
+  }
+  renderNarrationLevel(wrap);
+  if(narration.music&&narration.music.label){
+    wrap.append(mk('div',{className:'aud-bed'},svgIcon(MUSIC_NOTE),mk('div',{className:'aud-bed-main'},mk('b',{},narration.music.label),mk('small',{},narration.music.detail||'Background music')),mk('span',{className:'tag'},'Music')));
+  }
+
+  const segs=[];
+  const track=mk('div',{className:'aud-track',role:'group','aria-label':`Narration timeline, ${(total/1000).toFixed(1)} seconds. Click to jump.`});
+  lines.forEach((line,index)=>{
+    const left=Math.max(0,Math.min(99.4,line._s/total*100));
+    const width=Math.max(.6,Math.min(100-left,(line._e-line._s)/total*100));
+    const seg=mk('button',{type:'button',className:'aud-seg',style:`left:${left}%;width:${width}%;--c:${colorOf(line.speaker)}`,title:`${line.speaker||'Voice'} — ${line.text||''}`});
+    seg.setAttribute('aria-label',`Play from: ${line.text||''}`);
+    seg.onclick=()=>seekAudio(line._s);
+    track.append(seg); segs.push({el:seg,name:line.speaker});
+  });
+  const head=mk('div',{className:'aud-head'}); track.append(head);
+  track.onclick=e=>{ if(e.target!==track&&e.target!==head) return; const r=track.getBoundingClientRect(); seekAudio((e.clientX-r.left)/r.width*total); };
+  wrap.append(track,mk('div',{className:'aud-axis'},mk('span',{},'0:00'),mk('span',{},msTime(total))));
+
+  const castWrap=mk('div',{className:'cast-list'});
+  const casts=[];
+  cast.forEach((member,index)=>{
+    const card=mk('button',{type:'button',className:'cast-card',style:'--c:'+hue(index),title:`Show ${member.name}’s lines`});
+    card.setAttribute('aria-pressed','false');
+    card.onclick=()=>{ AUDIO_FILTER=AUDIO_FILTER===member.name?'':member.name; applyAudioFilter(); };
+    const traits=member.traits;
+    card.append(
+      mk('span',{className:'cast-num'},String(index+1).padStart(2,'0')),
+      mk('span',{className:'cast-main'},mk('b',{},member.name),mk('span',{className:'cast-role'},member.role||kindLabel(member.kind)),member.voice?mk('p',{},member.voice):null,traits.length?mk('span',{className:'cast-traits'},traits.map(trait=>mk('em',{},trait))):null),
+      mk('span',{className:'cast-count',title:`${member.count} line${member.count===1?'':'s'}`},String(member.count)));
+    castWrap.append(card); casts.push({el:card,name:member.name});
+  });
+  wrap.append(mk('div',{className:'sec',style:'margin-bottom:0'},`Cast · ${cast.length}`),castWrap);
+  if(narration.note) wrap.append(mk('p',{className:'aud-note'},narration.note));
+
+  const countEl=mk('span',{},String(lines.length));
+  const clearBtn=mk('button',{type:'button',className:'lnk',onclick:()=>{ AUDIO_FILTER=''; applyAudioFilter(); }},'Clear');
+  clearBtn.hidden=true;
+  wrap.append(mk('div',{className:'sec-row'},
+    mk('div',{className:'sec'},'Speeches'),
+    mk('span',{className:'aud-sec-right'},countEl,mk('button',{type:'button',className:'lnk',onclick:()=>copyScript(lines)},'Copy'),clearBtn)));
+
+  const list=mk('div',{className:'line-list'});
+  const rows=[];
+  lines.forEach((line,index)=>{
+    const row=mk('div',{className:'line-row',tabIndex:0,style:'cursor:pointer;--c:'+colorOf(line.speaker),title:'Play from here'});
+    row.setAttribute('role','button');
+    row.onclick=ev=>{ if(ev.target.closest('.line-edit')) return; seekAudio(line._s); };
+    row.onkeydown=ev=>{ if((ev.key==='Enter'||ev.key===' ')&&ev.target===row){ ev.preventDefault(); seekAudio(line._s); } };
+    const castIndex=castOrder.has(line.speaker)?castOrder.get(line.speaker):-1;
+    const meta=mk('span',{className:'line-meta'},mk('span',{className:'line-num'},castIndex>=0?String(castIndex+1).padStart(2,'0'):'—'),mk('b',{},line.speaker||'Voice'));
+    if(line.authoredId){
+      meta.append(mk('span',{className:'line-badge'},'Yours'),mk('button',{type:'button',className:'line-edit',onclick:()=>{ AUDIO_TAB='write'; paintAudio(); }},'Edit'));
+    }
+    meta.append(mk('time',{},msTime(line._s)));
+    row.append(meta,mk('p',{},line.text||''));
+    list.append(row); rows.push({el:row,name:line.speaker});
+  });
+  if(!lines.length) list.append(mk('p',{className:'aud-note'},'No lines have been recorded for this composition yet.'));
+  wrap.append(list);
+
+  body.append(wrap);
+  AUDIO_REFS={lines,rows,segs,casts,count:countEl,clear:clearBtn,head,total};
+  applyAudioFilter();
+  followAudio(nowMs(),isPlayingNow());
+}
+function renderAudio(){
+  const design=cur, body=$('#audioBody');
+  if(!body) return;
+  const token=++AUDIO_TOKEN;
+  const animKey=audioAnimId();
+  $('#audioCtx').textContent=design?(dTitle(design)+(curAnim?' · '+animLabel(curAnim,design):'')):'No design selected';
+  if(!design){ AUDIO_REFS=null; markAudioHas(false); body.replaceChildren(audioEmpty(null)); return; }
+  resetAudioState(design.id+'::'+animKey);
+  body.replaceChildren(mk('div',{className:'aud-loading'},'Reading the narration…'));
+  const narrationP=narrationFor(animKey).then(n=>n||(animKey!==design.id?narrationFor(design.id):null));
+  Promise.all([narrationP,loadAudioMix()]).then(([narration])=>{
+    if(token!==AUDIO_TOKEN||!cur||cur.id!==design.id) return;
+    AUDIO_NARRATION=narration||null;
+    markAudioHas(!!narration||scriptOf().lines.length>0);
+    paintAudio();
+    syncAudioMix(true);
+    loadTtsVoices();
+  }).catch(error=>{
+    if(token!==AUDIO_TOKEN) return;
+    console.warn('narration panel failed',error);
+    markAudioHas(false); AUDIO_REFS=null; body.replaceChildren(audioEmpty(design));
+  });
+}
+/* ============ mix: narration level + background music ============ */
+const mixNum = (v,d,lo,hi) => { const n=Number(v); return Number.isFinite(n)?Math.min(hi,Math.max(lo,n)):d; };
+function defaultAudioMix(){
+  return { narration:{volume:1,muted:false},
+    music:{enabled:false,url:'',name:'',durationMs:0,volume:.28,startMs:0,endMs:0,inMs:0,loop:true,fadeInMs:800,fadeOutMs:1200,duck:true,duckDb:-9},
+    script:{lines:[]},
+    updatedAt:0 };
+}
+function sanitizeAudioMix(raw){
+  const r=raw&&typeof raw==='object'?raw:{};
+  const n=r.narration&&typeof r.narration==='object'?r.narration:{};
+  const m=r.music&&typeof r.music==='object'?r.music:{};
+  return {
+    narration:{volume:mixNum(n.volume,1,0,1),muted:!!n.muted},
+    music:{
+      enabled:!!(m.enabled&&m.url),
+      url:String(m.url||''),
+      name:String(m.name||'').slice(0,140),
+      durationMs:Math.round(mixNum(m.durationMs,0,0,4*60*60*1000)),
+      volume:mixNum(m.volume,.28,0,1),
+      startMs:Math.round(mixNum(m.startMs,0,0,4*60*60*1000)),
+      endMs:Math.round(mixNum(m.endMs,0,0,4*60*60*1000)),
+      inMs:Math.round(mixNum(m.inMs,0,0,4*60*60*1000)),
+      loop:m.loop!==false,
+      fadeInMs:Math.round(mixNum(m.fadeInMs,800,0,10000)),
+      fadeOutMs:Math.round(mixNum(m.fadeOutMs,1200,0,10000)),
+      duck:m.duck!==false,
+      duckDb:mixNum(m.duckDb,-9,-24,0)
+    },
+    script:sanitizeScript(r.script),
+    updatedAt:Number(r.updatedAt)||0
+  };
+}
+function audioKey(){ return cur ? `${cur.id}::${curAnim&&curAnim.id?curAnim.id:'default'}` : ''; }
+function audioAnimId(){ return curAnim&&curAnim.id?curAnim.id:'default'; }
+function cutDurationMs(){ return Math.max(500,Number(curAnim&&curAnim.duration)||Number(cur&&cur.comp&&cur.comp.duration)||10000); }
+async function designLib(design){
+  if(!design) return null;
+  if(design.lib) return design.lib;
+  if(!design.detail) return null;
+  if(!design._libReq) design._libReq=jget(design.detail).then(lib=>{ design.lib=lib; return lib; }).catch(()=>null);
+  return design._libReq;
+}
+async function loadAudioMix(force=false){
+  if(!cur) return null;
+  const key=audioKey();
+  if(AUDIO_MIX&&AUDIO_MIX_KEY===key) return AUDIO_MIX;
+  const lib=await designLib(cur);
+  const animId=audioAnimId();
+  const server=lib&&lib.audioMixes?(lib.audioMixes[animId]||lib.audioMixes.default||null):null;
+  const local=LS.get('sa.audioMix.'+key,null);
+  const pick=server&&local?((Number(local.updatedAt)||0)>=(Number(server.updatedAt)||0)?local:server):(server||local);
+  const cfg=sanitizeAudioMix(pick||defaultAudioMix());
+  if(!cfg.music.endMs) cfg.music.endMs=cutDurationMs();
+  AUDIO_MIX=cfg; AUDIO_MIX_KEY=key;
+  return cfg;
+}
+function currentAudio(){ return AUDIO_MIX||defaultAudioMix(); }
+function audioStatus(text){ AUDIO_STATUS=text; const el=$('#audSaveState'); if(el) el.textContent=text; }
+function saveAudioMix(){
+  if(!cur) return;
+  const cfg=currentAudio(); cfg.updatedAt=Date.now();
+  const design=cur, animId=audioAnimId();
+  LS.set('sa.audioMix.'+audioKey(),cfg);
+  audioStatus('Saving…');
+  clearTimeout(AUDIO_SAVE_T);
+  AUDIO_SAVE_T=setTimeout(async()=>{
+    if(!design) return;
+    try{
+      const r=await fetch(`${API}/library/audio`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({designId:design.id,animationId:animId,config:cfg})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
+      if(design.lib){ design.lib.audioMixes=design.lib.audioMixes||{}; design.lib.audioMixes[animId]=cfg; }
+      audioStatus('Saved');
+    }catch{ audioStatus('Saved locally'); }
+  },420);
+}
+function musicTrack(){ const m=currentAudio().music; return m&&m.enabled&&m.url?m:null; }
+function ensureMusicSource(){
+  const m=musicTrack();
+  if(!m){ musicEl.pause(); return null; }
+  if(musicEl.dataset.url!==m.url){ musicEl.dataset.url=m.url; musicEl.src=m.url; musicEl.load(); }
+  return m;
+}
+function narrationApplies(){
+  if(!AUDIO_NARRATION) return false;
+  if(curAnim&&curAnim.narration) return true;
+  if(cur&&!curAnim&&AUDIO_NARRATION.indexKey===cur.id) return true;
+  // The standalone narrated design plays the narration as its own recording.
+  if(cur&&AUDIO_NARRATION.id===cur.id) return true;
+  return false;
+}
+function speechAt(ms){
+  const sc=AUDIO_MIX&&AUDIO_MIX.script; if(sc&&sc.lines.some(l=>l.audio&&ms>=l.startMs&&ms<l.startMs+(l.audio.durationMs||0))) return true;
+  if(!AUDIO_NARRATION||!narrationApplies()) return false;
+  return (AUDIO_NARRATION.lines||[]).some(l=>ms>=Number(l.speechStartMs??l.startMs??0)&&ms<Number(l.speechEndMs??l.startMs??0));
+}
+function mixEndMs(){ const m=currentAudio().music; const cut=cutDurationMs(); return Math.max(0,Math.min(cut,m.endMs||cut)); }
+function musicOffsetAt(t){
+  const m=currentAudio().music;
+  const elapsed=Math.max(0,t-m.startMs)/1000;
+  const inSec=m.inMs/1000, len=m.durationMs/1000;
+  if(m.loop&&len>inSec+.3) return inSec+(elapsed%(len-inSec));
+  return inSec+elapsed;
+}
+function musicGainAt(t){
+  const m=currentAudio().music, end=mixEndMs();
+  if(t<m.startMs||t>=end) return 0;
+  let g=m.volume;
+  if(m.fadeInMs>0) g*=Math.min(1,Math.max(0,(t-m.startMs)/m.fadeInMs));
+  if(m.fadeOutMs>0) g*=Math.min(1,Math.max(0,(end-t)/m.fadeOutMs));
+  if(m.duck&&speechAt(t)) g*=Math.pow(10,m.duckDb/20);
+  return Math.max(0,Math.min(1,g));
+}
+function syncAudioMix(force=false){
+  if(!cur) return;
+  const v=$('#srcVideo'), cfg=currentAudio();
+  v.volume=cfg.narration.muted?0:mixNum(cfg.narration.volume,1,0,1);
+  v.muted=!!cfg.narration.muted;
+  if(!SRC){ stopAudioMix(); return; }
+  const m=musicTrack();
+  if(!m){ musicEl.pause(); return; }
+  ensureMusicSource();
+  if(v.paused){ musicEl.pause(); return; }
+  const t=v.currentTime*1000, end=mixEndMs();
+  if(t<m.startMs||t>=end){ musicEl.pause(); return; }
+  const off=musicOffsetAt(t);
+  const drift=musicEl.currentTime-off;
+  // Seek once at the start / on a manual seek; in the loop only correct a
+  // real drift, and not more than once a second, so a slow media seek cannot
+  // be re-issued on every animation frame and pin the track at zero.
+  if(force){ try{ musicEl.currentTime=off; }catch{} AUDIO_SEEK_AT=performance.now(); }
+  else if(Math.abs(drift)>1.2&&performance.now()-AUDIO_SEEK_AT>1200){ try{ musicEl.currentTime=off; }catch{} AUDIO_SEEK_AT=performance.now(); }
+  if(musicEl.paused) musicEl.play().catch(()=>{});
+  const target=musicGainAt(t);
+  AUDIO_GAIN=AUDIO_GAIN?AUDIO_GAIN+(target-AUDIO_GAIN)*.35:target;
+  musicEl.volume=mixNum(AUDIO_GAIN,0,0,1);
+}
+function startAudioMix(){ syncAudioMix(true); if(!AUDIO_RAF) AUDIO_RAF=requestAnimationFrame(audioMixLoop); }
+function stopAudioMix(){ musicEl.pause(); cancelAnimationFrame(AUDIO_RAF); AUDIO_RAF=0; AUDIO_GAIN=0; }
+function audioMixLoop(){ if(!SRC){ AUDIO_RAF=0; return; } const v=$('#srcVideo'); if(v.paused) musicEl.pause(); else syncAudioMix(); AUDIO_RAF=requestAnimationFrame(audioMixLoop); }
+function ensureAudioNarration(){
+  if(AUDIO_NARRATION||AUDIO_NARR_REQ||!cur) return;
+  const key=(curAnim&&curAnim.narration&&curAnim.narration.indexKey)||(curAnim&&curAnim.sourceVideo?curAnim.id:'')||cur.id;
+  AUDIO_NARR_REQ=narrationFor(key).then(n=>{ if(n) AUDIO_NARRATION=n; }).catch(()=>{}).finally(()=>{ AUDIO_NARR_REQ=null; });
+}
+const srcVideoEl=$('#srcVideo');
+srcVideoEl.addEventListener('play',()=>{ ensureAudioNarration(); startAudioMix(); });
+srcVideoEl.addEventListener('pause',()=>{ stopAudioMix(); });
+srcVideoEl.addEventListener('seeked',()=>{ if(!srcVideoEl.paused) syncAudioMix(true); });
+srcVideoEl.addEventListener('timeupdate',()=>{ if(!srcVideoEl.paused) syncAudioMix(); });
+srcVideoEl.addEventListener('ended',()=>{ stopAudioMix(); });
+musicEl.addEventListener('error',()=>{ if(musicTrack()) toast('The music track could not be loaded.','err'); });
+
+function downloadUrl(url,name){ const a=document.createElement('a'); a.href=url; a.download=name; document.body.append(a); a.click(); a.remove(); }
+async function exportSource(){
+  if(!SRC_VIDEO) return;
+  const safe=s=>String(s||'').normalize('NFKD').replace(/[^A-Za-z0-9]+/g,'-').replace(/^-+|-+$/g,'').toLowerCase()||'cut';
+  const base=safe(cur.id)+'-'+safe(curAnim?animLabel(curAnim,cur):'original');
+  const m=currentAudio().music;
+  const voNote=(currentAudio().script.lines||[]).some(l=>l.audio)?' Voice-over lines you added are not in this file yet.':'';
+  if(m.enabled&&m.url){
+    if(m.url.startsWith('blob:')){ toast('This track is local to the session. Start the studio server so it can be saved before exporting.','err'); return; }
+    toast('Mixing the music bed…');
+    try{
+      const r=await fetch(`${API}/library/audio/render`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({designId:cur.id,animationId:audioAnimId()})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
+      downloadUrl(j.url,base+'-mix.webm');
+      toast('Exported with music.'+voNote);
+      return;
+    }catch(err){ toast('The mix could not be rendered: '+err.message,'err'); return; }
+  }
+  downloadUrl(SRC_VIDEO,base+'.webm');
+  toast('Source video exported.'+voNote);
+}
+function probeAudioDuration(url){
+  return new Promise(resolve=>{ const a=document.createElement('audio'); a.preload='metadata'; a.onloadedmetadata=()=>resolve(Math.round((a.duration||0)*1000)); a.onerror=()=>resolve(0); a.src=url; });
+}
+async function addMusicFile(file){
+  if(!cur||!file) return;
+  if(!/^audio\//.test(file.type||'')&&!/\.(mp3|wav|m4a|aac|ogg|opus|flac)$/i.test(file.name)){ toast('Choose an MP3, WAV, M4A, OGG or FLAC file.','err'); return; }
+  if(file.size>40*1024*1024){ toast('That track is larger than 40 MB.','err'); return; }
+  audioStatus('Uploading…');
+  try{
+    const q=new URLSearchParams({designId:cur.id,name:file.name});
+    const r=await fetch(`${API}/library/audio/upload?${q.toString()}`,{method:'POST',headers:{'Content-Type':file.type||'application/octet-stream'},body:file});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
+    const cut=cutDurationMs(), dur=Math.max(0,Number(j.durationMs)||0), cfg=currentAudio();
+    cfg.music={...cfg.music,enabled:true,url:j.url,name:j.name||file.name,durationMs:dur,startMs:0,endMs:cut,inMs:0,loop:dur>0&&dur<cut};
+    audioStatus('Saved'); syncAudioMix(true); saveAudioMix(); renderAudio();
+  }catch(err){
+    const url=URL.createObjectURL(file), dur=await probeAudioDuration(url), cut=cutDurationMs(), cfg=currentAudio();
+    cfg.music={...cfg.music,enabled:true,url,name:file.name,durationMs:dur,startMs:0,endMs:cut,inMs:0,loop:dur>0&&dur<cut};
+    audioStatus('This session only');
+    syncAudioMix(true); renderAudio();
+    toast('Music added for this session. Start the studio server to keep the track.','err');
+  }
+}
+function removeMusic(){
+  const cfg=currentAudio();
+  cfg.music={...defaultAudioMix().music,endMs:cutDurationMs()};
+  musicEl.pause(); musicEl.removeAttribute('src'); musicEl.dataset.url=''; musicEl.load();
+  stopAudioMix(); saveAudioMix(); renderAudio();
+}
+function renderNarrationLevel(wrap){
+  const cfg=currentAudio();
+  const range=mk('input',{type:'range',min:0,max:100,step:1,value:Math.round(cfg.narration.volume*100)});
+  const out=mk('output',{},Math.round(cfg.narration.volume*100)+'%');
+  range.oninput=()=>{ cfg.narration.volume=mixNum(range.value,100,0,100)/100; cfg.narration.muted=false; out.textContent=Math.round(cfg.narration.volume*100)+'%'; syncAudioMix(true); saveAudioMix(); };
+  wrap.append(mk('div',{className:'aud-row'},mk('label',{},'Narration'),range,out));
+}
+function renderMusicSection(body,narration){
+  const cfg=currentAudio(), m=cfg.music, total=cutDurationMs();
+  const card=mk('div',{className:'aud-music'});
+  card.append(mk('div',{className:'aud-music-head'},svgIcon(MUSIC_NOTE),mk('h3',{},'Background music'),mk('span',{id:'audSaveState',className:'aud-status'},AUDIO_STATUS||'')));
+  if(!curAnim){
+    card.append(mk('p',{className:'aud-hint'},'Select a cut first — each cut can have its own music bed.'));
+    body.append(card); return;
+  }
+  if(!m.url){
+    const input=mk('input',{type:'file',accept:'audio/*',hidden:true});
+    input.onchange=()=>{ const f=input.files&&input.files[0]; if(f) addMusicFile(f); input.value=''; };
+    card.append(
+      mk('p',{className:'aud-hint'},'Add a track under the cut. Set its level, when it enters and leaves, its trim, fades and ducking.'),
+      mk('div',{className:'aud-actions'},mk('button',{type:'button',className:'aud-cta',onclick:()=>input.click()},'Add music track'),input));
+    body.append(card); return;
+  }
+  card.append(mk('div',{className:'aud-bed'},svgIcon(MUSIC_NOTE),
+    mk('div',{className:'aud-bed-main'},mk('b',{},m.name||'Music track'),mk('small',{},`${msTime(m.durationMs)} · ${m.loop?'loops':'plays once'} · ${Math.round(m.volume*100)}%`)),
+    mk('span',{className:'tag'},m.enabled?'Music':'Off')));
+  const band=mk('div',{className:'aud-mix-track'});
+  (narration&&narration.lines||[]).forEach(l=>{
+    const s=Number(l.speechStartMs??l.startMs??0), e=Number(l.speechEndMs??s+500);
+    band.append(mk('i',{style:`left:${Math.max(0,Math.min(99,s/total*100))}%;width:${Math.max(.5,Math.min(100,(e-s)/total*100))}%`,title:`${l.speaker||'Voice'} · ${msTime(s)}`}));
+  });
+  const span=mk('b',{style:`left:${Math.max(0,Math.min(100,m.startMs/total*100))}%;width:${Math.max(.8,Math.min(100,(mixEndMs()-m.startMs)/total*100))}%`});
+  band.append(span);
+  card.append(band,mk('div',{className:'aud-axis'},mk('span',{},'0:00'),mk('span',{},msTime(total))));
+  const volume=mk('input',{type:'range',min:0,max:100,step:1,value:Math.round(m.volume*100)});
+  const volumeOut=mk('output',{},Math.round(m.volume*100)+'%');
+  volume.oninput=()=>{ m.volume=mixNum(volume.value,28,0,100)/100; volumeOut.textContent=Math.round(m.volume*100)+'%'; syncAudioMix(true); saveAudioMix(); };
+  card.append(mk('div',{className:'aud-row'},mk('label',{},'Music level'),volume,volumeOut));
+  const start=mk('input',{type:'number',min:0,max:(total/1000).toFixed(1),step:0.1,value:(m.startMs/1000).toFixed(1)});
+  const end=mk('input',{type:'number',min:0,max:(total/1000).toFixed(1),step:0.1,value:(mixEndMs()/1000).toFixed(1)});
+  const applySpan=()=>{
+    let a=Math.max(0,Math.min(total/1000,Number(start.value)||0));
+    let b=Math.max(0,Math.min(total/1000,Number(end.value)||0));
+    if(b<=a+.2) b=Math.min(total/1000,a+.2);
+    m.startMs=Math.round(a*1000); m.endMs=Math.round(b*1000);
+    start.value=a.toFixed(1); end.value=b.toFixed(1);
+    span.style.left=Math.max(0,Math.min(100,m.startMs/total*100))+'%';
+    span.style.width=Math.max(.8,Math.min(100,(m.endMs-m.startMs)/total*100))+'%';
+    syncAudioMix(true); saveAudioMix();
+  };
+  start.onchange=applySpan; end.onchange=applySpan;
+  card.append(mk('div',{className:'aud-grid2'},
+    mk('label',{className:'aud-field'},mk('span',{},'Starts at (s)'),start),
+    mk('label',{className:'aud-field'},mk('span',{},'Ends at (s)'),end)));
+  const trim=mk('input',{type:'number',min:0,max:Math.max(0,Math.round(m.durationMs/1000)),step:0.1,value:(m.inMs/1000).toFixed(1)});
+  trim.onchange=()=>{ m.inMs=Math.round(Math.max(0,Number(trim.value)||0)*1000); syncAudioMix(true); saveAudioMix(); };
+  card.append(mk('div',{className:'aud-grid2'},
+    mk('label',{className:'aud-field'},mk('span',{},'Trim from track (s)'),trim),
+    mk('label',{className:'aud-field'},mk('span',{},'Length'),mk('span',{className:'aud-hint'},`${((mixEndMs()-m.startMs)/1000).toFixed(1)} s`))));
+  const loop=mk('input',{type:'checkbox',checked:!!m.loop}); loop.onchange=()=>{ m.loop=loop.checked; syncAudioMix(true); saveAudioMix(); };
+  const duck=mk('input',{type:'checkbox',checked:!!m.duck}); duck.onchange=()=>{ m.duck=duck.checked; syncAudioMix(true); saveAudioMix(); };
+  const duckDb=mk('select',{},[-6,-9,-12,-15].map(v=>mk('option',{value:v,selected:Number(m.duckDb)===v},v+' dB')));
+  duckDb.onchange=()=>{ m.duckDb=Number(duckDb.value); syncAudioMix(true); saveAudioMix(); };
+  card.append(mk('div',{className:'aud-toggles'},mk('label',{},loop,' Loop'),mk('label',{},duck,' Duck under narration'),duckDb));
+  const fadeIn=mk('input',{type:'number',min:0,max:10,step:0.1,value:(m.fadeInMs/1000).toFixed(1)});
+  const fadeOut=mk('input',{type:'number',min:0,max:10,step:0.1,value:(m.fadeOutMs/1000).toFixed(1)});
+  fadeIn.onchange=()=>{ m.fadeInMs=Math.round(Math.max(0,Number(fadeIn.value)||0)*1000); syncAudioMix(true); saveAudioMix(); };
+  fadeOut.onchange=()=>{ m.fadeOutMs=Math.round(Math.max(0,Number(fadeOut.value)||0)*1000); syncAudioMix(true); saveAudioMix(); };
+  card.append(mk('div',{className:'aud-grid2'},
+    mk('label',{className:'aud-field'},mk('span',{},'Fade in (s)'),fadeIn),
+    mk('label',{className:'aud-field'},mk('span',{},'Fade out (s)'),fadeOut)));
+  const replace=mk('input',{type:'file',accept:'audio/*',hidden:true});
+  replace.onchange=()=>{ const f=replace.files&&replace.files[0]; if(f) addMusicFile(f); replace.value=''; };
+  card.append(mk('div',{className:'aud-actions'},
+    mk('button',{type:'button',className:'primary',onclick:()=>{ const v=$('#srcVideo'); if(!SRC) return; v.currentTime=Math.max(0,m.startMs/1000); v.play().catch(()=>{}); startAudioMix(); }},'Play from here'),
+    mk('button',{type:'button',onclick:()=>exportSource()},'Export with music'),
+    mk('button',{type:'button',onclick:()=>replace.click()},'Replace'),
+    mk('button',{type:'button',onclick:()=>removeMusic()},'Remove'),
+    replace));
+  body.append(card);
+  if(AUDIO_STATUS) card.querySelector('#audSaveState').textContent=AUDIO_STATUS;
+}
+
+$('#tAudio').onclick=()=>openAudio(audioEl.hidden);
+$('#audioClose').onclick=()=>{ openAudio(false); $('#tAudio').focus(); };
+
+/* ============ audio v2: follow-along, voice-over lines, text-to-speech ============
+   Authored script lives inside the per-cut audio config (cfg.script), so it is saved
+   together with the mix: { lines:[{id,voiceId,speaker,text,startMs,audio:{url,durationMs,source:'tts'|'upload',name,voiceId,key}}] }.
+   The user only picks an already-designed voice and generates; voice design lives elsewhere. */
+let AUDIO_TAB='cast', FOLLOW_LIVE=-2, MIX_LOADING=false, VO_PREVIEW=null;
+const SESSION_BLOBS=new Set(), VO_AUDIO=new Map(), LINE_UI=new Map();
+const TTS_PREFERENCE_KEY='afs.tts.voice';
+const TTS={voices:[],defaultId:'',loaded:false,loading:false,error:''};
+const uid=()=>'l'+Math.random().toString(36).slice(2,8);
+const hue=i=>`hsl(${(i*67+165)%360} 52% var(--hl))`;
+const strHash=s=>{ let h=5381; for(let i=0;i<s.length;i++) h=((h<<5)+h+s.charCodeAt(i))|0; return (h>>>0).toString(36); };
+const estimateMs=text=>Math.max(900,String(text||'').trim().split(/\s+/).filter(Boolean).length*380);
+function nowMs(){ const v=$('#srcVideo'); return SRC&&v.classList.contains('on')?v.currentTime*1000:T; }
+function isPlayingNow(){ if(SRC){ const v=$('#srcVideo'); return v.classList.contains('on')&&!v.paused; } return !!playing; }
+function scriptOf(){ const c=currentAudio(); if(!c.script) c.script={lines:[]}; return c.script; }
+function sanitizeVoAudio(a){
+  if(!a||!a.url) return null;
+  if(/^blob:/.test(a.url)&&!SESSION_BLOBS.has(a.url)) return null;
+  return {url:String(a.url),durationMs:Math.round(mixNum(a.durationMs,0,0,3600000)),source:a.source==='upload'?'upload':'tts',name:String(a.name||'').slice(0,140),voiceId:String(a.voiceId||''),key:String(a.key||'')};
+}
+function sanitizeScript(s){
+  s=s&&typeof s==='object'?s:{};
+  return {lines:(Array.isArray(s.lines)?s.lines:[]).slice(0,200).map(l=>({id:String((l&&l.id)||uid()),voiceId:String((l&&l.voiceId)||'').slice(0,200),speaker:String((l&&l.speaker)||'Voice').slice(0,60),text:String((l&&l.text)||'').slice(0,2000),startMs:Math.round(mixNum(l&&l.startMs,0,0,4*3600000)),audio:sanitizeVoAudio(l&&l.audio)}))};
+}
+function lineKey(l){ return strHash(String(l.text||'').trim()+'|'+((voiceFor(l)||{}).id||'')); }
+function lineEndMs(l){ return l.startMs+((l.audio&&l.audio.durationMs)||estimateMs(l.text)); }
+function lineStatus(l){
+  if(!l.audio) return ['',String(l.text||'').trim()?(voiceFor(l)?'Ready to generate':'Choose a voice'):'Write some text'];
+  const s=((l.audio.durationMs||0)/1000).toFixed(1)+' s';
+  if(l.audio.source==='upload') return ['ready','Recording · '+s];
+  if(l.audio.key!==lineKey(l)) return ['stale','Text or voice changed. Regenerate'];
+  return ['ready','Ready · '+s];
+}
+const voiceShort=v=>String(v&&v.label||'Voice').replace(/\s*·\s*designed voice$/i,'');
+function voiceFor(l){ const id=l&&l.voiceId||TTS.defaultId; return TTS.voices.find(v=>v.id===id)||null; }
+function refreshLineStatuses(){ LINE_UI.forEach(u=>u.refresh()); }
+
+/* ---- following + seeking ---- */
+function seekAudio(ms){
+  ms=Math.max(0,Number(ms)||0);
+  if(SRC){ const v=$('#srcVideo'); if(!v.classList.contains('on')) play(); v.currentTime=ms/1000; v.play().catch(()=>{}); }
+  else if(curAnim){ cancelAnimationFrame(raf); T=Math.min(dur(),ms); playing=true; tStart=performance.now()-T; raf=requestAnimationFrame(frame); }
+  else toast('Select a cut to play it.','err');
+}
+function followAudio(t,on){
+  if(audioEl.hidden||!AUDIO_REFS) return;
+  const R=AUDIO_REFS;
+  if(R.head&&R.total) R.head.style.left=Math.max(0,Math.min(100,t/R.total*100))+'%';
+  let live=-1; for(let i=0;i<R.lines.length;i++){ if(t>=R.lines[i]._s&&t<R.lines[i]._e){ live=i; break; } }
+  if(live===FOLLOW_LIVE) return;
+  FOLLOW_LIVE=live;
+  R.rows.forEach((r,i)=>{ if(i===live) r.el.setAttribute('data-live',''); else r.el.removeAttribute('data-live'); });
+  R.segs.forEach((s,i)=>{ if(i===live) s.el.setAttribute('data-live',''); else s.el.removeAttribute('data-live'); });
+  if(live>=0&&on&&!R.rows[live].el.hidden) R.rows[live].el.scrollIntoView({block:'nearest',behavior:'smooth'});
+}
+
+/* ---- playback of added voice-over lines ---- */
+function voEl(line){
+  const url=line.audio&&line.audio.url; let e=VO_AUDIO.get(line.id);
+  if(!url){ if(e){ e.pause(); VO_AUDIO.delete(line.id); } return null; }
+  if(!e||e.dataset.url!==url){ if(e) e.pause(); e=new Audio(); e.preload='auto'; e.dataset.url=url; e.src=url; VO_AUDIO.set(line.id,e); }
+  return e;
+}
+function voSync(t,on){
+  const cfg=AUDIO_MIX; const lines=(cfg&&cfg.script&&AUDIO_MIX_KEY===audioKey())?cfg.script.lines:[];
+  const ids=new Set(lines.map(l=>l.id));
+  VO_AUDIO.forEach((e,id)=>{ if(!ids.has(id)){ e.pause(); VO_AUDIO.delete(id); } });
+  if(!lines.length) return;
+  const vol=cfg.narration.muted?0:mixNum(cfg.narration.volume,1,0,1);
+  lines.forEach(l=>{
+    const e=voEl(l); if(!e) return;
+    const d=(l.audio.durationMs||0)||(isFinite(e.duration)?e.duration*1000:0);
+    const active=on&&t>=l.startMs&&t<l.startMs+d, want=(t-l.startMs)/1000;
+    e.volume=vol;
+    if(active){
+      if(e.paused){ if(!(e.ended&&want>=e.duration-.15)){ try{ e.currentTime=Math.max(0,want); }catch{} e.play().catch(()=>{}); } }
+      else if(Math.abs(e.currentTime-want)>.6){ try{ e.currentTime=Math.max(0,want); }catch{} }
+    } else if(!e.paused) e.pause();
+  });
+}
+function audioTick(){
+  if(!cur) return;
+  if(AUDIO_MIX_KEY!==audioKey()&&!MIX_LOADING){ MIX_LOADING=true; loadAudioMix().finally(()=>{ MIX_LOADING=false; }); }
+  const t=nowMs(), on=isPlayingNow();
+  voSync(t,on); followAudio(t,on);
+}
+setInterval(audioTick,80);
+
+/* ---- text-to-speech (MLX-Audio server + Book Studio voices) ---- */
+async function loadTtsVoices(force=false){
+  if(TTS.loading||(TTS.loaded&&!force)) return;
+  TTS.loading=true; TTS.error='';
+  try{
+    const r=await fetch('/api/tts/design/voices',{headers:{Accept:'application/json'},cache:'no-store'});
+    if(!r.ok){
+      const payload=await r.json().catch(()=>({}));
+      throw new Error(payload.error||payload.detail||`${r.status} ${r.statusText}`);
+    }
+    const j=await r.json();
+    if(!j||!Array.isArray(j.voiceOptions)) throw new Error('The voice service returned an invalid voice list.');
+    TTS.voices=j.voiceOptions.filter(v=>v&&v.id&&v.model).map(v=>({
+      id:String(v.id),label:String(v.label||v.id),model:String(v.model),kind:String(v.kind||''),
+      instruct:String(v.instruct||''),voice:String(v.voice||'default'),langCode:String(v.langCode||''),
+    }));
+    let preferred='';
+    try{ preferred=localStorage.getItem(TTS_PREFERENCE_KEY)||''; }catch{}
+    TTS.defaultId=TTS.voices.some(v=>v.id===preferred)?preferred:
+      (TTS.voices.some(v=>v.id===j.defaultId)?j.defaultId:(TTS.voices[0]&&TTS.voices[0].id)||'');
+  }catch(error){
+    TTS.error=error&&error.message?error.message:String(error);
+  }
+  TTS.loaded=true; TTS.loading=false;
+  if(!audioEl.hidden) paintAudio();
+}
+async function ttsSpeak(text,voice){
+  const body={model:voice.model,input:text,voice:voice.kind==='designed'?voice.id:(voice.voice||'default'),response_format:'mp3'};
+  if(voice.instruct) body.instruct=voice.instruct;
+  if(voice.kind!=='designed'&&voice.langCode) body.lang_code=voice.langCode;
+  let r;
+  try{ r=await fetch('/api/tts/speech',{method:'POST',headers:{'Content-Type':'application/json',Accept:'audio/*'},body:JSON.stringify(body)}); }
+  catch{ throw new Error('The Studio TTS service is not reachable.'); }
+  if(!r.ok){
+    let message=`${r.status} ${r.statusText}`;
+    try{ const payload=await r.json(); message=payload.error||payload.detail||message; }catch{}
+    throw new Error(String(message).slice(0,200));
+  }
+  const blob=await r.blob(); if(!blob.size) throw new Error('The voice server returned empty audio.');
+  return blob;
+}
+async function storeAudioBlob(blob,name){
+  const url=URL.createObjectURL(blob); let dur=await probeAudioDuration(url); if(!Number.isFinite(dur)) dur=0;
+  try{
+    const q=new URLSearchParams({designId:cur.id,name});
+    const r=await fetch(`${API}/library/audio/upload?${q.toString()}`,{method:'POST',headers:{'Content-Type':blob.type||'audio/mpeg'},body:blob});
+    const j=await r.json().catch(()=>({})); if(!r.ok||!j.url) throw new Error(j.error||('HTTP '+r.status));
+    URL.revokeObjectURL(url);
+    return {url:j.url,durationMs:Number(j.durationMs)||dur,name:j.name||name,saved:true};
+  }catch{ SESSION_BLOBS.add(url); return {url,durationMs:dur,name,saved:false}; }
+}
+function previewUrl(url){ if(VO_PREVIEW) VO_PREVIEW.pause(); VO_PREVIEW=new Audio(url); VO_PREVIEW.play().catch(()=>toast('Could not play that audio.','err')); }
+async function generateLine(line,ui){
+  const text=String(line.text||'').trim();
+  if(!text){ toast('Write some text first.','err'); return false; }
+  const voice=voiceFor(line);
+  if(!voice){ toast('Choose a voice first.','err'); return false; }
+  ui.btn.disabled=true; ui.btn.textContent='Generating…'; ui.status.dataset.s=''; ui.status.textContent='Generating the narration…';
+  try{
+    const blob=await ttsSpeak(text,voice);
+    const stored=await storeAudioBlob(blob,`vo-${line.id}-${Date.now().toString(36)}.mp3`);
+    line.speaker=voiceShort(voice);
+    line.audio={url:stored.url,durationMs:stored.durationMs,source:'tts',name:stored.name,voiceId:voice.id,key:lineKey(line)};
+    saveAudioMix(); if(!stored.saved) toast('Ready for this session. Start the studio server to keep the file.','err');
+    return true;
+  }catch(e){ ui.refresh(); ui.status.dataset.s='err'; ui.status.textContent=e.message; toast('Could not generate: '+e.message,'err'); return false; }
+  finally{ ui.refresh(); }
+}
+const isAudioFile=f=>/^audio\//.test(f.type||'')||/\.(mp3|wav|m4a|aac|ogg|opus|flac|webm)$/i.test(f.name||'');
+async function addRecordingFile(file,opts={}){
+  if(!isAudioFile(file)){ toast('Choose an MP3, WAV, M4A, OGG or FLAC file.','err'); return; }
+  const stored=await storeAudioBlob(file,file.name);
+  const dur=opts.durationMs||stored.durationMs;
+  scriptOf().lines.push({id:uid(),voiceId:'',speaker:'Recording',text:(opts.label||file.name.replace(/\.[^.]+$/,'')),startMs:opts.startMs!=null?opts.startMs:Math.round(nowMs()/100)*100,audio:{url:stored.url,durationMs:dur,source:'upload',name:stored.name,voiceId:'',key:''}});
+  saveAudioMix(); AUDIO_TAB='cast'; markAudioHas(true); renderAudio();
+  if(!stored.saved) toast('Added for this session. Start the studio server to keep the file.','err');
+}
+let REC=null;
+async function toggleRecord(btn){
+  if(REC){ REC.stop(); return; }
+  if(!navigator.mediaDevices||!window.MediaRecorder){ toast('This browser cannot record audio.','err'); return; }
+  let stream; try{ stream=await navigator.mediaDevices.getUserMedia({audio:true}); }catch{ toast('Microphone access was blocked.','err'); return; }
+  const chunks=[], startMs=Math.round(nowMs()/100)*100, t0=performance.now(), rec=new MediaRecorder(stream);
+  REC=rec; btn.textContent='■ Stop recording'; btn.dataset.rec='1';
+  rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data); };
+  rec.onstop=async()=>{
+    stream.getTracks().forEach(t=>t.stop()); REC=null; delete btn.dataset.rec; btn.replaceChildren(mk('b',{},'+'),'Record');
+    if(!chunks.length) return;
+    const type=rec.mimeType||'audio/webm', file=new File([new Blob(chunks,{type})],'narration-'+Date.now().toString(36)+'.'+(/mp4/.test(type)?'m4a':'webm'),{type});
+    await addRecordingFile(file,{startMs,durationMs:Math.round(performance.now()-t0),label:'Recorded narration'});
+  };
+  rec.start();
+}
+
+/* ---- panel: tabs, cast from the lines, writer ---- */
+function mergedNarration(base){
+  const sc=scriptOf(), baseCast=(base&&base.cast)||[];
+  const names=[]; sc.lines.forEach(l=>{ if(l.speaker&&!names.includes(l.speaker)&&!baseCast.some(b=>b&&b.name===l.speaker)) names.push(l.speaker); });
+  const cast=[...baseCast,...names.map(n=>({name:n,kind:n==='Recording'?'':'character',role:n==='Recording'?'Recorded audio':'',voice:'',traits:[]}))];
+  const auth=sc.lines.map(l=>({speaker:l.speaker||'Voice',text:l.text||(l.audio&&l.audio.name)||'(no text yet)',startMs:l.startMs,speechStartMs:l.startMs,speechEndMs:lineEndMs(l),authoredId:l.id}));
+  const baseTotal=base?Number(base.durationMs||(base.audio&&base.audio.durationMs)||0):0;
+  const maxEnd=auth.reduce((m,l)=>Math.max(m,l.speechEndMs),0);
+  return {...(base||{}),cast,lines:[...((base&&base.lines)||[]),...auth],durationMs:Math.max(baseTotal,maxEnd,base?0:cutDurationMs()),hasBase:!!base};
+}
+function audioTabs(narration){
+  const n=(narration?(narration.lines||[]).length:0)+scriptOf().lines.length;
+  const items=[['cast','Cast & lines',n||''],['write','Write & voice',''],['music','Music',currentAudio().music.url?'1':'']];
+  return mk('div',{className:'aud-tabs',role:'tablist'},items.map(([id,label,count])=>{
+    const b=mk('button',{type:'button',className:'aud-tab',role:'tab'},label,count?mk('small',{},String(count)):null);
+    b.setAttribute('aria-selected',String(AUDIO_TAB===id)); b.onclick=()=>{ AUDIO_TAB=id; paintAudio(); }; return b;
+  }));
+}
+function addAudioRow(){
+  const file=mk('input',{type:'file',accept:'audio/*',hidden:true});
+  file.onchange=()=>{ const f=file.files&&file.files[0]; file.value=''; if(f) addRecordingFile(f); };
+  const rec=mk('button',{type:'button'},mk('b',{},'+'),'Record'); rec.onclick=()=>toggleRecord(rec);
+  return mk('div',{className:'aud-addrow'},
+    mk('button',{type:'button',onclick:()=>addLine()},mk('b',{},'+'),'Voice line'),
+    rec,
+    mk('button',{type:'button',onclick:()=>file.click()},mk('b',{},'+'),'Upload'),
+    mk('button',{type:'button',onclick:()=>{ AUDIO_TAB='music'; paintAudio(); }},mk('b',{},'+'),'Music'),file);
+}
+function paintAudio(){
+  const body=$('#audioBody'); if(!body) return;
+  if(!cur){ AUDIO_REFS=null; body.replaceChildren(audioEmpty(null)); return; }
+  const narration=AUDIO_NARRATION;
+  FOLLOW_LIVE=-2; LINE_UI.clear(); body.replaceChildren(); let noteEl=null;
+  if(narration&&!narrationApplies()){
+    const target=(cur.anims||[]).find(a=>a.data&&a.data.sourceVideo&&a.data.narration);
+    const note=mk('div',{className:'aud-note'},`The narration belongs to “${target?animLabel(target.data,cur):'the narrated cut'}” (${(Number(narration.durationMs||narration.audio&&narration.audio.durationMs||0)/1000).toFixed(1)} s). `);
+    if(target) note.append(mk('button',{type:'button',className:'lnk',onclick:()=>selectAnim(target)},'Select it'));
+    noteEl=note;
+  }
+  body.append(audioTabs(narration));
+  const pane=mk('div',{className:'aud-pane'}); body.append(pane);
+  if(noteEl) pane.append(noteEl);
+  if(AUDIO_TAB==='write'){ AUDIO_REFS=null; renderWriter(pane); }
+  else if(AUDIO_TAB==='music'){ AUDIO_REFS=null; renderMusicSection(pane,mergedNarration(narration)); }
+  else {
+    const merged=mergedNarration(narration);
+    if(merged.lines.length){ pane.append(addAudioRow()); renderNarration(pane,merged); }
+    else { AUDIO_REFS=null; pane.append(audioEmpty(cur),addAudioRow()); }
+  }
+}
+function voiceSelect(value,onchange){
+  const sel=mk('select',{className:'vo-in'});
+  if(TTS.loading&&!TTS.voices.length) sel.append(mk('option',{value:''},'Loading voices…'));
+  else if(!TTS.voices.length) sel.append(mk('option',{value:''},'No voices available'));
+  TTS.voices.forEach(v=>sel.append(mk('option',{value:v.id},v.label)));
+  sel.setAttribute('aria-label','Voice'); sel.value=TTS.voices.some(v=>v.id===value)?value:(TTS.defaultId||''); sel.disabled=!TTS.voices.length;
+  sel.onchange=()=>onchange(sel.value); return sel;
+}
+function addLine(){
+  const sc=scriptOf(), last=sc.lines.filter(l=>l.voiceId||!l.audio||l.audio.source==='tts').slice(-1)[0], here=nowMs();
+  const t=here>200?Math.round(here/100)*100:(sc.lines.length?Math.round(lineEndMs(sc.lines[sc.lines.length-1])/100)*100+300:500);
+  const voiceId=(last&&last.voiceId)||TTS.defaultId||'', v=TTS.voices.find(x=>x.id===voiceId);
+  sc.lines.push({id:uid(),voiceId,speaker:v?voiceShort(v):'Voice',text:'',startMs:t,audio:null});
+  AUDIO_TAB='write'; saveAudioMix(); markAudioHas(true);
+  if(audioEl.hidden) openAudio(true); else paintAudio();
+  setTimeout(()=>{ const tas=$('#audioBody').querySelectorAll('.vo-card textarea'); const ta=tas[tas.length-1]; if(ta){ ta.focus(); ta.scrollIntoView({block:'nearest'}); } },60);
+}
+function lineCard(line,idx){
+  const card=mk('div',{className:'vo-card',style:'--c:'+hue(idx)});
+  const isRec=line.audio&&line.audio.source==='upload';
+  const sel=voiceSelect(line.voiceId,id=>{
+    line.voiceId=id; TTS.defaultId=id;
+    try{ localStorage.setItem(TTS_PREFERENCE_KEY,id); }catch{}
+    const v=TTS.voices.find(x=>x.id===id); if(v) line.speaker=voiceShort(v);
+    saveAudioMix(); ui.refresh();
+  });
+  const time=mk('input',{className:'vo-in',type:'number',min:0,step:0.1,value:(line.startMs/1000).toFixed(1)}); time.setAttribute('aria-label','Starts at, seconds');
+  const here=mk('button',{type:'button',className:'vo-btn quiet',title:'Use the current playhead time'},'Playhead');
+  const del=mk('button',{type:'button',className:'vo-btn x',title:'Delete line'},'×'); del.setAttribute('aria-label','Delete line');
+  card.append(mk('div',{className:'vo-head'},isRec?mk('span',{className:'vo-status',style:'min-width:0'},'Recorded audio'):sel,mk('label',{className:'vo-time'},'at',time,'s'),here,del));
+  const ta=mk('textarea',{placeholder:isRec?'Label (optional)':'What should be said…',maxLength:2000,rows:isRec?1:3}); ta.value=line.text||''; ta.setAttribute('aria-label','Text');
+  card.append(ta);
+  const status=mk('span',{className:'vo-status',role:'status'});
+  const gen=mk('button',{type:'button',className:'vo-btn primary'});
+  const play=mk('button',{type:'button',className:'vo-btn',title:'Listen'},'▶'); play.setAttribute('aria-label','Listen to this line');
+  card.append(mk('div',{className:'vo-foot'},status,play,...(isRec?[]:[gen])));
+  const ui={btn:gen,status,refresh(){ const [s,t]=lineStatus(line); status.dataset.s=s; status.textContent=t; gen.textContent=line.audio&&line.audio.source==='tts'?'Regenerate':'Generate narration'; gen.disabled=false; play.hidden=!(line.audio&&line.audio.url); }};
+  LINE_UI.set(line.id,ui); ui.refresh();
+  time.onchange=()=>{ line.startMs=Math.round(Math.max(0,Number(time.value)||0)*1000); time.value=(line.startMs/1000).toFixed(1); saveAudioMix(); };
+  here.onclick=()=>{ line.startMs=Math.round(nowMs()/100)*100; time.value=(line.startMs/1000).toFixed(1); saveAudioMix(); };
+  ta.oninput=()=>{ line.text=ta.value; saveAudioMix(); ui.refresh(); };
+  gen.onclick=()=>generateLine(line,ui);
+  play.onclick=()=>previewUrl(line.audio.url);
+  del.onclick=()=>{ const sc=scriptOf(); sc.lines=sc.lines.filter(l=>l!==line); const e=VO_AUDIO.get(line.id); if(e){ e.pause(); VO_AUDIO.delete(line.id); } LINE_UI.delete(line.id); saveAudioMix(); markAudioHas(!!AUDIO_NARRATION||sc.lines.length>0); paintAudio(); };
+  return card;
+}
+function renderWriter(pane){
+  loadTtsVoices();
+  const sc=scriptOf(); sc.lines.sort((a,b)=>a.startMs-b.startMs);
+  if(!TTS.loading&&!TTS.voices.length){
+    pane.append(mk('div',{className:'vo-empty'},TTS.error
+      ?`Could not load voice designs: ${TTS.error} `
+      :'No applied voice designs found. Create and apply a voice in Voice Studio, then reload. ',
+      mk('a',{className:'lnk',href:'voice.html',style:'text-decoration:underline;color:var(--ink)'},'Open Voice Studio'),
+      ' · ',
+      mk('button',{type:'button',className:'lnk',style:'text-decoration:underline;color:var(--ink)',onclick:()=>loadTtsVoices(true)},'reload the list'),
+      '.'));
+  }
+  pane.append(mk('div',{className:'vo-sec'},mk('div',{className:'sec'},`Narration lines · ${sc.lines.length}`),mk('button',{type:'button',className:'vo-btn',onclick:()=>addLine()},'+ Add line')));
+  if(!sc.lines.length) pane.append(mk('div',{className:'vo-empty'},'Write the text, choose one of your voices and generate the narration. Each line plays from the time you set.'));
+  sc.lines.forEach((l,i)=>pane.append(lineCard(l,i)));
+  const todo=()=>sc.lines.filter(l=>String(l.text||'').trim()&&(!l.audio||(l.audio.source==='tts'&&l.audio.key!==lineKey(l))));
+  if(todo().length){
+    const all=mk('button',{type:'button',className:'vo-btn primary'},'Generate all narration');
+    all.onclick=async()=>{
+      const list=todo(); all.disabled=true; let n=0;
+      for(const l of list){ all.textContent=`Generating ${++n} of ${list.length}…`; const ok2=await generateLine(l,LINE_UI.get(l.id)); if(!ok2) break; }
+      all.disabled=false; all.textContent='Generate all narration';
+    };
+    pane.append(mk('div',{className:'aud-actions'},all));
+  }
+}
+
+
+/* ============ theme ============ */
+function applyTheme(t){ THEME=t; document.documentElement.dataset.theme=t; LS.set('sa.theme',t); paintAll(); }
+$('#tTheme').onclick = () => applyTheme(THEME==='dark'?'light':'dark');
+document.documentElement.dataset.theme = THEME;
+
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(AREA_MODE){ stopAreaSelect(); return; } openPanel(false); chat.hidden=true; $('#tAsk').setAttribute('aria-expanded','false'); openAudio(false); } if(e.code==='Space'&&!/INPUT|TEXTAREA|SELECT|BUTTON/.test(document.activeElement.tagName)&&curAnim){ e.preventDefault(); play(); } });
+// paste images from clipboard directly into chat
+$('#in').addEventListener('paste', async e=>{
+  const items=[...e.clipboardData.items].filter(i=>i.type.startsWith('image/'));
+  if(!items.length) return;
+  e.preventDefault();
+  for(const item of items){
+    const file=item.getAsFile(); if(!file) continue;
+    try{const url=await fileToDataUrl(file);addAttachment({type:'image',name:'Pasted image',dataUrl:url,mimeType:'image/jpeg'});}
+    catch(err){toast(err.message,'err');}
+  }
+});
+addEventListener('resize',paintAll);
+$('#tAdmin').setAttribute('aria-pressed', String(ADMIN));
+$('#tAdmin').onclick = () => { LS.set('agentLibrary.admin', !ADMIN); location.reload(); };
+$('#tExport').onclick = exportVideo;
+// Diagnostic seam for the source-vs-composition fidelity review.
+window.__agentFirstQA = {
+  designs: () => DESIGNS.map((d) => ({ id:d.id, name:d.name, brand:d.brandName, anims:d.anims.map(a=>a.data.id), fmt })),
+  select: (id) => { const d = DESIGNS.find(x => x.id === id); if (!d) return false; selectDesign(d); return true; },
+  anim: (id) => { if (!cur) return false; const a = cur.anims.find(x => x.id === id || x.data.id === id); if (!a) return false; selectAnim(a); return true; },
+  context: () => ctxWithLib(),
+  seek: (t) => { playing=false; cancelAnimationFrame(raf); T=Math.max(0,Math.min(dur(),Number(t)||0)); paintMain(); return T; },
+  state: () => ({design:cur&&cur.id,animation:curAnim&&curAnim.name,T,cvHidden:$('#cv').hidden,posterHidden:$('#srcPoster').hidden,src:SRC,audioOpen:!audioEl.hidden}),
+  audio: (on=true) => { openAudio(!!on); return !audioEl.hidden; },
+  narration: async () => cur ? narrationFor(cur.id) : null,
+  frame: (t, fmtId = null) => {
+    if (!cur) return null;
+    const S = 1080, out = document.createElement('canvas');
+    out.width = S; out.height = S;
+    draw(out.getContext('2d'), S, { ...cur, lib: null }, curAnim, Math.max(0, Number(t) || 0), fmtId || fmt);
+    return out.toDataURL('image/png');
+  },
+};
+(async()=>{ paintMain(); try{ const f=await jget(API+'/fonts'); for(const x of f.fonts||[]) if(x.family&&x.url){ try{ const ff=new FontFace(x.family,`url("${x.url}")`,{weight:'100 1000'}); await ff.load(); document.fonts.add(ff);}catch{} } }catch{}
+  await loadProviderCatalog();
+  await loadFeed(); say('Pick a design, choose an animation, then ask me for a new animation, a change, or a review. You can attach images or video as visual references.'); })();
+})();
+</script>
+</body>
+</html>

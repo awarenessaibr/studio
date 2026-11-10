@@ -164,6 +164,31 @@ The Layers section is a tree, not a flat list:
 - Use a segment's texture button to choose a texture reference and generate a
   variant with ComfyUI. The generated layer keeps the source segment's transform
   and group, and its name includes the texture name.
+- Use a segment's **fill-holes** button (paint-bucket icon) to rebuild the pixels
+  that the segments in front of it cover. Segmentation exports a cut-out, not a
+  complete stack: wherever another object was painted over a layer, its PNG is
+  transparent, and animating the layer reveals the hole. The fill reads the
+  alpha of the visible segments above and the master layout, then reconstructs
+  only those hidden pixels from the layer's own surrounding artwork with a
+  coarse-to-fine exemplar synthesis (nearest-neighbour patch search plus patch
+  voting). Visible pixels are never repainted, and the segment keeps its image
+  size, placement, stacking and animation. The dialog previews **Before** and
+  **After** on a checkerboard before anything is written.
+
+  Three things are worth knowing:
+  - Only areas a segment **in front** covers are rebuilt. That is what makes
+    the edit safe: a filled pixel stays behind the object that hid it. A
+    segment that covers this one completely is treated as a backdrop and
+    skipped.
+  - A recovered **background plate** (the flattened scene with the objects cut
+    out) usually sits *above* its cut-outs so they show through its holes. Move
+    the plate behind them first (drag it down the tree), then fill it: every
+    object is then in front and every hole is rebuilt. Filling such a plate
+    while it is still on top would cover the objects instead.
+  - The filled PNG is embedded in the composition like any replaced image, so
+    a project with many large fills grows; the backend refuses to save a
+    composition over 24 MB. Filling the layers that actually move is usually
+    enough.
 - Drag a segment onto a group to move it there, or onto another segment to
   reorder it. The resulting layer order and group assignment are saved with the
   composition.

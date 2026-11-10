@@ -122,10 +122,13 @@ short list that becomes draggable offer cards:
 ```
 
 `rooms[]` is for a multi-room venue: one entry per hireable space, with the
-capacity, layout, AV, toilets and access a function brief asks about. It is
-reference detail — the register prints it and the Menus tab lists it under
-**Venue & functions** — while each hireable package stays in `offers[]` so it
-can be dragged onto a canvas.
+capacity, layout, AV, toilets and access a function brief asks about. Each
+room is a draggable card (`room-<id>`, dropped as an `offer` block) as well as
+a reference row under **Venue & functions**, and `image`/`gallery` attach its
+photography from the pack. Hireable packages stay in `offers[]`.
+
+The room model, its sources, the photo manifest and the cross-check are
+defined in [function-hire.md](function-hire.md).
 
 **Contradictions are recorded, not resolved.** The Singl-end's 2026 Terms &
 Conditions state a £1,800 minimum spend while its 2026 brochure states there
@@ -238,9 +241,23 @@ curl -X POST http://127.0.0.1:8008/api/assets/index-pack \
    ```bash
    node scripts/export-menu-register.js --pack=<pack>
    # → deliverables/<pack-name>/menus-and-venue.md
+   node scripts/verify-brand-sources.js --pack=<pack>
+   # → deliverables/<pack-name>/source-verification.md
    ```
 
-6. Open `/studio.html?pack=<pack>&brand=<brand>` → **Menus**, or
+6. Run the source check. It compares every price token with the PDF, every
+   room fact with the saved page snapshot and the brochure page, every image
+   with the pack, and every known conflict with the note that records it:
+
+   ```bash
+   node scripts/verify-brand-sources.js --pack=<pack> --verbose
+   # → deliverables/<pack-name>/source-verification.md
+   ```
+
+   Dish names are transcribed, not OCR-matched; the register is where they
+   are reviewed against the page.
+
+7. Open `/studio.html?pack=<pack>&brand=<brand>` → **Menus**, or
    `/asset-studio.html?brand=<brand>` → a menu design → **Text** → *Menu source*.
 
 The register is generated from the pack, so it cannot drift from what the
@@ -268,6 +285,7 @@ Rules that keep this honest:
 node --test tests/menu-content.test.js   # model, formatting, assets, real pack
 node tests/menus.js                      # browser: Menus tab drop + Asset Studio source
 node scripts/export-menu-register.js --pack=singl-end-merchant-city-20261107164459-3-20261109103425-e780
+node scripts/verify-brand-sources.js --pack=singl-end-merchant-city-20261107164459-3-20261109103425-e780
 ```
 
 The `deliverables/singl-end-merchant-city/menus-and-venue.md` register is

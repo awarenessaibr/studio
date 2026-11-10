@@ -608,6 +608,7 @@ window.addEventListener('DOMContentLoaded', () => {
             button('fa-copy', `Duplicate ${layer.name}`, 'duplicate-layer', { id: layer.id }),
             ...(layer.type === 'image' ? [button('fa-image', `Replace image for ${layer.name}`, 'replace-image', { id: layer.id })] : []),
             ...(layer.type === 'image' ? [button('fa-wand-magic-sparkles', `Generate a new texture for ${layer.name}`, 'texture-image', { id: layer.id })] : []),
+            ...(layer.type === 'image' ? [button('fa-fill-drip', `Fill the holes in ${layer.name} that the segments in front hide`, 'fill-holes', { id: layer.id })] : []),
             button(layer.visible ? 'fa-eye' : 'fa-eye-slash', `${layer.visible ? 'Hide' : 'Show'} ${layer.name}`, 'eye', { ids: layer.id }),
             button('fa-download', `Download ${layer.name}`, 'download', { id: layer.id }),
             button('fa-trash', `Delete ${layer.name}`, 'delete', { id: layer.id }));
@@ -760,6 +761,7 @@ window.addEventListener('DOMContentLoaded', () => {
             return;
         }
         if (act === 'texture-image') return openTextureDialog(target.dataset.id);
+        if (act === 'fill-holes') return openFillDialog(target.dataset.id);
         if (act === 'select') return select(target.dataset.id);
         if (act === 'download-group') {
             studio.exportSegmentGroup(target.dataset.key).catch((error) => {
@@ -858,6 +860,199 @@ window.addEventListener('DOMContentLoaded', () => {
     });
     textureDialog.addEventListener('click', (event) => {
         if (event.target === textureDialog && !textureBusy) textureDialog.close();
+    });
+
+    // ------------------------------------------------------------------
+    // Fill holes: rebuild what the segments in front hid
+    // ------------------------------------------------------------------
+    let fillTargetLayer = null;
+    let fillTargetComposition = null;
+    let fillResult = null;
+    let fillBeforeUrl = '';
+    let fillAfterUrl = '';
+    let fillView = 'after';
+    let fillBusy = false;
+    let fillRun = 0;
+
+    function setFillStatus(message, { error = false, busy = false } = {}) {
+        const status = $('segmentFillStatus');
+        status.textContent = message;
+        status.dataset.error = String(error);
+        status.dataset.busy = String(busy);
+    }
+
+    function showFillPreview(view) {
+        fillView = view === 'before' ? 'before' : 'after';
+        const ready = fillView === 'before' ? Boolean(fillBeforeUrl) : Boolean(fillAfterUrl);
+        const image = $('segmentFillImage');
+        image.hidden = !ready;
+        if (ready) image.src = fillView === 'before' ? fillBeforeUrl : fillAfterUrl;
+        $('segmentFillShowBefore').setAttribute('aria-pressed', String(fillView === 'before'));
+        $('segmentFillShowAfter').setAttribute('aria-pressed', String(fillView === 'after'));
+    }
+
+    function loadPreviewImage(url) {
+        return new Promise((resolve, reject) => {
+            const image = new Image();
+            image.onload = () => resolve(image);
+            image.onerror = () => reject(new Error('The fill preview could not be drawn.'));
+            image.src = url;
+        });
+    }
+
+    function fillNumber(value) {
+        return Number(value || 0).toLocaleString();
+    }
+
+    function closeFillDialog() {
+        fillRun += 1;
+        fillBusy = false;
+        fillResult = null;
+        fillBeforeUrl = '';
+        fillAfterUrl = '';
+        fillTargetLayer = null;
+        fillTargetComposition = null;
+        const dialog = $('segmentFillDialog');
+        if (dialog.open) dialog.close();
+    }
+
+    async function runFill(layerId) {
+        const layer = studio.getLayer(layerId);
+        const composition = studio.composition;
+        if (!layer || !composition) return;
+        const engine = window.LayerStudioSegmentFill;
+        if (!engine) {
+            setFillStatus('The fill engine did not load. Reload the studio and try again.', { error: true });
+            return;
+        }
+        const run = ++fillRun;
+        fillBusy = true;
+        fillResult = null;
+        fillBeforeUrl = '';
+        fillAfterUrl = '';
+        $('segmentFillApply').disabled = true;
+        $('segmentFillClose').disabled = true;
+        $('segmentFillCancel').disabled = true;
+        $('segmentFillShowBefore').disabled = true;
+        $('segmentFillShowAfter').disabled = true;
+        $('segmentFillImage').hidden = true;
+        $('segmentFillStats').textContent = '';
+        try {
+            setFillStatus('Finding the pixels the segments in front hide…', { busy: true });
+            await new Promise((resolve) => window.setTimeout(resolve, 0));
+            const prepared = await engine.analyse(studio, layer);
+            if (run !== fillRun || studio.composition !== composition || studio.getLayer(layer.id) !== layer) return;
+            fillBeforeUrl = engine.preview(prepared.image, prepared.width, prepared.height, 760);
+            showFillPreview('before');
+            setFillStatus('Rebuilding the hidden area from the surrounding artwork…', { busy: true });
+            await new Promise((resolve) => window.setTimeout(resolve, 0));
+            const result = await engine.fill(prepared);
+            if (run !== fillRun || studio.composition !== composition || studio.getLayer(layer.id) !== layer) return;
+            const afterImage = await loadPreviewImage(result.dataUrl);
+            if (run !== fillRun) return;
+            fillResult = result;
+            fillAfterUrl = engine.preview(afterImage, prepared.width, prepared.height, 760);
+            showFillPreview('after');
+            const total = prepared.width * prepared.height;
+            const share = total ? Math.round(prepared.hiddenPixels / total * 100) : 0;
+            let detail = '';
+            if (prepared.front.length === 1) {
+                detail = `behind "${prepared.front[0]}"`;
+            } else {
+                detail = `behind ${prepared.front.length} segments in front`;
+            }
+            $('segmentFillStats').textContent =
+                `${fillNumber(prepared.hiddenPixels)} hidden pixels rebuilt (${share}% of the segment), ${detail}.`;
+            setFillStatus('Review the result, then apply it. Only the hidden pixels changed.');
+            $('segmentFillApply').disabled = false;
+        } catch (error) {
+            if (run !== fillRun) return;
+            console.error('[layer-studio] segment hole fill failed:', error);
+            setFillStatus(error.message || 'The holes could not be filled.', { error: true });
+        } finally {
+            if (run === fillRun) {
+                fillBusy = false;
+                $('segmentFillClose').disabled = false;
+                $('segmentFillCancel').disabled = false;
+                $('segmentFillShowBefore').disabled = !fillBeforeUrl;
+                $('segmentFillShowAfter').disabled = !fillAfterUrl;
+            }
+        }
+    }
+
+    function openFillDialog(id) {
+        const layer = studio.getLayer(id);
+        if (!layer || layer.type !== 'image' || layer.id === studio.composition.referenceLayerId) {
+            studio.setStatus('Choose an image segment to fill.', true);
+            return;
+        }
+        if (Array.isArray(layer.frames) && layer.frames.length > 1) {
+            studio.setStatus('This segment is a sprite; fill each frame before importing it as a sprite.', true);
+            return;
+        }
+        fillTargetLayer = layer;
+        fillTargetComposition = studio.composition;
+        fillRun += 1;
+        fillBusy = false;
+        fillResult = null;
+        fillBeforeUrl = '';
+        fillAfterUrl = '';
+        $('segmentFillTitle').textContent = `Fill holes in "${layer.name}"`;
+        $('segmentFillSubtitle').textContent = 'Rebuild the part of this segment that the segments in front hide';
+        $('segmentFillStats').textContent = '';
+        $('segmentFillStatus').textContent = '';
+        $('segmentFillImage').hidden = true;
+        $('segmentFillImage').removeAttribute('src');
+        $('segmentFillApply').disabled = true;
+        $('segmentFillShowBefore').disabled = true;
+        $('segmentFillShowAfter').disabled = true;
+        $('segmentFillShowBefore').setAttribute('aria-pressed', 'false');
+        $('segmentFillShowAfter').setAttribute('aria-pressed', 'true');
+        $('segmentFillDialog').showModal();
+        runFill(layer.id);
+    }
+
+    function applyFill() {
+        const layer = fillTargetLayer;
+        const composition = fillTargetComposition;
+        const result = fillResult;
+        if (!layer || !result || fillBusy) return;
+        if (studio.composition !== composition || studio.getLayer(layer.id) !== layer) {
+            setFillStatus('The open project or segment changed. Close this dialog and try again.', { error: true });
+            return;
+        }
+        layer.url = result.dataUrl;
+        layer.frames = [result.dataUrl];
+        delete layer.frameUrl;
+        if (layer.videoUrl) layer.videoUrl = '';
+        studio.render();
+        render();
+        studio.scheduleSave();
+        const pixels = fillNumber(result.hiddenPixels);
+        closeFillDialog();
+        studio.setStatus(`Filled ${pixels} hidden pixels in "${layer.name}". Its size, position and animation were kept.`);
+    }
+
+    $('segmentFillShowBefore').addEventListener('click', () => showFillPreview('before'));
+    $('segmentFillShowAfter').addEventListener('click', () => showFillPreview('after'));
+    $('segmentFillApply').addEventListener('click', applyFill);
+    $('segmentFillClose').addEventListener('click', closeFillDialog);
+    $('segmentFillCancel').addEventListener('click', closeFillDialog);
+    const fillDialog = $('segmentFillDialog');
+    fillDialog.addEventListener('close', () => {
+        fillRun += 1;
+        fillBusy = false;
+        fillResult = null;
+        fillBeforeUrl = '';
+        fillAfterUrl = '';
+        fillTargetLayer = null;
+        fillTargetComposition = null;
+    });
+    fillDialog.addEventListener('cancel', (event) => {
+        if (fillBusy) event.preventDefault();
+    });
+    fillDialog.addEventListener('click', (event) => {
+        if (event.target === fillDialog && !fillBusy) fillDialog.close();
     });
 
     tree.addEventListener('dragstart', (event) => {

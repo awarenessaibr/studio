@@ -1,0 +1,15 @@
+{
+  "stages": [
+    {
+      "id": "butterfly-the-pig---cinematic-03-narrated",
+      "file": "deliverables/butterfly-cinematic-03-narrated/stage/cinematic-03-narrated.html",
+      "stage": 0,
+      "selector": ".stage",
+      "width": 1080,
+      "height": 1920,
+      "duration": 34240,
+      "audio": "deliverables/butterfly-cinematic-03-narrated/narration/narration-mix.wav",
+      "posterAt": 32.2
+    }
+  ]
+}

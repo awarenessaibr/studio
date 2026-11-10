@@ -1,0 +1,32 @@
+[
+  {
+    "id": "the-butterfly-and-the-pig-new-posts-01",
+    "file": "data/library/sources/html/butterfly-three-new-posts.html",
+    "stage": 0,
+    "width": 1080,
+    "height": 1920,
+    "duration": 14000,
+    "posterTime": 13.0,
+    "name": "The Butterfly and the Pig \u00b7 Sunday Scran"
+  },
+  {
+    "id": "the-butterfly-and-the-pig-new-posts-02",
+    "file": "data/library/sources/html/butterfly-three-new-posts.html",
+    "stage": 1,
+    "width": 1080,
+    "height": 1920,
+    "duration": 16000,
+    "posterTime": 15.9,
+    "name": "The Butterfly and the Pig \u00b7 Afternoon Tea Packages"
+  },
+  {
+    "id": "the-butterfly-and-the-pig-new-posts-03",
+    "file": "data/library/sources/html/butterfly-three-new-posts.html",
+    "stage": 2,
+    "width": 1080,
+    "height": 1350,
+    "duration": 12000,
+    "posterTime": 10.0,
+    "name": "The Butterfly and the Pig \u00b7 Tea Rooms, by the Lights"
+  }
+]

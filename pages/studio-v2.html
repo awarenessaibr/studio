@@ -167,6 +167,20 @@
         .segment-texture-preview[hidden] { display: none; }
         .segment-texture-preview img { width: 88px; height: 72px; border: 1px solid var(--ls-line); border-radius: 6px; background: var(--ls-bg); object-fit: contain; }
 
+        .segment-fill-preview { display: grid; gap: 8px; }
+        .segment-fill-tabs { display: inline-flex; gap: 2px; width: fit-content; padding: 2px; border: 1px solid var(--ls-line); border-radius: 7px; background: var(--ls-bg); }
+        .segment-fill-tabs button {
+            min-height: 24px; padding: 2px 12px; border: 0; border-radius: 5px;
+            background: transparent; color: var(--ls-muted); font-size: 11px;
+        }
+        .segment-fill-tabs button[aria-pressed="true"] { background: var(--ls-raised); color: var(--ls-text); }
+        .segment-fill-frame {
+            display: grid; min-height: 180px; place-items: center; padding: 8px;
+            border: 1px solid var(--ls-line); border-radius: 8px; background: #14131a;
+        }
+        .segment-fill-frame img { display: block; max-width: 100%; max-height: 320px; object-fit: contain; }
+        .segment-fill-stats { min-height: 16px; margin: 0; color: var(--ls-muted); font-size: 11px; line-height: 1.5; }
+
         /* Canvas highlight: matches the white box + name chip of the reference segment editor */
         .layer-item.ls-hover {
             border: 1.5px solid #fff !important; z-index: 9999 !important;
@@ -236,6 +250,7 @@
                     <a class="layer-v2-link" href="asset-studio.html">Asset Studio</a>
                     <a class="layer-v2-link" href="crawler.html">Brand intake</a>
                     <a class="layer-v2-link" href="library.html">Asset library</a>
+                    <a class="layer-v2-link" href="segments.html">Segment library</a>
                     <a class="layer-v2-link" href="voice.html">Voice Studio</a>
                     <a class="layer-v2-link" href="social.html">Social intelligence</a>
                     <a class="layer-v2-link" href="studio.html">Classic studio</a>
@@ -739,6 +754,43 @@
             </div>
         </dialog>
 
+        <dialog id="segmentFillDialog" class="layer-dialog layer-dialog-wide" aria-labelledby="segmentFillTitle">
+            <div class="layer-dialog-form">
+                <header class="layer-dialog-header">
+                    <div>
+                        <h2 id="segmentFillTitle">Fill holes</h2>
+                        <p id="segmentFillSubtitle">Rebuild the part of this segment that the segments in front hide</p>
+                    </div>
+                    <button type="button" class="layer-icon-btn" id="segmentFillClose" aria-label="Close fill holes">
+                        <i class="fas fa-xmark" aria-hidden="true"></i>
+                    </button>
+                </header>
+                <p class="layer-dialog-copy">
+                    A segmented cut-out is empty wherever another object was painted over it.
+                    This rebuilds those pixels from the artwork around them — the same paper
+                    and grain — and leaves every visible pixel untouched. Only areas a segment
+                    in front covers are rebuilt: a background plate has to sit behind its
+                    cut-outs first. The segment's image is replaced; its size, position and
+                    animation stay as they are.
+                </p>
+                <div class="segment-fill-preview">
+                    <div class="segment-fill-tabs" role="group" aria-label="Fill preview">
+                        <button type="button" id="segmentFillShowBefore" aria-pressed="false">Before</button>
+                        <button type="button" id="segmentFillShowAfter" aria-pressed="true">After</button>
+                    </div>
+                    <div class="segment-fill-frame">
+                        <img id="segmentFillImage" alt="Fill preview" hidden>
+                    </div>
+                </div>
+                <p id="segmentFillStats" class="segment-fill-stats"></p>
+                <p id="segmentFillStatus" class="layer-dialog-status" role="status"></p>
+                <div class="layer-dialog-actions">
+                    <button type="button" id="segmentFillApply" disabled>Apply fill</button>
+                    <button type="button" id="segmentFillCancel">Cancel</button>
+                </div>
+            </div>
+        </dialog>
+
         <dialog id="layerBriefDialog" class="layer-dialog layer-dialog-wide" aria-labelledby="layerBriefTitle">
             <div class="layer-dialog-form">
                 <header class="layer-dialog-header">
@@ -978,6 +1030,7 @@
     <script src="/src/client/brand/brand-identity.js"></script>
     <script src="/src/client/studio/studio-minimal/studio-minimal.js"></script>
     <script src="/src/client/studio/layered-animation.js"></script>
+    <script src="/src/client/studio/segment-fill.js"></script>
     <script src="/src/client/studio/studio-v2.js"></script>
 </body>
 

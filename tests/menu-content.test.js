@@ -65,6 +65,22 @@ const sample = () => ({
         faqs: [{ q: 'Is there a hire fee?', a: 'Yes, £250.' }],
         offers: [{ title: 'Private hire', detail: 'Exclusive use', price: '£250', branches: ['garnethill'] }],
         occasions: ['Weddings'],
+        rooms: [{
+            name: 'The Drawing Room',
+            location: 'First floor',
+            capacity: 'Two long tables of 20',
+            layout: 'Dining or afternoon tea',
+            av: 'Sound system',
+            toilets: 'On this floor',
+            accessibility: 'No disabled access',
+            available: 'Any time of day',
+            features: ['Antique furnishings', 'Wedding breakfasts'],
+            image: 'assets/photography/rooms/the-drawing-room-01.webp',
+            gallery: ['assets/photography/rooms/the-drawing-room-02.webp', '../escape.jpg'],
+            url: 'https://example.com/drawing-room',
+            brochurePage: 6,
+            note: 'The largest room.',
+        }],
     },
     documents: [{ title: 'Menu', path: 'documents/menu.pdf', kind: 'menu', pages: 2, menuIds: ['all-day'] }],
     hours: { mon: '9–5PM' },
@@ -120,6 +136,12 @@ test('venue hire, terms, FAQs and offers are bounded and kept', () => {
     assert.equal(venue.offers[0].price, '£250');
     assert.deepEqual(venue.offers[0].branches, ['garnethill']);
     assert.deepEqual(venue.occasions, ['Weddings']);
+    assert.equal(venue.rooms.length, 1);
+    assert.equal(venue.rooms[0].image, 'assets/photography/rooms/the-drawing-room-01.webp');
+    assert.deepEqual(venue.rooms[0].gallery, ['assets/photography/rooms/the-drawing-room-02.webp'], 'a path that escapes the pack is refused');
+    assert.equal(venue.rooms[0].url, 'https://example.com/drawing-room');
+    assert.equal(venue.rooms[0].brochurePage, 6);
+    assert.deepEqual(venue.rooms[0].features, ['Antique furnishings', 'Wedding breakfasts']);
     // The written shape is flat (`hireFee`), the authored one nested; a saved
     // pack must survive a second normalise without losing the hire terms.
     const again = Brand.normalizeContent(JSON.parse(JSON.stringify(brandFrom(sample()).content))).venue;
@@ -216,6 +238,12 @@ test('contentAssets gives every dish, section, menu and offer a stable id', () =
     assert.ok(ids.includes('menu-all-day-s0'));
     assert.ok(ids.includes('menu-all-day-s0-i1'));
     assert.ok(ids.includes('venue-private-hire'));
+    const room = catalog.assets.find((asset) => asset.id === 'room-the-drawing-room');
+    assert.ok(room, 'a room is a draggable asset');
+    assert.equal(room.format, 'offer');
+    assert.equal(room.roomId, 'the-drawing-room');
+    assert.equal(room.label, 'The Drawing Room');
+    assert.equal(room.text, 'The Drawing Room | Two long tables of 20 · First floor | ');
     const item = catalog.assets.find((asset) => asset.id === 'menu-all-day-s0-i1');
     assert.equal(item.format, 'menu-item');
     assert.equal(item.group, 'all-day');

@@ -49,7 +49,7 @@ function table(head, rows) {
     ].join('\n');
 }
 
-function renderBrand(brand) {
+function renderBrand(brand, outFile) {
     const content = brand.content || {};
     const menus = Array.isArray(content.menus) ? content.menus : [];
     const venue = content.venue || null;
@@ -170,16 +170,38 @@ function renderBrand(brand) {
         if (venue.rooms.length) {
             lines.push('', '### Rooms', '');
             lines.push(table(
-                ['Room', 'Location', 'Capacity', 'Layout', 'AV', 'Toilets', 'Access', 'Available'],
+                ['Room', 'Location', 'Capacity', 'AV', 'Access', 'Available', 'Source'],
                 venue.rooms.map((room) => [
-                    room.name, room.location, room.capacity, room.layout,
-                    room.av, room.toilets, room.accessibility, room.available,
+                    room.name, room.location, room.capacity, room.av, room.accessibility, room.available,
+                    [room.url, room.brochurePage && `brochure p.${room.brochurePage}`].filter(Boolean).join(' · '),
                 ]),
             ));
-            const notes = venue.rooms.filter((room) => room.note);
-            if (notes.length) {
-                notes.forEach((room) => lines.push('', `- **${room.name}**: ${room.note}`));
-            }
+            venue.rooms.forEach((room) => {
+                lines.push('', `#### ${room.name}`, '');
+                if (room.image) {
+                    const relative = path.relative(path.dirname(outFile), path.join(ROOT, 'data', 'brand-packs', brand._packId, 'files', brand.id, room.image));
+                    lines.push(`![${room.name} — function room](${relative.split(path.sep).join('/')})`, '');
+                }
+                lines.push(table(
+                    ['Term', 'Value'],
+                    [
+                        ['Location', room.location],
+                        ['Capacity', room.capacity],
+                        ['Layout', room.layout],
+                        ['AV', room.av],
+                        ['Toilets', room.toilets],
+                        ['Access', room.accessibility],
+                        ['Available', room.available],
+                        ['Source', [room.url, room.brochurePage && `brochure p.${room.brochurePage}`].filter(Boolean).join(' · ')],
+                        ['Photos', room.gallery.length ? `${room.gallery.length + (room.image ? 1 : 0)} in the pack (${room.gallery.length} in the gallery)` : ''],
+                    ].filter(([, value]) => value),
+                ));
+                if (room.features.length) {
+                    lines.push('', '**Features**');
+                    room.features.forEach((feature) => lines.push(`- ${feature}`));
+                }
+                if (room.note) lines.push('', room.note);
+            });
         }
         if (venue.offers.length) {
             lines.push('', '### Offers', '');
@@ -253,10 +275,10 @@ function main() {
         console.error(options.brand ? `Brand “${options.brand}” is not in that pack.` : 'That pack has no brands.');
         process.exit(1);
     }
-    const body = brands.map(renderBrand).join('\n---\n\n');
     const out = options.out
         ? path.resolve(ROOT, options.out)
         : path.join(ROOT, 'deliverables', Brand.slugId(pack.name || options.pack), 'menus-and-venue.md');
+    const body = brands.map((brand) => renderBrand(brand, out)).join('\n---\n\n');
     fs.mkdirSync(path.dirname(out), { recursive: true });
     fs.writeFileSync(out, `${body}\n`);
     console.log(`✓ ${path.relative(ROOT, out)} (${brands.length} brand${brands.length === 1 ? '' : 's'})`);

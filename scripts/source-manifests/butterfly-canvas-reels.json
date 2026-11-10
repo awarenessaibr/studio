@@ -1,0 +1,20 @@
+{
+  "brand": "The Butterfly and the Pig",
+  "fps": 30,
+  "sources": [
+    {
+      "file": "data/library/sources/html/butterfly-unusual-reels.html",
+      "idPrefix": "butterfly-the-pig-unusual-reels",
+      "collection": "Unusually Sharp Reels",
+      "namePrefix": "The Butterfly and the Pig · Unusually Sharp Reels",
+      "tags": ["unusual-reels", "canvas", "reel", "butterfly-pig"]
+    },
+    {
+      "file": "data/library/sources/html/butterfly-gift-voucher-reels.html",
+      "idPrefix": "butterfly-the-pig-gift-voucher-reels",
+      "collection": "Gift Voucher Reels",
+      "namePrefix": "The Butterfly and the Pig · Gift Voucher Reels",
+      "tags": ["gift-vouchers", "canvas", "reel", "butterfly-pig"]
+    }
+  ]
+}

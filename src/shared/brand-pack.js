@@ -34,7 +34,7 @@
     const MAX_PARAGRAPH_CHARS = 900;
     const MAX_APPLICATIONS = 40;
     const MAX_LOGO_ASSETS = 60;
-    const MAX_PHOTOS = 80;
+    const MAX_PHOTOS = 120;
 
     const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
     const finite = (value, fallback) => (Number.isFinite(Number(value)) ? Number(value) : fallback);
@@ -575,6 +575,15 @@
         return /^[A-Za-z0-9._~%()+,@\-/ ]+\.(?:pdf|docx?|xlsx?|csv|txt|md)$/i.test(file) ? file : '';
     }
 
+    // Room photography is referenced by pack-relative path (the photography
+    // list carries the served URL); the same no-`..` rule applies.
+    function normalizeImagePath(value) {
+        if (typeof value !== 'string') return '';
+        const file = value.trim().slice(0, 240);
+        if (!file || file.split('/').includes('..') || file.startsWith('http')) return '';
+        return /^[A-Za-z0-9._~%()+,@\-/ ]+\.(?:png|jpe?g|webp|gif|avif)$/i.test(file) ? file : '';
+    }
+
     // A menu is dated material: prices and dishes change, and a poster that
     // quotes a retired price is worse than no poster. `validFrom`/`validTo`
     // stay on the menu so the studio can say how old a price is.
@@ -722,6 +731,8 @@
         // capacity, AV and access of each one — not a paragraph of prose.
         const rooms = (Array.isArray(source.rooms) ? source.rooms : []).slice(0, 12).map((entry, index) => {
             const item = entry && typeof entry === 'object' ? entry : {};
+            const gallery = (Array.isArray(item.gallery) ? item.gallery : [])
+                .map(normalizeImagePath).filter(Boolean).slice(0, 24);
             return {
                 id: slugId(item.id || item.name, `room-${index + 1}`).slice(0, 60),
                 name: text(item.name, 80),
@@ -732,6 +743,13 @@
                 toilets: text(item.toilets, 240),
                 accessibility: text(item.accessibility, 300),
                 available: text(item.available, 180),
+                features: normalizeStringList(item.features, 160, 10),
+                image: normalizeImagePath(item.image),
+                gallery,
+                url: normalizeAssetUrl(item.url),
+                brochurePage: Number.isFinite(Number(item.brochurePage))
+                    ? Math.max(1, Math.round(Number(item.brochurePage)))
+                    : null,
                 note: text(item.note, 300),
             };
         }).filter((item) => item.name);
@@ -1064,6 +1082,32 @@
             offers.push(asset);
             assets.push(asset);
         });
+        // A room is a hire product too: a designer should be able to drop
+        // "The Drawing Room · 2 long tables of 20" as a card, not retype it.
+        const rooms = [];
+        (Array.isArray(venue?.rooms) ? venue.rooms : []).forEach((room) => {
+            const asset = {
+                id: `room-${room.id}`,
+                kind: 'room',
+                format: 'offer',
+                label: room.name,
+                text: [
+                    room.name,
+                    [room.capacity, room.location].filter(Boolean).join(' · '),
+                    '',
+                ].join(MENU_ITEM_SEPARATOR),
+                meta: [room.available, room.capacity].filter(Boolean).join(' · '),
+                detail: [room.layout, room.av].filter(Boolean).join(' · '),
+                price: '',
+                group: 'venue',
+                groupLabel: 'Venue & functions',
+                branch: opts.branch || '',
+                roomId: room.id,
+                photo: room.image || '',
+            };
+            rooms.push(asset);
+            assets.push(asset);
+        });
         return {
             branch: opts.branch || '',
             menus: menus.map((menu) => ({
@@ -1079,6 +1123,7 @@
             })),
             groups,
             offers,
+            rooms,
             assets,
             venue: venue || null,
         };

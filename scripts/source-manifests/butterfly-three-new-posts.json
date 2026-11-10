@@ -1,0 +1,26 @@
+[
+  {
+    "file": "data/library/sources/html/butterfly-three-new-posts.html",
+    "id": "the-butterfly-and-the-pig-new-posts-01",
+    "stage": 0,
+    "width": 1080,
+    "height": 1920,
+    "duration": 14000
+  },
+  {
+    "file": "data/library/sources/html/butterfly-three-new-posts.html",
+    "id": "the-butterfly-and-the-pig-new-posts-02",
+    "stage": 1,
+    "width": 1080,
+    "height": 1920,
+    "duration": 16000
+  },
+  {
+    "file": "data/library/sources/html/butterfly-three-new-posts.html",
+    "id": "the-butterfly-and-the-pig-new-posts-03",
+    "stage": 2,
+    "width": 1080,
+    "height": 1350,
+    "duration": 12000
+  }
+]
