@@ -1,0 +1,47 @@
+{
+  "brand": "The Butterfly and the Pig",
+  "metadata": "canvas-decks.json",
+  "report": "deliverables/butterfly-chase-and-reels/verification.md",
+  "sources": [
+    {
+      "file": "data/library/sources/html/butterfly-chase.html",
+      "mode": "sim",
+      "name": "The Butterfly and the Pig \u00b7 Chase",
+      "idPrefix": "butterfly-the-pig-chase",
+      "collection": "The Butterfly and the Pig",
+      "width": 1004,
+      "height": 650,
+      "fps": 60,
+      "duration": 26,
+      "posterTime": 19,
+      "tags": [
+        "chase",
+        "canvas",
+        "animation",
+        "butterfly-pig"
+      ]
+    },
+    {
+      "file": "data/library/sources/html/butterfly-november-reels.html",
+      "mode": "reels",
+      "namePrefix": "The Butterfly and the Pig \u00b7 November Reels",
+      "idPrefix": "butterfly-the-pig-november-reels",
+      "collection": "November Reels",
+      "width": 1080,
+      "height": 1920,
+      "fps": 30,
+      "tags": [
+        "november-reels",
+        "canvas",
+        "reel",
+        "butterfly-pig"
+      ],
+      "posterTimes": [
+        9,
+        9,
+        11,
+        4
+      ]
+    }
+  ]
+}

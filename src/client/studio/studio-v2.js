@@ -1361,7 +1361,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 { zStart: Math.min(1000, highestZ + 1), idPrefix: `butterfly-pig-${suffix}` },
             );
             if (composition.layers.length + imported.layers.length > 500) {
-                throw new Error('There is not enough room in this composition for all 15 animation subjects.');
+                throw new Error('There is not enough room in this composition for every animation subject.');
             }
 
             studio.stopPlayback();
@@ -1373,7 +1373,10 @@ window.addEventListener('DOMContentLoaded', () => {
             studio.animation.currentTime = 0;
             studio.render();
             studio.scheduleSave();
-            const message = `Added the pig and ${tracks.butterflies.length} butterflies as ${imported.layers.length} editable layers (${(imported.duration / 1000).toFixed(1)} seconds).`;
+            const butterflyCount = tracks.subjects
+                ? tracks.subjects.filter((subject) => subject.kind === 'butterfly').length
+                : tracks.butterflies.length;
+            const message = `Added the pig and ${butterflyCount} butterflies as ${imported.layers.length} editable layers (${(imported.duration / 1000).toFixed(1)} seconds, ${tracks.canvas.fps || 60} fps).`;
             layeredAnimationStatus.textContent = message;
             studio.setStatus(message);
         } catch (error) {

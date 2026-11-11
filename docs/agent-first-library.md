@@ -13,8 +13,8 @@ the catalogue both Agent First UIs use:
 | `business.json` | 3 brands, hours, taglines, contacts |
 | `menu.json` | Extracted menu-item candidates (not the authoritative brand menu) |
 
-At the time of writing: **114 designs**, **92 ready**, **106 source recordings**,
-**195 clips**, **716 assets**, **21 extracted menu items**.
+At the time of writing: **119 designs**, **97 ready**, **111 source recordings**,
+**195 clips**, **721 assets**, **21 extracted menu items**.
 
 ## Status rules
 
@@ -88,28 +88,42 @@ width (1080 px for most designs) and up to 60 fps.
 
 ### Canvas source decks
 
-A canvas reel has no DOM layer tree to measure: the page exposes a
-`draw(ctx, t)` function and the composition would only ever be an
-approximation. These decks are installed differently:
+A canvas deck has no DOM layer tree to measure: the page exposes a
+`draw(ctx, t)` function (or a simulation with its own clock) and the
+composition would only ever be an approximation. These decks are installed
+differently:
 
-- `scripts/capture-canvas-reels.js` steps the page's own `render(t)` at 30 fps
-  at 1080×1920, encodes those exact frames with VP9, and records the exact
-  poster frame — the time with the most visible text — as a one-layer
+- `scripts/capture-canvas-reels.js` steps the page itself. Two deck shapes are
+  supported: `reels` (a pure `__R[i].rl.render(t, scale)` function per reel)
+  and `sim` (one canvas exposing `__sim.reset()/step()/draw()`, replayed at the
+  deck's own 1/60 s). The manifest gives each deck its native `width`, `height`
+  and `fps`, so the recording keeps the stage size instead of forcing 1080×1920:
+  the chase is 1004×650 at 60 fps, the November reels 1080×1920 at 30 fps.
+  Frames are encoded with VP9, and the exact poster frame — the time with the
+  most visible text, or a manifest `posterTimes` entry — becomes a one-layer
   composition. The source HTML is archived under
-  `data/library/sources/html/`.
+  `data/library/sources/html/`, and its embedded images and fonts are decoded
+  byte-for-byte into `data/library/sources/assets/<deck>/` with SHA-256
+  provenance (`scripts/extract-canvas-deck-assets.js`).
 - `scripts/build-canvas-library.js` builds only the new canvas projects in a
   temporary library and merges the designs, animations, assets and brand
   membership into `data/library` without rebuilding (and disturbing) the rest
   of the catalogue.
-- `scripts/verify-canvas-reels.js` re-renders the poster from the archived HTML
-  and requires a byte-identical hash, then compares three decoded video frames
-  with fresh canvas renders at the same frame numbers.
+- `scripts/verify-canvas-decks.js` re-renders the poster from the archived HTML
+  and requires a byte-identical hash, checks the native size/rate/duration and
+  frame count, compares three decoded video frames with fresh canvas renders at
+  the same frame numbers, and re-checks every embedded image and font against
+  the source bytes.
 
 The result is a design whose **Original motion** is the frame-exact recording
 and whose editable composition is the exact source still. Canvas art is not
 rebuilt as approximate text and shape layers on purpose. The generated
 `original.animation.json` is a one-track hold for validation; the UI plays
 `sourceVideo` for Original motion.
+
+The chase deck's sprite motion is additionally available as **editable** layers
+in Layer Studio (see [layer-studio.md](layer-studio.md#add-a-layered-animation));
+the recording remains the source of truth for trails, rings and type.
 
 ### HTML stage reels
 

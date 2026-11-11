@@ -26,7 +26,7 @@ if (!manifestFile) {
 const manifest = JSON.parse(fs.readFileSync(path.resolve(ROOT, manifestFile), 'utf8'));
 const library = path.join(ROOT, 'data', 'library');
 const projects = path.join(ROOT, 'data', 'projects');
-const metadataFile = path.join(library, 'sources', 'canvas-reels.json');
+const metadataFile = path.join(library, 'sources', manifest.metadata || 'canvas-reels.json');
 if (!fs.existsSync(metadataFile)) {
     console.error('Run scripts/capture-canvas-reels.js first.');
     process.exit(1);
@@ -91,7 +91,7 @@ for (const entry of tempIndex.designs || []) {
     const detailFile = path.join(tmpLibrary, 'designs', `${entry.id}.json`);
     const detail = readJson(detailFile, null);
     if (!detail) continue;
-    const tags = mergeUnique(detail.tags, [...(meta.tags || []), 'canvas', 'reel']);
+    const tags = mergeUnique(detail.tags, [...(meta.tags || []), 'canvas', meta.mode === 'sim' ? 'animation' : 'reel']);
     detail.tags = tags;
     detail.source = {
         kind: 'canvas-reel',

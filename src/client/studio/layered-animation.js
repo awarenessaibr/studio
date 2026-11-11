@@ -40,6 +40,139 @@
         }).sort((a, b) => a.time - b.time);
     }
 
+    function createFromSubjects(source, geometry) {
+        const { canvasWidth, canvasHeight, duration, width, height, idPrefix, zStart, fitScale, offsetX, offsetY } = geometry;
+        const sprites = source.sprites || {};
+        const spriteSize = (kind, facing) => {
+            const known = sprites[kind] && sprites[kind][facing];
+            if (known && known.width > 0 && known.height > 0) {
+                return { width: finite(known.width, `${kind} sprite width`), height: finite(known.height, `${kind} sprite height`) };
+            }
+            if (kind === 'pig') return facing === 'left' ? { width: 806, height: 563 } : { width: 717, height: 549 };
+            return facing === 'left' ? { width: 182, height: 176 } : { width: 205, height: 174 };
+        };
+        const layers = [];
+        let actorOrder = 0;
+
+        if (source.stage && source.stage.url && source.stage.width > 0 && source.stage.height > 0) {
+            layers.push({
+                id: `${idPrefix}-stage`,
+                type: 'image',
+                url: source.stage.url,
+                frames: [source.stage.url],
+                role: 'background',
+                name: 'Stage background',
+                x: offsetX / width * 100,
+                y: offsetY / height * 100,
+                w: canvasWidth * fitScale / width * 100,
+                h: canvasHeight * fitScale / height * 100,
+                opacity: 1,
+                recolorEnabled: false,
+                recolorColor: '#ffffff',
+                outlineEnabled: false,
+                outlineColor: '#000000',
+                outlineWidth: 3,
+                z: clamp(zStart - 1, -1000, 1000),
+                rotation: 0,
+                fit: 'fill',
+                visible: true,
+                locked: false,
+                positionConfirmed: true,
+                rig: false,
+                part: '',
+                group: '',
+                segmentGroup: 'Stage',
+                variant: '',
+                bindings: {},
+                keyframes: [],
+            });
+        }
+
+        source.subjects.forEach((subject) => {
+            const kind = subject?.kind === 'pig' ? 'pig' : subject?.kind === 'butterfly' ? 'butterfly' : '';
+            if (!kind) throw new Error('Animation data contains an unknown subject kind.');
+            if (!Array.isArray(subject.frames) || !subject.frames.length) {
+                throw new Error(`Animation data has no motion points for ${subject?.label || kind}.`);
+            }
+            const label = typeof subject.label === 'string' && subject.label ? subject.label : kind;
+            const group = kind === 'pig' ? 'Pig' : label;
+            const actorZ = clamp(zStart + actorOrder, -1000, 1000);
+            actorOrder += 1;
+
+            ['left', 'right'].forEach((facing) => {
+                const size = spriteSize(kind, facing);
+                const aspect = size.width / size.height;
+                const keyframes = [];
+                subject.frames.forEach((frame) => {
+                    const time = Math.round(finite(frame.timeMs, `${label} time`));
+                    if (time < 0 || time > duration) {
+                        throw new Error(`Animation data contains an invalid time for ${label}.`);
+                    }
+                    const sx = finite(frame.sx, `${label} scale x`);
+                    const sy = finite(frame.sy, `${label} scale y`);
+                    const spriteWidth = kind === 'pig'
+                        ? finite(frame.dh, `${label} sprite height`) * sy * aspect * sx
+                        : finite(frame.dw, `${label} sprite width`) * sx;
+                    const spriteHeight = kind === 'pig'
+                        ? finite(frame.dh, `${label} sprite height`) * sy
+                        : finite(frame.dw, `${label} sprite width`) / aspect * sy;
+                    if (!(spriteWidth > 0) || !(spriteHeight > 0)) return;
+                    const centerX = finite(frame.x, `${label} x`);
+                    const centerY = finite(frame.y, `${label} y`);
+                    keyframes.push({
+                        time,
+                        x: (offsetX + (centerX - spriteWidth / 2) * fitScale) / width * 100,
+                        y: (offsetY + (centerY - spriteHeight / 2) * fitScale) / height * 100,
+                        w: spriteWidth * fitScale / width * 100,
+                        h: spriteHeight * fitScale / height * 100,
+                        rotation: finite(frame.rotation, `${label} rotation`),
+                        opacity: frame.facing === facing ? clamp(finite(frame.opacity, `${label} opacity`), 0, 1) : 0,
+                    });
+                });
+                if (!keyframes.length) return;
+                if (keyframes[0].time > 0) {
+                    keyframes.unshift({ ...keyframes[0], time: 0, opacity: 0 });
+                }
+                const initial = keyframes[0];
+                layers.push({
+                    id: `${idPrefix}-${kind}-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${facing}`,
+                    type: 'image',
+                    url: SPRITE_URLS[kind][facing],
+                    frames: [SPRITE_URLS[kind][facing]],
+                    spriteFps: 8,
+                    spriteMode: 'loop',
+                    role: 'character',
+                    name: `${label} (${facing}-facing)`,
+                    x: initial.x,
+                    y: initial.y,
+                    w: initial.w,
+                    h: initial.h,
+                    opacity: initial.opacity,
+                    recolorEnabled: false,
+                    recolorColor: '#ffffff',
+                    outlineEnabled: false,
+                    outlineColor: '#000000',
+                    outlineWidth: 3,
+                    z: actorZ,
+                    rotation: initial.rotation,
+                    fit: 'contain',
+                    visible: true,
+                    locked: false,
+                    positionConfirmed: true,
+                    rig: false,
+                    part: '',
+                    group: '',
+                    segmentGroup: group,
+                    variant: facing,
+                    bindings: {},
+                    keyframes,
+                });
+            });
+        });
+
+        return { duration, layers };
+    }
+
     function createLayeredAnimation(source, destination, options = {}) {
         if (!source || typeof source !== 'object') throw new Error('Animation data is invalid.');
         const canvasWidth = finite(source?.canvas?.width, 'source canvas width');
@@ -51,10 +184,6 @@
             || duration < 500 || duration > 30000) {
             throw new Error('Animation and scene dimensions must be positive, and duration must be 500–30000 ms.');
         }
-        if (!Array.isArray(source.pig) || !source.pig.length
-            || !Array.isArray(source.butterflies) || !source.butterflies.length) {
-            throw new Error('The layered animation must contain pig and butterfly motion tracks.');
-        }
 
         const idPrefix = options.idPrefix || `butterfly-pig-${Date.now().toString(36)}`;
         if (!/^[A-Za-z0-9_-]{1,48}$/.test(idPrefix)) {
@@ -64,6 +193,18 @@
         const offsetX = (width - canvasWidth * fitScale) / 2;
         const offsetY = (height - canvasHeight * fitScale) / 2;
         const zStart = clamp(finite(options.zStart ?? 0, 'layer order'), -1000, 1000);
+
+        if (Array.isArray(source.subjects)) {
+            return createFromSubjects(source, {
+                canvasWidth, canvasHeight, duration, width, height, idPrefix, zStart,
+                fitScale, offsetX, offsetY,
+            });
+        }
+        if (!Array.isArray(source.pig) || !source.pig.length
+            || !Array.isArray(source.butterflies) || !source.butterflies.length) {
+            throw new Error('The layered animation must contain pig and butterfly motion tracks.');
+        }
+
         const layers = [];
         let actorOrder = 0;
 

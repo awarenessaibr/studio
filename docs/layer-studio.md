@@ -304,6 +304,28 @@ composition, and extends the timeline to 24.6 seconds. Existing scene layers
 are kept; the imported layers can be moved, renamed, hidden or removed like
 other layers, then saved and exported normally.
 
+The motion is not a hand reconstruction. `scripts/extract-butterfly-pig-motion.js`
+replays the archived source deck
+(`data/library/sources/html/butterfly-chase.html`) and records every sprite's
+own `drawImage` transform at 60 fps — centre, width, height, squash/stretch,
+rotation, wing flap and facing — and captures the deck's cream stage field at
+t=0. The result is 31 editable layers: the exact stage field, then 30 sprite
+layers with one keyframe per source frame (**28,630 keyframe states**; 1,477 for
+the pig layers, fewer for butterflies that spawn later) across 24.6 s at 60 fps.
+The stage field is lowest and the pig sits below the butterflies, as the deck
+draws it. Hops, bobbing, squash-and-stretch, spawn pops, flips and facing
+switches all use the source's own numbers, and the four sprite PNGs are
+byte-identical to the deck's embedded images — the hashes are stored in the
+track file and checked by the tests.
+
+The deck also paints canvas-only decoration that is not a sprite layer:
+butterfly trails, spawn rings, the pig's contact shadow, the raspberry rule and
+the tagline. Those stay in the **source-exact recording** installed in Agent
+First (see
+[agent-first-library.md](agent-first-library.md#canvas-source-decks)); the
+editable import carries the images, the exact 1004 × 650 stage field and the
+sprite motion.
+
 **Add Cyclist Ride** imports the six bicycle and cyclist cutouts as native
 keyframed layers. It reuses matching static cutouts when the scene already has
 them, fits the ride to the canvas, and lowers the initial path onto the

@@ -2091,6 +2091,8 @@
             this.el.playhead.value = String(Math.round(this.animation.currentTime));
             this.el.playhead.disabled = this.animation.isPlaying || this.animation.isExporting;
             this.el.playheadTime.value = `${Math.round(this.animation.currentTime)} ms`;
+            const playheadEnd = this.root.querySelector('#layerPlayheadEnd');
+            if (playheadEnd) playheadEnd.value = `${duration} ms`;
             const selected = this.getLayer(this.selectedLayerId);
             const frames = selected?.keyframes || [];
             this.el.keyframeCount.textContent = `${frames.length} keyframe${frames.length === 1 ? '' : 's'}`;
@@ -5076,6 +5078,8 @@
                 this.composition.duration = Math.round(duration);
                 this.animation.currentTime = Math.min(this.animation.currentTime, this.composition.duration);
                 this.el.playhead.max = String(this.composition.duration);
+                const playheadEnd = this.root.querySelector('#layerPlayheadEnd');
+                if (playheadEnd) playheadEnd.value = `${this.composition.duration} ms`;
                 if (this.animation.currentTime < Number(this.el.playhead.value)) {
                     this.el.playhead.value = String(this.animation.currentTime);
                     this.el.playheadTime.value = `${Math.round(this.animation.currentTime)} ms`;
