@@ -4,11 +4,12 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Segment library — the reusable groups of cut-out layers, their source compositions and the motion recipes an agent can apply.">
+    <meta name="description" content="Segment library and Scene studio — reusable groups of cut-out layers, documented scene parts, observed motion and an agent scene composer.">
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231a1a2e'/%3E%3Ctext x='16' y='23' font-family='Georgia,serif' font-size='18' fill='%23f2eee7' text-anchor='middle'%3ES%3C/text%3E%3C/svg%3E">
     <title>Segment library — Studio Layers</title>
     <link rel="stylesheet" href="/src/client/asset-studio/app.css">
     <link rel="stylesheet" href="/src/client/segments/segments.css">
+    <link rel="stylesheet" href="/src/client/segments/scene-studio.css">
 </head>
 
 <body class="seg-page">
@@ -22,9 +23,11 @@
             <a href="/asset-studio.html">Asset Studio</a>
             <a href="/library.html">Library</a>
             <a class="is-current" href="/segments">Segments</a>
+            <a href="/project-canvas">Project canvas</a>
         </nav>
         <div class="seg-top-actions">
-            <a class="button small" href="/data/library/segment-groups/index.json" target="_blank" rel="noreferrer">Index JSON</a>
+            <a class="button small" href="/data/library/segment-groups/index.json" target="_blank" rel="noreferrer">Group index</a>
+            <a class="button small" href="/data/library/scene-library/index.json" target="_blank" rel="noreferrer">Scene index</a>
         </div>
     </header>
 
@@ -35,12 +38,14 @@
                 <h1>Segment groups.</h1>
                 <p class="seg-lede">Every group of cut-out segments that forms a layer — clouds, sea and waves, birds,
                     characters, props, light effects — indexed with its source composition, a composited preview and the
-                    motion recipes that fit it. Pick a group, preview it moving, and copy the agent block into a scene.</p>
+                    motion recipes that fit it. Pick a group, preview it moving, and copy the agent block into a scene.
+                    Or open <a href="#scene">Scene studio</a> and ask the agent to build a whole scene from documented,
+                    reusable parts.</p>
             </div>
             <div class="seg-hero-actions">
                 <div class="seg-hero-note">
                     <strong>Built from</strong>
-                    <span><code>data/library/designs</code>, <code>data/imports</code> and the bar-santa project.</span>
+                    <span><code>data/library/designs</code>, <code>data/imports</code>, the bar-santa project and the curated <code>data/library/scene-library</code>.</span>
                 </div>
                 <button type="button" class="button" id="helpBtn">How to use a group</button>
             </div>
@@ -59,6 +64,7 @@
             <button type="button" class="seg-tab is-active" data-view="groups">Segment groups <span id="tabGroups">—</span></button>
             <button type="button" class="seg-tab" data-view="library">Design library <span id="tabLibrary">—</span></button>
             <button type="button" class="seg-tab" data-view="animations">Animations <span id="tabAnimations">—</span></button>
+            <button type="button" class="seg-tab" data-view="scene">Scene studio <span id="tabScene">new</span></button>
         </nav>
 
         <section class="seg-view" id="view-groups">
@@ -174,6 +180,88 @@
             <div id="animList" class="seg-anim-list" aria-live="polite"></div>
             <div id="animEmpty" class="seg-empty" hidden><strong>No animations match.</strong></div>
             <div class="seg-more"><button type="button" class="button" id="animMore" hidden>Load more animations</button></div>
+        </section>
+
+        <section class="seg-view" id="view-scene" hidden>
+            <div class="scene-studio">
+                <header class="scene-hero">
+                    <div class="scene-hero-copy">
+                        <p class="eyebrow">Scene studio</p>
+                        <h2>Describe a scene. Build it from documented parts.</h2>
+                        <p class="seg-lede">The scene library knows the street, bricks, café frontage, cyclist,
+                            bicycle, bollards, workshop and lighting parts, how they sit together, and which
+                            observed motion belongs to them. Describe an idea and the agent will interpret it into
+                            a starting composition on a clean canvas.</p>
+                    </div>
+                    <div class="scene-status" id="sceneStatus">Loading scene library…</div>
+                </header>
+
+                <form class="scene-form" id="sceneForm">
+                    <label class="scene-field">
+                        <span>Scene idea</span>
+                        <textarea id="scenePrompt" rows="2" autocomplete="off"
+                            placeholder="e.g. a cyclist passing a brick café at night, with warm lights and bollards"></textarea>
+                    </label>
+                    <button class="button primary" type="submit" id="sceneBuild">Build scene</button>
+                </form>
+                <div class="scene-examples" id="sceneExamples" aria-label="Scene examples"></div>
+
+                <div class="scene-layout">
+                    <div class="scene-main">
+                        <div class="scene-canvas-shell">
+                            <div class="scene-canvas" id="sceneCanvas">
+                                <div class="scene-stage-inner" id="sceneStageInner"></div>
+                                <div class="scene-empty" id="sceneEmpty">
+                                    <strong>Build a first scene</strong>
+                                    <span>Describe a street, a subject and a mood. The library will only use parts it can document.</span>
+                                </div>
+                                <div class="scene-canvas-badge" id="sceneCanvasBadge"></div>
+                            </div>
+                        </div>
+                        <div class="scene-controls">
+                            <button class="button small primary" type="button" id="scenePlay">Pause</button>
+                            <button class="button small" type="button" id="sceneRestart">Restart</button>
+                            <input type="range" id="sceneScrub" min="0" max="8000" value="0" step="10" aria-label="Scene time">
+                            <span class="scene-time" id="sceneTime">0.00 / 8.00 s</span>
+                            <label class="scene-speed"><span>Speed</span>
+                                <select id="sceneSpeed">
+                                    <option value="0.5">0.5×</option>
+                                    <option value="1" selected>1×</option>
+                                    <option value="2">2×</option>
+                                </select>
+                            </label>
+                        </div>
+                        <p class="scene-caption" id="sceneCaption"></p>
+                    </div>
+
+                    <aside class="scene-side">
+                        <section class="scene-card">
+                            <div class="scene-card-head">
+                                <h3>Interpreted</h3>
+                                <span id="sceneMatchCount" class="seg-muted">—</span>
+                            </div>
+                            <div class="scene-chips" id="sceneConcepts"></div>
+                            <p class="scene-help" id="sceneInterpretation"></p>
+                        </section>
+                        <section class="scene-card">
+                            <div class="scene-card-head"><h3>Parts in this build</h3><span id="scenePartCount" class="seg-muted">—</span></div>
+                            <div class="scene-part-list" id="scenePartList"></div>
+                        </section>
+                        <section class="scene-card">
+                            <h3>Agent notes</h3>
+                            <ul class="scene-notes" id="sceneNotes"></ul>
+                        </section>
+                        <section class="scene-card">
+                            <h3>Data quality</h3>
+                            <ul class="scene-notes" id="sceneQuality"></ul>
+                        </section>
+                        <div class="scene-actions">
+                            <button class="button small" type="button" id="sceneCopyBuild">Copy build JSON</button>
+                            <button class="button small" type="button" id="sceneDownload">Download composition</button>
+                        </div>
+                    </aside>
+                </div>
+            </div>
         </section>
     </main>
 
@@ -320,12 +408,15 @@
             <p class="seg-help">Every animation row has a <strong>View</strong> button. Library animations render their
                 design tracks; motion clips play on a segment group you can change; group motion recipes open a
                 representative group with the recipe selected.</p>
+            <p class="seg-help">The <strong>Scene studio</strong> tab is the scene-level workflow: describe a scene, read the
+                agent's interpretation and data-quality notes, then play, scrub, copy or download the proposed composition.</p>
             <p class="seg-help">Full contract: <code>docs/segment-library.md</code> in the repository · generated notes:
                 <code>data/library/segment-groups/README.md</code>.</p>
         </form>
     </dialog>
 
     <script src="/src/client/segments/segments.js" defer></script>
+    <script src="/src/client/segments/scene-studio.js" defer></script>
 </body>
 
 </html>

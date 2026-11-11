@@ -16,20 +16,22 @@ runs unchanged under Node for tests.
 
 | Surface | URL (after `npm start`) | What it is for | Doc |
 |---|---|---|---|
-| **Layer Studio v2** | `/` or `/studio-v2.html` | Compose, animate and export layered scenes and templates. Segments, keyframes, presets, bundled layered animations, text, formats, variables, characters and AI animation ideas. | [layer-studio.md](docs/layer-studio.md) |
+| **Layer Studio v2** | `/` or `/studio-v2.html` | Compose, animate and export layered scenes and templates. Segments, keyframes, presets, bundled layered animations, text, formats, variables, characters and AI animation ideas — including parented image segmentation packs wired into the main composition. | [layer-studio.md](docs/layer-studio.md) · [composition-segmentation.md](docs/composition-segmentation.md) |
 | **Asset Studio** | `/asset-studio.html` | Produce final, on-brand artwork fast: flyers, menus, vouchers, cards, social, signage, packaging and compliance labels, with print- and screen-ready output. | [asset-studio.md](docs/asset-studio.md) |
 | **Asset Studio Agent** | `/studio-agent.html` | Edit final brand artwork with an agent and use its short preset-animation timeline. | [asset-studio-animation.md](docs/asset-studio-animation.md) |
 | **Brand identity** | sidebar of the studio | Import a brand-kit ZIP, read the Word guides, browse palette/type/logos/guidelines, create print and digital templates, and publish edited scenes back as reusable brand templates with GIF/MP4 export. Also available as a drawer inside Asset Studio. | [brand-packs.md](docs/brand-packs.md) |
 | **Brand intake** | `/crawler.html` | Search a business, confirm its website/social profiles, queue several restaurants as a group, run the combined crawler one by one and import the finished group ZIP into Asset Studio. | [crawler.md](docs/crawler.md) |
 | **Asset library** | `/library.html` | Business Asset Intelligence: index pack assets and uploads, review and classify them, apply usage rules and feed the Asset Studio photo slot and print gate. | [asset-library.md](docs/asset-library.md) |
-| **Segment library** | `/segments` (also `/segment-library`) | The reusable groups of cut-out segments — clouds, sea and waves, birds, characters, props, effects — with previews, source compositions and motion recipes an agent can insert into a scene. | [segment-library.md](docs/segment-library.md) |
+| **Segment library + Scene studio** | `/segments` (also `/segment-library`) | Reusable groups of cut-out segments with previews, source compositions and motion recipes — plus a clean Scene studio where an agent interprets a scene idea and builds from documented scene parts, concepts and observed tracks. | [segment-library.md](docs/segment-library.md) · [scene-library.md](docs/scene-library.md) |
+| **Project canvas** | `/project-canvas` | Open one real project composition and work on a variant of it: the whole animation with its keyframes, selection down to a single segment part, drawn motion paths, added images and a scene agent that derives its understanding from the project files and writes timeline edits plus generated layers. | [project-canvas.md](docs/project-canvas.md) |
 | **Voice Studio** | `/voice.html` | Local MLX-Audio speech, two-direction voice design, auditions and saving spoken audio to the asset library. | [voice-studio.md](docs/voice-studio.md) |
 | **Social intelligence** | `/social.html` | Channels, reputation, review themes and voice read from scraped social profiles, with a per-brand tab; enabled businesses can launch a granular social re-crawl from here. | [social-intelligence.md](docs/social-intelligence.md) |
+| **Studio Builder** | `/studio-builder` | Start from any admin studio page, inspect its real stage to pick building blocks into a cross-page project plan, compose the documented capabilities into five regions, validate the map's rules, embed the real surface as a live preview, deploy a running page, and hand a build brief to a coding agent. The catalog, free-form agent fallback and deployments are server-owned. | [studio-builder.md](docs/studio-builder.md) |
 | **Management** (dev only) | `/admin.html` | Choose which brand groups and businesses every studio surface shows, and their order. Local-only unless `STUDIO_ADMIN_KEY` is set. | [management.md](docs/management.md) |
 
 Two more entry points exist and are documented but secondary:
 `/studio.html` is the **Agent Studio** — a brand-wired scene composer with a
-rule-based agent, guardrails and a 10-second timeline ([agent-studio.md](docs/agent-studio.md)) —
+rule-based agent, guardrails and a role-grouped keyframe timeline ([agent-studio.md](docs/agent-studio.md)) —
 and the CLI (`src/server/composition-generator.js`) builds compositions and
 brief-driven batches without a browser.
 
@@ -93,6 +95,8 @@ the browser's own MP4/WebM recording is used. Application modules: none.
 | Print pack | CMYK PDF with bleed, trim, crop marks, safe-zone preflight | Asset Studio → *Print pack* | [asset-studio.md](docs/asset-studio.md#print-pack) |
 | AI animation director | You want project-specific motion ideas from the final image | Layer Studio → *Animation ideas* | [layer-studio.md](docs/layer-studio.md#10-ai-assistance) |
 | Segment organiser | Cut-out names are meaningless (`image-042.png`) | Layers → *Organize with AI* | [layer-studio.md](docs/layer-studio.md#10-ai-assistance) |
+| Pick building blocks across pages | You want to inspect real pages, point at or draw around an element and collect its capability, page and location into a project plan | Studio Builder → Inspect → Plan | [studio-builder.md](docs/studio-builder.md#7-stage-picking-and-the-project-plan) |
+| Compose and deploy a studio page | You need a runnable page from the documented capabilities, not just a diagram | Studio Builder → Deploy | [studio-builder.md](docs/studio-builder.md#6-deployment) |
 | Agent protocol | An LLM should direct the scene or drive a character | `exportAgentSpec` / `applyAgentCommands` | [agent-protocol.md](docs/agent-protocol.md) |
 | Narrated stage cut + music bed | A spoken track must drive the card timing, and the cut needs a background bed with levels and timings | `build-narrated-composition.py` → `render-narrated-video.js` → `install-narrated-design.py`; Audio drawer in Agent Studio | [agent-first-library.md](docs/agent-first-library.md#narrated-html-stage-cuts) |
 | Safe zones + guardrails | Exports must respect channel chrome and brand rules | Tools → *Validate brand* | [layer-studio.md](docs/layer-studio.md#8-safe-zones-and-guardrails) |
@@ -118,18 +122,24 @@ studio-layers/
 │   ├── asset-studio.html   ← final-asset surface
 │   ├── crawler.html        ← brand intake (search → crawl → import)
 │   ├── library.html        ← Business Asset Intelligence
-│   ├── segments.html       ← segment-group library (groups, designs, animations)
+│   ├── segments.html       ← segment groups + Scene studio (groups, designs, animations, build)
+│   ├── project-canvas.html ← one real project composition + scene agent
 │   ├── voice.html          ← Voice Studio
 │   ├── social.html         ← Social intelligence
+│   ├── Studio Builder.html ← capability composer + live preview
 │   └── admin.html          ← developer management (unlisted)
 │
 ├── src/
 │   ├── shared/             ← loaded by the browser and required by Node
 │   │   ├── studio-core.js  ← schema, layout, formats, guardrails
 │   │   ├── brand-pack.js   ← brand-pack schema and template builders
+│   │   ├── studio-builder-catalog.json ← capability map served to Studio Builder
+│   │   ├── project-manifest.js / project-timeline.js ← project entities + variant timeline
 │   │   └── asset-intel.js  ← asset schema, taxonomy and usage rules
 │   ├── server/             ← Node-only modules
 │   │   ├── brand-docx.js   ← zero-dependency Word guide reader
+│   │   ├── studio-builder.js ← catalog validation, layout rules, agent actions
+│   │   ├── project-canvas.js ← project reader + validated agent turn
 │   │   ├── crawler-service.js ← Python crawler runs, logs and limits
 │   │   ├── asset-store.js / asset-service.js ← asset index + Pillow sidecar
 │   │   ├── social-intel.js / social-store.js ← social normaliser + index
@@ -137,10 +147,12 @@ studio-layers/
 │   │   └── voice/tts-server.mjs, voice-design-agent.mjs, tts-config.mjs
 │   └── client/             ← browser-only modules
 │       ├── shared/_.js / _.css ← Layer Studio engine + shared styles
+│       ├── studio-builder/builder.js / .css, deployed.js / .css ← Studio Builder + deployed pages
 │       ├── studio/studio-v2.js, studio/segment-fill.js, studio-minimal/
 │       ├── brand/brand-identity.js / .css
 │       ├── asset-studio/app.js, app.css, engine.js, categories.js, print.js
 │       │   └── vendor/qrcode.min.js
+│       ├── project-canvas/project-canvas.js / .css ← project stage, selection, agent chat
 │       ├── crawler/crawler.js / .css
 │       ├── library/library.js / .css
 │       ├── social/social.js / .css
@@ -157,7 +169,9 @@ studio-layers/
 
 The public page URLs are unchanged (`/`, `/asset-studio.html`, `/crawler.html`,
 `/library.html`, `/voice.html`, `/social.html`, `/admin.html`); the server maps
-them to `pages/` and keeps the old root asset paths working.
+them to `pages/` and keeps the old root asset paths working. The project canvas
+is served at `/project-canvas` (also `/project-canvas.html`), and the segment
+library links to it.
 
 `data/` is **your work, not the project**: imported ZIPs, saved
 compositions, brand packs, shared kits and uploaded fonts. It is ignored by
@@ -171,6 +185,7 @@ git; back it up like any other document folder.
 |---|---|
 | [capabilities.md](docs/capabilities.md) | The full capability catalogue: what exists, when to use it, inputs and outputs, and four end-to-end recipes |
 | [layer-studio.md](docs/layer-studio.md) | Every panel, control and workflow in Layer Studio v2 |
+| [studio-builder.md](docs/studio-builder.md) | Studio Builder: server-owned capability catalog, live surface preview, rule fixes, resizable regions, build brief and the agent action contract |
 | [asset-studio.md](docs/asset-studio.md) | Asset Studio: gate, categories, controls, saved assets, PNG/print/print-pack |
 | [agent-studio.md](docs/agent-studio.md) | Agent Studio (`/studio.html`): brand-wired scene builder, rule-based agent, guardrails, timeline, Asset Studio engine bridge and the full dependency map |
 | [brand-packs.md](docs/brand-packs.md) | Brand-kit ZIP structure, what the importer reads, identity UI, templates, brand kits |
@@ -193,12 +208,18 @@ git; back it up like any other document folder.
 ## Verify a checkout
 
 ```bash
-npm test                  # 277 Node tests: schema, render path, server guards, hole filling, crawler safety, asset intelligence, social intelligence, voice design, CLI
+npm test                  # 322 Node tests: schema, render path, server guards, hole filling, crawler safety, asset intelligence, social intelligence, voice design, CLI
 npm run test:smoke        # 76 checks in Chromium against the real studio
+npm run test:studio-builder # 22 checks: start pages, live preview, inspect/plan, agent, resize, brief, deploy
+npm run test:studio-timeline # 14 checks: grouped keyframes on the 53-layer Giovannin project
+npm run test:scene-library # 9 checks: scene index, clean art, missing vocabulary, composer
+npm run test:scene-studio # 12 checks in Chromium: clean canvas, build, data quality, missing cars
+npm run test:segmentation-wire # 6 checks: parent/child mapping, keyframes, z, index
+npm run test:segmented-composition # 14 checks in Chromium: 55-layer wiring, groups, agent context
 npm run test:fill         # 19 checks: hole detection and fill on a real project in Chromium
 npm run test:asset-studio # 57 checks in Chromium across all five brand groups
 npm run test:visual       # 8 fixtures × formats, DOM vs canvas vs SVG
-npm run test:all          # everything (slow: real-time video, three Chromium runs)
+npm run test:all          # everything (slow: several Chromium runs, real-time video)
 ```
 
 The browser harnesses start `server.js` on a random port and drive your

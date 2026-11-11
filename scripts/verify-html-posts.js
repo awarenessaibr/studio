@@ -12,8 +12,8 @@ const crypto = require('node:crypto');
 
 const ROOT = path.resolve(__dirname, '..');
 const LIB = path.join(ROOT, 'data', 'library');
-const META_FILE = path.join(LIB, 'sources', 'new-posts.json');
-const outDir = path.join(ROOT, 'deliverables', 'butterfly-three-posts');
+const META_FILE = path.resolve(process.argv[2] || path.join(LIB, 'sources', 'three-new-posts.json'));
+const outDir = path.join(ROOT, 'deliverables', process.argv[3] || 'butterfly-three-posts');
 const tmp = fs.mkdtempSync(path.join('/tmp', 'html-posts-verify-'));
 const python = fs.existsSync(path.join(ROOT, '.venv', 'bin', 'python'))
     ? path.join(ROOT, '.venv', 'bin', 'python')
@@ -23,6 +23,8 @@ const readJson = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));
 const meta = readJson(META_FILE);
 const index = readJson(path.join(LIB, 'index.json'));
 const byId = new Map((index.designs || []).map((design) => [design.id, design]));
+const slug = (value) => String(value || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+const expectedBrand = slug(meta.brand || 'The Butterfly and the Pig');
 
 function compare(a, b) {
     const code = [
@@ -102,7 +104,7 @@ for (const design of meta.designs) {
     const detail = readJson(path.join(LIB, 'designs', `${design.id}.json`));
     const libOk = Boolean(entry)
         && entry.status === 'ready'
-        && entry.brandId === 'the-butterfly-and-the-pig'
+        && entry.brandId === expectedBrand
         && entry.sourceVideo === `/data/library/sources/${design.id}.webm`
         && entry.sourcePoster === `/data/library/sources/${design.id}.jpg`
         && entry.thumbnail === entry.sourcePoster
@@ -136,7 +138,7 @@ const sheetPy = [
 try { cp.execFileSync(python, ['-c', sheetPy, sheetFile, ...posters], { stdio: 'ignore' }); } catch { /* convenience only */ }
 
 const lines = [];
-lines.push('# Three new posts — source verification');
+lines.push(`# ${meta.title || 'New posts'} — source verification`);
 lines.push('');
 lines.push(`Generated ${new Date().toISOString().slice(0, 10)} from the source stage and its recording.`);
 lines.push('');
@@ -169,5 +171,5 @@ lines.push('- The comparison above decodes the poster time from the recording an
 lines.push('');
 fs.writeFileSync(path.join(outDir, 'verification.md'), `${lines.join('\n')}\n`);
 fs.rmSync(tmp, { recursive: true, force: true });
-console.log(`report: deliverables/butterfly-three-posts/verification.md — ${results.length - failed}/${results.length} pass`);
+console.log(`report: ${path.relative(ROOT, path.join(outDir, 'verification.md'))} — ${results.length - failed}/${results.length} pass`);
 if (failed) process.exitCode = 1;

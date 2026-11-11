@@ -13,8 +13,8 @@ the catalogue both Agent First UIs use:
 | `business.json` | 3 brands, hours, taglines, contacts |
 | `menu.json` | Extracted menu-item candidates (not the authoritative brand menu) |
 
-At the time of writing: **76 designs**, **54 ready**, **74 source recordings**,
-**195 clips**, **679 assets**, **21 extracted menu items**.
+At the time of writing: **114 designs**, **92 ready**, **106 source recordings**,
+**195 clips**, **716 assets**, **21 extracted menu items**.
 
 ## Status rules
 
@@ -130,6 +130,19 @@ crop can drift. A stage that must match exactly is installed as:
 
 `scripts/build-project-subset.js --projects=... --prune` builds only those
 projects and merges them, so the rest of the catalogue is untouched.
+
+Some decks declare `data-d` in seconds (`data-d="12"`), while the extractor
+expects milliseconds. Normalise a temporary copy (`data-d` × 1000 and divide
+the page's own clock by 1000) before extracting; the archived source deck stays
+original. When a green marker is not captured, the capture detects the first
+dark full-bleed frame (the page body is light) and trims there. A static
+carousel is installed as one design per slide at native size, because a single
+wide strip would be unreadable in the canvas; those designs have no
+`sourceVideo`. A deck whose own clock throws on its first frame can be
+frame-stepped instead of recorded: set the page clock per frame and pipe the
+native screenshot to ffmpeg. If the deck references sibling images by relative
+path, copy those files next to the archived HTML before measuring or capturing. If the fix is a negative-time clamp, keep the
+archived original and make the clamp explicit in the capture copy.
 
 ### Narrated HTML stage cuts
 

@@ -1,0 +1,1954 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Studio Builder</title>
+<style>
+:root{
+  --bg:#0f0f13; --pan:#181820; --pan2:#1f1f29; --line:#2a2a35; --hi:#33333f;
+  --ink:#e8e8ee; --mu:#8888a0; --ac:#8fd3c1; --ac-ink:#0e1a16; --warn:#e7b46a;
+  --shadow:#0008; --scrim:#000a;
+  color-scheme:dark;
+}
+[data-theme=light]{
+  --bg:#f3f2ee; --pan:#ffffff; --pan2:#f7f6f2; --line:#e1dfd8; --hi:#ece9e0;
+  --ink:#1b1a20; --mu:#6b6875; --ac:#0d735f; --ac-ink:#ffffff; --warn:#a8661a;
+  --shadow:#0002; --scrim:#0007;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 -apple-system,"Segoe UI",system-ui,sans-serif;overflow:hidden}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+input,textarea,select{font:inherit;color:var(--ink);background:var(--pan2);border:1px solid var(--line);border-radius:8px;padding:6px 9px}
+
+/* ── Topbar ────────────────────────────────────── */
+.topbar{display:flex;align-items:center;gap:8px;height:52px;padding:0 14px;border-bottom:1px solid var(--line);background:var(--pan);flex:none}
+.brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:.01em}
+.mark{display:grid;place-items:center;width:22px;height:22px;border-radius:6px;background:var(--ac);color:var(--ac-ink);font-size:12px;font-weight:800}
+.project-name{width:220px;border:0;background:transparent;font-weight:600;font-size:14px;padding:4px 6px;border-radius:6px}
+.project-name:hover,.project-name:focus{background:var(--pan2)}
+.sp{flex:1}
+.btn{border:1px solid var(--line);background:var(--pan2);color:var(--ink);border-radius:8px;padding:6px 11px;font-size:12.5px;transition:border-color .15s,background .15s}
+.btn:hover:not(:disabled){border-color:var(--ac)}
+.btn:disabled{opacity:.4;cursor:default}
+.btn.primary{background:var(--ac);border-color:var(--ac);color:var(--ac-ink);font-weight:600}
+.btn.primary:hover{filter:brightness(1.05)}
+.btn.icon{padding:6px 9px}
+.btn.tiny{padding:3px 8px;font-size:11px}
+
+/* ── Layout ────────────────────────────────────── */
+.layout{display:grid;grid-template-columns:264px 1fr 340px;height:calc(100vh - 52px);min-height:0}
+@media (max-width:1100px){
+  .layout{grid-template-columns:220px 1fr 300px}
+}
+@media (max-width:860px){
+  .layout{grid-template-columns:1fr;grid-template-rows:auto 1fr auto;height:auto}
+  .palette{max-height:220px}
+  .agent{max-height:280px}
+}
+
+/* ── Palette ──────────────────────────────────── */
+.palette{display:flex;flex-direction:column;border-right:1px solid var(--line);background:var(--pan);min-height:0}
+.pal-head{padding:12px 12px 6px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);font-weight:700}
+.search{margin:0 12px 8px;width:calc(100% - 24px);font-size:12.5px}
+.pal-list{flex:1;overflow:auto;padding:0 8px 12px}
+.pal-group{margin-bottom:8px}
+.pal-group h4{margin:6px 4px 4px;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);display:flex;align-items:center;gap:6px}
+.pal-group h4 i{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--dc,var(--ac))}
+.pal-item{display:flex;flex-direction:column;gap:2px;border:1px solid var(--line);border-left:3px solid var(--dc,var(--ac));border-radius:8px;padding:7px 9px;margin-bottom:4px;background:var(--pan2);cursor:grab;user-select:none;min-width:0}
+.pal-item:hover{border-color:var(--ac)}
+.pal-item:active{cursor:grabbing}
+.pal-item b{font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pal-item small{font-size:10.5px;color:var(--mu);line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.pal-empty{padding:16px 12px;color:var(--mu);font-size:12px;text-align:center}
+
+/* ── Canvas ──────────────────────────────────── */
+.canvas{overflow:auto;padding:22px;background:var(--bg);min-height:0;position:relative}
+.canvas-inner{max-width:1400px;margin:0 auto;display:flex;flex-direction:column;gap:var(--gap,16px)}
+.row{display:flex;gap:var(--gap,16px);min-height:80px;position:relative}
+.row.empty{border:1px dashed var(--line);border-radius:12px;padding:14px;align-items:center;justify-content:center;color:var(--mu);font-size:12px}
+.row-grip{position:absolute;left:50%;bottom:-9px;transform:translateX(-50%);width:44px;height:8px;border-radius:6px;background:linear-gradient(var(--line),var(--line)) center/24px 3px no-repeat;cursor:row-resize;z-index:2;opacity:0;transition:opacity .15s}
+.row:hover .row-grip,.row-grip:hover,.row-grip.drag{opacity:1}
+.row-grip:hover,.row-grip.drag{background-color:var(--pan);background-image:linear-gradient(var(--ac),var(--ac))}
+
+.block{flex:var(--flex,1) 1 0;min-width:0;display:flex;flex-direction:column;border:1px solid var(--line);border-left:3px solid var(--dc,var(--ac));border-radius:10px;background:var(--pan);overflow:hidden;position:relative;transition:box-shadow .15s,border-color .15s}
+.block:hover{border-color:var(--hi)}
+.block.sel{box-shadow:0 0 0 2px var(--ac);border-color:var(--ac)}
+.block.drag-src{opacity:.4}
+.block.drop-before::before,.block.drop-after::after{content:"";position:absolute;top:0;bottom:0;width:3px;background:var(--ac);border-radius:2px;z-index:3}
+.block.drop-before::before{left:-2px}
+.block.drop-after::after{right:-2px}
+.block-head{display:flex;align-items:center;gap:6px;padding:6px 9px;border-bottom:1px solid var(--line);background:var(--pan2);cursor:grab;user-select:none;min-width:0;flex:none}
+.block-head:active{cursor:grabbing}
+.block-head b{font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.block-head .var{font-size:10px;color:var(--mu);border:1px solid var(--line);border-radius:99px;padding:1px 6px;white-space:nowrap;flex:none}
+.block-head .glyph{font-size:13px;color:var(--dc,var(--ac));flex:none}
+.block-body{flex:1;min-height:0;display:grid;place-items:center;padding:10px;overflow:hidden;color:var(--dc,var(--ac))}
+.block-body svg{width:100%;height:100%;max-height:100%;display:block}
+.block-body .mock-default{font-size:12px;color:var(--mu);font-weight:500;text-align:center}
+.block-resize{position:absolute;top:0;right:0;bottom:0;width:8px;cursor:ew-resize;z-index:2}
+.block-resize:hover,.block-resize.drag{background:linear-gradient(90deg,transparent,var(--ac),transparent);opacity:.5}
+.block-meta{display:flex;align-items:center;gap:5px;padding:4px 9px;border-top:1px solid var(--line);font-size:10px;color:var(--mu);flex:none;background:var(--pan2);overflow:hidden}
+.block-meta .req{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.block-meta .badge{border:1px solid var(--line);border-radius:4px;padding:0 4px;font-size:9.5px}
+
+/* mock illustrations */
+.mock-tl{width:100%;height:100%;display:flex;flex-direction:column;justify-content:center;gap:6px;padding:4px}
+.mock-tl-row{position:relative;height:8px;border-radius:3px;background:color-mix(in srgb,var(--ac) 15%,transparent)}
+.mock-tl-bar{position:absolute;top:0;bottom:0;border-radius:3px;background:var(--ac);opacity:.6}
+.mock-chat{display:flex;flex-direction:column;gap:5px;align-items:flex-start;width:100%;max-width:200px}
+.mock-chat-row{display:flex}
+.mock-chat-row-u{justify-content:flex-end;width:100%}
+.mock-chat-bubble{height:10px;width:60%;border-radius:5px;background:color-mix(in srgb,var(--ac) 35%,transparent)}
+.mock-chat-bubble-u{background:var(--ac);opacity:.7}
+.mock-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;width:100%;height:100%;place-items:stretch;padding:4px}
+.mock-grid-2{grid-template-columns:repeat(2,1fr)}
+.mock-tile{background:color-mix(in srgb,var(--ac) 20%,transparent);border-radius:4px}
+.mock-rows{display:flex;flex-direction:column;gap:6px;width:100%;max-width:220px;padding:4px}
+.mock-row-icon{display:flex;align-items:center;gap:6px;color:var(--ac);font-size:12px}
+.mock-row-line{flex:1;height:6px;border-radius:3px;background:color-mix(in srgb,var(--ac) 25%,transparent)}
+.mock-canvas{width:100%;height:100%;display:grid;place-items:center}
+.mock-canvas-rect{width:70%;height:70%;border:1px solid var(--ac);border-radius:4px;background:color-mix(in srgb,var(--ac) 12%,transparent);position:relative}
+.mock-canvas-rect-2{width:80%;height:40%}
+.mock-canvas-rect-3{width:50%;height:50%;border-radius:50%}
+.mock-guard{display:flex;flex-direction:column;gap:4px;width:100%;max-width:220px;padding:4px}
+.mock-guard-line{height:5px;border-radius:3px;background:color-mix(in srgb,var(--ac) 30%,transparent)}
+.mock-guard-line:nth-child(2){width:70%}
+.mock-guard-line:nth-child(3){width:45%}
+.mock-play{width:100%;height:100%;display:grid;place-items:center}
+
+/* ── Agent ──────────────────────────────────── */
+.agent{display:flex;flex-direction:column;border-left:1px solid var(--line);background:var(--pan);min-height:0}
+.agent-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);font-size:13px;font-weight:600;flex:none}
+.agent-head .dot{width:7px;height:7px;border-radius:50%;background:var(--ac);flex:none}
+.agent-head .prov{margin-left:auto;font-size:11.5px;padding:3px 7px}
+.agent-log{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:9px;min-height:0}
+.m{max-width:94%;padding:8px 11px;border-radius:12px;background:var(--pan2);white-space:pre-wrap;font-size:12.5px;line-height:1.45}
+.m.u{align-self:flex-end;background:var(--ink);color:var(--bg)}
+.m.ok{border:1px solid var(--ac)}
+.m.err{border:1px solid var(--warn)}
+.cards{display:grid;gap:7px;align-self:stretch}
+.card{border:1px solid var(--line);border-radius:10px;padding:9px 10px;background:var(--pan2)}
+.card:hover{border-color:var(--ac)}
+.card b{display:block;font-size:12.5px}
+.card p{margin:2px 0 7px;color:var(--mu);font-size:11.5px;line-height:1.4}
+.card .r{display:flex;gap:6px;align-items:center}
+.card .r small{color:var(--mu);flex:1;font-size:10.5px}
+.card button{border:1px solid var(--line);background:transparent;border-radius:6px;padding:3px 9px;font-size:11px}
+.card button:hover:not(:disabled){border-color:var(--ac)}
+.card.done{border-color:var(--ac)}
+.chips{display:flex;flex-wrap:wrap;gap:5px;padding:6px 12px 0}
+.chips button{font-size:11px;border:1px solid var(--line);border-radius:99px;background:transparent;padding:2px 9px;color:var(--mu)}
+.chips button:hover{border-color:var(--ac);color:var(--ink)}
+.agent-form{display:flex;gap:6px;padding:8px 12px 12px;border-top:1px solid var(--line)}
+.agent-form textarea{flex:1;min-width:0;resize:none;height:56px;font-size:12.5px}
+.agent-form button{align-self:stretch;padding:0 14px;border-radius:8px}
+
+/* ── Dialogs ──────────────────────────────────── */
+.dlg{border:1px solid var(--line);border-radius:14px;padding:0;width:min(560px,92vw);max-height:86vh;background:var(--pan);color:var(--ink);box-shadow:0 30px 80px var(--shadow)}
+.dlg::backdrop{background:var(--scrim)}
+.dlg-in{padding:16px 18px;display:flex;flex-direction:column;gap:12px;max-height:86vh;overflow:auto}
+.dlg-in h2{margin:0;font-size:15px}
+.dlg-in p{margin:0;color:var(--mu);font-size:12px;line-height:1.45}
+.dlg-acts{display:flex;gap:8px;justify-content:flex-end;padding-top:4px}
+.fld{display:grid;gap:4px;font-size:12px;color:var(--mu)}
+.fld span{font-size:10.5px;letter-spacing:.04em;text-transform:uppercase}
+.fld input,.fld select,.fld textarea{width:100%}
+.fld textarea{min-height:180px;font-family:ui-monospace,Menlo,monospace;font-size:12px}
+.kv{display:grid;grid-template-columns:110px 1fr;gap:6px 10px;font-size:12px}
+.kv b{color:var(--mu);font-weight:500}
+.scaffold-dlg{width:min(760px,92vw)}
+.scaffold-files{
+  display:grid;gap:1px;padding:6px;border:1px solid var(--line);border-radius:8px;
+  background:var(--pan2);max-height:340px;overflow:auto;
+  font-family:ui-monospace,Menlo,monospace;font-size:11.5px
+}
+.scaffold-file{display:flex;align-items:center;gap:8px;padding:3px 6px;border-radius:4px}
+.scaffold-file:hover{background:var(--pan)}
+.scaffold-file .icon{flex:none;width:12px;text-align:center;color:var(--mu);font-size:10px}
+.scaffold-file .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.scaffold-file.folder .name{color:var(--mu);font-weight:600}
+.scaffold-file .size{color:var(--mu);font-size:10.5px;white-space:nowrap}
+.scaffold-file button{
+  border:1px solid var(--line);background:transparent;color:var(--mu);border-radius:4px;
+  padding:0 6px;font:inherit;font-size:10px;opacity:0;transition:opacity .1s
+}
+.scaffold-file:hover button,.scaffold-file button:focus-visible{opacity:1}
+.scaffold-file button:hover{border-color:var(--ac);color:var(--ink)}
+.scaffold-dlg .dlg-acts{flex-wrap:wrap}
+
+/* preset dialog */
+.preset-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.preset-card{border:1px solid var(--line);background:var(--pan2);border-radius:10px;padding:10px;text-align:left;cursor:pointer;transition:border-color .15s}
+.preset-card:hover{border-color:var(--ac)}
+.preset-card b{display:block;font-size:13px;margin-bottom:3px}
+.preset-card small{display:block;color:var(--mu);font-size:11.5px;line-height:1.4}
+.preset-card .preview-strip{display:flex;gap:3px;margin-top:8px;height:18px}
+.preset-card .preview-strip i{flex:var(--f,1);background:color-mix(in srgb,var(--ac) 35%,transparent);border-radius:3px}
+
+/* toast */
+.toast{position:fixed;z-index:50;left:50%;top:16px;transform:translateX(-50%);background:var(--ac);color:var(--ac-ink);padding:9px 14px;border-radius:10px;font-weight:600;font-size:12.5px;max-width:calc(100vw - 60px)}
+.toast.err{background:var(--warn)}
+
+/* drag ghost */
+.ghost{position:fixed;z-index:100;pointer-events:none;padding:6px 10px;background:var(--pan);border:1px solid var(--ac);border-radius:8px;font-size:12px;color:var(--ink);box-shadow:0 8px 24px var(--shadow);transform:translate(-50%,-50%)}
+
+/* preview mode */
+body.preview .topbar .project-name,body.preview #undoBtn,body.preview #redoBtn,body.preview #addRow{display:none}
+body.preview .layout{grid-template-columns:1fr}
+body.preview .palette,body.preview .agent{display:none}
+body.preview .canvas{padding:36px}
+body.preview .canvas-inner{max-width:1200px}
+body.preview .block-body svg{max-height:none}
+body.preview .block-head{font-size:13px;padding:8px 12px}
+body.preview .block-body{padding:20px}
+body.preview .block-meta{display:none}
+
+/* selection outline helper */
+.empty-note{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;color:var(--mu);font-size:13px;line-height:1.6;pointer-events:none}
+.empty-note b{color:var(--ink);display:block;font-size:15px;margin-bottom:4px}
+
+/* responsive */
+@media (max-width:860px){
+  .topbar{flex-wrap:wrap;height:auto;padding:8px 10px}
+  .layout{height:auto}
+  .canvas{padding:14px}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="mark">S</span> Studio Builder</div>
+  <input id="projectName" class="project-name" value="Untitled studio" aria-label="Project name" />
+  <span class="sp"></span>
+  <button class="btn" id="modeBtn" title="Toggle preview mode">Preview</button>
+  <button class="btn" id="addRowBtn" title="Add a row">+ Row</button>
+  <button class="btn" id="undoBtn" disabled title="Undo">↶</button>
+  <button class="btn" id="redoBtn" disabled title="Redo">↷</button>
+  <button class="btn" id="presetBtn" title="Load a preset">Presets</button>
+  <button class="btn" id="jsonBtn" title="View or edit the blueprint JSON">JSON</button>
+  <button class="btn" id="exportBtn" title="Download the blueprint as JSON">Blueprint</button>
+  <button class="btn primary" id="scaffoldBtn" title="Generate a starter project from this blueprint">Scaffold</button>
+  <button class="btn icon" id="themeBtn" title="Toggle theme">◐</button>
+</header>
+
+<main class="layout">
+  <aside class="palette">
+    <div class="pal-head">Capability palette</div>
+    <input id="palSearch" class="search" placeholder="Search modules…" autocomplete="off">
+    <div id="palList" class="pal-list"></div>
+  </aside>
+
+  <section class="canvas" id="canvas"></section>
+
+  <aside class="agent">
+    <div class="agent-head">
+      <span class="dot"></span> Studio builder agent
+      <select id="prov" class="prov" aria-label="Provider">
+        <option value="auto">Auto</option>
+        <option value="ollama">Local</option>
+        <option value="deepseek">DeepSeek</option>
+      </select>
+      <button class="btn tiny" id="agentClear">Clear</button>
+    </div>
+    <div id="agentLog" class="agent-log" aria-live="polite"></div>
+    <div id="agentChips" class="chips"></div>
+    <form id="agentForm" class="agent-form">
+      <textarea id="agentIn" placeholder="Describe the studio you want, or ask me to place a capability…" autocomplete="off"></textarea>
+      <button class="btn primary" type="submit">Send</button>
+    </form>
+  </aside>
+</main>
+
+<dialog id="inspector" class="dlg">
+  <div class="dlg-in">
+    <h2 id="inspTitle">Block</h2>
+    <p id="inspSummary"></p>
+    <div class="fld"><span>Module</span><select id="inspModule"></select></div>
+    <div class="fld"><span>Variant</span><select id="inspVariant"></select></div>
+    <div class="fld"><span>Flex (1–12)</span><input id="inspFlex" type="number" min="1" max="12" step="1"></div>
+    <div class="kv" id="inspKV"></div>
+    <div class="dlg-acts">
+      <button class="btn" id="inspDelete">Remove block</button>
+      <button class="btn primary" id="inspDone">Done</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="presetDialog" class="dlg">
+  <div class="dlg-in">
+    <h2>Presets</h2>
+    <p>Named blueprints that show off the capability map. Pick one to start from; you can edit it freely after.</p>
+    <div class="preset-grid" id="presetGrid"></div>
+    <div class="dlg-acts"><button class="btn" id="presetClose">Cancel</button></div>
+  </div>
+</dialog>
+
+<dialog id="jsonDialog" class="dlg">
+  <div class="dlg-in">
+    <h2>Blueprint JSON</h2>
+    <p>Edit and apply. This is the artifact the agent works against, so any change you make here is visible to the agent on the next turn.</p>
+    <label class="fld"><span>Blueprint</span><textarea id="jsonText" spellcheck="false"></textarea></label>
+    <div class="dlg-acts">
+      <button class="btn" id="jsonLoad">Load current</button>
+      <button class="btn" id="jsonClose">Cancel</button>
+      <button class="btn primary" id="jsonApply">Apply</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="scaffoldDialog" class="dlg scaffold-dlg">
+  <div class="dlg-in">
+    <h2>Scaffold this studio</h2>
+    <p id="scaffoldSummary"></p>
+    <div id="scaffoldFiles" class="scaffold-files"></div>
+    <div class="dlg-acts">
+      <button class="btn" type="button" id="scaffoldPreview">Preview in new tab</button>
+      <button class="btn" type="button" id="scaffoldCopy">Copy single-file</button>
+      <button class="btn" type="button" id="scaffoldSingle">Download single-file</button>
+      <button class="btn primary" type="button" id="scaffoldZip">Download ZIP</button>
+      <button class="btn" type="button" id="scaffoldClose">Cancel</button>
+    </div>
+  </div>
+</dialog>
+
+<div id="toast" class="toast" hidden></div>
+
+<script>
+(function(){
+'use strict';
+
+/* ── Config ──────────────────────────────────────── */
+const API = 'api';
+const LS_KEY = 'studioBuilder.v1';
+const THEME_KEY = 'studioBuilder.theme';
+const MIN_FLEX = 1, MAX_FLEX = 12;
+const MIN_ROW_H = 60, MAX_ROW_H = 1600;
+
+/* ── Utils ───────────────────────────────────────── */
+const $  = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const clone = o => JSON.parse(JSON.stringify(o));
+const uid = () => 'b' + Math.random().toString(36).slice(2, 9);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const LS = {
+  get(k, d){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } },
+};
+const mk = (tag, props = {}, ...kids) => {
+  const e = Object.assign(document.createElement(tag), props);
+  kids.flat().filter(k => k !== null && k !== undefined && k !== false).forEach(k => e.append(k));
+  return e;
+};
+let toastT = 0;
+const toast = (m, err) => {
+  const t = $('#toast'); t.textContent = m; t.className = 'toast' + (err ? ' err' : ''); t.hidden = false;
+  clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 3200);
+};
+
+/* ── Module catalog ──────────────────────────────── */
+// Each module is one capability from the documented capability map.
+// `id` is stable; `domain` selects the colour; `variants` are what you can pick in the inspector.
+const MODULES = [
+  // Foundation
+  { id:'studio-core', label:'Studio core', domain:'Foundation', summary:'Colour, fonts, text layout, fitScene.',
+    variants:['core'], surfaces:['studio.html','studio-import.html','studio-agent.html'],
+    requires:[], api:['colors','fonts','text','fitScene'] },
+  { id:'brand', label:'Brand bridge', domain:'Foundation', summary:'Pack loading, StudioBrand bridge, theme derivation, logo tint.',
+    variants:['bridge'], surfaces:['all'],
+    requires:['studio-core'], api:['loadPack','selectBrand','deriveTheme','getBrand'] },
+  { id:'persistence', label:'Persistence', domain:'Foundation', summary:'localStorage keys and backend save routing.',
+    variants:['default'], surfaces:['all'],
+    requires:['studio-core'], api:['save','load','keys'] },
+
+  // Models
+  { id:'composition-model', label:'Composition model', domain:'Models', summary:'scene[] layers, composition v3 document, adapters.',
+    variants:['v3'], surfaces:['studio.html','studio-import.html'],
+    requires:['studio-core'], api:['compositionToScene','compositionFromScene','validate'] },
+  { id:'template-model', label:'Template model', domain:'Models', summary:'Override state S, per-design persistence, restore.',
+    variants:['overrides'], surfaces:['studio-agent.html'],
+    requires:['studio-core','brand','persistence'],
+    api:['resolveTemplate','applyOverrides','persist'] },
+  { id:'motion-model', label:'Motion model', domain:'Models', summary:'CSS presets, keyframe tracks, schema 2 frames.',
+    variants:['schema2'], surfaces:['all'],
+    requires:['studio-core'], api:['normalize','interpolate','bake'] },
+
+  // Renderers
+  { id:'canvas-editor', label:'Canvas editor', domain:'Editors', summary:'Rich scene editing: handles, marquee, resize, rotate, slot distribution.',
+    variants:['edit','preview','embed'], surfaces:['studio.html','studio-import.html'],
+    requires:['studio-core','brand','persistence','composition-model','motion-model'],
+    api:['mount','render','select','resize','undo','redo'] },
+  { id:'brand-template-renderer', label:'Brand template renderer', domain:'Renderers', summary:'Resolve/draw brand-template compositions, SVG recolour.',
+    variants:['full','preview'], surfaces:['studio-agent.html'],
+    requires:['studio-core','brand','template-model'], api:['resolve','render'] },
+  { id:'element-capture', label:'Element capture', domain:'Renderers', summary:'Make an engine render selectable: capture boxes → clickable.',
+    variants:['default'], surfaces:['studio-agent.html'],
+    requires:['studio-core','brand-template-renderer'], api:['capture','list'] },
+  { id:'agent-first-canvas', label:'Agent-first canvas', domain:'Renderers', summary:'Minimal text+image renderer, fixed square stage.',
+    variants:['full','preview'], surfaces:['afs.html','agent-first-studio.html'],
+    requires:['studio-core','composition-model','motion-model'],
+    api:['mount','render','play','seek'] },
+
+  // Editors
+  { id:'template-editor', label:'Template editor', domain:'Editors', summary:'Override command language, focus mode, layer inspector.',
+    variants:['full','focus'], surfaces:['studio-agent.html'],
+    requires:['studio-core','brand','template-model','brand-template-renderer','motion-model','persistence'],
+    api:['mount','commit','focus'] },
+  { id:'motion', label:'Motion engine', domain:'Editors', summary:'Presets, bake, transfer, motion looks.',
+    variants:['presets','bake','transfer','looks'], surfaces:['all'],
+    requires:['studio-core','motion-model'], api:['presets','bake','transfer','looks'] },
+  { id:'timeline', label:'Timeline', domain:'Editors', summary:'Rows, bars, keyframe ticks, retime, import/export.',
+    variants:['full','compact'], surfaces:['studio.html','studio-import.html','studio-agent.html'],
+    requires:['studio-core','motion','motion-model'],
+    api:['mount','play','seek','addEvent','importEvents'] },
+
+  // Agent
+  { id:'agent', label:'Agent chat', domain:'Agent', summary:'Message stream, cards, hover preview, suggestion matchers.',
+    variants:['scene','template','agent-first'], surfaces:['studio.html','studio-import.html','studio-agent.html','afs.html'],
+    requires:['studio-core','brand','persistence'], api:['mount','ask','clear'] },
+  { id:'agent-first-commands', label:'Agent-first commands', domain:'Agent', summary:'Model response contract and handlers.',
+    variants:['default'], surfaces:['afs.html','agent-first-studio.html'],
+    requires:['studio-core','brand','persistence','motion-model'], api:['parse','apply'] },
+  { id:'agent-first-providers', label:'Provider catalogue', domain:'Agent', summary:'Provider list, proxy-first call, direct fallback.',
+    variants:['default'], surfaces:['afs.html','agent-first-studio.html'],
+    requires:['studio-core'], api:['list','call'] },
+  { id:'agent-first-attachments', label:'Attachments', domain:'Agent', summary:'Image / video / canvas / area reference pipeline.',
+    variants:['default'], surfaces:['afs.html','agent-first-studio.html'],
+    requires:['studio-core'], api:['attach','list','clear'] },
+
+  // Assets
+  { id:'asset-panels', label:'Asset panels', domain:'Assets', summary:'Brand / Library / Templates / Elements tabs.',
+    variants:['full','compact'], surfaces:['studio.html','studio-agent.html'],
+    requires:['studio-core','brand','persistence'], api:['mount','render'] },
+  { id:'menu-variations', label:'Menu variations', domain:'Assets', summary:'Structured menu fill, picker, product-image slot.',
+    variants:['default'], surfaces:['afs.html','agent-first-studio.html'],
+    requires:['studio-core','brand','composition-model','persistence'],
+    api:['create','update','list'] },
+  { id:'segment-library-browser', label:'Segment library', domain:'Assets', summary:'Group grid, detail drawer, animation viewer.',
+    variants:['default'], surfaces:['segments.html'],
+    requires:['studio-core','brand'], api:['mount'] },
+  { id:'clean-canvas', label:'Clean canvas', domain:'Assets', summary:'Production/review sub-app: designs, library, animations.',
+    variants:['default'], surfaces:['studio-agent.html'],
+    requires:['studio-core','brand','template-model','template-editor','brand-template-renderer','motion'],
+    api:['mount'] },
+
+  // Output
+  { id:'exporter', label:'Exporter', domain:'Output', summary:'PNG, JPG, PDF, GIF, MP4, WebM, JSON, ZIP.',
+    variants:['png','pdf','gif','video','json','segments','all'], surfaces:['all'],
+    requires:['studio-core','composition-model','motion-model','motion'],
+    api:['png','jpg','pdf','gif','mp4','webm','json','zip'] },
+  { id:'source-exact-playback', label:'Source-exact playback', domain:'Output', summary:'Play the source video; real-time WebM capture.',
+    variants:['default'], surfaces:['afs.html','agent-first-studio.html'],
+    requires:['studio-core','motion-model'], api:['mount','play','export'] },
+
+  // Audio
+  { id:'narration-cast', label:'Narration / cast', domain:'Audio', summary:'Cast, lines, audio mix config, sync.',
+    variants:['readonly','full'], surfaces:['afs.html','agent-first-studio.html'],
+    requires:['studio-core','brand','persistence'], api:['mount','load','save','sync'] },
+  { id:'audio-authoring', label:'Audio authoring', domain:'Audio', summary:'Script, TTS, recording, voice-over playback, follow-along.',
+    variants:['full'], surfaces:['afs.html'],
+    requires:['studio-core','narration-cast','persistence'],
+    api:['mount','tts','record','sync'] },
+
+  // Cross-cutting
+  { id:'guardrails', label:'Guardrails', domain:'Cross-cutting', summary:'Safe zone, overflow, min size, palette, binding, contrast.',
+    variants:['banner','inline'], surfaces:['studio.html','studio-import.html'],
+    requires:['studio-core','composition-model'], api:['check','report'] },
+  { id:'diagnostic-seams', label:'Diagnostic seams', domain:'Cross-cutting', summary:'window.AgentStudio, __layerStudioAnimation, __agentCanvas, __agentFirstQA.',
+    variants:['default'], surfaces:['all'],
+    requires:['studio-core'], api:['expose'] },
+];
+const MODULE_MAP = new Map(MODULES.map(m => [m.id, m]));
+
+const DOMAIN_COLOR = {
+  'Foundation':  '#7a8fa8',
+  'Models':      '#a89a7a',
+  'Renderers':   '#7ac8a8',
+  'Editors':     '#e8a25c',
+  'Agent':       '#7ca8e8',
+  'Assets':      '#7cc98f',
+  'Output':      '#c68fe8',
+  'Audio':       '#e88f8f',
+  'Cross-cutting':'#e8d07c',
+};
+const DOMAIN_ORDER = ['Foundation','Models','Renderers','Editors','Agent','Assets','Output','Audio','Cross-cutting'];
+
+/* ── Presets ─────────────────────────────────────── */
+// A preset is a named blueprint that demonstrates how capabilities can be composed.
+function presetBlueprint(rows){
+  return {
+    name: 'Preset',
+    gap: 16,
+    rows: rows.map(r => ({
+      id: uid(),
+      height: r.height,
+      blocks: (r.blocks || []).map(b => ({
+        id: uid(), module: b.module, variant: b.variant || 'default',
+        flex: b.flex || 1,
+      })),
+    })),
+  };
+}
+
+const PRESETS = [
+  { id:'classic', label:'Classic studio', summary:'Scene editor + asset panels + timeline + agent.',
+    blueprint: () => {
+      const b = presetBlueprint([
+        { height: 56,  blocks: [ { module:'guardrails',  variant:'banner', flex:12 } ] },
+        { height: 520, blocks: [ { module:'asset-panels', variant:'full', flex:3 },
+                                 { module:'canvas-editor', variant:'edit', flex:6 },
+                                 { module:'agent',         variant:'scene', flex:3 } ] },
+        { height: 180, blocks: [ { module:'timeline', variant:'full', flex:12 } ] },
+      ]);
+      b.name = 'Classic studio'; return b;
+    } },
+
+  { id:'template', label:'Template production', summary:'Template editor + variations + timeline + agent.',
+    blueprint: () => {
+      const b = presetBlueprint([
+        { height: 56,  blocks: [ { module:'guardrails', variant:'banner', flex:12 } ] },
+        { height: 520, blocks: [ { module:'asset-panels', variant:'compact', flex:3 },
+                                 { module:'template-editor', variant:'full', flex:6 },
+                                 { module:'agent', variant:'template', flex:3 } ] },
+        { height: 180, blocks: [ { module:'timeline', variant:'full', flex:12 } ] },
+      ]);
+      b.name = 'Template production'; return b;
+    } },
+
+  { id:'agent-first', label:'Agent-first canvas', summary:'Canvas + attachments + narration + exporter.',
+    blueprint: () => {
+      const b = presetBlueprint([
+        { height: 520, blocks: [ { module:'narration-cast', variant:'full', flex:3 },
+                                 { module:'agent-first-canvas', variant:'full', flex:6 },
+                                 { module:'agent-first-attachments', variant:'default', flex:3 } ] },
+        { height: 56,  blocks: [ { module:'source-exact-playback', variant:'default', flex:6 },
+                                 { module:'exporter', variant:'video', flex:6 } ] },
+      ]);
+      b.name = 'Agent-first canvas'; return b;
+    } },
+
+  { id:'segments', label:'Segment library', summary:'Segment browser + detail + agent.',
+    blueprint: () => {
+      const b = presetBlueprint([
+        { height: 560, blocks: [ { module:'segment-library-browser', variant:'default', flex:8 },
+                                 { module:'agent', variant:'scene', flex:4 } ] },
+      ]);
+      b.name = 'Segment library'; return b;
+    } },
+
+  { id:'clean-review', label:'Clean review', summary:'Full-bleed clean canvas with agent.',
+    blueprint: () => {
+      const b = presetBlueprint([
+        { height: 760, blocks: [ { module:'clean-canvas', variant:'default', flex:12 } ] },
+      ]);
+      b.name = 'Clean review'; return b;
+    } },
+
+  { id:'asset-workbench', label:'Asset workbench', summary:'Asset panels + editor preview + exporter.',
+    blueprint: () => {
+      const b = presetBlueprint([
+        { height: 520, blocks: [ { module:'asset-panels', variant:'full', flex:4 },
+                                 { module:'canvas-editor', variant:'preview', flex:5 },
+                                 { module:'template-editor', variant:'focus', flex:3 } ] },
+        { height: 56,  blocks: [ { module:'exporter', variant:'all', flex:12 } ] },
+      ]);
+      b.name = 'Asset workbench'; return b;
+    } },
+
+  { id:'audio-production', label:'Audio production', summary:'Canvas + audio authoring + cast + exporter.',
+    blueprint: () => {
+      const b = presetBlueprint([
+        { height: 520, blocks: [ { module:'narration-cast', variant:'full', flex:3 },
+                                 { module:'agent-first-canvas', variant:'full', flex:6 },
+                                 { module:'audio-authoring', variant:'full', flex:3 } ] },
+        { height: 56,  blocks: [ { module:'source-exact-playback', variant:'default', flex:6 },
+                                 { module:'exporter', variant:'audio' === 'audio' ? 'video' : 'video', flex:6 } ] },
+      ]);
+      b.name = 'Audio production'; return b;
+    } },
+];
+
+/* ── State ───────────────────────────────────────── */
+let B = null;           // current blueprint
+let HIST = [];          // undo stack of blueprint snapshots
+let FUTURE = [];        // redo stack
+let SEL = null;         // selected block id
+let DRAG = null;        // active drag { kind, id|module, ghost, startX, startY }
+let HOVER = null;       // hovered drop target { rowId, at, blockId, side }
+let RESIZE = null;      // { kind:'block'|'row', id, startFlex|startH, startX, startY }
+let MODE = 'compose';
+let SAVE_T = 0;
+
+function blankBlueprint(){
+  return {
+    name: 'Untitled studio',
+    gap: 16,
+    rows: [{ id: uid(), height: 200, blocks: [] }],
+    meta: { version: 1, createdAt: Date.now() },
+  };
+}
+
+function loadBlueprint(){
+  const saved = LS.get(LS_KEY, null);
+  if (saved && Array.isArray(saved.rows)) return saved;
+  return null;
+}
+function saveBlueprint(){
+  if (!B) return;
+  B.meta = B.meta || {}; B.meta.updatedAt = Date.now();
+  LS.set(LS_KEY, B);
+}
+function pushHistory(){
+  HIST.push(clone(B));
+  if (HIST.length > 60) HIST.shift();
+  FUTURE.length = 0;
+  updateUndoRedo();
+}
+function undo(){
+  if (!HIST.length) return;
+  FUTURE.push(clone(B));
+  B = HIST.pop();
+  updateUndoRedo(); render(); saveBlueprint();
+}
+function redo(){
+  if (!FUTURE.length) return;
+  HIST.push(clone(B));
+  B = FUTURE.pop();
+  updateUndoRedo(); render(); saveBlueprint();
+}
+function updateUndoRedo(){
+  $('#undoBtn').disabled = !HIST.length;
+  $('#redoBtn').disabled = !FUTURE.length;
+}
+
+/* ── Blueprint actions ───────────────────────────── */
+function findBlock(id){
+  for (const row of B.rows) {
+    const b = row.blocks.find(x => x.id === id);
+    if (b) return { row, block: b };
+  }
+  return null;
+}
+function applyPreset(id){
+  const p = PRESETS.find(x => x.id === id);
+  if (!p) return false;
+  pushHistory();
+  B = p.blueprint();
+  SEL = null;
+  render(); saveBlueprint();
+  toast(`Loaded preset: ${p.label}`);
+  return true;
+}
+function addRow(height = 200, at = null){
+  pushHistory();
+  const row = { id: uid(), height: clamp(height, MIN_ROW_H, MAX_ROW_H), blocks: [] };
+  if (at == null || at < 0 || at > B.rows.length) B.rows.push(row);
+  else B.rows.splice(at, 0, row);
+  render(); saveBlueprint();
+}
+function removeRow(rowId){
+  pushHistory();
+  B.rows = B.rows.filter(r => r.id !== rowId);
+  if (!B.rows.length) B.rows.push({ id: uid(), height: 200, blocks: [] });
+  render(); saveBlueprint();
+}
+function addBlock(rowId, moduleId, variant, flex = 1, at = null){
+  const m = MODULE_MAP.get(moduleId); if (!m) return false;
+  const v = m.variants.includes(variant) ? variant : m.variants[0];
+  const row = B.rows.find(r => r.id === rowId); if (!row) return false;
+  pushHistory();
+  const block = { id: uid(), module: moduleId, variant: v, flex: clamp(flex, MIN_FLEX, MAX_FLEX) };
+  if (at == null || at < 0 || at > row.blocks.length) row.blocks.push(block);
+  else row.blocks.splice(at, 0, block);
+  SEL = block.id;
+  render(); saveBlueprint();
+  return block.id;
+}
+function removeBlock(blockId){
+  const found = findBlock(blockId); if (!found) return;
+  pushHistory();
+  found.row.blocks = found.row.blocks.filter(b => b.id !== blockId);
+  if (SEL === blockId) SEL = null;
+  render(); saveBlueprint();
+}
+function moveBlock(blockId, rowId, at){
+  const found = findBlock(blockId); if (!found) return;
+  const target = B.rows.find(r => r.id === rowId); if (!target) return;
+  pushHistory();
+  found.row.blocks = found.row.blocks.filter(b => b.id !== blockId);
+  const index = (at == null || at < 0 || at > target.blocks.length) ? target.blocks.length : at;
+  target.blocks.splice(index, 0, found.block);
+  render(); saveBlueprint();
+}
+function setBlock(blockId, patch){
+  const found = findBlock(blockId); if (!found) return;
+  pushHistory();
+  Object.assign(found.block, patch);
+  if (patch.module) {
+    const m = MODULE_MAP.get(patch.module);
+    if (m) {
+      if (!m.variants.includes(found.block.variant)) found.block.variant = m.variants[0];
+    }
+  }
+  if (patch.flex != null) found.block.flex = clamp(patch.flex, MIN_FLEX, MAX_FLEX);
+  render(); saveBlueprint();
+}
+function setRow(rowId, patch){
+  const row = B.rows.find(r => r.id === rowId); if (!row) return;
+  if (patch.height != null) row.height = clamp(patch.height, MIN_ROW_H, MAX_ROW_H);
+  render(); saveBlueprint();
+}
+function loadPresetFromAgent(id){ applyPreset(id); }
+
+/* ── Rendering ───────────────────────────────────── */
+function render(){
+  renderPalette();
+  renderCanvas();
+  updateUndoRedo();
+}
+function renderPalette(){
+  const q = ($('#palSearch').value || '').trim().toLowerCase();
+  const list = $('#palList'); list.replaceChildren();
+  DOMAIN_ORDER.forEach(domain => {
+    const items = MODULES.filter(m => m.domain === domain &&
+      (!q || m.id.toLowerCase().includes(q) || m.label.toLowerCase().includes(q) || m.summary.toLowerCase().includes(q)));
+    if (!items.length) return;
+    const group = mk('div', { className: 'pal-group' });
+    const h = mk('h4', {}, ' ', esc(domain), ` · ${items.length}`);
+    h.querySelector('i');
+    group.append(h);
+    items.forEach(m => {
+      const el = mk('div', {
+        className: 'pal-item',
+        draggable: 'true',
+        'data-module': m.id,
+        title: m.summary,
+      });
+      el.style.setProperty('--dc', DOMAIN_COLOR[m.domain] || 'var(--ac)');
+      el.append(
+        mk('b', {}, m.label),
+        mk('small', {}, m.summary),
+      );
+      el.addEventListener('dragstart', e => {
+        e.dataTransfer.setData('text/x-module', m.id);
+        e.dataTransfer.effectAllowed = 'copy';
+      });
+      el.addEventListener('pointerdown', e => beginPalettePointerDrag(e, m.id));
+      group.append(el);
+    });
+    list.append(group);
+  });
+  if (!list.children.length) {
+    list.append(mk('div', { className: 'pal-empty' }, 'No modules match.'));
+  }
+}
+function renderCanvas(){
+  const cv = $('#canvas'); cv.replaceChildren();
+  if (!B) return;
+  const inner = mk('div', { className: 'canvas-inner' });
+  inner.style.setProperty('--gap', (B.gap || 16) + 'px');
+  if (!B.rows.some(r => r.blocks.length)) {
+    const note = mk('div', { className: 'empty-note' },
+      mk('b', {}, 'Start building'),
+      mk('div', {}, 'Drag a capability from the left, or press Presets for a starting layout.'),
+      mk('div', { style: 'margin-top:10px;font-size:11px;color:var(--mu)' }, 'Tip: the agent on the right can also place blocks for you.'),
+    );
+    inner.append(note);
+  }
+  B.rows.forEach((row, ri) => {
+    const el = mk('div', { className: 'row' });
+    el.style.height = row.height + 'px';
+    el.dataset.rowId = row.id;
+    if (!row.blocks.length) {
+      el.classList.add('empty');
+      el.textContent = 'Empty row · drop a capability here';
+    }
+    row.blocks.forEach((b, bi) => {
+      el.append(renderBlock(row, b, ri, bi));
+    });
+    // Row resize grip
+    const grip = mk('div', { className: 'row-grip', 'aria-label': 'Resize row' });
+    grip.addEventListener('pointerdown', e => beginRowResize(e, row.id));
+    el.append(grip);
+    // Drop zone wiring
+    bindRowDrop(el);
+    inner.append(el);
+  });
+  cv.append(inner);
+}
+function bindRowDrop(el){
+  el.addEventListener('dragover',e=>{
+    const types=Array.from(e.dataTransfer?.types||[]);
+    if(!types.includes('text/x-module')&&!types.includes('text/x-block')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect=types.includes('text/x-block')?'move':'copy';
+    HOVER=findDropTarget(e.clientX,e.clientY);
+    paintHover();
+  });
+  el.addEventListener('dragleave',e=>{
+    if(el.contains(e.relatedTarget)) return;
+    HOVER=null;
+    paintHover();
+  });
+  el.addEventListener('drop',e=>{
+    const moduleId=e.dataTransfer?.getData('text/x-module')||'';
+    const blockId=e.dataTransfer?.getData('text/x-block')||'';
+    if(!moduleId&&!blockId) return;
+    e.preventDefault();
+    handleDrop(moduleId||blockId,e.clientX,e.clientY,moduleId?'module':'block');
+    HOVER=null;
+    paintHover();
+  });
+}
+function renderBlock(row, b, ri, bi){
+  const m = MODULE_MAP.get(b.module);
+  if (!m) return mk('div', { className: 'block' }, 'Unknown module: ' + b.module);
+  const el = mk('div', { className: 'block', 'data-block': b.id, 'data-row': row.id });
+  el.style.setProperty('--dc', DOMAIN_COLOR[m.domain] || 'var(--ac)');
+  el.style.setProperty('--flex', b.flex);
+  if (b.id === SEL) el.classList.add('sel');
+  el.draggable = true;
+
+  const head = mk('div', { className: 'block-head' });
+  head.append(
+    mk('span', { className: 'glyph' }, glyphFor(m)),
+    mk('b', {}, m.label),
+    mk('span', { className: 'var' }, b.variant),
+  );
+  head.addEventListener('pointerdown', e => { if (e.target.closest('.block-head') === head) beginBlockPointerDrag(e, b.id); });
+  head.addEventListener('click', e => { e.stopPropagation(); openInspector(b.id); });
+
+  const body = mk('div', { className: 'block-body' });
+  body.innerHTML = mockFor(m.id);
+
+  const meta = mk('div', { className: 'block-meta' });
+  meta.append(
+    mk('span', { className: 'badge' }, m.domain),
+    mk('span', { className: 'req' }, 'requires: ' + ((m.requires || []).join(', ') || '—')),
+  );
+
+  el.append(head, body, meta);
+
+  const resize = mk('div', { className: 'block-resize', 'aria-label': 'Resize block' });
+  resize.addEventListener('pointerdown', e => beginBlockResize(e, b.id));
+  el.append(resize);
+
+  el.addEventListener('click', e => {
+    if (e.target.closest('.block-resize')) return;
+    SEL = b.id; render();
+  });
+  el.addEventListener('dragstart', e => {
+    e.dataTransfer.setData('text/x-block', b.id);
+    e.dataTransfer.effectAllowed = 'move';
+  });
+  return el;
+}
+function glyphFor(m){
+  const glyphs = {
+    'studio-core':'◇','brand':'◈','persistence':'▤',
+    'composition-model':'▦','template-model':'▧','motion-model':'↝',
+    'canvas-editor':'▭','brand-template-renderer':'▣','element-capture':'◯','agent-first-canvas':'▢',
+    'template-editor':'✎','motion':'↻','timeline':'⏱',
+    'agent':'✧','agent-first-commands':'⌘','agent-first-providers':'☁','agent-first-attachments':'◇',
+    'asset-panels':'▦','menu-variations':'≡','segment-library-browser':'▤','clean-canvas':'◻',
+    'exporter':'⤓','source-exact-playback':'▶',
+    'narration-cast':'♪','audio-authoring':'♬',
+    'guardrails':'⚑','diagnostic-seams':'⚙',
+  };
+  return glyphs[m.id] || '◆';
+}
+
+/* ── Block/row mocks ──────────────────────────────── */
+function mockFor(moduleId){
+  const svg = (inner) => `<svg viewBox="0 0 200 120" preserveAspectRatio="xMidYMid meet" aria-hidden="true">${inner}</svg>`;
+  const mocks = {
+    'canvas-editor': () => svg(`
+      <rect x="20" y="10" width="160" height="100" fill="none" stroke="currentColor" stroke-width="1"/>
+      <rect x="30" y="20" width="50" height="30" fill="currentColor" opacity=".25"/>
+      <rect x="90" y="20" width="80" height="30" fill="currentColor" opacity=".12"/>
+      <rect x="30" y="62" width="60" height="40" fill="none" stroke="currentColor" stroke-dasharray="2 3"/>
+      <circle cx="30" cy="62" r="2.5" fill="currentColor"/>
+      <circle cx="90" cy="62" r="2.5" fill="currentColor"/>
+      <circle cx="30" cy="102" r="2.5" fill="currentColor"/>
+      <circle cx="90" cy="102" r="2.5" fill="currentColor"/>
+    `),
+    'brand-template-renderer': () => `<div class="mock-canvas"><div class="mock-canvas-rect mock-canvas-rect-2"></div></div>`,
+    'agent-first-canvas': () => `<div class="mock-canvas"><div class="mock-canvas-rect mock-canvas-rect-3"></div></div>`,
+    'timeline': () => `<div class="mock-tl">${[0,1,2].map(()=> `<div class="mock-tl-row"><div class="mock-tl-bar" style="left:${10+Math.random()*30}%;width:${20+Math.random()*30}%"></div></div>`).join('')}</div>`,
+    'agent': () => `<div class="mock-chat">
+      <div class="mock-chat-row"><div class="mock-chat-bubble"></div></div>
+      <div class="mock-chat-row mock-chat-row-u"><div class="mock-chat-bubble mock-chat-bubble-u"></div></div>
+      <div class="mock-chat-row"><div class="mock-chat-bubble"></div></div>
+    </div>`,
+    'asset-panels': () => `<div class="mock-grid">${[...Array(6)].map(()=> '<div class="mock-tile"></div>').join('')}</div>`,
+    'segment-library-browser': () => `<div class="mock-grid mock-grid-2">${[...Array(4)].map(()=> '<div class="mock-tile"></div>').join('')}</div>`,
+    'exporter': () => `<div class="mock-rows">${[0,1,2,3].map(()=>'<div class="mock-row-icon"><span>⤓</span><div class="mock-row-line"></div></div>').join('')}</div>`,
+    'guardrails': () => `<div class="mock-guard"><div class="mock-guard-line"></div><div class="mock-guard-line"></div><div class="mock-guard-line"></div></div>`,
+    'narration-cast': () => svg(`
+      <path d="M10 60 L20 60 L25 40 L30 80 L35 30 L40 90 L45 50 L50 70 L55 60 L60 60" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+      <path d="M70 60 L80 60 L85 40 L90 80 L95 30 L100 90 L105 50 L110 70 L115 60 L120 60" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" opacity=".55"/>
+      <path d="M130 60 L140 60 L145 40 L150 80 L155 30 L160 90 L165 50 L170 70 L175 60 L180 60" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" opacity=".3"/>
+    `),
+    'audio-authoring': () => svg(`
+      <path d="M10 60 L20 60 L25 40 L30 80 L35 30 L40 90 L45 50 L50 70 L55 60 L60 60" fill="none" stroke="currentColor" stroke-width="1.5"/>
+      <circle cx="140" cy="80" r="10" fill="currentColor" opacity=".4"/>
+      <circle cx="160" cy="80" r="10" fill="currentColor" opacity=".2"/>
+    `),
+    'source-exact-playback': () => svg(`
+      <rect x="20" y="20" width="160" height="80" fill="none" stroke="currentColor" stroke-width="1"/>
+      <polygon points="85,45 85,75 115,60" fill="currentColor"/>
+    `),
+    'template-editor': () => svg(`
+      <rect x="20" y="20" width="160" height="80" fill="none" stroke="currentColor"/>
+      <rect x="30" y="30" width="100" height="6" fill="currentColor" opacity=".4"/>
+      <rect x="30" y="44" width="140" height="4" fill="currentColor" opacity=".2"/>
+      <rect x="30" y="54" width="140" height="4" fill="currentColor" opacity=".2"/>
+      <rect x="30" y="64" width="80" height="4" fill="currentColor" opacity=".2"/>
+    `),
+    'motion': () => svg(`
+      <circle cx="40" cy="60" r="6" fill="currentColor"/>
+      <circle cx="90" cy="60" r="6" fill="currentColor" opacity=".5"/>
+      <circle cx="140" cy="60" r="6" fill="currentColor" opacity=".2"/>
+      <path d="M50 60 Q 90 40 130 60" fill="none" stroke="currentColor" stroke-dasharray="2 3" opacity=".6"/>
+    `),
+    'clean-canvas': () => `<div class="mock-canvas"><div class="mock-canvas-rect"></div></div>`,
+    'menu-variations': () => `<div class="mock-rows">
+      <div class="mock-row-icon"><span>≡</span><div class="mock-row-line"></div></div>
+      <div class="mock-row-icon"><span>≡</span><div class="mock-row-line"></div></div>
+      <div class="mock-row-icon"><span>≡</span><div class="mock-row-line"></div></div>
+    </div>`,
+    'diagnostic-seams': () => svg(`
+      <circle cx="100" cy="60" r="30" fill="none" stroke="currentColor" stroke-dasharray="3 4"/>
+      <circle cx="100" cy="60" r="8" fill="currentColor"/>
+    `),
+  };
+  const fn = mocks[moduleId];
+  return fn ? fn() : `<div class="mock-default">${esc(moduleId)}</div>`;
+}
+
+/* ── Drag & drop ──────────────────────────────────── */
+function beginPalettePointerDrag(e, moduleId){
+  if (e.button !== 0) return;
+  const startX = e.clientX, startY = e.clientY;
+  let started = false;
+  const ghost = mk('div', { className: 'ghost' }, MODULE_MAP.get(moduleId)?.label || moduleId);
+  const onMove = ev => {
+    if (!started) {
+      if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < 4) return;
+      started = true;
+      document.body.append(ghost);
+    }
+    ghost.style.left = ev.clientX + 'px';
+    ghost.style.top  = ev.clientY + 'px';
+    HOVER = findDropTarget(ev.clientX, ev.clientY);
+    paintHover();
+  };
+  const onUp = ev => {
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    ghost.remove();
+    if (started) handleDrop(moduleId, ev.clientX, ev.clientY, 'module');
+    HOVER = null; paintHover();
+  };
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+}
+
+function beginBlockPointerDrag(e, blockId){
+  if (e.button !== 0) return;
+  const startX = e.clientX, startY = e.clientY;
+  let started = false;
+  const found = findBlock(blockId); if (!found) return;
+  const ghost = mk('div', { className: 'ghost' }, MODULE_MAP.get(found.block.module)?.label || 'Block');
+  const el = document.querySelector(`.block[data-block="${CSS.escape(blockId)}"]`);
+  const onMove = ev => {
+    if (!started) {
+      if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < 4) return;
+      started = true;
+      document.body.append(ghost);
+      if (el) el.classList.add('drag-src');
+    }
+    ghost.style.left = ev.clientX + 'px';
+    ghost.style.top  = ev.clientY + 'px';
+    HOVER = findDropTarget(ev.clientX, ev.clientY, blockId);
+    paintHover();
+  };
+  const onUp = ev => {
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    ghost.remove();
+    if (el) el.classList.remove('drag-src');
+    if (started) handleDrop(blockId, ev.clientX, ev.clientY, 'block');
+    HOVER = null; paintHover();
+  };
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+}
+
+function findDropTarget(x, y, excludeBlockId = null){
+  const el = document.elementFromPoint(x, y);
+  if (!el) return null;
+  const blockEl = el.closest('.block');
+  const rowEl   = el.closest('.row');
+  if (blockEl && rowEl) {
+    const blockId = blockEl.dataset.block;
+    if (blockId === excludeBlockId) return null;
+    const r = blockEl.getBoundingClientRect();
+    const side = x < r.left + r.width / 2 ? 'before' : 'after';
+    return { rowId: rowEl.dataset.rowId, blockId, side };
+  }
+  if (rowEl) {
+    const rowId = rowEl.dataset.rowId;
+    const row = B.rows.find(r => r.id === rowId);
+    if (!row) return null;
+    // Insert at end of row (position doesn't matter much since no block under cursor)
+    return { rowId, at: row.blocks.length };
+  }
+  return null;
+}
+function paintHover(){
+  $$('.block').forEach(b => b.classList.remove('drop-before', 'drop-after'));
+  if (!HOVER) return;
+  if (HOVER.blockId) {
+    const el = document.querySelector(`.block[data-block="${CSS.escape(HOVER.blockId)}"]`);
+    if (el) el.classList.add(HOVER.side === 'before' ? 'drop-before' : 'drop-after');
+  }
+}
+function handleDrop(id, x, y, kind){
+  const t = findDropTarget(x, y, kind === 'block' ? id : null);
+  if (!t) return;
+  const insertIndex = (rowId) => {
+    const row = B.rows.find(r => r.id === rowId); if (!row) return null;
+    if (t.blockId) {
+      const i = row.blocks.findIndex(b => b.id === t.blockId);
+      return i < 0 ? row.blocks.length : (t.side === 'after' ? i + 1 : i);
+    }
+    return t.at != null ? t.at : row.blocks.length;
+  };
+  if (kind === 'module') {
+    const at = insertIndex(t.rowId);
+    if (at == null) return;
+    addBlock(t.rowId, id, MODULE_MAP.get(id)?.variants[0] || 'default', 1, at);
+  } else {
+    const at = insertIndex(t.rowId);
+    if (at == null) return;
+    moveBlock(id, t.rowId, at);
+  }
+}
+
+/* ── Resize ───────────────────────────────────────── */
+function beginBlockResize(e, blockId){
+  e.stopPropagation(); e.preventDefault();
+  const found = findBlock(blockId); if (!found) return;
+  const rowEl = document.querySelector(`.row[data-row="${CSS.escape(found.row.id)}"]`);
+  if (!rowEl) return;
+  const rowW = rowEl.clientWidth - (B.rows.length > 1 ? 0 : 0);
+  const blocks = found.row.blocks;
+  const totalFlex = blocks.reduce((s, b) => s + b.flex, 0) || 1;
+  const pxPerFlex = rowW / totalFlex;
+  const startX = e.clientX, startFlex = found.block.flex;
+  const el = document.querySelector(`.block[data-block="${CSS.escape(blockId)}"]`);
+  const handle = el?.querySelector('.block-resize');
+  handle?.classList.add('drag');
+  let last = startFlex, pushed = false;
+  const onMove = ev => {
+    if (!pushed) { pushHistory(); pushed = true; }
+    const delta = (ev.clientX - startX) / pxPerFlex;
+    const next = clamp(Math.round(startFlex + delta), MIN_FLEX, MAX_FLEX);
+    if (next === last) return;
+    last = next;
+    found.block.flex = next;
+    if (el) el.style.setProperty('--flex', next);
+  };
+  const onUp = () => {
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    handle?.classList.remove('drag');
+    saveBlueprint();
+  };
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+}
+function beginRowResize(e, rowId){
+  e.stopPropagation(); e.preventDefault();
+  const row = B.rows.find(r => r.id === rowId); if (!row) return;
+  const el = document.querySelector(`.row[data-row="${CSS.escape(rowId)}"]`);
+  const grip = el?.querySelector('.row-grip');
+  grip?.classList.add('drag');
+  const startY = e.clientY, startH = row.height;
+  let pushed = false;
+  const onMove = ev => {
+    if (!pushed) { pushHistory(); pushed = true; }
+    const next = clamp(startH + (ev.clientY - startY), MIN_ROW_H, MAX_ROW_H);
+    row.height = Math.round(next);
+    if (el) el.style.height = row.height + 'px';
+  };
+  const onUp = () => {
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    grip?.classList.remove('drag');
+    saveBlueprint();
+  };
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+}
+
+/* ── Inspector ────────────────────────────────────── */
+function openInspector(blockId){
+  const found = findBlock(blockId); if (!found) return;
+  SEL = blockId; render();
+  const b = found.block;
+  const m = MODULE_MAP.get(b.module);
+  const dlg = $('#inspector');
+  $('#inspTitle').textContent = m?.label || b.module;
+  $('#inspSummary').textContent = m?.summary || '';
+  const selModule = $('#inspModule'); selModule.replaceChildren();
+  MODULES.forEach(mod => selModule.append(new Option(mod.label, mod.id, false, mod.id === b.module)));
+  selModule.onchange = () => {
+    const next = MODULE_MAP.get(selModule.value);
+    if (!next) return;
+    setBlock(b.id, { module: next.id, variant: next.variants[0] });
+    openInspector(b.id);
+  };
+  const selVariant = $('#inspVariant'); selVariant.replaceChildren();
+  (m?.variants || ['default']).forEach(v => selVariant.append(new Option(v, v, false, v === b.variant)));
+  selVariant.onchange = () => setBlock(b.id, { variant: selVariant.value });
+  const flex = $('#inspFlex'); flex.value = b.flex;
+  flex.onchange = () => setBlock(b.id, { flex: Number(flex.value) || 1 });
+  const kv = $('#inspKV'); kv.replaceChildren();
+  const req = (m?.requires || []).join(', ') || '—';
+  const surfaces = (m?.surfaces || []).join(', ') || '—';
+  const add = (k, v) => {
+    kv.append(mk('b', {}, k), mk('span', {}, v));
+  };
+  add('Domain', m?.domain || '—');
+  add('Requires', req);
+  add('API', (m?.api || []).join(', ') || '—');
+  add('Surfaces', surfaces);
+  add('Block ID', b.id);
+  const del = $('#inspDelete');
+  del.onclick = () => { dlg.close(); removeBlock(b.id); };
+  if (!dlg.open) dlg.showModal();
+}
+
+/* ── JSON dialog ──────────────────────────────────── */
+function openJSON(){
+  $('#jsonText').value = JSON.stringify(B, null, 2);
+  $('#jsonDialog').showModal();
+}
+
+/* ── Presets dialog ───────────────────────────────── */
+function openPresets(){
+  const grid = $('#presetGrid'); grid.replaceChildren();
+  PRESETS.forEach(p => {
+    const card = mk('button', { className: 'preset-card', type: 'button' });
+    card.append(
+      mk('b', {}, p.label),
+      mk('small', {}, p.summary),
+    );
+    const strip = mk('div', { className: 'preview-strip' });
+    const bp = p.blueprint();
+    bp.rows.forEach(r => {
+      const total = r.blocks.reduce((s, b) => s + b.flex, 0) || 1;
+      r.blocks.forEach(b => {
+        const seg = mk('i');
+        seg.style.setProperty('--f', (b.flex / total) * 12);
+        strip.append(seg);
+      });
+    });
+    card.append(strip);
+    card.onclick = () => { $('#presetDialog').close(); applyPreset(p.id); };
+    grid.append(card);
+  });
+  $('#presetDialog').showModal();
+}
+
+/* ── Agent ────────────────────────────────────────── */
+const agentLog = $('#agentLog');
+function say(who, text, cards = [], extra){
+  const m = mk('div', { className: 'm' + (who === 'user' ? ' u' : who === 'ok' ? ' ok' : who === 'err' ? ' err' : '') });
+  m.textContent = text;
+  if (extra) m.append(extra);
+  agentLog.append(m);
+  if (cards && cards.length) {
+    const wrap = mk('div', { className: 'cards' });
+    cards.forEach(c => {
+      const d = mk('div', { className: 'card' });
+      d.append(
+        mk('b', {}, c.title || 'Suggestion'),
+        mk('p', {}, c.why || ''),
+      );
+      const r = mk('div', { className: 'r' });
+      r.append(
+        mk('small', {}, c.actions ? `${c.actions.length} action${c.actions.length === 1 ? '' : 's'}` : ''),
+      );
+      const apply = mk('button', { type: 'button' }, 'Apply');
+      apply.onclick = () => {
+        try {
+          applyActions(c.actions || []);
+          d.classList.add('done');
+          apply.textContent = 'Applied ✓';
+          apply.disabled = true;
+        } catch (e) { toast('Could not apply: ' + e.message, true); }
+      };
+      r.append(apply);
+      d.append(r);
+      wrap.append(d);
+    });
+    agentLog.append(wrap);
+  }
+  agentLog.scrollTop = agentLog.scrollHeight;
+}
+
+function catalogForPrompt(){
+  return MODULES.map(m => `- ${m.id} | ${m.domain} | ${m.label} | ${m.summary} | variants: ${m.variants.join(', ')} | requires: ${(m.requires || []).join(', ') || 'none'} | api: ${(m.api || []).join(', ') || 'none'}`).join('\n');
+}
+function blueprintForPrompt(){
+  return JSON.stringify({
+    name: B.name,
+    rows: B.rows.map(r => ({
+      id: r.id,
+      height: r.height,
+      blocks: r.blocks.map(b => ({ id: b.id, module: b.module, variant: b.variant, flex: b.flex })),
+    })),
+  }, null, 2);
+}
+function buildSystemPrompt(){
+  return `You are the Studio Builder agent. The user is composing a studio UI by placing capability modules on a canvas.
+
+CATALOG (module id | domain | label | summary | variants | requires | public API):
+${catalogForPrompt()}
+
+PRESETS (id — label — summary):
+${PRESETS.map(p => `- ${p.id} — ${p.label} — ${p.summary}`).join('\n')}
+
+CURRENT BLUEPRINT:
+${blueprintForPrompt()}
+
+Reply with ONE JSON object and nothing else. Do NOT wrap in markdown fences.
+Shape:
+{
+  "reply": "short plain answer to the user",
+  "notes": ["..."],
+  "actions": [ ... ],
+  "suggestions": [ { "title": "...", "why": "...", "actions": [ ... ] } ]
+}
+
+Actions you may emit (each is applied in order):
+- { "t": "add-row", "height": number, "at": number? }
+- { "t": "remove-row", "rowId": string }
+- { "t": "set-row", "rowId": string, "height": number }
+- { "t": "add-block", "rowId": string, "module": string, "variant": string, "flex": number, "at": number? }
+- { "t": "remove-block", "blockId": string }
+- { "t": "set-block", "blockId": string, "module"?: string, "variant"?: string, "flex"?: number }
+- { "t": "move-block", "blockId": string, "rowId": string, "at": number }
+- { "t": "set-meta", "name": string }
+- { "t": "load-preset", "presetId": string }
+
+Rules:
+1. Only use module ids from CATALOG and preset ids from PRESETS. Never invent ids.
+2. Only use variants a module declares.
+3. Never invent row or block ids; use ids from the CURRENT BLUEPRINT.
+4. Prefer balanced layouts: the main surface large, side panels narrow, timeline wide and short.
+5. Do not add modules the user didn't ask for unless they clearly help the layout.
+6. When the user describes a purpose, propose a PRESET or a small set of blocks; don't dump the whole catalog.
+7. If the user asks for a module that isn't in the catalog, say so and suggest the closest option.
+8. The suggestions field is optional; use it when you have 1–3 good candidate layouts. Each has title, why, and actions.
+9. Keep replies short. Put the real work in actions.`;
+}
+
+function localSuggest(text){
+  const t = String(text || '').toLowerCase();
+  const havePresets = PRESETS;
+  const match = (kw, id) => kw.some(k => t.includes(k)) ? id : null;
+  const candidates = [
+    match(['editor', 'studio', 'scene', 'composition', 'layer'], 'classic'),
+    match(['template', 'brand', 'publish'], 'template'),
+    match(['agent', 'canvas', 'afs', 'first'], 'agent-first'),
+    match(['segment', 'library', 'browser'], 'segments'),
+    match(['clean', 'review', 'preview'], 'clean-review'),
+    match(['asset', 'workbench', 'library', 'panel'], 'asset-workbench'),
+    match(['audio', 'voice', 'narration', 'cast', 'tts'], 'audio-production'),
+  ].filter(Boolean);
+  const presets = candidates.length
+    ? candidates.map(id => PRESETS.find(p => p.id === id)).filter(Boolean)
+    : PRESETS.slice(0, 4);
+  const cards = presets.map(p => ({
+    title: p.label,
+    why: p.summary,
+    actions: [{ t: 'load-preset', presetId: p.id }],
+  }));
+  return {
+    reply: "Here are a few starting layouts that match the capabilities you described. Hover any of them to apply. If you'd rather start from a blank canvas, drag a module from the palette on the left.",
+    suggestions: cards,
+  };
+}
+
+async function callAgent(text){
+  const system = buildSystemPrompt();
+  const body = {
+    provider: $('#prov').value === 'auto' ? undefined : ($('#prov').value === 'local' ? 'ollama' : $('#prov').value),
+    messages: [
+      { role: 'system', content: system },
+      { role: 'user', content: text },
+    ],
+  };
+  try {
+    const r = await fetch(`${API}/agent-first/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    const content = typeof data.content === 'string' ? data.content : '';
+    return parseAgentJSON(content);
+  } catch (e) {
+    // fallback
+    return localSuggest(text);
+  }
+}
+function parseAgentJSON(s){
+  s = String(s || '').replace(/^```(?:json)?/gm, '').replace(/```$/gm, '').trim();
+  try { return JSON.parse(s); } catch {}
+  const a = s.indexOf('{'); const b = s.lastIndexOf('}');
+  if (a >= 0 && b > a) {
+    try { return JSON.parse(s.slice(a, b + 1)); } catch {}
+  }
+  return { reply: s, actions: [] };
+}
+
+function applyActions(actions){
+  if (!Array.isArray(actions) || !actions.length) return;
+  pushHistory();
+  let touched = false;
+  for (const a of actions) {
+    try {
+      switch (a.t) {
+        case 'add-row':
+          B.rows.push({ id: uid(), height: clamp(a.height || 200, MIN_ROW_H, MAX_ROW_H), blocks: [] });
+          if (a.at != null) {
+            const moved = B.rows.pop();
+            B.rows.splice(clamp(a.at, 0, B.rows.length), 0, moved);
+          }
+          touched = true; break;
+        case 'remove-row':
+          if (B.rows.length > 1) { B.rows = B.rows.filter(r => r.id !== a.rowId); touched = true; }
+          break;
+        case 'set-row': {
+          const row = B.rows.find(r => r.id === a.rowId);
+          if (row && a.height != null) { row.height = clamp(a.height, MIN_ROW_H, MAX_ROW_H); touched = true; }
+          break;
+        }
+        case 'add-block': {
+          const row = B.rows.find(r => r.id === a.rowId);
+          const m = MODULE_MAP.get(a.module);
+          if (row && m) {
+            const variant = m.variants.includes(a.variant) ? a.variant : m.variants[0];
+            const block = { id: uid(), module: m.id, variant, flex: clamp(a.flex || 1, MIN_FLEX, MAX_FLEX) };
+            if (a.at == null || a.at < 0 || a.at > row.blocks.length) row.blocks.push(block);
+            else row.blocks.splice(a.at, 0, block);
+            touched = true;
+          }
+          break;
+        }
+        case 'remove-block': {
+          const found = findBlock(a.blockId);
+          if (found) { found.row.blocks = found.row.blocks.filter(b => b.id !== a.blockId); touched = true; }
+          break;
+        }
+        case 'set-block': {
+          const found = findBlock(a.blockId);
+          if (found) {
+            if (a.module) found.block.module = a.module;
+            if (a.variant) found.block.variant = a.variant;
+            if (a.flex != null) found.block.flex = clamp(a.flex, MIN_FLEX, MAX_FLEX);
+            touched = true;
+          }
+          break;
+        }
+        case 'move-block': {
+          const found = findBlock(a.blockId);
+          const target = B.rows.find(r => r.id === a.rowId);
+          if (found && target) {
+            found.row.blocks = found.row.blocks.filter(b => b.id !== a.blockId);
+            if (a.at == null || a.at < 0 || a.at > target.blocks.length) target.blocks.push(found.block);
+            else target.blocks.splice(a.at, 0, found.block);
+            touched = true;
+          }
+          break;
+        }
+        case 'set-meta':
+          if (a.name) { B.name = String(a.name).slice(0, 120); $('#projectName').value = B.name; touched = true; }
+          break;
+        case 'load-preset': {
+          const p = PRESETS.find(x => x.id === a.presetId);
+          if (p) { B = p.blueprint(); touched = true; }
+          break;
+        }
+      }
+    } catch (e) {
+      console.warn('action failed', a, e);
+    }
+  }
+  if (touched) { render(); saveBlueprint(); }
+}
+
+async function onAgentSubmit(e){
+  e.preventDefault();
+  const text = $('#agentIn').value.trim();
+  if (!text) return;
+  $('#agentIn').value = '';
+  say('user', text);
+  const wait = mk('div', { className: 'm' }, 'Thinking…');
+  agentLog.append(wait);
+  agentLog.scrollTop = agentLog.scrollHeight;
+  try {
+    const out = await callAgent(text);
+    wait.remove();
+    const notes = Array.isArray(out.notes) && out.notes.length ? '\n\n' + out.notes.map(n => '• ' + n).join('\n') : '';
+    say('agent', (out.reply || 'Done.') + notes, out.suggestions || []);
+    if (Array.isArray(out.actions) && out.actions.length) applyActions(out.actions);
+  } catch (err) {
+    wait.remove();
+    say('err', 'Could not reach the agent: ' + err.message);
+  }
+}
+
+/* ── Scaffold codegen ────────────────────────────── */
+function escAttr(value){
+  return String(value ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function identFor(id){ return 'mod_'+id.replace(/[^a-zA-Z0-9]/g,'_'); }
+function countBlocks(blueprint){ return blueprint.rows.reduce((sum,row)=>sum+row.blocks.length,0); }
+function slug(name){
+  return String(name||'studio-scaffold').toLowerCase().normalize('NFKD')
+    .replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')||'studio-scaffold';
+}
+function scaffoldBlueprint(blueprint){
+  const rows=blueprint.rows.map(row=>({
+    id:String(row.id||'row'),
+    height:clamp(Number(row.height)||200,MIN_ROW_H,MAX_ROW_H),
+    blocks:row.blocks.map(block=>({
+      id:String(block.id||uid()),
+      module:String(block.module||''),
+      variant:String(block.variant||'default'),
+      flex:clamp(Number(block.flex)||1,MIN_FLEX,MAX_FLEX),
+    })),
+  }));
+  return {name:String(blueprint.name||'Untitled studio'),gap:clamp(Number(blueprint.gap)||16,0,120),rows};
+}
+function getReferencedModules(blueprint){
+  const ids=new Set();
+  blueprint.rows.forEach(row=>row.blocks.forEach(block=>ids.add(block.module)));
+  return [...ids].map(id=>{
+    const module=MODULE_MAP.get(id);
+    if(!module) throw new Error(`Unknown module in blueprint: ${id}`);
+    return module;
+  });
+}
+function getModuleClosure(blueprint){
+  const included=new Set(), visiting=new Set(), ordered=[];
+  const visit=id=>{
+    if(included.has(id)) return;
+    if(visiting.has(id)) throw new Error(`Module dependency cycle includes ${id}.`);
+    const module=MODULE_MAP.get(id);
+    if(!module) throw new Error(`Unknown module dependency: ${id}`);
+    visiting.add(id);
+    (module.requires||[]).forEach(visit);
+    visiting.delete(id);
+    included.add(id);
+    ordered.push(module);
+  };
+  getReferencedModules(blueprint).forEach(module=>visit(module.id));
+  return ordered;
+}
+function scaffoldJson(value){ return JSON.stringify(value,null,2).replace(/</g,'\\u003c'); }
+
+function generateStyles(blueprint){
+  const gap=blueprint.gap;
+  return `:root{--bg:#0f0f13;--pan:#181820;--pan2:#1f1f29;--line:#2a2a35;--ink:#e8e8ee;--mu:#8888a0;--ac:#8fd3c1;--ac-ink:#0e1a16;--warn:#e7b46a;color-scheme:dark}
+[data-theme=light]{--bg:#f3f2ee;--pan:#fff;--pan2:#f7f6f2;--line:#e1dfd8;--ink:#1b1a20;--mu:#6b6875;--ac:#0d735f;--ac-ink:#fff;--warn:#a8661a;color-scheme:light}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%}body{background:var(--bg);color:var(--ink);font:14px/1.4 -apple-system,"Segoe UI",system-ui,sans-serif}
+.shell{display:flex;flex-direction:column;gap:${gap}px;padding:${gap}px;min-height:100vh}
+.row{display:flex;gap:${gap}px;height:var(--row-h,200px);min-height:60px}
+.block{flex:var(--flex,1) 1 0;min-width:0;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;background:var(--pan);overflow:hidden}
+.block-head{padding:7px 12px;border-bottom:1px solid var(--line);background:var(--pan2);font-size:12px;font-weight:600}
+.block-body{flex:1;min-height:0;display:grid;place-items:center;padding:16px;overflow:auto}
+.stub{display:grid;gap:6px;place-items:center;padding:24px;border:1px dashed var(--line);border-radius:8px;background:var(--pan2);color:var(--mu);font-size:12px;text-align:center;max-width:360px}
+.stub b{color:var(--ink);font-size:13px}.stub code{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--ac)}
+.stub .meta{font-size:10.5px;color:var(--mu);word-break:break-word}.stub.error{border-color:var(--warn);color:var(--warn)}
+@media(max-width:720px){.row{flex-direction:column;height:auto}.block{flex:none}.block-body{min-height:120px}}`;
+}
+function generateRowMarkup(blueprint){
+  return blueprint.rows.map(row=>{
+    const blocks=row.blocks.map(block=>{
+      const module=MODULE_MAP.get(block.module);
+      return `      <div class="block" data-block="${escAttr(block.id)}" data-module="${escAttr(block.module)}" data-variant="${escAttr(block.variant)}" data-flex="${block.flex}" style="--flex:${block.flex}">
+        <div class="block-head">${escAttr(module.label)} · ${escAttr(block.variant)}</div>
+        <div class="block-body" id="slot-${escAttr(block.id)}">Loading ${escAttr(module.label)}…</div>
+      </div>`;
+    }).join('\n');
+    return `    <div class="row" data-row="${escAttr(row.id)}" style="--row-h:${row.height}px">\n${blocks}\n    </div>`;
+  }).join('\n');
+}
+function generateIndexHtml(blueprint,modules,mode){
+  const commentName=blueprint.name.replace(/--/g,'- -').replace(/[<>]/g,'');
+  const header=`<!--
+  Studio scaffold — ${commentName}
+  Generated by Studio Builder on ${new Date().toISOString().slice(0,10)}.
+  Blueprint: ${blueprint.rows.length} row(s), ${countBlocks(blueprint)} block(s), ${modules.length} module(s) including dependencies.
+
+  Each .block-body is a mount target. Each modules/*.js file exports mount(root, options).
+  Edit the row markup freely; it is a plain flex layout.
+-->`;
+  const closeScriptTag='</scr'+'ipt>';
+  const script=mode==='multi'
+    ? '  <script type="module" src="main.js">'+closeScriptTag
+    : `  <script type="module">\n${indent(generateInlineScript(blueprint,modules),2)}\n  ${closeScriptTag}`;
+  return `<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Studio scaffold — ${escAttr(blueprint.name)}</title>
+${header}
+  <style>
+${indent(generateStyles(blueprint),4)}
+  </style>
+</head>
+<body>
+  <main class="shell" id="shell">
+${generateRowMarkup(blueprint)}
+  </main>
+${script}
+</body>
+</html>`;
+}
+function indent(text,size){ const pad=' '.repeat(size); return text.split('\n').map(line=>line?pad+line:line).join('\n'); }
+function scaffoldLayout(blueprint){
+  return {
+    name:blueprint.name,
+    gap:blueprint.gap,
+    rows:blueprint.rows.map(row=>({
+      id:row.id,height:row.height,
+      blocks:row.blocks.map(block=>({id:block.id,module:block.module,variant:block.variant,flex:block.flex})),
+    })),
+  };
+}
+function generatedMountLines(){
+  return [
+    'function mountAll() {',
+    "  document.querySelectorAll('[data-block]').forEach(el => {",
+    '    const id = el.dataset.module;',
+    '    const variant = el.dataset.variant;',
+    '    const flex = Number(el.dataset.flex) || 1;',
+    '    const mod = MODULES[id];',
+    "    const body = el.querySelector('.block-body');",
+    "    if (!mod || typeof mod.mount !== 'function') { console.warn('[scaffold] no mount() for', id); return; }",
+    '    try { mod.mount(body, { variant, flex, blueprint: BLUEPRINT }); }',
+    '    catch (error) {',
+    "      const message = document.createElement('div');",
+    "      message.className = 'stub error';",
+    '      message.textContent = id + \': \' + error.message;',
+    '      body.replaceChildren(message);',
+    '    }',
+    '  });',
+    '}',
+    '',
+    "document.addEventListener('DOMContentLoaded', mountAll);",
+  ];
+}
+function generateMainJs(blueprint,modules){
+  const referenced=getReferencedModules(blueprint);
+  const lines=[
+    '// main.js — boot every module referenced by the blueprint.',
+    '// Generated by Studio Builder. Edit freely.',
+    '',
+  ];
+  referenced.forEach(module=>lines.push(`import * as ${identFor(module.id)} from './modules/${module.id}.js';`));
+  lines.push('','const BLUEPRINT = '+scaffoldJson(scaffoldLayout(blueprint))+';','','const MODULES = {');
+  referenced.forEach(module=>lines.push(`  '${module.id}': ${identFor(module.id)},`));
+  lines.push('};','',...generatedMountLines());
+  return lines.join('\n');
+}
+function generateInlineScript(blueprint,modules){
+  const lines=[
+    'const BLUEPRINT = '+scaffoldJson(scaffoldLayout(blueprint))+';',
+    '',
+    'function createModule(id, meta) {',
+    '  return { id, meta, mount(root, options = {}) {',
+    '    const stub = document.createElement("div");',
+    '    stub.className = "stub";',
+    '    const title = document.createElement("b");',
+    '    title.textContent = meta.label;',
+    '    const detail = document.createElement("div");',
+    '    detail.textContent = "Not yet implemented.";',
+    '    const variant = document.createElement("div");',
+    '    variant.className = "meta";',
+    '    variant.textContent = "Variant: " + (options.variant || meta.variants[0]);',
+    '    const api = document.createElement("div");',
+    '    api.className = "meta";',
+    '    api.textContent = "API: " + meta.api.join(", ");',
+    '    const hint = document.createElement("div");',
+    '    hint.className = "meta";',
+    '    hint.textContent = "See modules/" + id + ".js for the API to fill in.";',
+    '    stub.append(title, detail, variant, api, hint);',
+    '    root.replaceChildren(stub);',
+    '    console.warn("[scaffold] stub mounted:", id);',
+    '  } };',
+    '}',
+    '',
+    'const MODULES = {',
+  ];
+  modules.forEach(module=>{
+    const meta={label:module.label,domain:module.domain,variants:module.variants,api:module.api,requires:module.requires};
+    lines.push(`  '${module.id}': createModule('${module.id}', ${scaffoldJson(meta)}),`);
+  });
+  lines.push('};','',...generatedMountLines());
+  return lines.join('\n');
+}
+function generateModuleStubFile(module){
+  const lines=[
+    '/**',
+    ` * ${module.label}`,
+    ` * Domain: ${module.domain}`,
+    ` * Summary: ${module.summary}`,
+    ` * Requires: ${(module.requires||[]).join(', ')||'none'}`,
+    ` * Reference implementations: ${(module.surfaces||[]).join(', ')||'none'}`,
+    ' *',
+    ' * Public API — implement these and remove this stub:',
+    ...(module.api||[]).map(name=>` *   ${name}(...)`),
+    ' */',
+    '',
+    'export function mount(root, options = {}) {',
+    '  const stub = document.createElement("div");',
+    '  stub.className = "stub";',
+    '  const title = document.createElement("b");',
+    `  title.textContent = ${JSON.stringify(module.label)};`,
+    '  const detail = document.createElement("div");',
+    '  detail.textContent = "Not yet implemented.";',
+    '  const variant = document.createElement("div");',
+    '  variant.className = "meta";',
+    `  variant.textContent = "Variant: " + (options.variant || ${JSON.stringify(module.variants[0])});`,
+    '  const api = document.createElement("div");',
+    '  api.className = "meta";',
+    `  api.textContent = "API: " + ${JSON.stringify(module.api.join(', '))};`,
+    '  stub.append(title, detail, variant, api);',
+    '  root.replaceChildren(stub);',
+    '}',
+    '',
+    'export default { mount };',
+  ];
+  return lines.join('\n');
+}
+function generateManifest(blueprint,modules){
+  return JSON.stringify({
+    schema:'studio-builder/scaffold/1',
+    name:blueprint.name,
+    generatedAt:new Date().toISOString(),
+    layout:{
+      gap:blueprint.gap,
+      rows:blueprint.rows.map(row=>({
+        id:row.id,height:row.height,
+        blocks:row.blocks.map(block=>({id:block.id,module:block.module,variant:block.variant,flex:block.flex})),
+      })),
+    },
+    modules:modules.map(module=>({
+      id:module.id,label:module.label,domain:module.domain,
+      variants:module.variants,requires:module.requires,api:module.api,reference:module.surfaces,
+    })),
+  },null,2);
+}
+function generateReadme(blueprint,modules){
+  const rows=[
+    `# Studio scaffold — ${blueprint.name}`,
+    '',
+    `Generated by Studio Builder on ${new Date().toISOString().slice(0,10)}.`,
+    '',
+    `**${blueprint.rows.length} row(s)**, **${countBlocks(blueprint)} block(s)**, **${modules.length} module(s)** including dependencies.`,
+    '',
+    '## Modules',
+    '',
+    '| Module | Variant | Domain | Requires | Reference |',
+    '|---|---|---|---|---|',
+  ];
+  blueprint.rows.forEach(row=>row.blocks.forEach(block=>{
+    const module=MODULE_MAP.get(block.module);
+    const safe=value=>String(value||'—').replace(/\|/g,'\\|');
+    rows.push(`| \`${safe(module.id)}\` | ${safe(block.variant)} | ${safe(module.domain)} | ${safe((module.requires||[]).join(', '))} | ${safe((module.surfaces||[]).join(', '))} |`);
+  }));
+  rows.push(
+    '',
+    '## Run',
+    '',
+    'Serve this directory with any static file server (for example, `python3 -m http.server`) and open `index.html`.',
+    '',
+    '## Next steps',
+    '',
+    'Every `.block` has a `data-module` and `.block-body` mount target. `main.js` imports each referenced module and calls `mount(root, { variant, flex, blueprint })`.',
+    '',
+    'The stubs render a placeholder until implemented. The public API, dependencies, and reference surfaces are listed in each module file.',
+    '',
+    '## Notes',
+    '',
+    '- Layout: `.row` uses `--row-h` (pixels); `.block` uses `--flex`.',
+    '- Styles are inline in `index.html`. Move them to `styles.css` if preferred.',
+    '- `manifest.json` mirrors the blueprint and module contracts for tooling.',
+  );
+  return rows.join('\n');
+}
+function buildSingleFileBundle(blueprint,modules){
+  return [{name:slug(blueprint.name)+'.html',content:generateIndexHtml(blueprint,modules,'single')}];
+}
+function buildMultiFileBundle(blueprint,modules){
+  return [
+    {name:'index.html',content:generateIndexHtml(blueprint,modules,'multi')},
+    {name:'main.js',content:generateMainJs(blueprint,modules)},
+    {name:'manifest.json',content:generateManifest(blueprint,modules)},
+    {name:'README.md',content:generateReadme(blueprint,modules)},
+    ...modules.map(module=>({name:`modules/${module.id}.js`,content:generateModuleStubFile(module)})),
+  ];
+}
+function makeZip(files){
+  const encoder=new TextEncoder(),table=new Uint32Array(256);
+  for(let n=0;n<256;n++){let crc=n;for(let k=0;k<8;k++)crc=crc&1?0xEDB88320^(crc>>>1):crc>>>1;table[n]=crc>>>0;}
+  const crc32=bytes=>{let crc=0xFFFFFFFF;for(let i=0;i<bytes.length;i++)crc=table[(crc^bytes[i])&255]^(crc>>>8);return (crc^0xFFFFFFFF)>>>0;};
+  const now=new Date();
+  const dosTime=((now.getHours()<<11)|(now.getMinutes()<<5)|(now.getSeconds()>>1))&0xffff;
+  const dosDate=(((now.getFullYear()-1980)<<9)|((now.getMonth()+1)<<5)|now.getDate())&0xffff;
+  const parts=[],central=[];let offset=0;
+  files.forEach(file=>{
+    const name=encoder.encode(file.name),data=encoder.encode(file.content),crc=crc32(data);
+    const local=new Uint8Array(30+name.length),localView=new DataView(local.buffer);
+    localView.setUint32(0,0x04034b50,true);localView.setUint16(4,20,true);localView.setUint16(6,0x0800,true);
+    localView.setUint16(10,dosTime,true);localView.setUint16(12,dosDate,true);localView.setUint32(14,crc,true);
+    localView.setUint32(18,data.length,true);localView.setUint32(22,data.length,true);localView.setUint16(26,name.length,true);
+    local.set(name,30);parts.push(local,data);
+    const entry=new Uint8Array(46+name.length),view=new DataView(entry.buffer);
+    view.setUint32(0,0x02014b50,true);view.setUint16(4,20,true);view.setUint16(6,20,true);view.setUint16(8,0x0800,true);
+    view.setUint16(12,dosTime,true);view.setUint16(14,dosDate,true);view.setUint32(16,crc,true);
+    view.setUint32(20,data.length,true);view.setUint32(24,data.length,true);view.setUint16(28,name.length,true);view.setUint32(42,offset,true);
+    entry.set(name,46);central.push(entry);offset+=local.length+data.length;
+  });
+  const centralSize=central.reduce((sum,item)=>sum+item.length,0),end=new Uint8Array(22),view=new DataView(end.buffer);
+  view.setUint32(0,0x06054b50,true);view.setUint16(8,files.length,true);view.setUint16(10,files.length,true);
+  view.setUint32(12,centralSize,true);view.setUint32(16,offset,true);
+  return new Blob([...parts,...central,end],{type:'application/zip'});
+}
+function renderScaffoldFileList(files){
+  const list=$('#scaffoldFiles');list.replaceChildren();
+  const roots=files.filter(file=>!file.name.includes('/')),folders=new Map();
+  files.filter(file=>file.name.includes('/')).forEach(file=>{
+    const folder=file.name.split('/')[0];
+    if(!folders.has(folder))folders.set(folder,[]);
+    folders.get(folder).push(file);
+  });
+  const makeRow=(file,folder=false,indent=0)=>{
+    const row=mk('div',{className:'scaffold-file'+(folder?' folder':'')});
+    row.style.paddingLeft=(6+indent)+'px';
+    row.append(mk('span',{className:'icon'},folder?'▾':'·'),
+      mk('span',{className:'name'},folder?file.name:file.name.split('/').pop()),
+      mk('span',{className:'size'},folder?`${file.count} files`:`${(new Blob([file.content]).size/1024).toFixed(1)} KB`));
+    if(!folder){
+      const button=mk('button',{type:'button',title:`Download ${file.name}`},'↓');
+      button.onclick=()=>downloadScaffoldFile(file.name,file.content,'text/plain;charset=utf-8');
+      row.append(button);
+    }
+    return row;
+  };
+  roots.forEach(file=>list.append(makeRow(file)));
+  folders.forEach((items,name)=>{
+    list.append(makeRow({name:name+'/',count:items.length},true));
+    items.forEach(file=>list.append(makeRow(file,false,16)));
+  });
+}
+function downloadScaffoldFile(name,content,type){
+  const url=URL.createObjectURL(new Blob([content],{type}));
+  const link=document.createElement('a');link.href=url;link.download=name;
+  document.body.append(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),4000);
+}
+function scaffoldFiles(){
+  const blueprint=scaffoldBlueprint(B);
+  return {blueprint,modules:getModuleClosure(blueprint)};
+}
+function openScaffold(){
+  try{
+    const {blueprint,modules}=scaffoldFiles();
+    const files=buildMultiFileBundle(blueprint,modules);
+    const [singleFile]=buildSingleFileBundle(blueprint,modules);
+    const direct=getReferencedModules(blueprint).length;
+    $('#scaffoldSummary').textContent=
+      `${countBlocks(blueprint)} block(s) · ${direct} module(s) referenced · ${modules.length} module file(s) including dependencies`;
+    renderScaffoldFileList(files);
+    const dialog=$('#scaffoldDialog');
+    dialog._blueprint=blueprint;dialog._modules=modules;dialog._files=files;dialog._singleFile=singleFile;
+    if(!dialog.open)dialog.showModal();
+  }catch(error){toast('Could not build scaffold: '+error.message,true);}
+}
+function wireScaffold(){
+  const dialog=$('#scaffoldDialog');
+  $('#scaffoldBtn').onclick=openScaffold;
+  $('#scaffoldClose').onclick=()=>dialog.close();
+  $('#scaffoldPreview').onclick=()=>{
+    try{
+      const file=dialog._singleFile;
+      if(!file) throw new Error('Open the scaffold dialog again to refresh its files.');
+      const url=URL.createObjectURL(new Blob([file.content],{type:'text/html'}));
+      const preview=window.open(url,'_blank');
+      if(!preview){URL.revokeObjectURL(url);toast('The preview was blocked. Allow pop-ups and try again.',true);return;}
+      setTimeout(()=>URL.revokeObjectURL(url),60000);
+    }catch(error){toast('Could not preview scaffold: '+error.message,true);}
+  };
+  $('#scaffoldCopy').onclick=async()=>{
+    try{
+      const file=dialog._singleFile;
+      if(!file) throw new Error('Open the scaffold dialog again to refresh its files.');
+      await navigator.clipboard.writeText(file.content);
+      toast('Single-file scaffold copied to clipboard.');
+    }catch(error){toast('Could not copy scaffold: '+error.message,true);}
+  };
+  $('#scaffoldSingle').onclick=()=>{
+    try{
+      const file=dialog._singleFile;
+      if(!file) throw new Error('Open the scaffold dialog again to refresh its files.');
+      downloadScaffoldFile(file.name,file.content,'text/html;charset=utf-8');
+      toast('Single-file scaffold downloaded.');
+    }catch(error){toast('Could not download scaffold: '+error.message,true);}
+  };
+  $('#scaffoldZip').onclick=()=>{
+    try{
+      const files=dialog._files;
+      const blueprint=dialog._blueprint;
+      if(!files||!blueprint) throw new Error('Open the scaffold dialog again to refresh its files.');
+      const url=URL.createObjectURL(makeZip(files));
+      const link=document.createElement('a');link.href=url;link.download=slug(blueprint.name)+'-scaffold.zip';
+      document.body.append(link);link.click();link.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),4000);
+      toast(`ZIP downloaded · ${files.length} files.`);
+    }catch(error){toast('Could not build scaffold ZIP: '+error.message,true);}
+  };
+}
+
+/* ── Wire up topbar ──────────────────────────────── */
+function wireUI(){
+  $('#addRowBtn').onclick = () => addRow(200);
+  $('#undoBtn').onclick = undo;
+  $('#redoBtn').onclick = redo;
+  $('#presetBtn').onclick = openPresets;
+  $('#jsonBtn').onclick = openJSON;
+  $('#modeBtn').onclick = () => {
+    MODE = MODE === 'compose' ? 'preview' : 'compose';
+    document.body.classList.toggle('preview', MODE === 'preview');
+    $('#modeBtn').textContent = MODE === 'preview' ? 'Compose' : 'Preview';
+    render();
+  };
+  $('#themeBtn').onclick = () => {
+    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    LS.set(THEME_KEY, next);
+  };
+  $('#projectName').onchange = () => {
+    B.name = $('#projectName').value.trim() || 'Untitled studio';
+    saveBlueprint();
+  };
+  $('#exportBtn').onclick = () => {
+    const blob = new Blob([JSON.stringify(B, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = (B.name || 'studio-blueprint').replace(/\s+/g, '-').toLowerCase() + '.blueprint.json';
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast('Blueprint exported.');
+  };
+  $('#palSearch').addEventListener('input', renderPalette);
+  $('#inspDone').onclick = () => $('#inspector').close();
+  $('#inspector').addEventListener('close', () => { SEL = null; render(); });
+  $('#presetClose').onclick = () => $('#presetDialog').close();
+  $('#jsonClose').onclick = () => $('#jsonDialog').close();
+  $('#jsonLoad').onclick = () => { $('#jsonText').value = JSON.stringify(B, null, 2); };
+  $('#jsonApply').onclick = () => {
+    try {
+      const parsed = JSON.parse($('#jsonText').value);
+      if (!Array.isArray(parsed.rows)) throw new Error('Blueprint must have a rows array.');
+      pushHistory();
+      B = parsed;
+      $('#jsonDialog').close();
+      $('#projectName').value = B.name || 'Untitled studio';
+      render(); saveBlueprint();
+      toast('Blueprint applied.');
+    } catch (e) { toast('Invalid JSON: ' + e.message, true); }
+  };
+  $('#agentForm').addEventListener('submit', onAgentSubmit);
+  $('#agentClear').onclick = () => { agentLog.replaceChildren(); greet(); };
+  wireScaffold();
+  $('#prov').value = LS.get('studioBuilder.prov', 'auto');
+  $('#prov').onchange = () => LS.set('studioBuilder.prov', $('#prov').value);
+  // Chips
+  const chips = $('#agentChips');
+  [
+    ['Suggest a layout', 'Suggest a good starting layout for an editor.'],
+    ['Make it audio', 'Make an audio production layout with narration.'],
+    ['Segment browser', 'Build a segment library browser.'],
+    ['Explain a module', 'What does the timeline module require?'],
+  ].forEach(([label, prompt]) => {
+    const b = mk('button', { type: 'button' }, label);
+    b.onclick = () => { $('#agentIn').value = prompt; $('#agentIn').focus(); };
+    chips.append(b);
+  });
+  // Global keydown: undo/redo
+  document.addEventListener('keydown', e => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+      e.preventDefault(); e.shiftKey ? redo() : undo();
+    } else if (e.key === 'Escape') {
+      if ($('#inspector').open) $('#inspector').close();
+      else if ($('#presetDialog').open) $('#presetDialog').close();
+      else if ($('#jsonDialog').open) $('#jsonDialog').close();
+      else if ($('#scaffoldDialog').open) $('#scaffoldDialog').close();
+    }
+  });
+}
+
+/* ── Greeting ─────────────────────────────────────── */
+function greet(){
+  say('agent',
+    'I know the full capability map. Drag modules from the palette to the canvas, or ask me to compose a layout. Try: “make an editor for reviewing templates”, “add a timeline”, or “start from the agent-first preset”.',
+    [
+      { title: 'Classic studio', why: 'Scene editor + asset panels + timeline + agent.', actions: [{ t: 'load-preset', presetId: 'classic' }] },
+      { title: 'Agent-first canvas', why: 'Canvas + attachments + narration + exporter.', actions: [{ t: 'load-preset', presetId: 'agent-first' }] },
+    ]
+  );
+}
+
+/* ── Boot ─────────────────────────────────────────── */
+function boot(){
+  // theme
+  const savedTheme = LS.get(THEME_KEY, 'dark');
+  document.documentElement.dataset.theme = savedTheme === 'light' ? 'light' : 'dark';
+
+  // blueprint
+  const saved = loadBlueprint();
+  if (saved) {
+    B = saved;
+  } else {
+    // First run: pick a preset
+    B = PRESETS.find(p => p.id === 'classic').blueprint();
+  }
+  if (!B.meta) B.meta = { version: 1 };
+  $('#projectName').value = B.name || 'Untitled studio';
+
+  wireUI();
+  render();
+  greet();
+}
+boot();
+
+})();
+</script>
+</body>
+</html>

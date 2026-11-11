@@ -1,0 +1,35 @@
+[
+  {
+    "id": "happy-birthday-mum-3-reels-01",
+    "file": "data/library/sources/html/happy-birthday-mum-3-reels.html",
+    "stage": 0,
+    "width": 1080,
+    "height": 1920,
+    "duration": 17000,
+    "posterTime": 14.0,
+    "name": "Happy Birthday, Mum · Frame Reel",
+    "brand": "Happy Birthday, Mum"
+  },
+  {
+    "id": "happy-birthday-mum-3-reels-02",
+    "file": "data/library/sources/html/happy-birthday-mum-3-reels.html",
+    "stage": 1,
+    "width": 1080,
+    "height": 1920,
+    "duration": 14000,
+    "posterTime": 12.5,
+    "name": "Happy Birthday, Mum · Today",
+    "brand": "Happy Birthday, Mum"
+  },
+  {
+    "id": "happy-birthday-mum-3-reels-03",
+    "file": "data/library/sources/html/happy-birthday-mum-3-reels.html",
+    "stage": 2,
+    "width": 1080,
+    "height": 1920,
+    "duration": 24000,
+    "posterTime": 21.0,
+    "name": "Para a Minha Mãe · Feliz Aniversário",
+    "brand": "Happy Birthday, Mum"
+  }
+]

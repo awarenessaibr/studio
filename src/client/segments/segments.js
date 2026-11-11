@@ -1626,6 +1626,7 @@ function setView(view) {
     if (view === 'groups') renderGroups();
     if (view === 'library') renderLibrary();
     if (view === 'animations') renderAnimations();
+    if (view === 'scene') window.SceneStudio?.show?.();
 }
 
 function wireFilters() {
@@ -1902,9 +1903,10 @@ function applyHash() {
         }
         return;
     }
-    if (hash === 'library' || hash === 'animations') {
+    if (hash === 'library' || hash === 'animations' || hash === 'scene') {
         state.view = hash;
         renderTabs();
+        if (hash === 'scene') window.SceneStudio?.show?.();
     }
 }
 

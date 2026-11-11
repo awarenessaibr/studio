@@ -1,0 +1,58 @@
+[
+  {
+    "file": "data/library/sources/html/borders-web-where-i-work-animated.fixed.html",
+    "id": "borders-web-where-i-work-animated-01",
+    "stage": 0,
+    "width": 975,
+    "height": 1104,
+    "duration": 12000
+  },
+  {
+    "file": "data/library/sources/html/borders-web-where-i-work-animated.fixed.html",
+    "id": "borders-web-where-i-work-animated-02",
+    "stage": 1,
+    "width": 944,
+    "height": 1130,
+    "duration": 12000
+  },
+  {
+    "file": "data/library/sources/html/borders-web-where-i-work-animated.fixed.html",
+    "id": "borders-web-where-i-work-animated-03",
+    "stage": 2,
+    "width": 928,
+    "height": 1143,
+    "duration": 13000
+  },
+  {
+    "file": "data/library/sources/html/borders-web-where-i-work-animated.fixed.html",
+    "id": "borders-web-where-i-work-animated-04",
+    "stage": 3,
+    "width": 960,
+    "height": 1096,
+    "duration": 8000
+  },
+  {
+    "file": "data/library/sources/html/borders-web-where-i-work-animated.fixed.html",
+    "id": "borders-web-where-i-work-animated-05",
+    "stage": 4,
+    "width": 1101,
+    "height": 960,
+    "duration": 13600
+  },
+  {
+    "file": "data/library/sources/html/borders-web-where-i-work-animated.fixed.html",
+    "id": "borders-web-where-i-work-animated-06",
+    "stage": 5,
+    "width": 1101,
+    "height": 960,
+    "duration": 7000
+  },
+  {
+    "file": "data/library/sources/html/borders-web-where-i-work-animated.fixed.html",
+    "id": "borders-web-where-i-work-animated-07",
+    "stage": 6,
+    "width": 928,
+    "height": 1143,
+    "duration": 13600
+  }
+]

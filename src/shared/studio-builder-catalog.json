@@ -1,0 +1,1303 @@
+{
+  "schema": "studio-builder/catalog/1",
+  "version": 1,
+  "title": "Studio Builder capability catalog",
+  "description": "The capability map behind the Studio Builder page. Served by the studio backend so the page does not embed a stale copy.",
+  "domains": [
+    "Foundation",
+    "Models",
+    "Renderers",
+    "Editors",
+    "Agent",
+    "Assets",
+    "Output",
+    "Audio",
+    "Cross-cutting"
+  ],
+  "regions": [
+    {
+      "id": "top",
+      "label": "Top bar",
+      "kind": "strip",
+      "hint": "Global actions and export controls."
+    },
+    {
+      "id": "left",
+      "label": "Left panel",
+      "kind": "panel",
+      "hint": "Browse assets, menus, segments and designs."
+    },
+    {
+      "id": "stage",
+      "label": "Stage",
+      "kind": "stage",
+      "hint": "Exactly one renderer lives here."
+    },
+    {
+      "id": "right",
+      "label": "Right panel",
+      "kind": "panel",
+      "hint": "Editing, agent and guardrail surfaces."
+    },
+    {
+      "id": "bottom",
+      "label": "Bottom dock",
+      "kind": "strip",
+      "hint": "Timeline and motion rows."
+    },
+    {
+      "id": "runtime",
+      "label": "Runs behind the screen",
+      "kind": "runtime",
+      "hint": "Always-on modules that are not visible."
+    }
+  ],
+  "core": [
+    "A1",
+    "A2",
+    "A3"
+  ],
+  "presets": [
+    {
+      "id": "afs",
+      "label": "Agent-first canvas",
+      "regions": {
+        "stage": [
+          "C4",
+          "G2"
+        ],
+        "right": [
+          "E1",
+          "E4",
+          "H1",
+          "H2"
+        ],
+        "left": [
+          "F4"
+        ],
+        "top": [],
+        "bottom": [],
+        "runtime": [
+          "A1",
+          "A2",
+          "A3",
+          "B3",
+          "E2",
+          "E3"
+        ]
+      }
+    },
+    {
+      "id": "classic",
+      "label": "Classic studio",
+      "regions": {
+        "top": [
+          "G1"
+        ],
+        "left": [
+          "F1",
+          "F2"
+        ],
+        "stage": [
+          "C1",
+          "D1"
+        ],
+        "right": [
+          "E1",
+          "I1"
+        ],
+        "bottom": [
+          "D4"
+        ],
+        "runtime": [
+          "A1",
+          "A2",
+          "A3",
+          "B1",
+          "B3",
+          "D3"
+        ]
+      }
+    },
+    {
+      "id": "template",
+      "label": "Template production",
+      "regions": {
+        "top": [
+          "G1"
+        ],
+        "left": [
+          "F4"
+        ],
+        "stage": [
+          "C2",
+          "C3"
+        ],
+        "right": [
+          "D2",
+          "E1"
+        ],
+        "bottom": [],
+        "runtime": [
+          "A1",
+          "A2",
+          "A3",
+          "B2",
+          "B3"
+        ]
+      }
+    },
+    {
+      "id": "blank",
+      "label": "Blank screen",
+      "regions": {
+        "top": [],
+        "left": [],
+        "stage": [],
+        "right": [],
+        "bottom": [],
+        "runtime": [
+          "A1",
+          "A2",
+          "A3"
+        ]
+      }
+    }
+  ],
+  "rules": [
+    {
+      "id": "single-renderer",
+      "type": "at-most-one",
+      "modules": [
+        "C1",
+        "C2",
+        "C4"
+      ],
+      "message": "Two renderers on one screen. Their layer schemas differ, so keep one.",
+      "fix": "Keep the first renderer and remove the rest."
+    },
+    {
+      "id": "editor-exclusive",
+      "type": "not-both",
+      "modules": [
+        "D1",
+        "D2"
+      ],
+      "message": "Scene editor and Template editor use different models. Pick one.",
+      "fix": "Remove the Template editor."
+    },
+    {
+      "id": "requirements",
+      "type": "requires",
+      "message": "A placed capability is missing something it requires.",
+      "fix": "Add the required capability in its default region."
+    },
+    {
+      "id": "core",
+      "type": "required",
+      "modules": [
+        "A1",
+        "A2",
+        "A3"
+      ],
+      "message": "Core modules are always loaded in the documented architecture.",
+      "fix": "Add the module to the runtime strip."
+    }
+  ],
+  "surfaces": {
+    "layer-studio": {
+      "label": "Studio",
+      "url": "/studio-v2.html",
+      "modules": [
+        "C1",
+        "D1",
+        "D3",
+        "D4",
+        "E1",
+        "F1",
+        "G1",
+        "I1",
+        "A1",
+        "A3",
+        "B1",
+        "B3",
+        "I2"
+      ],
+      "scripts": [
+        "/src/shared/studio-core.js",
+        "/src/shared/brand-pack.js",
+        "/src/client/shared/_.js",
+        "/src/client/brand/brand-identity.js",
+        "/src/client/studio/studio-v2.js"
+      ],
+      "query": ""
+    },
+    "asset-agent": {
+      "label": "Studio Agent",
+      "url": "/studio-agent.html",
+      "modules": [
+        "C2",
+        "C3",
+        "D2",
+        "E4",
+        "F4",
+        "A2",
+        "B2"
+      ],
+      "scripts": [
+        "/src/shared/studio-core.js",
+        "/src/shared/brand-pack.js",
+        "/src/client/asset-studio/engine.js",
+        "/src/client/asset-studio/categories.js",
+        "/src/client/asset-studio/animation.js"
+      ],
+      "query": "clean=1"
+    },
+    "agent-first-canvas": {
+      "label": "AFS",
+      "url": "/afs.html",
+      "modules": [
+        "C4",
+        "G2",
+        "H1",
+        "H2",
+        "F2",
+        "E2",
+        "E3"
+      ],
+      "scripts": [],
+      "query": ""
+    },
+    "segments": {
+      "label": "Segments",
+      "url": "/segments.html",
+      "modules": [
+        "F3"
+      ],
+      "scripts": [
+        "/src/client/shared/_.js"
+      ],
+      "query": ""
+    },
+    "classic": {
+      "label": "Classic",
+      "url": "/studio.html",
+      "modules": [
+        "G1",
+        "F1",
+        "F2",
+        "C1",
+        "D1",
+        "D4",
+        "E1",
+        "I1"
+      ],
+      "scripts": [
+        "/src/shared/brand-pack.js",
+        "/src/client/asset-studio/engine.js",
+        "/src/client/asset-studio/categories.js",
+        "/src/client/asset-studio/print.js"
+      ],
+      "query": ""
+    },
+    "studio-bkup": {
+      "label": "Studio backup",
+      "url": "/studio-bkup.html",
+      "modules": [
+        "G1",
+        "F1",
+        "F2",
+        "C1",
+        "D1",
+        "D4",
+        "E1",
+        "I1"
+      ],
+      "scripts": [
+        "/src/shared/brand-pack.js",
+        "/src/client/asset-studio/engine.js",
+        "/src/client/asset-studio/categories.js"
+      ],
+      "query": ""
+    },
+    "studio-import": {
+      "label": "Import",
+      "url": "/studio-import.html",
+      "modules": [
+        "G1",
+        "F1",
+        "C1",
+        "D1",
+        "D4",
+        "I1"
+      ],
+      "scripts": [],
+      "query": ""
+    },
+    "agent-first-studio": {
+      "label": "Agent-first",
+      "url": "/agent-first-studio.html",
+      "modules": [
+        "C4",
+        "E4",
+        "G2",
+        "H1",
+        "H2",
+        "F2",
+        "E2",
+        "E3"
+      ],
+      "scripts": [],
+      "query": ""
+    },
+    "asset-studio": {
+      "label": "Asset Studio",
+      "url": "/asset-studio.html",
+      "modules": [
+        "G1",
+        "F1",
+        "F2",
+        "F4",
+        "I1"
+      ],
+      "scripts": [
+        "/src/shared/asset-intel.js",
+        "/src/shared/studio-core.js",
+        "/src/shared/brand-pack.js",
+        "/src/shared/post-idea.js",
+        "/src/client/asset-studio/engine.js",
+        "/src/client/asset-studio/categories.js",
+        "/src/client/asset-studio/print.js",
+        "/src/client/asset-studio/app.js"
+      ],
+      "query": ""
+    },
+    "crawler": {
+      "label": "Brand intake",
+      "url": "/crawler.html",
+      "modules": [
+        "F1",
+        "A2",
+        "A3"
+      ],
+      "scripts": [
+        "/src/client/crawler/crawler.js"
+      ],
+      "query": ""
+    },
+    "library": {
+      "label": "Library",
+      "url": "/library.html",
+      "modules": [
+        "G1",
+        "F1",
+        "F4",
+        "I1"
+      ],
+      "scripts": [
+        "/src/shared/asset-intel.js",
+        "/src/client/library/library.js"
+      ],
+      "query": ""
+    },
+    "voice": {
+      "label": "Voice",
+      "url": "/voice.html",
+      "modules": [
+        "H1",
+        "H2"
+      ],
+      "scripts": [
+        "/src/client/voice/voice.js"
+      ],
+      "query": ""
+    },
+    "social": {
+      "label": "Social",
+      "url": "/social.html",
+      "modules": [
+        "I1",
+        "I2"
+      ],
+      "scripts": [
+        "/src/client/social/social.js"
+      ],
+      "query": ""
+    }
+  },
+  "rendererSurfaces": {
+    "C1": "layer-studio",
+    "C2": "asset-agent",
+    "C3": "asset-agent",
+    "C4": "agent-first-canvas",
+    "G2": "agent-first-canvas"
+  },
+  "modules": [
+    {
+      "id": "A1",
+      "name": "Studio core",
+      "domain": "Foundation",
+      "region": "runtime",
+      "summary": "Colour, font and text-layout helpers used everywhere.",
+      "sources": [
+        "studio.html",
+        "studio-import.html",
+        "studio-agent.html"
+      ],
+      "endpoints": [
+        "api/fonts"
+      ],
+      "requires": [],
+      "keywords": "colour color fonts text layout core",
+      "aliases": [
+        "core",
+        "studio core",
+        "helpers"
+      ],
+      "docs": [
+        "docs/architecture.md",
+        "docs/layer-studio.md"
+      ]
+    },
+    {
+      "id": "A2",
+      "name": "Brand",
+      "domain": "Foundation",
+      "region": "runtime",
+      "summary": "Loads brand packs, palette roles, logos and the StudioBrand bridge.",
+      "sources": [
+        "all pages"
+      ],
+      "endpoints": [
+        "api/brand-packs",
+        "api/fonts"
+      ],
+      "requires": [],
+      "keywords": "brand pack palette logo theme",
+      "aliases": [
+        "brand",
+        "brand packs",
+        "brand system",
+        "palette"
+      ],
+      "docs": [
+        "docs/brand-packs.md"
+      ]
+    },
+    {
+      "id": "A3",
+      "name": "Persistence",
+      "domain": "Foundation",
+      "region": "runtime",
+      "summary": "LocalStorage keys and backend save routing.",
+      "sources": [
+        "studio.html",
+        "studio-agent.html"
+      ],
+      "endpoints": [
+        "api/compositions",
+        "api/imports"
+      ],
+      "requires": [],
+      "keywords": "save storage persist",
+      "aliases": [
+        "persistence",
+        "storage",
+        "save"
+      ],
+      "docs": [
+        "docs/architecture.md"
+      ]
+    },
+    {
+      "id": "B1",
+      "name": "Composition model",
+      "domain": "Models",
+      "region": "runtime",
+      "summary": "Scene layers: fill, gradient, shape, image, logo, text.",
+      "sources": [
+        "studio.html",
+        "studio-import.html"
+      ],
+      "endpoints": [],
+      "requires": [],
+      "keywords": "scene layers composition",
+      "aliases": [
+        "composition",
+        "composition model",
+        "scene model"
+      ],
+      "docs": [
+        "docs/layer-studio.md"
+      ]
+    },
+    {
+      "id": "B2",
+      "name": "Template model",
+      "domain": "Models",
+      "region": "runtime",
+      "summary": "Override state for brand templates, with reset to brand.",
+      "sources": [
+        "studio-agent.html"
+      ],
+      "endpoints": [
+        "api/brand-packs/:p/templates"
+      ],
+      "requires": [],
+      "keywords": "template overrides",
+      "aliases": [
+        "template model",
+        "template overrides",
+        "overrides"
+      ],
+      "docs": [
+        "docs/brand-packs.md"
+      ]
+    },
+    {
+      "id": "B3",
+      "name": "Motion model",
+      "domain": "Models",
+      "region": "runtime",
+      "summary": "CSS presets, keyframe tracks and schema 2 animations.",
+      "sources": [
+        "all pages"
+      ],
+      "endpoints": [
+        "api/animation-library"
+      ],
+      "requires": [],
+      "keywords": "motion animation schema keyframes",
+      "aliases": [
+        "motion model",
+        "animation model",
+        "keyframes"
+      ],
+      "docs": [
+        "docs/agent-studio.md"
+      ]
+    },
+    {
+      "id": "C1",
+      "name": "Scene renderer",
+      "domain": "Renderers",
+      "region": "stage",
+      "summary": "Rich renderer for every layer type, text, menus and video.",
+      "sources": [
+        "studio.html",
+        "studio-import.html"
+      ],
+      "endpoints": [],
+      "requires": [
+        "B1"
+      ],
+      "keywords": "canvas scene renderer rich",
+      "aliases": [
+        "scene renderer",
+        "renderer",
+        "rich renderer"
+      ],
+      "docs": [
+        "docs/layer-studio.md"
+      ]
+    },
+    {
+      "id": "C2",
+      "name": "Brand template renderer",
+      "domain": "Renderers",
+      "region": "stage",
+      "summary": "Resolves and draws brand templates from overrides.",
+      "sources": [
+        "studio-agent.html"
+      ],
+      "endpoints": [],
+      "requires": [
+        "B2"
+      ],
+      "keywords": "brand template renderer",
+      "aliases": [
+        "brand template renderer",
+        "template renderer"
+      ],
+      "docs": [
+        "docs/brand-packs.md"
+      ]
+    },
+    {
+      "id": "C3",
+      "name": "Element capture",
+      "domain": "Renderers",
+      "region": "runtime",
+      "summary": "Makes an engine render clickable by hooking its boxes.",
+      "sources": [
+        "studio-agent.html"
+      ],
+      "endpoints": [],
+      "requires": [
+        "C2"
+      ],
+      "keywords": "capture clickable hook",
+      "aliases": [
+        "element capture",
+        "capture"
+      ],
+      "docs": [
+        "docs/agent-studio.md"
+      ]
+    },
+    {
+      "id": "C4",
+      "name": "Agent-first canvas",
+      "domain": "Renderers",
+      "region": "stage",
+      "summary": "Minimal text and image renderer on a fixed 1:1 stage.",
+      "sources": [
+        "afs.html",
+        "agent-first-studio.html"
+      ],
+      "endpoints": [
+        "feed/index.json"
+      ],
+      "requires": [],
+      "keywords": "afs simple square minimal canvas",
+      "aliases": [
+        "agent-first canvas",
+        "agent first",
+        "afs",
+        "minimal renderer"
+      ],
+      "docs": [
+        "docs/agent-first-library.md",
+        "docs/agent-canvas.md"
+      ]
+    },
+    {
+      "id": "D1",
+      "name": "Scene editor",
+      "domain": "Editors",
+      "region": "stage",
+      "summary": "Selection, drag, resize, rotate, context menu, safe zone.",
+      "sources": [
+        "studio.html",
+        "studio-import.html"
+      ],
+      "endpoints": [],
+      "requires": [
+        "C1",
+        "B1"
+      ],
+      "keywords": "edit select drag resize layers",
+      "aliases": [
+        "scene editor",
+        "editor"
+      ],
+      "docs": [
+        "docs/layer-studio.md"
+      ]
+    },
+    {
+      "id": "D2",
+      "name": "Template editor",
+      "domain": "Editors",
+      "region": "right",
+      "summary": "Looks, formats, motion and copy variations; layer inspector.",
+      "sources": [
+        "studio-agent.html"
+      ],
+      "endpoints": [],
+      "requires": [
+        "C2",
+        "B2"
+      ],
+      "keywords": "variations looks inspector colours",
+      "aliases": [
+        "template editor",
+        "template inspector"
+      ],
+      "docs": [
+        "docs/agent-studio.md"
+      ]
+    },
+    {
+      "id": "D3",
+      "name": "Motion editor",
+      "domain": "Editors",
+      "region": "right",
+      "summary": "Animation presets, bake, transfer and motion looks.",
+      "sources": [
+        "studio.html",
+        "studio-agent.html",
+        "segments.html"
+      ],
+      "endpoints": [
+        "api/animation-library"
+      ],
+      "requires": [
+        "B3"
+      ],
+      "keywords": "animate presets bake",
+      "aliases": [
+        "motion editor",
+        "animation editor"
+      ],
+      "docs": [
+        "docs/agent-studio.md"
+      ]
+    },
+    {
+      "id": "D4",
+      "name": "Timeline",
+      "domain": "Editors",
+      "region": "bottom",
+      "summary": "Rows, bars, keyframes, retime and playhead.",
+      "sources": [
+        "studio.html",
+        "studio-import.html"
+      ],
+      "endpoints": [
+        "api/animation-library"
+      ],
+      "requires": [
+        "D3"
+      ],
+      "keywords": "timeline playhead scrub rows",
+      "aliases": [
+        "timeline",
+        "playhead",
+        "keyframe editor"
+      ],
+      "docs": [
+        "docs/agent-studio.md"
+      ]
+    },
+    {
+      "id": "E1",
+      "name": "Agent chat",
+      "domain": "Agent",
+      "region": "right",
+      "summary": "Message stream, suggestion cards, context chips, quick prompts.",
+      "sources": [
+        "studio.html",
+        "studio-agent.html"
+      ],
+      "endpoints": [
+        "api/agent-canvas"
+      ],
+      "requires": [],
+      "keywords": "assistant chat ai agent",
+      "aliases": [
+        "agent chat",
+        "chat",
+        "assistant"
+      ],
+      "docs": [
+        "docs/agent-studio.md"
+      ]
+    },
+    {
+      "id": "E2",
+      "name": "Agent commands",
+      "domain": "Agent",
+      "region": "runtime",
+      "summary": "Response contract: reply, animation, fixes, review, steps.",
+      "sources": [
+        "afs.html"
+      ],
+      "endpoints": [
+        "api/agent-first/chat"
+      ],
+      "requires": [
+        "E3"
+      ],
+      "keywords": "commands contract",
+      "aliases": [
+        "agent commands",
+        "commands",
+        "contract"
+      ],
+      "docs": [
+        "docs/agent-first-studio"
+      ]
+    },
+    {
+      "id": "E3",
+      "name": "Model providers",
+      "domain": "Agent",
+      "region": "runtime",
+      "summary": "Provider catalogue with proxy-first calls and direct fallback.",
+      "sources": [
+        "afs.html"
+      ],
+      "endpoints": [
+        "api/agent-first/providers"
+      ],
+      "requires": [],
+      "keywords": "llm model provider",
+      "aliases": [
+        "model providers",
+        "providers",
+        "llm"
+      ],
+      "docs": [
+        "docs/agent-first-studio"
+      ]
+    },
+    {
+      "id": "E4",
+      "name": "Attachments",
+      "domain": "Agent",
+      "region": "right",
+      "summary": "Image, video, canvas and area references for the agent.",
+      "sources": [
+        "afs.html",
+        "agent-first-studio.html"
+      ],
+      "endpoints": [],
+      "requires": [
+        "E1"
+      ],
+      "keywords": "attach reference image video upload",
+      "aliases": [
+        "attachments",
+        "references",
+        "uploads"
+      ],
+      "docs": [
+        "docs/agent-studio.md"
+      ]
+    },
+    {
+      "id": "F1",
+      "name": "Asset panels",
+      "domain": "Assets",
+      "region": "left",
+      "summary": "Brand logos and photos, library, templates and elements.",
+      "sources": [
+        "studio.html",
+        "studio-agent.html"
+      ],
+      "endpoints": [
+        "api/assets",
+        "api/brand-packs/:p/templates"
+      ],
+      "requires": [
+        "A2"
+      ],
+      "keywords": "assets photos logos library elements",
+      "aliases": [
+        "asset panels",
+        "assets",
+        "photos",
+        "logos"
+      ],
+      "docs": [
+        "docs/asset-studio.md",
+        "docs/brand-packs.md"
+      ]
+    },
+    {
+      "id": "F2",
+      "name": "Menu variations",
+      "domain": "Assets",
+      "region": "left",
+      "summary": "Confirmed menu catalog mapped onto designs.",
+      "sources": [
+        "afs.html"
+      ],
+      "endpoints": [
+        "data/library/menu-catalog.json"
+      ],
+      "requires": [
+        "A2"
+      ],
+      "keywords": "menu dishes food",
+      "aliases": [
+        "menu variations",
+        "menus",
+        "dishes"
+      ],
+      "docs": [
+        "docs/menus.md"
+      ]
+    },
+    {
+      "id": "F3",
+      "name": "Segment browser",
+      "domain": "Assets",
+      "region": "left",
+      "summary": "Segment groups, motion clips and recipes with live preview.",
+      "sources": [
+        "segments.html"
+      ],
+      "endpoints": [
+        "api/segment-library/groups"
+      ],
+      "requires": [],
+      "keywords": "segments clips recipes",
+      "aliases": [
+        "segment browser",
+        "segments",
+        "clips"
+      ],
+      "docs": [
+        "docs/segment-library.md"
+      ]
+    },
+    {
+      "id": "F4",
+      "name": "Design drawer",
+      "domain": "Assets",
+      "region": "left",
+      "summary": "Designs, animation choices, formats and groups for review.",
+      "sources": [
+        "studio-agent.html"
+      ],
+      "endpoints": [
+        "api/agent-library"
+      ],
+      "requires": [],
+      "keywords": "designs drawer clean review",
+      "aliases": [
+        "design drawer",
+        "designs",
+        "library drawer"
+      ],
+      "docs": [
+        "docs/agent-studio.md"
+      ]
+    },
+    {
+      "id": "G1",
+      "name": "Exporter",
+      "domain": "Output",
+      "region": "top",
+      "summary": "PNG, JPG, PDF, GIF, WebM/MP4, JSON and ZIP.",
+      "sources": [
+        "studio.html",
+        "afs.html"
+      ],
+      "endpoints": [
+        "api/video/transcode"
+      ],
+      "requires": [],
+      "keywords": "export download png pdf gif video zip",
+      "aliases": [
+        "exporter",
+        "export",
+        "download"
+      ],
+      "docs": [
+        "docs/layer-studio.md"
+      ]
+    },
+    {
+      "id": "G2",
+      "name": "Source-exact playback",
+      "domain": "Output",
+      "region": "stage",
+      "summary": "Plays the original motion and records it as WebM.",
+      "sources": [
+        "afs.html"
+      ],
+      "endpoints": [],
+      "requires": [],
+      "keywords": "playback source exact webm",
+      "aliases": [
+        "source-exact playback",
+        "playback",
+        "original motion"
+      ],
+      "docs": [
+        "docs/agent-first-library.md"
+      ]
+    },
+    {
+      "id": "H1",
+      "name": "Narration and cast",
+      "domain": "Audio",
+      "region": "right",
+      "summary": "Cast, narration lines, music bed and audio mix.",
+      "sources": [
+        "afs.html"
+      ],
+      "endpoints": [
+        "api/library/audio"
+      ],
+      "requires": [],
+      "keywords": "audio narration music cast voice",
+      "aliases": [
+        "narration and cast",
+        "narration",
+        "voice cast",
+        "music bed"
+      ],
+      "docs": [
+        "docs/agent-first-library.md"
+      ]
+    },
+    {
+      "id": "H2",
+      "name": "Audio authoring",
+      "domain": "Audio",
+      "region": "right",
+      "summary": "Script, text-to-speech, recording and follow-along.",
+      "sources": [
+        "afs.html"
+      ],
+      "endpoints": [
+        "api/tts/speech"
+      ],
+      "requires": [
+        "H1"
+      ],
+      "keywords": "tts script record speech",
+      "aliases": [
+        "audio authoring",
+        "tts",
+        "speech",
+        "recording"
+      ],
+      "docs": [
+        "docs/voice-studio.md"
+      ]
+    },
+    {
+      "id": "I1",
+      "name": "Guardrails",
+      "domain": "Cross-cutting",
+      "region": "right",
+      "summary": "Safe zone, overflow, contrast, size and palette checks.",
+      "sources": [
+        "studio.html",
+        "studio-import.html"
+      ],
+      "endpoints": [],
+      "requires": [],
+      "keywords": "checks safe zone contrast quality",
+      "aliases": [
+        "guardrails",
+        "checks",
+        "validation"
+      ],
+      "docs": [
+        "docs/layer-studio.md"
+      ]
+    },
+    {
+      "id": "I2",
+      "name": "Diagnostic seams",
+      "domain": "Cross-cutting",
+      "region": "runtime",
+      "summary": "Test and embedding hooks on window.",
+      "sources": [
+        "all pages"
+      ],
+      "endpoints": [],
+      "requires": [],
+      "keywords": "tests debug embed",
+      "aliases": [
+        "diagnostic seams",
+        "diagnostics",
+        "tests"
+      ],
+      "docs": [
+        "docs/testing.md"
+      ]
+    }
+  ],
+  "agent": {
+    "endpoint": "/api/agent-first/chat",
+    "mode": "studio-builder",
+    "aliasEndpoint": "/api/studio-builder/agent",
+    "description": "Free-form requests go to the same provider proxy as Agent First Studio. The server owns the prompt, keys and action validation; the page keeps its local rule engine as the primary path."
+  },
+  "addOns": [
+    {
+      "id": "live-preview",
+      "name": "Live module preview",
+      "status": "implemented",
+      "description": "The stage embeds the real studio surface selected by the renderer (Layer Studio, Asset Studio Agent in clean-canvas mode, or Agent First Canvas). It loads studio-core.js, brand-pack.js and the surface’s own scripts, then reports which globals actually loaded.",
+      "usage": "Turn on Live preview, or use the expand button to inspect the real page full-screen."
+    },
+    {
+      "id": "server-catalog",
+      "name": "Server-owned capability catalog",
+      "status": "implemented",
+      "description": "The 28 capabilities, presets, rules, surfaces and add-on notes come from /api/studio-builder/catalog. The endpoint adds live counts for brand packs, fonts, animations, assets and segments. The browser caches the last good catalog for offline use.",
+      "usage": "The status pill in the top bar shows whether the current catalog came from the server or the cache. Press Sync to refresh."
+    },
+    {
+      "id": "agent-proxy",
+      "name": "Free-form agent fallback",
+      "status": "implemented",
+      "description": "Unknown requests are sent through /api/agent-first/chat with mode=studio-builder. The server supplies a builder-specific system prompt, validates every module id and region, and returns actions the page can apply. Local module/region commands never leave the browser.",
+      "usage": "Ask for something the local rules cannot parse, for example “make this feel like a publishing desk”. Configure DeepSeek or Ollama on the server to use it."
+    },
+    {
+      "id": "resizable",
+      "name": "Resizable screen regions",
+      "status": "implemented",
+      "description": "Drag the separators around the stage to resize the left, right, top and bottom regions. Sizes are remembered in the browser and included in the downloaded layout.",
+      "usage": "Drag a separator, or focus it and use the arrow keys. Press Reset panels to restore the defaults."
+    },
+    {
+      "id": "layout-import",
+      "name": "Layout import",
+      "status": "implemented",
+      "description": "A saved layout JSON can be loaded back from the Brief tab, so a build brief and the layout it came from stay together.",
+      "usage": "Brief → Import layout JSON."
+    },
+    {
+      "id": "deploy",
+      "name": "Deploy as a running page",
+      "status": "implemented",
+      "description": "Deploy writes a real page under data/studio-builder/pages and serves it at /built/<id>. The composed regions are server-rendered, the stage runs the selected real surface, module tiles hydrate live counts from the catalog API, and /built/<id>/surface opens the full original surface.",
+      "usage": "Open the Deploy tab, name the page, choose a base page and press Deploy page."
+    },
+    {
+      "id": "stage-picking",
+      "name": "Stage picking + project plan",
+      "status": "implemented",
+      "description": "Inspect mode turns the live stage into a picker. Click an element or drag a region, choose the capability it represents, and add it to a cross-page project plan with the page, selector, element text and rectangle. The plan is saved in the browser, can be applied to the layout, downloaded/imported, and is included when the page is deployed.",
+      "usage": "Choose a start page, press Inspect above the stage, click or drag, then add the picked block to the plan from the Plan tab."
+    }
+  ],
+  "limitations": [
+    "The live preview embeds a complete real surface. It does not yet mount individual capabilities into arbitrary regions; that needs a per-module mount contract on each studio page.",
+    "The capability catalog is a maintained JSON mirror of the capability map. Update src/shared/studio-builder-catalog.json when the docs add or remove a module.",
+    "The model fallback needs server-side credentials or a running local model. The browser never receives an API key.",
+    "Deployments are local to data/studio-builder/pages; they are files on this server, not a remote hosting integration."
+  ],
+  "pages": [
+    {
+      "id": "studio-v2",
+      "source": "studio-v2.html",
+      "url": "/studio-v2.html",
+      "label": "Studio",
+      "surface": "layer-studio",
+      "layout": "surface"
+    },
+    {
+      "id": "agent-first-studio",
+      "source": "agent-first-studio.html",
+      "url": "/agent-first-studio.html",
+      "label": "Agent-first",
+      "surface": "agent-first-studio",
+      "layout": "surface"
+    },
+    {
+      "id": "studio-agent",
+      "source": "studio-agent.html",
+      "url": "/studio-agent.html",
+      "label": "Studio Agent",
+      "surface": "asset-agent",
+      "layout": "surface"
+    },
+    {
+      "id": "studio",
+      "source": "studio.html",
+      "url": "/studio.html",
+      "label": "Classic",
+      "surface": "classic",
+      "layout": "source"
+    },
+    {
+      "id": "studio-bkup",
+      "source": "studio-bkup.html",
+      "url": "/studio-bkup.html",
+      "label": "Studio backup",
+      "surface": "studio-bkup",
+      "layout": "classic"
+    },
+    {
+      "id": "studio-import",
+      "source": "studio-import.html",
+      "url": "/studio-import.html",
+      "label": "Import",
+      "surface": "studio-import",
+      "layout": "source"
+    },
+    {
+      "id": "asset-studio",
+      "source": "asset-studio.html",
+      "url": "/asset-studio.html",
+      "label": "Asset Studio",
+      "surface": "asset-studio",
+      "layout": "modules",
+      "modules": [
+        "G1",
+        "F1",
+        "F2",
+        "F4",
+        "I1"
+      ]
+    },
+    {
+      "id": "crawler",
+      "source": "crawler.html",
+      "url": "/crawler.html",
+      "label": "Brand intake",
+      "surface": "crawler",
+      "layout": "modules",
+      "modules": [
+        "F1",
+        "A2",
+        "A3"
+      ]
+    },
+    {
+      "id": "library",
+      "source": "library.html",
+      "url": "/library.html",
+      "label": "Library",
+      "surface": "library",
+      "layout": "modules",
+      "modules": [
+        "G1",
+        "F1",
+        "F4",
+        "I1"
+      ]
+    },
+    {
+      "id": "segments",
+      "source": "segments.html",
+      "url": "/segments.html",
+      "label": "Segments",
+      "surface": "segments",
+      "layout": "source"
+    },
+    {
+      "id": "voice",
+      "source": "voice.html",
+      "url": "/voice.html",
+      "label": "Voice",
+      "surface": "voice",
+      "layout": "modules",
+      "modules": [
+        "H1",
+        "H2"
+      ]
+    },
+    {
+      "id": "social",
+      "source": "social.html",
+      "url": "/social.html",
+      "label": "Social",
+      "surface": "social",
+      "layout": "modules",
+      "modules": [
+        "I1",
+        "I2"
+      ]
+    },
+    {
+      "id": "afs",
+      "source": "afs.html",
+      "url": "/afs.html",
+      "label": "AFS",
+      "surface": "agent-first-canvas",
+      "layout": "source"
+    }
+  ]
+}

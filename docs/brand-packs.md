@@ -51,6 +51,7 @@ brand-kit/
 │   ├── <Brand>-Brand-Guide.docx       the Word guide (optional)
 │   ├── tokens/<brand>.tokens.json     colours, type scale, voice, logo
 │   ├── content/<brand>.json           menus, drinks, hours, booking link
+│   ├── documents/                     source PDFs and page transcripts
 │   └── assets/
 │       ├── logos/                     SVG + PNG cuts, variants, plates
 │       ├── colors/palette.png
@@ -77,6 +78,7 @@ brand-kit/
 | Source | Becomes |
 |---|---|
 | `tokens/*.tokens.json` | Palette (HEX / RGB / CMYK, role, share, tier), typography families + scale, voice attributes / prefer / avoid, logo notes |
+| `documents/*` | Source PDFs, saved page transcripts and terms, copied into the pack so `content.documents[]` resolves after a re-import |
 | `content/*.json` | Structured menus/drinks, hours, booking link and the authored `copy` deck (headline, body, dish special, voucher terms, festive campaign, campaign blocks). Asset Studio and the Agent Studio use the menu to prefill menu designs and the copy deck to replace their shared sample text. A brand with `copy.kind: 'ice-cream'` also gets the ice-cream/social template set |
 | `<brand>/social/` | Read-only social-intelligence evidence (profile, voice, channels, reviews). Ignored as tokens and as brand photography; the Social index reads it and `brand.social` carries the bounded summary |
 | `assets/{logos,photography}` | Logo cuts and photo pool; `social/assets/` is excluded from both |

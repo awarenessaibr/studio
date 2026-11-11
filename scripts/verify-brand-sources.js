@@ -129,6 +129,15 @@ function has(text, phrase) {
 }
 
 function pdfText(file, page) {
+    // A pack can cite a saved page transcript (`.md`/`.txt`) where a venue has
+    // no PDF. Read it as text rather than shelling out to pdftotext.
+    if (/\.(?:md|txt)$/i.test(file)) {
+        try {
+            return fs.readFileSync(file, 'utf8');
+        } catch (error) {
+            return '';
+        }
+    }
     const args = page ? ['-layout', '-f', String(page), '-l', String(page), file, '-'] : ['-layout', file, '-'];
     try {
         return execFileSync('pdftotext', args, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
@@ -138,6 +147,7 @@ function pdfText(file, page) {
 }
 
 function pdfPages(file) {
+    if (!/\.pdf$/i.test(file)) return null;
     try {
         const info = execFileSync('pdfinfo', [file], { encoding: 'utf8' });
         const match = info.match(/^Pages:\s+(\d+)/m);
@@ -211,7 +221,7 @@ function render(state) {
         lines.push('');
     }
     if (state.menuRows.length) {
-        lines.push('## Menu prices against their source PDF');
+        lines.push('## Prices against their source documents');
         lines.push('');
         lines.push('| Menu | Source | Price tokens | Missing |');
         lines.push('| --- | --- | --- | --- |');
@@ -295,7 +305,7 @@ function main() {
         content.menus.forEach((menu) => {
             const source = menu.source.document;
             if (!source) {
-                state.warnings.push(`${menu.name}: no PDF source (${menu.source.note || 'promo image'}) — not machine-checked`);
+                state.warnings.push(`${menu.name}: no document source (${menu.source.note || 'promo image'}) — not machine-checked`);
                 state.menuRows.push({ menu: menu.name, source: '—', checked: 0, missing: [] });
                 return;
             }

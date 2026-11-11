@@ -7,7 +7,7 @@ engine.
 | | |
 |---|---|
 | **URL** | `/studio.html` (`/pages/studio.html` 302-redirects to it) |
-| **Source** | `pages/studio.html` — ~950 lines / 96 KB, one inline `<style>`, one inline IIFE |
+| **Source** | `pages/studio.html` — ~6400 lines / 322 KB, one inline `<style>`, one inline IIFE |
 | **Page title** | `Agent Studio`, then `<Brand> · Agent Studio` after a brand loads |
 | **Served by** | `server.js` → `PAGE_ROUTES['/studio.html']` (`server.js:5324-5331`, served at `server.js:5413`), `Cache-Control: no-store` |
 | **Runtime** | Browser only. No framework, no build step, no ES modules, no server-side save. |
@@ -17,7 +17,7 @@ engine.
 
 > **Reading this document.** `path:line` references point at the current
 > working tree (HEAD `6816dab` plus uncommitted changes to `pages/studio.html`).
-> The page is 949 newline-terminated lines; the inline IIFE starts at line 179.
+> The page is ~6400 newline-terminated lines; the inline IIFE starts at line 2011. Earlier line numbers in this document are historical.
 
 > **Documentation status.** Some docs still describe `/studio.html` as the
 > old “classic studio” that loads `studio-core.js` + `_.js`. That page was
@@ -92,7 +92,7 @@ and engine-design switches) and persisted per brand + format in `localStorage`.
 | An agent **proposer**: cards preview a command batch, then you apply it | An autonomous agent; it never calls a model and never edits without a click |
 | A guardrail checker with one-click fixes | A hard export gate; guardrails are advisory |
 | An Asset Studio design importer that splits artwork and text | A full Asset Studio replacement (no PNG/PDF export here) |
-| A CSS-animation timeline (presets only) | A keyframe editor; timing is `start`/`duration` per layer |
+| A role-grouped keyframe timeline with per-keyframe editing | A full NLE: no audio tracks, parenting or multi-composition timeline |
 | A client-side editor saved in `localStorage` | A server-persisted project; clearing browser storage loses edits |
 
 **Business position.** It is the “compose and tweak a brand scene” surface
@@ -140,7 +140,7 @@ composition/animation/export). The header links to both.
 | Resize handles | `.resize-handle[data-resize]` | 17–25 | left and right splitters | 10 px; role=separator; collapsible |
 | Main toolbar | `.tb` | 82–83 | Replay, Safe zone, Guardrails, status | wraps |
 | Canvas | `#wrap` → `#stage` | 84–92 | the composition | stage keeps format aspect ratio |
-| Timeline | `.tl` → `.tlh`, `#tlb` | 116–127 | play, scrub, time, ruler, layer rows | 178 px tall |
+| Timeline | `.tl` → `.tlh`, `.tlh2`, `#tlkf`, `#tlb` | 116–127 | play, scrub, time, filter, role groups, keyframe editor, layer rows | 400 px tall (resizable) |
 | Agent panel | `section.agent` | 93–115 | header, `#chat`, `#ctxMenu`, `#qp`, `#ctx`, form | 390 px default |
 | Floating menu | `#ctxMenu` | 99–102 | “Delete layer” | effectively unreachable — §16 |
 
@@ -1352,8 +1352,11 @@ directly (badge/box case).
 
 - Fixed duration `DUR = 10000` ms (line 834).
 - `T` is the playhead in ms; initial value `DUR` (finished state).
-- Each layer may have `anim = {preset, start, duration}`.
-- Presets are CSS keyframe names; the timeline does not store keyframes.
+- Each layer may have `anim = {preset, start, duration}`, an `anims[]`
+  event list, or a keyframe event inside `anims[]`.
+- Presets are CSS keyframe names. Keyframe tracks store per-frame
+  `{time, x, y, w, h, rotation, opacity, easing}` values; imported
+  compositions and new keyframes are first-class timeline data (11.3).
 
 | Preset | CSS effect | Typical timings created by the agent |
 |---|---|---|
@@ -1396,34 +1399,95 @@ changes `T`.
 - `commit()` auto-plays from 0, 60 ms after applying any `set-animation`
   command.
 
-### 11.3 Timeline DOM (`tl`, 846–851)
+### 11.3 Timeline DOM — role groups, keyframes and segments
 
-- Rebuilt from scratch on every `layers()`.
-- First row: blank name column + ruler track with 11 labels (`0s`…`10s` at
-  10 % steps). Pointerdown/drag on the ruler seeks.
-- One 20 px row per visible layer, sorted by `z` descending; the name column
-  selects the layer.
-- Animated layers get a `.bar` inside the track:
-  - `left = start/DUR*100 %`
-  - `width = max(0.6, duration/DUR*100) %`
-  - label = preset name
-- Bar drag (`bd`, 841–845):
-  - within 8 px of the right edge → resize duration;
-  - elsewhere → move start;
-  - deltas snap to 100 ms (`round(dx/trackWidth*DUR/100)*100`);
-  - start clamps to `0…DUR−duration`, duration to `100…DUR−start`;
-  - on release: rebuild timeline, post a chat note with the new timing,
-    `saveScene()`.
-- Playhead `.ph` is a 2 px white line positioned with
-  `left: calc(116px + (100% − 116px) * var(--p, 1))`; `--p` is set on `#tlb`.
+The current timeline is rebuilt from scratch on every `layers()` call and is
+designed for imported compositions such as
+`data/projects/06----giovannin-senza-paura-reels-01` (53 layers, 604
+keyframes, 32 animated layers).
+
+**Header and layer tools**
+
+- The first row keeps the transport (`#tpl`, `#scrub`, `#tt`) and the saved
+  animation library.
+- The second row adds `#tlFilter` (name / id / role / text / `meta.path`),
+  `#tlAnimated` (“Animated only”), **Expand groups**, **Collapse groups** and
+  `#tlStats` (`shown/total layers · animated · keyframes · groups`).
+- `#tlkf` is the selected-keyframe editor. It is always present: with no
+  selection it explains the interaction and offers **+ Keyframe at T**; with a
+  keyframe selected it exposes time, x/y/w/h, rotation, opacity, easing,
+  Seek/Prev/Next/Add/Duplicate/Delete and the segment description.
+
+**Rows and groups**
+
+- Layers are grouped by role (`Foreground`, `Props`, `Background`) or, for
+  scenes without roles, by type (`Text`, `Images`, `Logos`, `Other`).
+- Group headers show layer/animated counts and a **Select** action that
+  selects every visible layer in the group. Group open state persists in
+  `agentStudio.tl.groups.v1`; large groups default to collapsed.
+- One 22 px row is rendered per visible layer, sorted by `z` descending. The
+  name cell shows the role badge, layer name, keyframe count, and a tooltip
+  with the layer id, role, type, `meta.path`, `source.selector` and source
+  window (`meta.start`–`meta.end`).
+- Filtering automatically opens matching groups. Rows below the fold scroll
+  inside `#tlb`; group headers are sticky.
+
+**Keyframe and segment rendering**
+
+- A keyframe event renders a `.kfbar` spanning its first–last keyframe and one
+  `.kf` diamond per keyframe; the selected keyframe gets `data-s="1"`.
+- `.kfseg` strips under each keyframe bar show the derived motion segments
+  (`move`, `scale`, `opacity`, `rotate`) between consecutive keyframes.
+- Click/drag the ruler to seek. Click a keyframe to select and seek; drag a
+  diamond to retime it (it can cross neighbours and re-sort). Drag the
+  `.kfbar` to retime the whole event. Click a segment to select its starting
+  keyframe.
+- CSS-preset events still render as `.bar` and keep the existing move/resize
+  drag behavior.
+
+**Keyframe model**
+
+- A layer can carry `anim` (legacy CSS preset), `anims[]` (multiple events),
+  or a keyframe event inside `anims[]`; `layerKeyframes()` normalises all
+  three. `compositionKeys()` preserves the source frame's `easing`.
+- Keyframes are `{time, x, y, w, h, rotation, opacity, easing}` in stage
+  percentages. `applyKf()` and `layerState()` both honour `easing` through
+  `kfEase()`; imported project frames use `linear`, while new frames default
+  to `easeInOut`.
+- Adding a keyframe captures the interpolated state at the playhead through
+  `captureKeyframe()`. Deleting the last keyframe removes the keyframe event,
+  leaving any CSS-preset events intact.
+- The selected keyframe is stored in `timelineKfSel`; the selected event stays
+  in `timelineSelection` so Copy/Paste/Duplicate keep working.
+
+**Agent context**
+
+- `ctx` now reports the selected layer's keyframe count, time range, changed
+  channels, source selector and source window; group selections report the
+  number of selected layers and their combined keyframe count.
+- Timeline suggestions are available for messages containing `timeline`,
+  `keyframe`, `timing`, `segment`, `ease`, `stagger`, `retime`, `hold`,
+  `fade` or `motion`, plus the **Timeline** quick prompt.
+- The agent can add a keyframe, fade in/out, stagger selected layers, fade a
+  whole selected group, clear motion, shift keyframes, or set keyframes via
+  the command engine (`add-keyframe`, `fade-keyframes`,
+  `stagger-keyframes`, `shift-keyframes`, `set-keyframes`,
+  `clear-animation`).
+- Project imports preserve `role`, `meta` and `source` on the scene layer
+  (`compositionLayer()`), and the same metadata is written back by
+  `compositionFromScene()`, so the timeline and agent keep the mapping after
+  a save round-trip.
 
 ### 11.4 Persistence and reset
 
-`anim` is part of the saved layer object, so timing survives reload with the
-scene. Brand changes reset `T` and stop playback; engine design changes also
-reset `T` and clear history. Format switches do not stop playback (bug #14).
-`#reset` does not remove animations from the new classic scene (it builds a
-fresh one without them).
+`anim`/`anims`/`layer.kf` are part of the saved layer object, so timing
+survives reload with the scene. Group open state
+(`agentStudio.tl.groups.v1`), “Animated only”
+(`agentStudio.tl.animated.v1`) and timeline height
+(`agentStudio.timeline.v3`) persist separately. Brand changes reset `T` and
+stop playback; engine design changes also reset `T` and clear history. Format
+switches do not stop playback (bug #14). `#reset` clears the selected keyframe
+and event, and builds a fresh scene without animations.
 
 ---
 
@@ -1438,6 +1502,9 @@ fresh one without them).
 | `agentStudio.scene.v2:<brandId>:<fmtId>` | `{v:2,scene:Layer[]}` | `saveScene` | `loadScene` | engine formats use `eng:cat:tpl:size` in the key |
 | `agentStudio.last.v1` | `{packId,brandId,fmt}` | `remember` | `boot` | last selection |
 | `agentStudio.lastBrands.v1` | `{packId:brandId}` | `remember` | `boot`, `selectPack` | per-pack memory |
+| `agentStudio.timeline.v3` | number (px) | `setTimelineHeight` | `bindTimelineResize` | `0` means collapsed |
+| `agentStudio.tl.groups.v1` | `{groupKey:boolean}` | `setTimelineGroup` | `timelineGroupOpen` | group open state |
+| `agentStudio.tl.animated.v1` | boolean | `#tlAnimated` change | timeline init | show only layers with events |
 
 `LS` wraps every access in `try/catch`; a failed `set` deletes the scene key
 instead of throwing.

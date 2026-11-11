@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Project canvas — open one real project composition, play its keyframes, select any layer, draw motion paths, add images and have the scene agent edit it.">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231a1a2e'/%3E%3Ctext x='16' y='23' font-family='Georgia,serif' font-size='18' fill='%23f2eee7' text-anchor='middle'%3EP%3C/text%3E%3C/svg%3E">
+    <title>Project canvas — Studio Layers</title>
+    <link rel="stylesheet" href="/src/client/asset-studio/app.css">
+    <link rel="stylesheet" href="/src/client/segments/segments.css">
+    <link rel="stylesheet" href="/src/client/project-canvas/project-canvas.css">
+</head>
+
+<body class="seg-page pcan-page">
+    <header class="seg-topbar">
+        <a class="seg-brand" href="/studio-v2.html" aria-label="Studio Layers home">
+            <span class="seg-mark">S</span>
+            <span class="seg-brand-copy"><strong>Studio Layers</strong><small>Project canvas</small></span>
+        </a>
+        <nav class="seg-nav" aria-label="Studio surfaces">
+            <a href="/studio-v2.html">Studio</a>
+            <a href="/asset-studio.html">Asset Studio</a>
+            <a href="/library.html">Library</a>
+            <a href="/segments">Segments</a>
+            <a class="is-current" href="/project-canvas">Project canvas</a>
+        </nav>
+        <div class="seg-top-actions">
+            <span class="pcan-provider" id="provider">Agent · checking</span>
+            <a class="button small" href="/segments#scene">Scene studio</a>
+        </div>
+    </header>
+
+    <main class="pcan-main">
+        <section class="pcan-bar" aria-label="Project toolbar">
+            <label class="pcan-field">
+                <span>Project</span>
+                <select id="projectSelect" aria-label="Project"></select>
+            </label>
+            <label class="pcan-field" id="compositionField" hidden>
+                <span>Composition</span>
+                <select id="compositionSelect" aria-label="Composition"></select>
+            </label>
+            <label class="pcan-field">
+                <span>Speed</span>
+                <select id="speed" aria-label="Playback speed">
+                    <option value="0.25">0.25×</option>
+                    <option value="0.5">0.5×</option>
+                    <option value="1" selected>1×</option>
+                    <option value="2">2×</option>
+                </select>
+            </label>
+            <div class="pcan-modes" role="group" aria-label="Start from">
+                <button class="button pcan-mode" id="modeOriginal" type="button" aria-pressed="true">Original animation</button>
+                <button class="button pcan-mode" id="modeBlank" type="button" aria-pressed="false">Blank · keep elements</button>
+            </div>
+            <div class="pcan-bar-actions">
+                <button class="button" id="addImageBtn" type="button">＋ Add image</button>
+                <input id="imageInput" type="file" accept="image/*" hidden>
+                <button class="button" id="undoBtn" type="button" disabled>Undo</button>
+                <button class="button" id="downloadBtn" type="button" disabled>Download variant</button>
+                <a id="editStudio" class="button" href="/studio.html" target="_blank" rel="noopener">Edit in Studio</a>
+                <a id="sourceVideo" class="button" href="#" target="_blank" rel="noopener" hidden>Source recording</a>
+            </div>
+            <p class="pcan-status" id="status" role="status">Loading projects…</p>
+        </section>
+
+        <div class="pcan-grid">
+            <aside class="pcan-panel" aria-label="What the project has">
+                <header class="pcan-panel-head">
+                    <div>
+                        <h2>What the project has</h2>
+                        <p id="projectMeta">No project loaded.</p>
+                    </div>
+                </header>
+                <div class="pcan-search-wrap">
+                    <input class="pcan-search" id="search" type="search" placeholder="Filter sources, groups, parts, text" autocomplete="off" aria-label="Filter project contents">
+                </div>
+                <div class="pcan-panel-body" id="panelBody">
+                    <section class="pcan-section">
+                        <h3>Image sources <span id="sourceCount">—</span></h3>
+                        <div class="pcan-list" id="sourceList"></div>
+                    </section>
+                    <section class="pcan-section">
+                        <h3>Semantic groups <span id="groupCount">—</span></h3>
+                        <div class="pcan-list" id="groupList"></div>
+                    </section>
+                    <section class="pcan-section">
+                        <h3>Text layers <span id="textCount">—</span></h3>
+                        <div class="pcan-list" id="textList"></div>
+                    </section>
+                    <section class="pcan-section" id="variantSection" hidden>
+                        <h3>Added in this session <span id="variantCount">0</span></h3>
+                        <div class="pcan-list" id="variantList"></div>
+                    </section>
+                    <section class="pcan-section">
+                        <h3>Agent notes</h3>
+                        <ul class="pcan-notes" id="notes"></ul>
+                    </section>
+                    <details class="pcan-context" id="contextBox">
+                        <summary>Agent context <span id="contextSize"></span></summary>
+                        <p>This is the project summary the agent receives with every message, plus your selection, the
+                            start mode, the layers you added and your drawings. Drawing paths are also turned into
+                            suggested keyframes for the selected subject on the server.</p>
+                        <textarea id="contextText" readonly spellcheck="false" aria-label="Agent context"></textarea>
+                        <button class="button small" id="copyContext" type="button">Copy context</button>
+                    </details>
+                </div>
+            </aside>
+
+            <section class="pcan-stage-col" aria-label="Stage">
+                <div class="pcan-stage-meta">
+                    <span id="stageInfo">Choose a project</span>
+                    <span id="selectionInfo">Nothing selected</span>
+                </div>
+                <div class="pcan-stage-shell" id="stageShell">
+                    <div class="pcan-canvas-wrap" id="canvasWrap">
+                        <div class="pcan-stage" id="stage" aria-label="Project composition"></div>
+                        <canvas class="pcan-annotations" id="annotations" aria-label="Drawings on the stage"></canvas>
+                    </div>
+                    <div class="pcan-empty" id="stageEmpty">
+                        <b>Choose a project</b>
+                        <span>Every layer of its master composition will be on the canvas, playing its own keyframes.</span>
+                    </div>
+                </div>
+                <div class="pcan-transport">
+                    <button class="button" id="playBtn" type="button" aria-label="Pause">Pause</button>
+                    <input id="scrub" type="range" min="0" max="0" value="0" step="1" aria-label="Timeline">
+                    <output id="timeOut">0.00 / 0.00 s</output>
+                    <button class="button" id="loopBtn" type="button" aria-pressed="true">Loop</button>
+                </div>
+                <div class="pcan-annotate" id="annotateBar" aria-label="Canvas tools">
+                    <button class="button pcan-annotate-toggle" id="annotateBtn" type="button" aria-pressed="false" title="Draw a path on the stage (Escape exits)">
+                        <span aria-hidden="true">✎</span> Annotate
+                    </button>
+                    <span class="pcan-annotate-count" id="annotateCount">No drawings</span>
+                    <button class="button small" id="undoStroke" type="button" disabled>Undo stroke</button>
+                    <button class="button small" id="clearStrokes" type="button" disabled>Clear</button>
+                    <span class="pcan-annotate-sep" aria-hidden="true"></span>
+                    <label class="pcan-window" title="When the drawing applies. Defaults to the selection's visible window.">
+                        Applies
+                        <input id="windowFrom" type="number" min="0" step="0.1" inputmode="decimal" aria-label="Annotation start in seconds">
+                        <span aria-hidden="true">–</span>
+                        <input id="windowTo" type="number" min="0" step="0.1" inputmode="decimal" aria-label="Annotation end in seconds">
+                        <span>s</span>
+                    </label>
+                    <button class="button small" id="useSelectionWindow" type="button" disabled>Use selection window</button>
+                    <span class="pcan-annotate-hint" id="annotateHint" hidden>Draw on the stage: press at the start point, drag a path, release at the end.</span>
+                </div>
+                <div class="pcan-selection-bar" id="chips" aria-live="polite">
+                    <span class="pcan-selection-hint">Click a group, part or text layer — or click the canvas. Alt-click picks one part, Shift-click adds.</span>
+                </div>
+            </section>
+
+            <aside class="pcan-panel pcan-chat" aria-label="Scene agent">
+                <header class="pcan-panel-head">
+                    <div>
+                        <h2>Scene agent</h2>
+                        <p id="chatMeta">Click a group or part, or describe it.</p>
+                    </div>
+                </header>
+                <div class="pcan-log" id="log" aria-live="polite"></div>
+                <div class="pcan-suggest" id="suggestions"></div>
+                <form class="pcan-form" id="chatForm">
+                    <textarea id="chatInput" rows="3" placeholder="Describe what should happen — for example: the character walks left to right, then sees a much bigger burning ghost and runs back" aria-label="Message the scene agent"></textarea>
+                    <button class="button primary" id="sendBtn" type="submit">Send</button>
+                </form>
+            </aside>
+        </div>
+    </main>
+
+    <script src="/src/shared/project-manifest.js"></script>
+    <script src="/src/shared/project-timeline.js"></script>
+    <script src="/src/client/project-canvas/project-canvas.js" defer></script>
+</body>
+
+</html>

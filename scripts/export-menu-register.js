@@ -53,11 +53,16 @@ function renderBrand(brand, outFile) {
     const content = brand.content || {};
     const menus = Array.isArray(content.menus) ? content.menus : [];
     const venue = content.venue || null;
+    // A services pack has no dishes; say "catalogue" rather than printing a
+    // restaurant register with a menu of care plans in it.
+    const serviceOnly = menus.length > 0
+        && !venue
+        && menus.every((menu) => ['services', 'products', 'topics', 'other'].includes(menu.kind));
     const locations = Array.isArray(content.locations) ? content.locations : [];
     const documents = Array.isArray(brand.documents) ? brand.documents : [];
     const lines = [];
 
-    lines.push(`# ${brand.name} — menus, prices and venue hire`);
+    lines.push(`# ${brand.name} — ${serviceOnly ? 'services, products and prices' : 'menus, prices and venue hire'}`);
     lines.push('');
     lines.push(`Generated from \`data/brand-packs/${brand._packId}/files/${brand.id}/content/${brand.id}.json\` on ${new Date().toISOString().slice(0, 10)}.`);
     lines.push('The pack is the source of truth; edit the content file and re-run `scripts/sync-brand-content.js`.');
@@ -79,7 +84,7 @@ function renderBrand(brand, outFile) {
         lines.push('');
     }
 
-    lines.push('## Menus at a glance');
+    lines.push(`## ${serviceOnly ? 'Catalogue' : 'Menus'} at a glance`);
     lines.push('');
     lines.push(table(
         ['Menu', 'Kind', 'Branches', 'Valid', 'Sections', 'Items', 'Source'],
@@ -112,7 +117,7 @@ function renderBrand(brand, outFile) {
         if (menu.source.note) lines.push('', `> ${menu.source.note}`);
         if (menu.priceNote) lines.push('', `**${menu.priceNote}**`);
         if (menu.packages.length) {
-            lines.push('', '**Set menus**', '');
+            lines.push('', `**${serviceOnly ? 'Packages' : 'Set menus'}**`, '');
             lines.push(table(
                 ['Package', 'Price', 'Unit', 'Minimum', 'Includes'],
                 menu.packages.map((pack) => [pack.name, pack.price, pack.unit, pack.minOrder, pack.includes.join(', ')]),
@@ -123,9 +128,16 @@ function renderBrand(brand, outFile) {
             lines.push('', `### ${heading}`, '');
             if (section.note) lines.push(`${section.note}`, '');
             if (section.items.length) {
+                // A service catalogue has no dietary marks; printing an empty
+                // column makes the register look like a restaurant menu.
+                const marks = section.items.some((item) => item.dietary.length);
                 lines.push(table(
-                    ['Item', 'Description', 'Price', 'Dietary', 'Note'],
-                    section.items.map((item) => [item.name, item.description, item.price, item.dietary.join(', '), item.note]),
+                    marks
+                        ? ['Item', 'Description', 'Price', 'Dietary', 'Note']
+                        : ['Item', 'Description', 'Price', 'Note'],
+                    section.items.map((item) => (marks
+                        ? [item.name, item.description, item.price, item.dietary.join(', '), item.note]
+                        : [item.name, item.description, item.price, item.note])),
                 ));
             }
         });

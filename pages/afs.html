@@ -113,6 +113,14 @@ dialog button.p{background:var(--ac);color:var(--onac);border:0;font-weight:600}
 #tTheme .moon{display:none}:root[data-theme=light] #tTheme .sun{display:none}:root[data-theme=light] #tTheme .moon{display:block}
 #tAudio{top:14px;right:122px}
 #audio{right:14px;width:min(392px,calc(100vw - 28px))}
+.audio-transport{display:grid;grid-template-columns:30px minmax(40px,1fr) auto;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--line);background:var(--pan)}
+.audio-transport button{width:28px;height:28px;padding:0;display:grid;place-items:center;border:1px solid var(--line);border-radius:8px;background:var(--card)}
+.audio-transport button:hover:not(:disabled){border-color:var(--ac)}
+.audio-transport button:disabled{opacity:.4;cursor:default}
+.audio-transport svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.audio-transport input{width:100%;margin:0;accent-color:var(--ac);cursor:pointer}
+.audio-transport input:disabled{cursor:default}
+.audio-transport output{min-width:76px;text-align:right;color:var(--mu);font:10px/1 ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
 #tAudio.has::after{content:"";position:absolute;top:9px;right:9px;width:6px;height:6px;border-radius:50%;background:var(--ac);box-shadow:0 0 0 2px var(--pan)}
 .cast-sum{color:var(--mu);font-size:12px;margin:0 0 10px}
 .tl{border:1px solid var(--line);border-radius:10px;background:var(--card);padding:8px 9px 6px;margin-bottom:4px;cursor:pointer}
@@ -306,6 +314,11 @@ dialog button.p{background:var(--ac);color:var(--onac);border:0;font-weight:600}
 
 <aside class="drawer" id="audio" hidden aria-label="Narration, cast and audio">
   <div class="dh"><h2>Audio<small id="audioCtx">No design selected</small></h2><button class="lnk" type="button" id="audioClose" aria-label="Close audio panel" title="Close">✕</button></div>
+  <div class="audio-transport" aria-label="Video playback timeline">
+    <button type="button" id="audioPlayback" aria-label="Play animation" aria-pressed="false" title="Play animation" disabled><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/></svg></button>
+    <input id="audioSeek" type="range" min="0" max="0" step="0.01" value="0" aria-label="Video position" aria-valuetext="0.0 of 0.0 seconds" disabled>
+    <output id="audioTime" for="audioSeek">0.0 / 0.0 s</output>
+  </div>
   <div class="db" id="audioBody"></div>
 </aside>
 
@@ -330,8 +343,8 @@ dialog button.p{background:var(--ac);color:var(--onac);border:0;font-weight:600}
   <input type="file" id="fileVid" accept="video/*" hidden>
 </aside>
 
-<button class="fab" id="replay" aria-label="Replay animation" disabled><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.5-5.8"/><path d="M4 4v4.5h4.5"/></svg></button>
-<div id="tip" role="tooltip">Replay · the canvas is always 1:1</div>
+<button class="fab" id="replay" aria-label="Play animation" aria-pressed="false" title="Play animation" disabled><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/></svg></button>
+<div id="tip" role="tooltip">Play · the canvas is always 1:1</div>
 <div id="toast" role="status" hidden></div>
 <div id="areaBanner" hidden><span>Drag a box or click an element on the canvas to select an area</span> <button type="button" id="btnCancelArea" title="Cancel area selection">✕</button></div>
 
@@ -545,8 +558,68 @@ let pend=0; function paintAll(){ if(pend) return; pend=requestAnimationFrame(()=
 
 /* ============ playback ============ */
 const dur = () => (curAnim && curAnim.duration) || (cur && cur.comp.duration) || 10000;
-function frame(now){ T=Math.min(dur(),now-tStart); paintMain(); if(T>=dur()){ playing=false; return; } raf=requestAnimationFrame(frame); }
-function play(){ if(SRC){ const v=$('#srcVideo'), img=$('#srcPoster'); img.classList.remove('on'); img.hidden=true; v.classList.add('on'); if(v.dataset.id!==SRC_KEY){v.dataset.id=SRC_KEY;v.src=SRC_VIDEO;v.poster=SRC_POSTER||'';v.load();} v.currentTime=0; v.play().catch(()=>{}); if(!AUDIO_MIX) loadAudioMix().then(()=>syncAudioMix(true)).catch(()=>{}); else syncAudioMix(true); return; } cancelAnimationFrame(raf); if(!curAnim) return; playing=true; tStart=performance.now(); raf=requestAnimationFrame(frame); }
+function audioDurationMs(){
+  const video=$('#srcVideo');
+  return SRC&&Number.isFinite(video.duration)&&video.duration>0?video.duration*1000:dur();
+}
+function syncAudioTransport(){
+  const total=audioDurationMs(), current=Math.max(0,Math.min(total,nowMs()));
+  const slider=$('#audioSeek'), playback=$('#audioPlayback'), output=$('#audioTime');
+  slider.max=(total/1000).toFixed(2);
+  if(!AUDIO_SEEKING) slider.value=(current/1000).toFixed(2);
+  slider.disabled=playback.disabled=!curAnim;
+  const value=`${(current/1000).toFixed(1)} of ${(total/1000).toFixed(1)} seconds`;
+  slider.setAttribute('aria-valuetext',value);
+  output.textContent=`${(current/1000).toFixed(1)} / ${(total/1000).toFixed(1)} s`;
+}
+function syncPlaybackButton(){
+  const active=SRC?($('#srcVideo').classList.contains('on')&&!$('#srcVideo').paused):playing;
+  for(const button of [$('#replay'),$('#audioPlayback')]){
+    button.setAttribute('aria-label',(active?'Pause':'Play')+' animation');
+    button.setAttribute('aria-pressed',String(active));
+    button.title=(active?'Pause':'Play')+' animation';
+    button.querySelector('svg').innerHTML=active
+      ? '<path d="M8 5v14M16 5v14"/>'
+      : '<path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/>';
+  }
+  $('#tip').textContent=(active?'Pause':'Play')+' · the canvas is always 1:1';
+  syncAudioTransport();
+}
+function frame(now){ T=Math.min(dur(),now-tStart); paintMain(); syncAudioTransport(); if(T>=dur()){ playing=false; syncPlaybackButton(); return; } raf=requestAnimationFrame(frame); }
+function play(){ if(SRC){ const v=$('#srcVideo'), img=$('#srcPoster'); img.classList.remove('on'); img.hidden=true; v.classList.add('on'); if(v.dataset.id!==SRC_KEY){v.dataset.id=SRC_KEY;v.src=SRC_VIDEO;v.poster=SRC_POSTER||'';v.load();} v.currentTime=0; v.play().catch(()=>{}); if(!AUDIO_MIX) loadAudioMix().then(()=>syncAudioMix(true)).catch(()=>{}); else syncAudioMix(true); return; } cancelAnimationFrame(raf); if(!curAnim) return; playing=true; tStart=performance.now(); syncPlaybackButton(); raf=requestAnimationFrame(frame); }
+function togglePlayback(){
+  if(SRC){
+    const v=$('#srcVideo');
+    if(v.paused){ if(v.ended) v.currentTime=0; v.play().catch(()=>{}); }
+    else v.pause();
+    return;
+  }
+  if(!curAnim) return;
+  if(playing){ cancelAnimationFrame(raf); playing=false; }
+  else { if(T>=dur()) T=0; playing=true; tStart=performance.now()-T; raf=requestAnimationFrame(frame); }
+  syncPlaybackButton();
+}
+$('#audioPlayback').onclick=togglePlayback;
+$('#audioSeek').onpointerdown=()=>{ AUDIO_SEEKING=true; };
+$('#audioSeek').onpointerup=()=>{ AUDIO_SEEKING=false; syncAudioTransport(); };
+$('#audioSeek').onpointercancel=()=>{ AUDIO_SEEKING=false; syncAudioTransport(); };
+$('#audioSeek').onkeydown=event=>{ if(['ArrowLeft','ArrowRight','Home','End','PageUp','PageDown'].includes(event.key)) AUDIO_SEEKING=true; };
+$('#audioSeek').onkeyup=()=>{ AUDIO_SEEKING=false; syncAudioTransport(); };
+$('#audioSeek').onblur=()=>{ AUDIO_SEEKING=false; syncAudioTransport(); };
+$('#audioSeek').oninput=()=>{
+  const ms=Math.max(0,Math.min(audioDurationMs(),Number($('#audioSeek').value)*1000));
+  if(SRC){
+    const video=$('#srcVideo');
+    if(video.classList.contains('on')) video.currentTime=ms/1000;
+  }else if(curAnim){
+    cancelAnimationFrame(raf);
+    T=Math.min(dur(),ms);
+    if(playing&&T<dur()) tStart=performance.now()-T;
+    else { playing=false; paintMain(); }
+    if(playing&&T<dur()) raf=requestAnimationFrame(frame);
+  }
+  syncPlaybackButton();
+};
 
 /* Export exactly what the canvas shows, at the current format, as WebM. */
 async function exportVideo(){
@@ -596,8 +669,8 @@ async function exportVideo(){
   finally{ btn.disabled = !cur; }
 }
 function showTip(){ const t=$('#tip'); t.classList.add('on'); setTimeout(()=>t.classList.remove('on'),4200); }
-$('#replay').onclick = play;
-cv.onclick = () => { if(AREA_MODE||!curAnim) return; if(playing){ cancelAnimationFrame(raf); playing=false; } else if(T>=dur()) play(); else { tStart=performance.now()-T; playing=true; raf=requestAnimationFrame(frame); } };
+$('#replay').onclick = togglePlayback;
+cv.onclick = () => { if(AREA_MODE||!curAnim) return; togglePlayback(); };
 
 /* ============ designs panel ============ */
 const panel = $('#panel');
@@ -689,7 +762,7 @@ function deleteMenuVariation(event,item){
   cur.anims=cur.anims.filter(a=>a!==item);
   const store=LS.get('sa.anims',{}); if(store[cur.id]){store[cur.id]=store[cur.id].filter(a=>a.id!==item.data.id);LS.set('sa.anims',store);}
   if(cur.fromLib) fetch('api/library/animations/'+encodeURIComponent(item.data.id)+'?designId='+encodeURIComponent(cur.id),{method:'DELETE'}).catch(()=>{});
-  if(curAnim===item.data){curAnim=null;cur.comp=cur.baseComp||cur.comp;showSource(true,false);if(!audioEl.hidden)renderAudio();renderPanel();paintMain();}
+  if(curAnim===item.data){cancelAnimationFrame(raf);playing=false;curAnim=null;cur.comp=cur.baseComp||cur.comp;$('#replay').disabled=true;showSource(true,false);syncPlaybackButton();if(!audioEl.hidden)renderAudio();renderPanel();paintMain();}
   else renderPanel();
   toast('Menu variation deleted.');
 }
@@ -767,7 +840,7 @@ function renderPanel(){
       g.append(mk('button',{className:'card',onclick:()=>selectDesign(d)},c,mk('b',{},dTitle(d)),mk('small',{},`${d.src}${d.status&&d.status!=='ready'?' · '+d.status:''} · ${d.anims.length} animation${d.anims.length===1?'':'s'}`))); });
     paintThumbs(); return;
   }
-  panel.append(mk('div',{className:'dh'},mk('div',{},mk('h2',{},dTitle(cur)),mk('small',{},cur.comp.name.split(' — ')[0])),mk('button',{className:'lnk',onclick:()=>{cur=null;curAnim=null;SRC=false;SRC_VIDEO='';SRC_POSTER='';SRC_KEY='';stopAudioMix();$('#srcVideo').classList.remove('on');$('#srcVideo').pause();$('#srcPoster').classList.remove('on');$('#srcPoster').hidden=true;$('#cv').hidden=false;cancelAnimationFrame(raf);fmtOpen=false;ctxLbl();paintMain();$('#replay').disabled=true;$('#tExport').disabled=true;$('#tAudio').disabled=true;openAudio(false);markAudioHas(false);renderPanel();}},'← Designs')));
+  panel.append(mk('div',{className:'dh'},mk('div',{},mk('h2',{},dTitle(cur)),mk('small',{},cur.comp.name.split(' — ')[0])),mk('button',{className:'lnk',onclick:()=>{cur=null;curAnim=null;SRC=false;SRC_VIDEO='';SRC_POSTER='';SRC_KEY='';stopAudioMix();$('#srcVideo').classList.remove('on');$('#srcVideo').pause();$('#srcPoster').classList.remove('on');$('#srcPoster').hidden=true;$('#cv').hidden=false;cancelAnimationFrame(raf);playing=false;fmtOpen=false;ctxLbl();paintMain();$('#replay').disabled=true;syncPlaybackButton();$('#tExport').disabled=true;$('#tAudio').disabled=true;openAudio(false);markAudioHas(false);renderPanel();}},'← Designs')));
   const body = mk('div',{className:'db'}); panel.append(body);
   const fm = FORMATS.find(f=>f.id===fmt);
   if(!fmtOpen){
@@ -816,7 +889,7 @@ function showSource(on, playIt=false, source=null){
   SRC_POSTER = SRC ? poster : '';
   SRC_KEY = SRC ? key : '';
   const v=$('#srcVideo'), img=$('#srcPoster'), c=$('#cv');
-  if(!SRC){ stopAudioMix(); v.pause(); v.classList.remove('on'); img.classList.remove('on'); img.hidden=true; c.hidden=false; return; }
+  if(!SRC){ stopAudioMix(); v.pause(); v.classList.remove('on'); img.classList.remove('on'); img.hidden=true; c.hidden=false; syncPlaybackButton(); return; }
   c.hidden=true;
   if(playIt){
     img.classList.remove('on'); img.hidden=true;
@@ -826,9 +899,9 @@ function showSource(on, playIt=false, source=null){
     v.pause(); v.classList.remove('on');
     img.src=(poster||'')+(poster?('?v='+Date.now()):''); img.hidden=false; img.classList.add('on');
   }
-  syncAudioMix();
+  syncAudioMix(); syncPlaybackButton();
 }
-function selectDesign(d){ SEL=new Set(); cur=d; cur.comp=d.baseComp||d.comp; curAnim=null; fmt='orig'; fmtOpen=false; T=0; $('#tExport').disabled=false; $('#tAudio').disabled=false; showSource(true,false); fontFor(d.comp); d.comp.layers.forEach(l=>l.url&&getImg(l.url)); ctxLbl(); paintMain(); renderPanel(); renderGroups(); loadLib(d); markAudioHas(false); if(!audioEl.hidden) renderAudio(); else narrationFor(d.id).then(narration=>{ if(cur&&cur.id===d.id) markAudioHas(!!narration); }).catch(()=>{}); }
+function selectDesign(d){ cancelAnimationFrame(raf); playing=false; SEL=new Set(); cur=d; cur.comp=d.baseComp||d.comp; curAnim=null; fmt='orig'; fmtOpen=false; T=0; $('#replay').disabled=true; $('#tExport').disabled=false; $('#tAudio').disabled=false; showSource(true,false); syncPlaybackButton(); fontFor(d.comp); d.comp.layers.forEach(l=>l.url&&getImg(l.url)); ctxLbl(); paintMain(); renderPanel(); renderGroups(); loadLib(d); markAudioHas(false); if(!audioEl.hidden) renderAudio(); else narrationFor(d.id).then(narration=>{ if(cur&&cur.id===d.id) markAudioHas(!!narration); }).catch(()=>{}); }
 function selectAnim(a){ if(!a.data.byId) a.data=prep(a.data); curAnim=a.data; cur.comp=a.data.menu&&a.data.menu.overrides?applyMenuOverrides(cur.baseComp||cur.comp,a.data.menu.overrides):(cur.baseComp||cur.comp); $('#replay').disabled=false; renderPanel(); const source=a.data.sourceVideo?{video:a.data.sourceVideo,poster:a.data.sourcePoster||cur.sourcePoster,key:a.data.id||('anim-'+cur.id)}:null; if(source) showSource(true,true,source); else if(a.data.origin==='original') showSource(true,true); else { showSource(false); play(); } loadAudioMix().then(()=>syncAudioMix(true)).catch(()=>{}); if(!audioEl.hidden) renderAudio(); showTip(); if(innerWidth-Math.min(innerWidth,innerHeight)<2*346) openPanel(false); }
 
 /* ============ library: groups + clips ============ */
@@ -1330,6 +1403,7 @@ function openAudio(on){
   $('#tAudio').setAttribute('aria-expanded',String(show));
   if(!show) return;
   chat.hidden=true; $('#tAsk').setAttribute('aria-expanded','false');
+  syncPlaybackButton();
   renderAudio();
 }
 function resetAudioState(designId){
@@ -1630,11 +1704,12 @@ function ensureAudioNarration(){
   AUDIO_NARR_REQ=narrationFor(key).then(n=>{ if(n) AUDIO_NARRATION=n; }).catch(()=>{}).finally(()=>{ AUDIO_NARR_REQ=null; });
 }
 const srcVideoEl=$('#srcVideo');
-srcVideoEl.addEventListener('play',()=>{ ensureAudioNarration(); startAudioMix(); });
-srcVideoEl.addEventListener('pause',()=>{ stopAudioMix(); });
-srcVideoEl.addEventListener('seeked',()=>{ if(!srcVideoEl.paused) syncAudioMix(true); });
-srcVideoEl.addEventListener('timeupdate',()=>{ if(!srcVideoEl.paused) syncAudioMix(); });
-srcVideoEl.addEventListener('ended',()=>{ stopAudioMix(); });
+srcVideoEl.addEventListener('play',()=>{ syncPlaybackButton(); ensureAudioNarration(); startAudioMix(); });
+srcVideoEl.addEventListener('pause',()=>{ syncPlaybackButton(); stopAudioMix(); });
+srcVideoEl.addEventListener('loadedmetadata',syncAudioTransport);
+srcVideoEl.addEventListener('seeked',()=>{ syncAudioTransport(); if(!srcVideoEl.paused) syncAudioMix(true); });
+srcVideoEl.addEventListener('timeupdate',()=>{ syncAudioTransport(); if(!srcVideoEl.paused) syncAudioMix(); });
+srcVideoEl.addEventListener('ended',()=>{ syncPlaybackButton(); stopAudioMix(); });
 musicEl.addEventListener('error',()=>{ if(musicTrack()) toast('The music track could not be loaded.','err'); });
 
 function downloadUrl(url,name){ const a=document.createElement('a'); a.href=url; a.download=name; document.body.append(a); a.click(); a.remove(); }
@@ -1642,22 +1717,41 @@ async function exportSource(){
   if(!SRC_VIDEO) return;
   const safe=s=>String(s||'').normalize('NFKD').replace(/[^A-Za-z0-9]+/g,'-').replace(/^-+|-+$/g,'').toLowerCase()||'cut';
   const base=safe(cur.id)+'-'+safe(curAnim?animLabel(curAnim,cur):'original');
-  const m=currentAudio().music;
-  const voNote=(currentAudio().script.lines||[]).some(l=>l.audio)?' Voice-over lines you added are not in this file yet.':'';
-  if(m.enabled&&m.url){
-    if(m.url.startsWith('blob:')){ toast('This track is local to the session. Start the studio server so it can be saved before exporting.','err'); return; }
-    toast('Mixing the music bed…');
+  const cfg=currentAudio(), m=cfg.music;
+  const voiceLines=(cfg.script.lines||[]).filter(line=>line.audio&&line.audio.url);
+  for(const line of voiceLines){
+    if(!line.audio.url.startsWith('blob:')) continue;
+    if(!SESSION_BLOBS.has(line.audio.url)){ toast('A voice-over file is no longer available in this session.','err'); return; }
     try{
-      const r=await fetch(`${API}/library/audio/render`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({designId:cur.id,animationId:audioAnimId()})});
-      const j=await r.json().catch(()=>({}));
-      if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
-      downloadUrl(j.url,base+'-mix.webm');
-      toast('Exported with music.'+voNote);
-      return;
-    }catch(err){ toast('The mix could not be rendered: '+err.message,'err'); return; }
+      const response=await fetch(line.audio.url);
+      if(!response.ok) throw new Error('The saved browser audio could not be read.');
+      const stored=await storeAudioBlob(await response.blob(),line.audio.name||`vo-${line.id}.mp3`);
+      if(!stored.saved) throw new Error('Voice-over files must be uploaded to the studio server before they can be included in an export.');
+      const previousUrl=line.audio.url;
+      line.audio.url=stored.url; line.audio.durationMs=stored.durationMs||line.audio.durationMs;
+      URL.revokeObjectURL(previousUrl); SESSION_BLOBS.delete(previousUrl);
+    }catch(error){ toast(error.message,'err'); return; }
   }
-  downloadUrl(SRC_VIDEO,base+'.webm');
-  toast('Source video exported.'+voNote);
+  if(voiceLines.some(line=>line.audio.url.startsWith('blob:'))){
+    toast('Voice-over files must be uploaded to the studio server before they can be included in an export.','err');
+    return;
+  }
+  const renderAudio=(m.enabled&&m.url)||voiceLines.length||cfg.narration.muted;
+  if(!renderAudio){
+    downloadUrl(SRC_VIDEO,base+'.webm');
+    toast('Source video exported.');
+    return;
+  }
+  if(m.enabled&&m.url&&m.url.startsWith('blob:')){ toast('This track is local to the session. Start the studio server so it can be saved before exporting.','err'); return;   }
+  if(voiceLines.length) saveAudioMix();
+  toast('Mixing audio…');
+  try{
+    const r=await fetch(`${API}/library/audio/render`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({designId:cur.id,animationId:audioAnimId(),config:cfg})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
+    downloadUrl(j.url,base+'-mix.webm');
+    toast('Exported with audio.');
+  }catch(err){ toast('The audio could not be mixed: '+err.message,'err'); }
 }
 function probeAudioDuration(url){
   return new Promise(resolve=>{ const a=document.createElement('audio'); a.preload='metadata'; a.onloadedmetadata=()=>resolve(Math.round((a.duration||0)*1000)); a.onerror=()=>resolve(0); a.src=url; });
@@ -1779,7 +1873,7 @@ $('#audioClose').onclick=()=>{ openAudio(false); $('#tAudio').focus(); };
    Authored script lives inside the per-cut audio config (cfg.script), so it is saved
    together with the mix: { lines:[{id,voiceId,speaker,text,startMs,audio:{url,durationMs,source:'tts'|'upload',name,voiceId,key}}] }.
    The user only picks an already-designed voice and generates; voice design lives elsewhere. */
-let AUDIO_TAB='cast', FOLLOW_LIVE=-2, MIX_LOADING=false, VO_PREVIEW=null;
+let AUDIO_TAB='cast', FOLLOW_LIVE=-2, MIX_LOADING=false, VO_PREVIEW=null, AUDIO_SEEKING=false;
 const SESSION_BLOBS=new Set(), VO_AUDIO=new Map(), LINE_UI=new Map();
 const TTS_PREFERENCE_KEY='afs.tts.voice';
 const TTS={voices:[],defaultId:'',loaded:false,loading:false,error:''};
@@ -1816,7 +1910,7 @@ function refreshLineStatuses(){ LINE_UI.forEach(u=>u.refresh()); }
 function seekAudio(ms){
   ms=Math.max(0,Number(ms)||0);
   if(SRC){ const v=$('#srcVideo'); if(!v.classList.contains('on')) play(); v.currentTime=ms/1000; v.play().catch(()=>{}); }
-  else if(curAnim){ cancelAnimationFrame(raf); T=Math.min(dur(),ms); playing=true; tStart=performance.now()-T; raf=requestAnimationFrame(frame); }
+  else if(curAnim){ cancelAnimationFrame(raf); T=Math.min(dur(),ms); playing=true; tStart=performance.now()-T; syncPlaybackButton(); raf=requestAnimationFrame(frame); }
   else toast('Select a cut to play it.','err');
 }
 function followAudio(t,on){
@@ -2108,7 +2202,7 @@ window.__agentFirstQA = {
   select: (id) => { const d = DESIGNS.find(x => x.id === id); if (!d) return false; selectDesign(d); return true; },
   anim: (id) => { if (!cur) return false; const a = cur.anims.find(x => x.id === id || x.data.id === id); if (!a) return false; selectAnim(a); return true; },
   context: () => ctxWithLib(),
-  seek: (t) => { playing=false; cancelAnimationFrame(raf); T=Math.max(0,Math.min(dur(),Number(t)||0)); paintMain(); return T; },
+  seek: (t) => { playing=false; cancelAnimationFrame(raf); T=Math.max(0,Math.min(dur(),Number(t)||0)); syncPlaybackButton(); paintMain(); return T; },
   state: () => ({design:cur&&cur.id,animation:curAnim&&curAnim.name,T,cvHidden:$('#cv').hidden,posterHidden:$('#srcPoster').hidden,src:SRC,audioOpen:!audioEl.hidden}),
   audio: (on=true) => { openAudio(!!on); return !audioEl.hidden; },
   narration: async () => cur ? narrationFor(cur.id) : null,

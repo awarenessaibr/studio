@@ -35,7 +35,10 @@ const { generateSegmentTexture } = require('./src/server/segment-texture.js');
 const AgentLibrary = require('./src/server/agent-library.js');
 const LibraryService = require('./src/server/library-service.js');
 const SegmentLibrary = require('./src/server/segment-library.js');
+const SceneLibrary = require('./src/server/scene-library.js');
 const AgentFirstPrompt = require('./src/server/agent-first-prompt.js');
+const StudioBuilder = require('./src/server/studio-builder.js');
+const ProjectCanvas = require('./src/server/project-canvas.js');
 
 // Load local API keys (SERPAPI_KEY, GOOGLE_PLACES_API_KEY, …) from .env.
 // The crawler children inherit process.env, so this is the only place keys
@@ -59,6 +62,8 @@ const STUDIO_ANIMATION_LIBRARY_FILE = path.join(SETTINGS_DIR, 'studio-animation-
 const AGENT_CANVAS_ANIMATIONS_FILE = path.join(SETTINGS_DIR, 'agent-canvas-animations.json');
 const AGENT_LIBRARY_FILE = path.join(SETTINGS_DIR, 'agent-library.json');
 const LIBRARY_DIR = path.join(DATA_DIR, 'library');
+const STUDIO_BUILDER_DIR = path.join(DATA_DIR, 'studio-builder');
+const STUDIO_BUILDER_PAGES_DIR = path.join(STUDIO_BUILDER_DIR, 'pages');
 const STUDIO_PROJECT_ARCHIVE_FILE = path.join(SETTINGS_DIR, 'studio-project-archive.json');
 // The management UI is a developer surface. With a key configured, every
 // admin call must present it; without one, only loopback callers are allowed.
@@ -1475,12 +1480,20 @@ async function listStudioProjects() {
             const match = file.isFile() && file.name.match(/^([A-Za-z0-9_-]{1,80})\.composition\.json$/);
             if (!match) continue;
             try {
-                const composition = JSON.parse(await fsp.readFile(path.join(compositionsDir, file.name), 'utf8'));
+                const editableName = `${match[1]}.editable.json`;
+                const editable = files.some((entry) => entry.isFile() && entry.name === editableName);
+                const sourceFile = editable ? editableName : file.name;
+                const composition = JSON.parse(await fsp.readFile(path.join(compositionsDir, sourceFile), 'utf8'));
                 compositionIds.add(match[1]);
                 compositions.push({
                     id: match[1],
                     name: composition.name || match[1],
                     kind: 'repository',
+                    editable,
+                    layerCount: Array.isArray(composition.layers) ? composition.layers.length : 0,
+                    width: Number(composition.width) || 0,
+                    height: Number(composition.height) || 0,
+                    duration: Number(composition.duration) || 0,
                 });
             } catch (error) {
                 console.warn(`[studio] could not read composition ${entry.name}/${file.name}:`, error.message);
@@ -2355,7 +2368,12 @@ function normaliseAgentFirstResponse(content, messages) {
     return JSON.stringify(parsed);
 }
 
-async function runAgentFirstChat(payload) {
+/**
+ * Resolve the provider/model pair for every agent chat surface. Keeping this in
+ * one place means Agent First, Agent Canvas and Studio Builder share the same
+ * server-side credential rules.
+ */
+async function resolveAgentChatModel(payload = {}) {
     const requested = String(payload.provider || '');
     const catalog = await getAgentFirstProviderCatalog();
     const provider = ['ollama', 'deepseek'].includes(requested) ? requested : catalog.defaultProvider;
@@ -2370,6 +2388,11 @@ async function runAgentFirstChat(payload) {
         model = resolveModelId(payload.model, llm.defaults.text, llm.models) || llm.defaults.text || llm.models[0]?.id;
         if (!model) throw httpError(503, 'No Ollama model is installed.');
     }
+    return { provider, model };
+}
+
+async function runAgentFirstChat(payload) {
+    const { provider, model } = await resolveAgentChatModel(payload);
     const messages = (Array.isArray(payload.messages) ? payload.messages : [])
         .filter((message) => message && message.role !== 'system')
         .map((message) => {
@@ -2387,6 +2410,317 @@ async function runAgentFirstChat(payload) {
     const content = result?.message?.content;
     if (typeof content !== 'string' || !content.trim()) throw httpError(502, 'The model returned an empty response.');
     return { ok: true, provider, model, content: normaliseAgentFirstResponse(content, messages) };
+}
+
+/**
+ * The project canvas agent replies with one JSON document per turn (see
+ * src/server/project-canvas.js for the contract). DeepSeek runs with
+ * response_format json_object; Ollama is asked for JSON format. Both share the
+ * same server-owned prompt, so the provider never changes what the agent may do.
+ */
+async function generateProjectCanvasText(provider, model, messages) {
+    const result = provider === 'deepseek'
+        ? await callDeepSeek(model, messages, { timeoutMs: 90_000 })
+        : await callOllama(model, messages, {
+            temperature: 0.25,
+            numPredict: 4000,
+            numCtx: 24576,
+            think: false,
+            timeoutMs: 120_000,
+        });
+    const content = result?.message?.content;
+    if (typeof content !== 'string' || !content.trim()) {
+        throw httpError(502, 'The project agent returned an empty response.');
+    }
+    return content;
+}
+
+/**
+ * Studio Builder — the builder-specific model fallback.
+ *
+ * The page's local rule engine stays first. When it cannot parse a request it
+ * posts to the Agent First proxy with `mode: "studio-builder"`. The server owns
+ * the prompt and validates every returned action against the capability
+ * catalog, so a model cannot invent a module id or a region.
+ */
+async function runStudioBuilderChat(payload) {
+    const catalog = StudioBuilder.readCatalog();
+    const request = StudioBuilder.normaliseAgentRequest(payload, catalog);
+    const { provider, model } = await resolveAgentChatModel(payload);
+    const messages = StudioBuilder.buildAgentMessages(request, catalog);
+    const result = provider === 'deepseek'
+        ? await callDeepSeek(model, messages, { timeoutMs: 90_000 })
+        : await callOllama(model, messages, {
+            temperature: 0.2,
+            numPredict: 1800,
+            numCtx: 8192,
+            think: false,
+            timeoutMs: 90_000,
+        });
+    const content = result?.message?.content;
+    if (typeof content !== 'string' || !content.trim()) {
+        throw httpError(502, 'The model returned an empty Studio Builder response.');
+    }
+    const parsed = extractJsonObject(content);
+    const response = StudioBuilder.normaliseAgentResponse(parsed || content, catalog, request.layout);
+    return { ok: true, provider, model, ...response };
+}
+
+/**
+ * A read-only preview hint for the Agent First surface. The page exposes
+ * `window.__agentFirstQA.select(id)`, so Studio Builder can open a real design
+ * instead of the empty canvas that greets a first visit.
+ */
+async function readStudioBuilderLibrary() {
+    const file = path.join(LIBRARY_DIR, 'index.json');
+    const parsed = JSON.parse(await fsp.readFile(file, 'utf8'));
+    const designs = Array.isArray(parsed.designs) ? parsed.designs : [];
+    const usable = designs.filter((design) => design
+        && design.status === 'ready'
+        && Array.isArray(design.animations)
+        && design.animations.some((animation) => animation && animation.status !== 'broken'));
+    const first = usable.find((design) => design.thumbnail) || usable[0] || null;
+    return {
+        count: designs.length,
+        ready: designs.filter((design) => design.status === 'ready').length,
+        firstDesign: first ? {
+            id: first.id,
+            name: first.name,
+            brandId: first.brandId || null,
+            width: first.width || null,
+            height: first.height || null,
+            status: first.status || null,
+        } : null,
+    };
+}
+
+/**
+ * The capability catalog endpoint. This is deliberately available without the
+ * LLM catalogue: the page must load even when Ollama and DeepSeek are offline.
+ * Live counts come from the same stores the studio surfaces use.
+ */
+async function buildStudioBuilderCatalog() {
+    const catalog = StudioBuilder.readCatalog();
+    const [packs, fonts, animations, assets, library] = await Promise.all([
+        listBrandPacks().catch(() => []),
+        listFonts().catch(() => []),
+        readStudioAnimationLibrary().catch(() => ({ animations: [] })),
+        AssetStore.assetHealth().catch(() => ({ total: 0, verified: 0 })),
+        readStudioBuilderLibrary().catch(() => null),
+    ]);
+    let segments = null;
+    try {
+        const index = await SegmentLibrary.readIndex(LIBRARY_DIR);
+        const summary = SegmentLibrary.summary(index);
+        segments = {
+            counts: summary.counts || null,
+            categories: Array.isArray(summary.categories) ? summary.categories.length : 0,
+            motions: Array.isArray(summary.motions) ? summary.motions.length : 0,
+            generatedAt: summary.generatedAt || null,
+        };
+    } catch (error) {
+        segments = { error: error.status === 503 ? error.message : 'The segment library is unavailable.' };
+    }
+    const firstPack = packs.find((pack) => Array.isArray(pack.brands) && pack.brands.length);
+    const firstBrand = firstPack ? firstPack.brands[0] : null;
+    return {
+        ...catalog,
+        source: 'server',
+        startPages: StudioBuilder.startPages(catalog),
+        live: {
+            generatedAt: new Date().toISOString(),
+            brandPacks: {
+                count: packs.length,
+                items: packs.slice(0, 12).map((pack) => ({
+                    id: pack.id,
+                    name: pack.name,
+                    brandCount: pack.brandCount || (pack.brands || []).length,
+                    brands: (pack.brands || []).slice(0, 8).map((brand) => ({
+                        id: brand.id,
+                        name: brand.name,
+                        swatches: brand.swatches || [],
+                    })),
+                })),
+                firstBrand: firstBrand ? {
+                    packId: firstPack.id,
+                    brandId: firstBrand.id,
+                    name: firstBrand.name,
+                    packName: firstPack.name,
+                } : null,
+            },
+            fonts: { count: fonts.length },
+            animations: { count: Array.isArray(animations.animations) ? animations.animations.length : 0 },
+            assets: {
+                total: Number(assets.total) || 0,
+                verified: Number(assets.verified) || 0,
+            },
+            library,
+            segments,
+        },
+    };
+}
+
+/* ------------------------------------------------------------------------- */
+/* Studio Builder deployments                                                 */
+/* ------------------------------------------------------------------------- */
+
+function builderPageDir(id) {
+    if (!StudioBuilder.PAGE_ID.test(String(id || ''))) {
+        throw httpError(400, 'A valid deployed page id is required.');
+    }
+    const root = path.resolve(STUDIO_BUILDER_PAGES_DIR);
+    const dir = path.resolve(root, id);
+    if (!dir.startsWith(root + path.sep)) throw httpError(400, 'A valid deployed page id is required.');
+    return dir;
+}
+
+function builderPageSummary(record) {
+    return {
+        id: record.id,
+        name: record.name,
+        description: record.description || '',
+        createdAt: record.createdAt,
+        updatedAt: record.updatedAt || record.createdAt,
+        url: `/built/${record.id}`,
+        surfaceUrl: `/built/${record.id}/surface`,
+        basePage: record.basePage,
+        baseLabel: record.baseLabel,
+        baseSource: record.baseSource,
+        surfaceId: record.surfaceId,
+        surfaceLabel: record.surfaceLabel,
+        surface: record.surfaceUrl,
+        moduleCount: Object.values(record.layout || {}).reduce((total, list) => total + (Array.isArray(list) ? list.length : 0), 0),
+        planCount: Array.isArray(record.plan) ? record.plan.length : 0,
+        layout: record.layout,
+        sizes: record.sizes,
+    };
+}
+
+function renderSurfaceRedirect(record) {
+    let target = record.surfaceUrl || record.basePage || '/studio-v2.html';
+    try {
+        const url = new URL(target, 'http://studio.local');
+        if (record.surfaceQuery) {
+            for (const [key, value] of new URLSearchParams(record.surfaceQuery)) url.searchParams.set(key, value);
+        }
+        if (record.id) url.searchParams.set('deployed', record.id);
+        target = `${url.pathname}${url.search}`;
+    } catch {
+        target = record.basePage || '/studio-v2.html';
+    }
+    const safe = escapeHtmlAttribute(target);
+    return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${escapeHtmlText(record.name)} · surface</title>
+<meta http-equiv="refresh" content="0;url=${safe}">
+<link rel="canonical" href="${safe}">
+</head>
+<body>
+<p>Opening the live surface…</p>
+<p><a href="${safe}">Open ${escapeHtmlText(record.surfaceLabel || record.baseLabel || 'the surface')}</a></p>
+<script>location.replace(${JSON.stringify(target).replace(/</g, '\\u003c')});</script>
+</body>
+</html>
+`;
+}
+
+function escapeHtmlText(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, (character) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[character]));
+}
+
+function escapeHtmlAttribute(value) {
+    return escapeHtmlText(value);
+}
+
+async function deployStudioBuilderPage(payload) {
+    const catalog = StudioBuilder.readCatalog();
+    const request = StudioBuilder.normaliseDeployRequest(payload, catalog);
+    const stamp = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14);
+    const suffix = crypto.randomBytes(2).toString('hex');
+    const id = `${StudioBuilder.pageSlug(request.name)}-${stamp}-${suffix}`.slice(0, 80);
+    const createdAt = new Date().toISOString();
+    const record = {
+        ...request,
+        id,
+        createdAt,
+        updatedAt: createdAt,
+    };
+    const dir = builderPageDir(id);
+    const html = StudioBuilder.renderDeployedPage(record, catalog);
+    const redirect = renderSurfaceRedirect(record);
+    await fsp.mkdir(dir, { recursive: true });
+    try {
+        await writeFileAtomic(path.join(dir, 'index.html'), html);
+        await writeFileAtomic(path.join(dir, 'surface.html'), redirect);
+        await writeFileAtomic(path.join(dir, 'page.json'), JSON.stringify(record, null, 2));
+    } catch (error) {
+        await fsp.rm(dir, { recursive: true, force: true }).catch(() => {});
+        throw error;
+    }
+    return { ok: true, page: builderPageSummary(record) };
+}
+
+async function listStudioBuilderPages() {
+    let entries;
+    try {
+        entries = await fsp.readdir(STUDIO_BUILDER_PAGES_DIR, { withFileTypes: true });
+    } catch (error) {
+        if (error.code === 'ENOENT') return { pages: [] };
+        throw error;
+    }
+    const pages = [];
+    for (const entry of entries) {
+        if (!entry.isDirectory() || !StudioBuilder.PAGE_ID.test(entry.name)) continue;
+        try {
+            const parsed = JSON.parse(await fsp.readFile(path.join(STUDIO_BUILDER_PAGES_DIR, entry.name, 'page.json'), 'utf8'));
+            if (!parsed || parsed.schema !== StudioBuilder.PAGE_SCHEMA) continue;
+            parsed.id = entry.name;
+            pages.push(builderPageSummary(parsed));
+        } catch {
+            // A corrupt page must not hide the others.
+        }
+    }
+    pages.sort((a, b) => String(b.updatedAt || b.createdAt).localeCompare(String(a.updatedAt || a.createdAt)));
+    return { pages: pages.slice(0, 120) };
+}
+
+async function readStudioBuilderPage(id) {
+    const dir = builderPageDir(id);
+    let raw;
+    try {
+        raw = await fsp.readFile(path.join(dir, 'page.json'), 'utf8');
+    } catch (error) {
+        if (error.code === 'ENOENT') throw httpError(404, 'Deployed page not found.');
+        throw error;
+    }
+    let parsed;
+    try {
+        parsed = JSON.parse(raw);
+    } catch {
+        throw httpError(500, 'The deployed page metadata is not valid JSON.');
+    }
+    if (!parsed || parsed.schema !== StudioBuilder.PAGE_SCHEMA) {
+        throw httpError(500, 'The deployed page metadata has an unknown schema.');
+    }
+    parsed.id = id;
+    return parsed;
+}
+
+async function deleteStudioBuilderPage(id) {
+    await readStudioBuilderPage(id);
+    await fsp.rm(builderPageDir(id), { recursive: true, force: true });
+    return { ok: true, id };
+}
+
+function builderPublicFile(pathname) {
+    const match = pathname.match(/^\/built\/([a-z0-9][a-z0-9-]{0,80})(?:\/(surface))?\/?$/);
+    if (!match) return null;
+    return path.join(STUDIO_BUILDER_PAGES_DIR, match[1], match[2] ? 'surface.html' : 'index.html');
 }
 
 async function getAnimationDirectorCatalog() {
@@ -2637,6 +2971,7 @@ async function callOllama(model, messages, {
     numPredict = 1400,
     numCtx = 16384,
     think = null,
+    timeoutMs = PROPOSAL_TIMEOUT,
 } = {}) {
     const status = await detectOllama();
     if (!status.url) throw httpError(503, status.error);
@@ -2657,13 +2992,13 @@ async function callOllama(model, messages, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
-        }, PROPOSAL_TIMEOUT);
+        }, timeoutMs);
     } catch (error) {
         throw httpError(502, `The local LLM request failed: ${error.message}`);
     }
 }
 
-async function callOpenAICompatible(model, messages, config = {}) {
+async function callOpenAICompatible(model, messages, config = {}, { timeoutMs = PROPOSAL_TIMEOUT } = {}) {
     const apiKey = config.apiKey ?? process.env.STUDIO_OPENAI_API_KEY?.trim();
     const configuredModel = config.model ?? process.env.STUDIO_OPENAI_MODEL?.trim();
     if (!apiKey || !configuredModel || configuredModel !== model) {
@@ -2698,7 +3033,7 @@ async function callOpenAICompatible(model, messages, config = {}) {
                 temperature: 0.2,
                 response_format: { type: 'json_object' },
             }),
-        }, PROPOSAL_TIMEOUT);
+        }, timeoutMs);
         const content = result?.choices?.[0]?.message?.content;
         if (typeof content !== 'string' || !content.trim()) {
             throw new Error('The remote model returned an empty response.');
@@ -2709,13 +3044,13 @@ async function callOpenAICompatible(model, messages, config = {}) {
     }
 }
 
-async function callDeepSeek(model, messages) {
+async function callDeepSeek(model, messages, options = {}) {
     const config = getDeepSeekDirectorConfig();
     if (!config.available) throw httpError(503, config.error);
     if (model !== config.model) {
         throw httpError(400, 'The selected DeepSeek model is not configured on the studio server.');
     }
-    return callOpenAICompatible(model, messages, config);
+    return callOpenAICompatible(model, messages, config, options);
 }
 
 function extractJsonObject(text) {
@@ -4133,6 +4468,31 @@ async function brandFromDirectory(options) {
         }
     }
 
+    // Source documents (PDFs, saved page transcripts) travel with the pack so
+    // `content.documents[]` does not dangle after a re-import. They are not
+    // brand assets, so they do not consume the image budget or the asset list.
+    const documentFiles = inDir.filter((file) => {
+        const relative = relativeToBrand(file);
+        if (/(^|\/)social\//i.test(relative)) return false;
+        return /^(?:[^/]+\/)?documents\//i.test(relative)
+            && /\.(?:pdf|docx?|xlsx?|csv|txt|md)$/i.test(relative);
+    });
+    for (const file of documentFiles) {
+        const relative = relativeToBrand(file);
+        try {
+            const buffer = extractZipEntry(zipBuffer, file.entry);
+            if (buffer.length > MAX_BRAND_ASSET_BYTES) {
+                warnings.push(`Skipped ${fileNameForWarning(file.relative)}: the document exceeds 40 MB.`);
+                continue;
+            }
+            chargeBrandBudget(budget, buffer.length);
+            const stored = await writeBrandAsset(filesDir, id, relative, buffer);
+            if (!stored) warnings.push(`Skipped ${file.relative}: unsafe file name.`);
+        } catch (error) {
+            warnings.push(`Could not extract ${file.relative}: ${error.message}`);
+        }
+    }
+
     // Assets.
     const logos = [];
     const photography = [];
@@ -5380,9 +5740,9 @@ function analysisUnavailable(reason) {
 }
 
 
-// ─── Library audio: narration level, background music, mix render ───────
+// ─── Library audio: narration level, voice-over and music mix render ───
 const AUDIO_DIR = path.join(LIBRARY_DIR, 'audio');
-const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.m4a', '.aac', '.ogg', '.opus', '.flac']);
+const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.m4a', '.aac', '.ogg', '.opus', '.flac', '.webm']);
 const MAX_AUDIO_BYTES = 60 * 1024 * 1024;
 
 function audioSlug(value, max = 60) {
@@ -5409,11 +5769,34 @@ function normaliseAudioMix(config, fallbackDuration = 0) {
     const raw = config && typeof config === 'object' ? config : {};
     const narration = raw.narration && typeof raw.narration === 'object' ? raw.narration : {};
     const music = raw.music && typeof raw.music === 'object' ? raw.music : {};
+    const script = raw.script && typeof raw.script === 'object' ? raw.script : {};
     const url = String(music.url || '');
     const file = audioFileFromUrl(url);
     const endDefault = Math.round(clamp(fallbackDuration, 0, 4 * 60 * 60 * 1000, 0));
     const endMs = Math.round(clamp(music.endMs, 0, 4 * 60 * 60 * 1000, endDefault));
     const startMs = Math.round(clamp(music.startMs, 0, 4 * 60 * 60 * 1000, 0));
+    const lines = (Array.isArray(script.lines) ? script.lines : []).slice(0, 200).map((line) => {
+        const item = line && typeof line === 'object' ? line : {};
+        const audio = item.audio && typeof item.audio === 'object' ? item.audio : null;
+        const audioUrl = String(audio?.url || '');
+        if (audioUrl && !audioFileFromUrl(audioUrl)) {
+            throw httpError(400, 'Voice-over audio must be uploaded to the studio server before export.');
+        }
+        return {
+            id: String(item.id || '').slice(0, 200),
+            speaker: String(item.speaker || 'Voice').slice(0, 60),
+            text: String(item.text || '').slice(0, 2000),
+            startMs: Math.round(clamp(item.startMs, 0, 4 * 60 * 60 * 1000, 0)),
+            audio: audioUrl ? {
+                url: audioUrl,
+                durationMs: Math.round(clamp(audio.durationMs, 0, 60 * 60 * 1000, 0)),
+                source: audio.source === 'upload' ? 'upload' : 'tts',
+                name: String(audio.name || '').slice(0, 140),
+                voiceId: String(audio.voiceId || '').slice(0, 200),
+                key: String(audio.key || '').slice(0, 200),
+            } : null,
+        };
+    });
     return {
         narration: { volume: clamp(narration.volume, 0, 1, 1), muted: !!narration.muted },
         music: {
@@ -5431,6 +5814,7 @@ function normaliseAudioMix(config, fallbackDuration = 0) {
             duck: music.duck !== false,
             duckDb: clamp(music.duckDb, -24, 0, -9),
         },
+        script: { lines },
         updatedAt: Date.now(),
     };
 }
@@ -5479,11 +5863,49 @@ async function handleApi(req, res, pathname) {
         return;
     }
 
+    if (pathname === '/api/studio-builder/catalog' && req.method === 'GET') {
+        sendJson(res, 200, await buildStudioBuilderCatalog());
+        return;
+    }
+
+    if (pathname === '/api/studio-builder/agent' && req.method === 'POST') {
+        const payload = await readJsonRequest(req, 512 * 1024);
+        sendJson(res, 200, await runStudioBuilderChat(payload));
+        return;
+    }
+
+    if (pathname === '/api/studio-builder/pages' && req.method === 'GET') {
+        sendJson(res, 200, await listStudioBuilderPages());
+        return;
+    }
+
+    if (pathname === '/api/studio-builder/deploy' && req.method === 'POST') {
+        const payload = await readJsonRequest(req, 512 * 1024);
+        sendJson(res, 201, await deployStudioBuilderPage(payload));
+        return;
+    }
+
+    const deployedPageMatch = pathname.match(/^\/api\/studio-builder\/pages\/([a-z0-9][a-z0-9-]{0,80})$/);
+    if (deployedPageMatch && req.method === 'GET') {
+        sendJson(res, 200, { page: await readStudioBuilderPage(deployedPageMatch[1]) });
+        return;
+    }
+    if (deployedPageMatch && req.method === 'DELETE') {
+        sendJson(res, 200, await deleteStudioBuilderPage(deployedPageMatch[1]));
+        return;
+    }
+
     if (pathname === '/api/agent-first/chat' && req.method === 'POST') {
         const body = await readBody(req, 10 * 1024 * 1024);
         let payload;
         try { payload = JSON.parse(body.toString('utf8')); }
         catch { throw httpError(400, 'The Agent First request must be valid JSON.'); }
+        // Studio Builder uses the same proxy, provider stack and server-side
+        // credentials with a builder-specific prompt and action contract.
+        if (payload && payload.mode === 'studio-builder') {
+            sendJson(res, 200, await runStudioBuilderChat(payload));
+            return;
+        }
         sendJson(res, 200, await runAgentFirstChat(payload || {}));
         return;
     }
@@ -5502,6 +5924,41 @@ async function handleApi(req, res, pathname) {
             throw httpError(400, 'The agent request must be valid JSON.');
         }
         sendJson(res, 200, await runAgentCanvasLlm(payload || {}));
+        return;
+    }
+
+    // Project canvas: one real project composition, its segmentation index and an
+    // agent that writes timeline edits to a variant the browser owns.
+    if (pathname === '/api/project-canvas/projects' && req.method === 'GET') {
+        sendJson(res, 200, await ProjectCanvas.listProjects());
+        return;
+    }
+
+    const projectCanvasMatch = pathname.match(/^\/api\/project-canvas\/project\/([A-Za-z0-9_-]{1,80})$/);
+    if (projectCanvasMatch && req.method === 'GET') {
+        const query = new URL(req.url, 'http://127.0.0.1').searchParams;
+        const project = await ProjectCanvas.readProject(projectCanvasMatch[1], query.get('composition') || undefined);
+        sendJson(res, 200, {
+            ok: true,
+            project: project.project,
+            composition: project.composition,
+            index: project.index,
+        });
+        return;
+    }
+
+    if (pathname === '/api/project-canvas/agent' && req.method === 'POST') {
+        const body = await readBody(req, 10 * 1024 * 1024);
+        let payload;
+        try {
+            payload = JSON.parse(body.toString('utf8'));
+        } catch {
+            throw httpError(400, 'The project agent request must be valid JSON.');
+        }
+        sendJson(res, 200, await ProjectCanvas.agentTurn(payload || {}, {
+            resolveModel: (request) => resolveAgentChatModel(request || {}),
+            generate: ({ provider, model, messages }) => generateProjectCanvasText(provider, model, messages),
+        }));
         return;
     }
 
@@ -6467,6 +6924,98 @@ async function handleApi(req, res, pathname) {
         return;
     }
 
+    if (pathname === '/api/scene-library' && req.method === 'GET') {
+        sendJson(res, 200, await SceneLibrary.readIndex(LIBRARY_DIR));
+        return;
+    }
+
+    if (pathname === '/api/scene-library/summary' && req.method === 'GET') {
+        const index = await SceneLibrary.readIndex(LIBRARY_DIR);
+        sendJson(res, 200, SceneLibrary.summary(index));
+        return;
+    }
+
+    if (pathname === '/api/scene-library/scenes' && req.method === 'GET') {
+        const index = await SceneLibrary.readIndex(LIBRARY_DIR);
+        sendJson(res, 200, { scenes: SceneLibrary.sceneList(index) });
+        return;
+    }
+
+    if (pathname === '/api/scene-library/parts' && req.method === 'GET') {
+        const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+        const index = await SceneLibrary.readIndex(LIBRARY_DIR);
+        sendJson(res, 200, SceneLibrary.searchParts(index, {
+            q: url.searchParams.get('q') || '',
+            group: url.searchParams.get('group') || '',
+            concept: url.searchParams.get('concept') || '',
+            scene: url.searchParams.get('scene') || '',
+            limit: url.searchParams.get('limit') || 80,
+        }));
+        return;
+    }
+
+    if (pathname === '/api/scene-library/groups' && req.method === 'GET') {
+        const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+        const index = await SceneLibrary.readIndex(LIBRARY_DIR);
+        sendJson(res, 200, SceneLibrary.searchGroups(index, {
+            q: url.searchParams.get('q') || '',
+            limit: url.searchParams.get('limit') || 80,
+        }));
+        return;
+    }
+
+    const sceneGroupMatch = pathname.match(/^\/api\/scene-library\/groups\/([a-z0-9-]{1,120})$/);
+    if (sceneGroupMatch && req.method === 'GET') {
+        try {
+            sendJson(res, 200, await SceneLibrary.readGroup(LIBRARY_DIR, sceneGroupMatch[1]));
+        } catch (error) {
+            throw httpError(error.statusCode || 400, error.message);
+        }
+        return;
+    }
+
+    const scenePartMatch = pathname.match(/^\/api\/scene-library\/parts\/([a-z0-9-]{1,120})$/);
+    if (scenePartMatch && req.method === 'GET') {
+        try {
+            sendJson(res, 200, await SceneLibrary.readPart(LIBRARY_DIR, scenePartMatch[1]));
+        } catch (error) {
+            throw httpError(error.statusCode || 400, error.message);
+        }
+        return;
+    }
+
+    const sceneMatch = pathname.match(/^\/api\/scene-library\/scenes\/([a-z0-9-]{1,120})$/);
+    if (sceneMatch && req.method === 'GET') {
+        try {
+            sendJson(res, 200, await SceneLibrary.readScene(LIBRARY_DIR, sceneMatch[1]));
+        } catch (error) {
+            throw httpError(error.statusCode || 400, error.message);
+        }
+        return;
+    }
+
+    if (pathname === '/api/scene-library/build' && (req.method === 'GET' || req.method === 'POST')) {
+        const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+        let idea = url.searchParams.get('q') || '';
+        let sceneId = url.searchParams.get('scene') || '';
+        if (req.method === 'POST') {
+            const body = await readBody(req, 64 * 1024);
+            let payload = {};
+            try {
+                payload = body.length ? JSON.parse(body.toString('utf8')) : {};
+            } catch {
+                throw httpError(400, 'The scene build request must be valid JSON.');
+            }
+            idea = String(payload.idea || payload.q || idea || '');
+            sceneId = String(payload.sceneId || sceneId || '');
+        }
+        const index = await SceneLibrary.readIndex(LIBRARY_DIR);
+        const id = sceneId || index.sceneId;
+        const scene = await SceneLibrary.readScene(LIBRARY_DIR, id);
+        sendJson(res, 200, SceneLibrary.buildScene(scene, index, idea));
+        return;
+    }
+
     if (pathname === '/api/segment-library' && req.method === 'GET') {
         const index = await SegmentLibrary.readIndex(LIBRARY_DIR);
         sendJson(res, 200, index);
@@ -6584,61 +7133,115 @@ async function handleApi(req, res, pathname) {
         let detail;
         try { detail = JSON.parse(await fsp.readFile(detailFile, 'utf8')); }
         catch { throw httpError(404, 'Design not found.'); }
-        const config = detail.audioMixes?.[animationId] || detail.audioMixes?.default;
-        const music = config?.music;
-        if (!music?.enabled || !music.url) throw httpError(400, 'Add a background music track first.');
-        const musicFile = audioFileFromUrl(music.url);
-        if (!musicFile || !fs.existsSync(musicFile)) throw httpError(404, 'The music file is missing.');
         const animation = (detail.animations || []).find((item) => item?.id === animationId) || null;
+        const totalMs = Math.max(500, Number(animation?.duration) || Number(detail.duration) || 0);
+        const savedConfig = detail.audioMixes?.[animationId] || detail.audioMixes?.default;
+        const config = normaliseAudioMix(payload?.config || savedConfig, totalMs);
+        const music = config.music;
+        const hasMusic = !!(music.enabled && music.url);
+        const musicFile = hasMusic ? audioFileFromUrl(music.url) : null;
+        if (hasMusic && (!musicFile || !fs.existsSync(musicFile))) throw httpError(404, 'The music file is missing.');
         const videoUrl = animation?.sourceVideo || detail.sourceVideo || '';
         const videoFile = videoUrl ? path.join(ROOT, videoUrl.replace(/^\//, '')) : '';
         if (!videoFile || !fs.existsSync(videoFile)) throw httpError(404, 'The source recording is missing.');
+        const voiceLines = config.script.lines.filter((line) => line.audio && line.startMs < totalMs);
+        const voiceFiles = voiceLines.map((line) => {
+            const file = audioFileFromUrl(line.audio.url);
+            if (!file || !fs.existsSync(file)) throw httpError(404, 'A voice-over audio file is missing.');
+            return file;
+        });
+        if (!hasMusic && !voiceFiles.length && !config.narration.muted) {
+            throw httpError(400, 'Add background music or voice-over lines first.');
+        }
         if (!(await ffmpegExists())) {
             throw httpError(501, 'Mixing audio requires ffmpeg. Install ffmpeg or set STUDIO_FFMPEG.');
         }
-        const totalMs = Math.max(500, Number(animation?.duration) || Number(detail.duration) || 0);
         const total = totalMs / 1000;
-        const start = Math.max(0, Math.min(total, (Number(music.startMs) || 0) / 1000));
-        const end = Math.max(start + 0.2, Math.min(total, (Number(music.endMs) || totalMs) / 1000));
-        const span = Math.max(0.2, end - start);
-        const inSec = Math.max(0, (Number(music.inMs) || 0) / 1000);
-        const volume = Math.max(0, Math.min(1, Number(music.volume)));
-        const fadeIn = Math.max(0, Math.min(span, (Number(music.fadeInMs) || 0) / 1000));
-        const fadeOut = Math.max(0, Math.min(span, (Number(music.fadeOutMs) || 0) / 1000));
         const streams = await probeStreamTypes(videoFile);
         const hasNarration = streams.includes('audio');
         const outDir = path.join(LIBRARY_DIR, 'sources');
         await fsp.mkdir(outDir, { recursive: true });
         const outFile = path.join(outDir, `${audioSlug(animationId, 80)}-mix.webm`);
         const args = ['-y', '-v', 'error', '-i', videoFile];
-        if (music.loop !== false) args.push('-stream_loop', '-1');
-        args.push('-i', musicFile);
-        const musicBits = [
-            `atrim=start=${inSec.toFixed(3)}:end=${(inSec + span + 1).toFixed(3)}`,
-            'asetpts=PTS-STARTPTS',
-            `volume=${volume.toFixed(4)}`,
-        ];
-        if (fadeIn > 0) musicBits.push(`afade=t=in:st=0:d=${fadeIn.toFixed(3)}`);
-        if (fadeOut > 0) musicBits.push(`afade=t=out:st=${Math.max(0, span - fadeOut).toFixed(3)}:d=${fadeOut.toFixed(3)}`);
-        const graph = [`[1:a]${musicBits.join(',')}[mus]`, `[mus]adelay=${Math.round(start * 1000)}|${Math.round(start * 1000)}[md]`];
-        if (hasNarration) {
-            if (music.duck !== false) {
-                graph.push('[0:a]asplit=2[nar][sc]');
-                graph.push('[md][sc]sidechaincompress=threshold=0.04:ratio=6:attack=12:release=320[duck]');
-                graph.push('[nar][duck]amix=inputs=2:duration=first:normalize=0[a]');
-            } else {
-                graph.push('[0:a][md]amix=inputs=2:duration=first:normalize=0[a]');
-            }
-        } else {
-            graph.push(`[md]apad=whole_dur=${total.toFixed(3)},atrim=0:${total.toFixed(3)}[a]`);
+        let nextInput = 1;
+        let musicInput = -1;
+        if (hasMusic) {
+            if (music.loop !== false) args.push('-stream_loop', '-1');
+            args.push('-i', musicFile);
+            musicInput = nextInput++;
         }
-        args.push('-filter_complex', graph.join(';'), '-map', '0:v:0', '-map', '[a]',
-            '-c:v', 'copy', '-c:a', 'libopus', '-b:a', '192k', '-shortest', outFile);
+        const voiceInputs = voiceFiles.map((file) => {
+            args.push('-i', file);
+            return nextInput++;
+        });
+        const graph = [];
+        const narrationLabels = [];
+        const narrationGain = config.narration.muted ? 0 : config.narration.volume;
+        if (hasNarration) {
+            graph.push(`[0:a]volume=${narrationGain.toFixed(4)}[src]`);
+            narrationLabels.push('[src]');
+        }
+        voiceLines.forEach((line, index) => {
+            const start = line.startMs / 1000;
+            const duration = Math.min(
+                line.audio.durationMs > 0 ? line.audio.durationMs / 1000 : total - start,
+                total - start,
+            );
+            if (duration <= 0) return;
+            const delay = Math.round(start * 1000);
+            const label = `vo${index}`;
+            graph.push(`[${voiceInputs[index]}:a]atrim=duration=${duration.toFixed(3)},asetpts=PTS-STARTPTS,volume=${narrationGain.toFixed(4)},adelay=${delay}|${delay},apad=whole_dur=${total.toFixed(3)},atrim=duration=${total.toFixed(3)}[${label}]`);
+            narrationLabels.push(`[${label}]`);
+        });
+        if (narrationLabels.length > 1) {
+            graph.push(`${narrationLabels.join('')}amix=inputs=${narrationLabels.length}:duration=longest:normalize=0,apad=whole_dur=${total.toFixed(3)},atrim=duration=${total.toFixed(3)}[nar]`);
+        } else if (narrationLabels.length === 1) {
+            graph.push(`${narrationLabels[0]}apad=whole_dur=${total.toFixed(3)},atrim=duration=${total.toFixed(3)}[nar]`);
+        }
+        let hasAudioOutput = narrationLabels.length > 0;
+        if (hasMusic) {
+            const start = Math.max(0, Math.min(total, (Number(music.startMs) || 0) / 1000));
+            const end = Math.max(start + 0.2, Math.min(total, (Number(music.endMs) || totalMs) / 1000));
+            const span = Math.max(0.2, end - start);
+            const inSec = Math.max(0, (Number(music.inMs) || 0) / 1000);
+            const volume = Math.max(0, Math.min(1, Number(music.volume)));
+            const fadeIn = Math.max(0, Math.min(span, (Number(music.fadeInMs) || 0) / 1000));
+            const fadeOut = Math.max(0, Math.min(span, (Number(music.fadeOutMs) || 0) / 1000));
+            const musicBits = [
+                `atrim=start=${inSec.toFixed(3)}:end=${(inSec + span + 1).toFixed(3)}`,
+                'asetpts=PTS-STARTPTS',
+                `volume=${volume.toFixed(4)}`,
+            ];
+            if (fadeIn > 0) musicBits.push(`afade=t=in:st=0:d=${fadeIn.toFixed(3)}`);
+            if (fadeOut > 0) musicBits.push(`afade=t=out:st=${Math.max(0, span - fadeOut).toFixed(3)}:d=${fadeOut.toFixed(3)}`);
+            graph.push(`[${musicInput}:a]${musicBits.join(',')},adelay=${Math.round(start * 1000)}|${Math.round(start * 1000)},apad=whole_dur=${total.toFixed(3)},atrim=duration=${total.toFixed(3)}[md]`);
+            if (narrationLabels.length) {
+                if (music.duck !== false && !config.narration.muted) {
+                    graph.push('[nar]asplit=2[narout][sc]');
+                    graph.push('[md][sc]sidechaincompress=threshold=0.04:ratio=6:attack=12:release=320[duck]');
+                } else {
+                    graph.push('[md]anull[duck]');
+                }
+                graph.push(`[${music.duck !== false && !config.narration.muted ? 'narout' : 'nar'}][duck]amix=inputs=2:duration=first:normalize=0,apad=whole_dur=${total.toFixed(3)},atrim=duration=${total.toFixed(3)}[a]`);
+            } else {
+                graph.push('[md]anull[a]');
+            }
+            hasAudioOutput = true;
+        } else if (narrationLabels.length) {
+            graph.push('[nar]anull[a]');
+        }
+        if (hasAudioOutput) {
+            args.push('-filter_complex', graph.join(';'));
+        }
+        args.push('-map', '0:v:0', '-c:v', 'copy');
+        if (hasAudioOutput) args.push('-map', '[a]', '-c:a', 'libopus', '-b:a', '192k');
+        else args.push('-an');
+        args.push('-shortest', outFile);
         try {
             await runFfmpeg(args);
         } catch (error) {
             const detailText = String(error.stderr || error.message || '').trim().slice(0, 300);
-            throw httpError(502, `The music bed could not be mixed${detailText ? `: ${detailText}` : '.'}`);
+            throw httpError(502, `The audio could not be mixed${detailText ? `: ${detailText}` : '.'}`);
         }
         const bytes = (await fsp.stat(outFile)).size;
         sendJson(res, 200, {
@@ -6758,6 +7361,30 @@ async function handleApi(req, res, pathname) {
 
     if (pathname === '/api/projects' && req.method === 'GET') {
         sendJson(res, 200, { projects: await listStudioProjects() });
+        return;
+    }
+
+    const projectCompositionMatch = pathname.match(/^\/api\/projects\/([A-Za-z0-9_-]{1,80})\/compositions\/([A-Za-z0-9_.-]{1,100})$/);
+    if (projectCompositionMatch && req.method === 'GET') {
+        const projectId = projectCompositionMatch[1];
+        const projectDirId = projectId.startsWith('repo-') ? projectId.slice(5) : projectId;
+        const compositionId = projectCompositionMatch[2].replace(/\.json$/, '').replace(/\.editable$/, '');
+        const dir = path.join(PROJECTS_DIR, projectDirId, 'compositions');
+        const editable = path.join(dir, `${compositionId}.editable.json`);
+        const poster = path.join(dir, `${compositionId}.composition.json`);
+        const file = await fsp.access(editable).then(() => editable, () => poster);
+        let composition;
+        try {
+            composition = JSON.parse(await fsp.readFile(file, 'utf8'));
+        } catch (error) {
+            if (error.code === 'ENOENT') throw httpError(404, `Project "${projectId}" has no composition "${compositionId}".`);
+            throw httpError(500, `The composition could not be read: ${error.message}`);
+        }
+        sendJson(res, 200, {
+            composition,
+            editable: file === editable,
+            project: { id: projectId, compositionId, name: composition.name || projectId },
+        });
         return;
     }
 
@@ -6912,6 +7539,16 @@ const PAGE_ROUTES = {
     '/studio-v2': 'studio-v2.html',
     '/studio-v2.html': 'studio-v2.html',
     '/studio.html': 'studio.html',
+    '/studio-bkup': 'studio-bkup.html',
+    '/studio-bkup.html': 'studio-bkup.html',
+    '/studio-builder': 'Studio Builder.html',
+    '/studio-builder/': 'Studio Builder.html',
+    '/studio-builder.html': 'Studio Builder.html',
+    '/studio-builder-v0': 'Studio Builder-v0.html',
+    '/studio-builder-v0/': 'Studio Builder-v0.html',
+    '/studio-builder-v0.html': 'Studio Builder-v0.html',
+    '/builder': 'Studio Builder.html',
+    '/Studio Builder.html': 'Studio Builder.html',
     '/studio-agent': 'studio-agent.html',
     '/studio-agent.html': 'studio-agent.html',
     '/studio-agent-canvas': 'studio-agent.html',
@@ -6930,6 +7567,12 @@ const PAGE_ROUTES = {
     '/library.html': 'library.html',
     '/segments': 'segments.html',
     '/segments.html': 'segments.html',
+    '/segments-canvas': 'segments-canvas.html',
+    '/segments-canvas/': 'segments-canvas.html',
+    '/segments-canvas.html': 'segments-canvas.html',
+    '/project-canvas': 'project-canvas.html',
+    '/project-canvas/': 'project-canvas.html',
+    '/project-canvas.html': 'project-canvas.html',
     '/segment-library': 'segments.html',
     '/segment-library.html': 'segments.html',
     '/voice': 'voice.html',
@@ -6992,7 +7635,8 @@ function projectPublicFile(pathname) {
     if (!match) return null;
     const isComposition = match[2] === 'compositions' && /\.composition\.json$/i.test(match[3]);
     const isAnimation = match[2] === 'animations' && /\.animation\.json$/i.test(match[3]);
-    if (!isComposition && !isAnimation && !IMPORT_PUBLIC_FILE.test(match[3])) return null;
+    const isSegmentationIndex = match[2] === 'images' && /^segmentation\/index\.json$/i.test(match[3]);
+    if (!isComposition && !isAnimation && !isSegmentationIndex && !IMPORT_PUBLIC_FILE.test(match[3])) return null;
     const relative = safeRelativePath(match[3]);
     if (!relative) return null;
     const projectRoot = path.join(PROJECTS_DIR, match[1]);
@@ -7011,7 +7655,8 @@ function libraryPublicFile(pathname) {
     if (!/\.json$/i.test(relative)
         && !relative.startsWith('sources/')
         && !relative.startsWith('audio/')
-        && !relative.startsWith('segment-groups/thumbs/')) return null;
+        && !relative.startsWith('segment-groups/thumbs/')
+        && !relative.startsWith('scene-library/assets/')) return null;
     const root = path.resolve(LIBRARY_DIR);
     const target = path.resolve(root, ...relative.split('/'));
     return target.startsWith(root + path.sep) ? target : null;
@@ -7036,6 +7681,13 @@ function serveStatic(req, res, pathname) {
     const libraryFile = libraryPublicFile(pathname);
     if (libraryFile) {
         sendFile(req, res, libraryFile);
+        return;
+    }
+    // Studio Builder deployments stay outside the private data tree but are
+    // served from /built/<id> as ordinary pages.
+    const builtFile = builderPublicFile(pathname);
+    if (builtFile) {
+        sendFile(req, res, builtFile);
         return;
     }
     // Never serve local state, secrets or test/dev material as static files.
@@ -7146,6 +7798,7 @@ async function main() {
     await fsp.mkdir(BRAND_PACKS_DIR, { recursive: true });
     await fsp.mkdir(BRAND_KITS_DIR, { recursive: true });
     await fsp.mkdir(SETTINGS_DIR, { recursive: true });
+    await fsp.mkdir(STUDIO_BUILDER_PAGES_DIR, { recursive: true });
     const server = http.createServer((req, res) => { handle(req, res); });
     server.on('error', (error) => {
         if (error.code === 'EADDRINUSE') {
@@ -7162,6 +7815,8 @@ async function main() {
         console.log(`[studio] Asset library running at http://${HOST}:${PORT}/library.html`);
         console.log(`[studio] Voice Studio running at http://${HOST}:${PORT}/voice.html`);
         console.log(`[studio] Social intelligence running at http://${HOST}:${PORT}/social.html`);
+        console.log(`[studio] Project canvas running at http://${HOST}:${PORT}/project-canvas`);
+        console.log(`[studio] Studio Builder running at http://${HOST}:${PORT}/studio-builder`);
         console.log(`[studio] Management (dev only) running at http://${HOST}:${PORT}/admin.html`);
         console.log(`[studio] imports stored in ${IMPORTS_DIR}`);
         console.log(`[studio] brand packs stored in ${BRAND_PACKS_DIR}`);
@@ -7179,6 +7834,8 @@ if (require.main === module) {
 }
 
 module.exports = {
+    PAGE_ROUTES,
+    ProjectCanvas,
     readZipEntries,
     extractZipEntry,
     detectImageFormat,
@@ -7209,6 +7866,17 @@ module.exports = {
     getLlmCatalog,
     getAnimationDirectorCatalog,
     getDeepSeekDirectorStatus,
+    resolveAgentChatModel,
+    runStudioBuilderChat,
+    buildStudioBuilderCatalog,
+    deployStudioBuilderPage,
+    listStudioBuilderPages,
+    readStudioBuilderPage,
+    deleteStudioBuilderPage,
+    builderPageDir,
+    builderPublicFile,
+    STUDIO_BUILDER_PAGES_DIR,
+    StudioBuilder,
     normaliseAgentFirstResponse,
     requestedAnimationDuration,
     isVisionModel,

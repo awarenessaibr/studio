@@ -1,0 +1,35 @@
+[
+  {
+    "id": "vincent-hovorka-reels-and-post-ideas-01",
+    "file": "data/library/sources/html/vincent-hovorka-reels-and-post-ideas.html",
+    "stage": 0,
+    "width": 1080,
+    "height": 1920,
+    "duration": 12000,
+    "posterTime": 11.5,
+    "name": "Vincent Hovorka \u00b7 Property Partnerships",
+    "brand": "Vincent Hovorka"
+  },
+  {
+    "id": "vincent-hovorka-reels-and-post-ideas-02",
+    "file": "data/library/sources/html/vincent-hovorka-reels-and-post-ideas.html",
+    "stage": 1,
+    "width": 1080,
+    "height": 1920,
+    "duration": 10000,
+    "posterTime": 9.5,
+    "name": "Vincent Hovorka \u00b7 Keynote Speaker",
+    "brand": "Vincent Hovorka"
+  },
+  {
+    "id": "vincent-hovorka-reels-and-post-ideas-03",
+    "file": "data/library/sources/html/vincent-hovorka-reels-and-post-ideas.html",
+    "stage": 2,
+    "width": 1080,
+    "height": 1920,
+    "duration": 10000,
+    "posterTime": 9.5,
+    "name": "Vincent Hovorka \u00b7 The Operator Trap",
+    "brand": "Vincent Hovorka"
+  }
+]

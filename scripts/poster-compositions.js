@@ -38,6 +38,8 @@ const items = Array.isArray(manifest) ? manifest : manifest.stages || [];
 const sha = (buffer) => crypto.createHash('sha256').update(buffer).digest('hex');
 const chrome = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const fromVideo = process.argv.includes('--from-video');
+const fromPoster = process.argv.includes('--from-poster');
+const metaName = (process.argv.find((arg) => arg.startsWith('--meta=')) || '').split('=')[1] || 'three-new-posts.json';
 
 function compositionFor(item, posterTime) {
     const duration = Math.round(item.duration);
@@ -64,7 +66,7 @@ function compositionFor(item, posterTime) {
         showSafeZones: true,
         revision: 0,
         meta: {
-            brandName: 'The Butterfly and the Pig',
+            brandName: item.brand || 'The Butterfly and the Pig',
             htmlSource: item.file,
             posterTime,
             exactPoster: true,
@@ -120,7 +122,10 @@ function compositionFor(item, posterTime) {
             fs.mkdirSync(path.join(projectDir, 'compositions'), { recursive: true });
             const posterPath = path.join(projectDir, 'images', 'poster.png');
             let png;
-            if (fromVideo) {
+            if (fromPoster) {
+                // The frame-stepped capture already wrote the exact PNG.
+                png = fs.readFileSync(posterPath);
+            } else if (fromVideo) {
                 // Extract the frame from the source recording itself. This
                 // guarantees the composition still and the recording are the
                 // same moment; a live render can drift by a frame.
@@ -180,6 +185,7 @@ function compositionFor(item, posterTime) {
                 editableArchive: `data/projects/${item.id}/compositions/${item.id}.editable.json`,
                 sourceVideo: `/data/library/sources/${item.id}.webm`,
                 sourcePoster: `/data/library/sources/${item.id}.jpg`,
+                brand: item.brand || '',
             };
             records.push(record);
             console.log(`✓ ${item.id} — poster at ${item.posterTime}s (${(png.length / 1024 / 1024).toFixed(1)} MB), composition replaced`);
@@ -187,13 +193,12 @@ function compositionFor(item, posterTime) {
     } finally {
         await browser.close();
     }
-    const metaFile = path.join(ROOT, 'data', 'library', 'sources', 'new-posts.json');
+    const metaFile = path.join(ROOT, 'data', 'library', 'sources', metaName);
     const previous = fs.existsSync(metaFile) ? JSON.parse(fs.readFileSync(metaFile, 'utf8')) : { designs: [] };
     const merged = (previous.designs || []).filter((design) => !records.some((record) => record.id === design.id));
-    fs.writeFileSync(metaFile, `${JSON.stringify({
-        schema: 'agent-studio/html-posts/1',
-        capturedAt: new Date().toISOString(),
-        designs: merged.concat(records),
-    }, null, 2)}\n`);
+    const next = { ...previous, schema: 'agent-studio/html-posts/1', capturedAt: new Date().toISOString(), designs: merged.concat(records) };
+    if (!next.brand) next.brand = previous.brand || (records[0] && records[0].brand) || '';
+    if (!next.title) next.title = previous.title || '';
+    fs.writeFileSync(metaFile, `${JSON.stringify(next, null, 2)}\n`);
     console.log(`recorded ${records.length} poster composition(s)`);
 })().catch((error) => { console.error(error); process.exitCode = 1; });

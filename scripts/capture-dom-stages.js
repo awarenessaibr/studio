@@ -61,6 +61,24 @@ function greenFrameIndices(file) {
     return out;
 }
 
+function firstDarkFrame(file) {
+    // Fallback for pages with a light body: the isolated stage is usually a
+    // dark full-bleed frame. Used only when the green marker was not captured.
+    const width = 32;
+    const height = 18;
+    const buffer = cp.execFileSync('ffmpeg', [
+        '-v', 'error', '-i', file, '-vf', 'fps=10,scale=32:18',
+        '-pix_fmt', 'rgb24', '-f', 'rawvideo', '-',
+    ], { maxBuffer: 256 * 1024 * 1024 });
+    const frameSize = width * height * 3;
+    for (let offset = 0, index = 0; offset + frameSize <= buffer.length; offset += frameSize, index += 1) {
+        let sum = 0;
+        for (let i = offset; i < offset + frameSize; i += 3) sum += (buffer[i] + buffer[i + 1] + buffer[i + 2]) / 3;
+        if (sum / (frameSize / 3) < 90) return index / 10;
+    }
+    return null;
+}
+
 (async () => {
     const browser = await chromium.launch({
         headless: true, executablePath: chrome,
@@ -95,12 +113,12 @@ function greenFrameIndices(file) {
             document.body.append(el);
             const marker = document.createElement('div');
             marker.id = '__stage_marker';
-            marker.style.cssText = `position:fixed;inset:0;background:#00ff00;z-index:9999;pointer-events:none`;
+            marker.style.cssText = `position:fixed;inset:0;background:#00ff00;z-index:2147483647;pointer-events:none`;
             document.body.append(marker);
             return true;
         }, { stage: item.stage, width: item.width, height: item.height, selector: item.selector });
         if (!ok) { console.warn('skip (stage missing)', item.id); await context.close(); continue; }
-        await page.waitForTimeout(250);
+        await page.waitForTimeout(1000);
         await page.evaluate(async () => {
             document.getElementById('__stage_marker')?.remove();
             if (typeof o !== 'undefined' && typeof S !== 'undefined') {
@@ -111,15 +129,19 @@ function greenFrameIndices(file) {
             // the same marker frame, so the muxed track needs no offset.
             if (typeof window.__narratedStart === 'function') await window.__narratedStart();
         });
-        await page.waitForTimeout(item.duration + 450);
+        await page.waitForTimeout(item.duration + 1200);
         const raw = await page.video().path();
         await context.close();
         const green = greenFrameIndices(raw);
         if (!green.length) {
             console.warn('warn: no marker found; using 2 s trim', item.id);
         }
-        const lastGreen = green.length ? green[green.length - 1] : Math.round(2 * FPS);
-        const trim = (lastGreen + 1) / FPS;
+        const lastGreen = green.length ? green[green.length - 1] : -1;
+        let trim = green.length ? (lastGreen + 1) / FPS : null;
+        if (trim == null) {
+            const dark = firstDarkFrame(raw);
+            trim = dark != null && dark > 0.3 ? dark : 2;
+        }
         const out = path.join(outDir, `${item.id}.webm`);
         // Seek after the input: an input-side -ss lands on a keyframe and the
         // output then starts early, cutting the end of the animation.

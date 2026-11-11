@@ -1,0 +1,26 @@
+[
+  {
+    "file": "data/library/sources/html/happy-birthday-mum-3-reels.html",
+    "id": "happy-birthday-mum-3-reels-01",
+    "stage": 0,
+    "width": 1080,
+    "height": 1920,
+    "duration": 17000
+  },
+  {
+    "file": "data/library/sources/html/happy-birthday-mum-3-reels.html",
+    "id": "happy-birthday-mum-3-reels-02",
+    "stage": 1,
+    "width": 1080,
+    "height": 1920,
+    "duration": 14000
+  },
+  {
+    "file": "data/library/sources/html/happy-birthday-mum-3-reels.html",
+    "id": "happy-birthday-mum-3-reels-03",
+    "stage": 2,
+    "width": 1080,
+    "height": 1920,
+    "duration": 24000
+  }
+]

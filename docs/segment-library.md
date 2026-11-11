@@ -1,5 +1,10 @@
 # Segment library
 
+> Scene-level composition has its own curated library and clean canvas:
+> [`scene-library.md`](scene-library.md) and `/segments#scene`. A segment group
+> is a layer set; a scene record adds concepts, source-box placement, observed
+> tracks and data-quality decisions.
+
 The reusable **groups of cut-out segments** that form a layer, indexed so a
 person can browse them and an agent can drop one into a new scene with a
 motion that fits.
@@ -323,7 +328,7 @@ The static JSON and previews are also served directly:
 
 ## 6. UI
 
-`/segments` has three tabs:
+`/segments` has four tabs:
 
 - **Segment groups** — search/filter/sort, preview cards with a play button for
   the group's primary motion, detail drawer with a live animated preview,
@@ -342,6 +347,9 @@ The static JSON and previews are also served directly:
   - **Group motion recipes** — the 16 reusable recipes with their duration,
     phase and group count. **View** opens a representative segment group with
     that recipe already selected.
+- **Scene studio** — describe a scene idea, read the agent's concept matches,
+  missing vocabulary and data-quality notes, and preview the proposed
+  composition on a clean canvas. See [`scene-library.md`](scene-library.md).
 
 The viewer has play/pause, restart, speed, loop and scrub controls. It runs
 the same keyframe maths the agent is told to use. Extracted clips whose

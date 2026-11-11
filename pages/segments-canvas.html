@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Segments · Scene agent</title>
+<script>try{document.documentElement.dataset.theme=JSON.parse(localStorage.getItem("sa.theme")||"\"dark\"")}catch(e){}</script>
+<style>
+:root{--bg:#141318;--pan:#201e26;--line:#37343f;--ink:#ece8e1;--mu:#9b97a7;--ac:#8fd3c1;--warn:#e7b46a;--card:#1a181f;--sel:#26332f;--inp:#17151c;--msg:#2a2731;--onac:#10211c;--shadow:#000c;color-scheme:dark}
+:root[data-theme=light]{--bg:#e9eaef;--pan:#fff;--line:#dcdee5;--ink:#1b1a20;--mu:#6a6878;--ac:#1d8a71;--warn:#b8700f;--card:#f6f7fa;--sel:#e1f3ee;--inp:#f3f4f7;--msg:#eceef3;--onac:#fff;--shadow:#1b1a2033;color-scheme:light}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 "Avenir Next","Segoe UI",system-ui,sans-serif;overflow:hidden}
+button,input,textarea{font:inherit;color:inherit}button{cursor:pointer}
+:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+#stage{position:fixed;inset:0;display:grid;place-items:center;padding:70px 14px 92px;transition:padding .2s}
+@media(min-width:1000px){body.lo #stage{padding-left:346px}body.ro #stage{padding-right:386px}}
+#scene{position:relative;width:100%;max-width:calc((100vh - 170px)*16/9);aspect-ratio:16/9;overflow:hidden;border-radius:14px;border:1px solid var(--line);box-shadow:0 20px 60px var(--shadow);touch-action:none}
+#bd,#bd svg{position:absolute;inset:0;width:100%;height:100%;transition:background 1s}
+.it{position:absolute;isolation:isolate;cursor:grab}.it.drag{cursor:grabbing;outline:1px dashed var(--ac)}
+.ly{position:absolute;pointer-events:none}.ly img{width:100%;height:100%;display:block;user-select:none;-webkit-user-drag:none}
+#empty{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:#fff;text-shadow:0 1px 8px #0008;padding:20px}
+#empty[hidden]{display:none}
+.fab{position:fixed;z-index:5;width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--pan);display:grid;place-items:center}
+.fab:hover,.fab[aria-expanded=true]{border-color:var(--ac)}
+.fab svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+#tLib{top:14px;left:14px}#tAsk{top:14px;right:14px}#tSave{top:14px;right:68px}#tTheme{top:14px;left:68px}
+#tTheme .moon{display:none}:root[data-theme=light] #tTheme .sun{display:none}:root[data-theme=light] #tTheme .moon{display:block}
+#bar{position:fixed;z-index:5;bottom:14px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;max-width:calc(100vw - 28px);background:var(--pan);border:1px solid var(--line);border-radius:14px;padding:6px}
+body.lo #bar{left:calc(50% + 173px)}body.ro #bar{left:calc(50% - 193px)}body.lo.ro #bar{left:50%}
+@media(max-width:999px){#bar{left:50%!important}}
+#play{position:static;flex:none}
+#strip{display:flex;gap:6px;overflow-x:auto;scrollbar-width:thin;max-width:min(62vw,720px)}
+.pill{flex:none;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:99px;background:var(--card);padding:3px 4px 3px 10px;font-size:12px;white-space:nowrap}
+.pill i{width:8px;height:8px;border-radius:50%;background:var(--c,var(--ac))}
+.pill button{border:0;background:transparent;color:var(--mu);padding:0 5px}.pill button:hover{color:var(--ink)}
+.pill .mo{border:1px solid var(--line);border-radius:99px;padding:0 7px;font-size:10.5px;color:var(--ac)}
+#hint{color:var(--mu);font-size:12px;padding:0 8px}
+.drawer{position:fixed;z-index:4;top:68px;bottom:14px;width:min(332px,calc(100vw - 28px));background:var(--pan);border:1px solid var(--line);border-radius:14px;display:flex;flex-direction:column;overflow:hidden}
+.drawer[hidden]{display:none}#lib{left:14px}#chat{right:14px;width:min(372px,calc(100vw - 28px))}
+.dh{padding:12px 14px;border-bottom:1px solid var(--line)}.dh h2{margin:0;font-size:14px;font-weight:600}.dh small{color:var(--mu);display:block;font-weight:400}
+.srch{width:100%;margin-top:9px;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--inp)}
+.chips{display:flex;flex-wrap:wrap;gap:5px;padding:8px 12px 0}.chips button,.m .chips button{font-size:11.5px;border:1px solid var(--line);border-radius:99px;background:transparent;padding:2px 9px}
+.chips button:hover,.chips button[aria-pressed=true]{border-color:var(--ac);color:var(--ac)}
+.m .chips{padding:6px 0 0}
+#libBody{flex:1;overflow:auto;padding:12px;min-height:0}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.card{position:relative;border:1px solid var(--line);border-radius:10px;background:var(--card);padding:6px;text-align:left}
+.card:hover{border-color:var(--ac)}
+.card .th{aspect-ratio:4/3;border-radius:6px;background:var(--inp);display:grid;place-items:center;overflow:hidden;color:var(--mu);font-size:22px}
+.card img{width:100%;height:100%;object-fit:contain}
+.card b{display:block;font-size:12px;margin-top:6px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.card small{color:var(--mu);font-size:11px}
+.card .go{position:absolute;top:10px;right:10px;display:none;gap:4px}.card:hover .go,.card:focus-within .go{display:flex}
+.go button{border:1px solid var(--line);border-radius:7px;background:var(--pan);font-size:11px;padding:2px 7px}.go button:hover{border-color:var(--ac);color:var(--ac)}
+.more{display:block;margin:12px auto 0;border:1px solid var(--line);background:transparent;border-radius:9px;padding:6px 14px}.more:hover{border-color:var(--ac)}
+.note{color:var(--mu);font-size:12px;border:1px dashed var(--line);border-radius:10px;padding:12px;text-align:center}
+#log{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:9px;min-height:0}
+.m{max-width:94%;padding:8px 11px;border-radius:12px;background:var(--msg);white-space:pre-wrap;font-size:13px}
+.m.u{align-self:flex-end;background:var(--ink);color:var(--bg)}.m.err{border:1px solid var(--warn)}.m b{font-weight:600}
+form{display:flex;gap:6px;padding:10px 12px 12px;border-top:1px solid var(--line);margin-top:8px}
+form textarea{flex:1;resize:none;height:42px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--inp)}
+.send{border:0;border-radius:10px;background:var(--ac);color:var(--onac);font-weight:600;padding:0 14px}
+#toast{position:fixed;z-index:9;bottom:78px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:7px 12px;border-radius:9px;font-size:12.5px}
+#toast[hidden]{display:none}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body class="lo ro">
+<main id="stage">
+  <div id="scene" aria-label="Scene canvas, 16:9"><div id="bd"></div><div id="empty" hidden><div><b>Nothing here yet</b><br>Ask the agent for a scene, or add a group from the library.</div></div></div>
+</main>
+
+<button class="fab" id="tLib" aria-label="Segment library" aria-expanded="true" title="Segment library"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg></button>
+<button class="fab" id="tTheme" aria-label="Switch theme" title="Switch theme"><svg class="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/></svg></button>
+<button class="fab" id="tAsk" aria-label="Scene agent" aria-expanded="true" title="Scene agent"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M18.5 16l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/></svg></button>
+<button class="fab" id="tSave" aria-label="Download scene JSON" title="Download the scene as JSON"><svg viewBox="0 0 24 24"><path d="M12 3v11"/><path d="M8 10l4 4 4-4"/><path d="M5 20h14"/></svg></button>
+
+<aside class="drawer" id="lib" aria-label="Segment library">
+  <div class="dh"><h2>Library<small id="libSub">Loading…</small></h2><input class="srch" id="q" type="search" placeholder="Search clouds, waves, gull…" autocomplete="off" aria-label="Search groups"></div>
+  <div class="chips" id="cats" aria-label="Categories"></div>
+  <div id="libBody"><div class="grid" id="grid"></div><div id="libNote"></div></div>
+</aside>
+
+<aside class="drawer" id="chat" aria-label="Scene agent">
+  <div class="dh"><h2>Scene agent<small id="ctx">Composing from your segment library</small></h2></div>
+  <div id="log" aria-live="polite"></div>
+  <form id="form"><textarea id="in" placeholder="Describe a scene, or say “add birds”, “make it night”…" aria-label="Message"></textarea><button class="send">Send</button></form>
+</aside>
+
+<div id="bar"><button class="fab" id="play" aria-label="Pause" title="Play / pause"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/></svg></button><div id="strip"></div><span id="hint">Scene is empty</span></div>
+<div id="toast" role="status" hidden></div>
+
+<script>
+'use strict';
+const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const IDX='/data/library/segment-groups/';
+const MOODS={dawn:['#2b2a4a','#c9728b','#f6c998'],day:['#4f9fdc','#a9d6f2','#f4f1e3'],dusk:['#1c1b3a','#8a4a7d','#f08a5d'],night:['#05060f','#10183a','#2a3a6e']};
+const S={idx:null,rec:new Map(),items:[],mood:'dusk',seed:7,playing:!matchMedia('(prefers-reduced-motion:reduce)').matches,speed:1,t:0,last:0,cache:new Map(),q:'',cat:'',shown:40,W:0,H:0,n:0};
+const J=async u=>{const r=await fetch(u);if(!r.ok)throw new Error(`${u} → ${r.status}`);return r.json()};
+const hash=s=>{let h=2166136261;for(const c of String(s)){h=Math.imul(h^c.charCodeAt(0),16777619)}return h>>>0};
+const rng=a=>()=>{a=Math.imul(a^a>>>15,a|1);a^=a+Math.imul(a^a>>>7,a|61);return((a^a>>>14)>>>0)/4294967296};
+const toast=m=>{const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,2200)};
+
+/* ── agent log ─────────────────────────────────────────────── */
+function say(text,cls='',chips=[]){
+  const d=document.createElement('div');d.className='m '+cls;d.innerHTML=cls==='u'?esc(text):text;
+  if(chips.length){const c=document.createElement('div');c.className='chips';c.innerHTML=chips.map(x=>`<button type="button" data-q="${esc(x)}">${esc(x)}</button>`).join('');d.append(c)}
+  const l=$('#log');l.append(d);l.scrollTop=l.scrollHeight;
+}
+
+/* ── generated backdrop ────────────────────────────────────── */
+function art(){
+  const [a,b,c]=MOODS[S.mood],r=rng(S.seed*977+hash(S.mood)),night=S.mood==='night';
+  $('#bd').style.background=`linear-gradient(180deg,${a},${b} 62%,${c})`;
+  let s='';
+  if(night)for(let i=0;i<70;i++)s+=`<circle cx="${r()*160}" cy="${r()*50}" r="${.12+r()*.28}" fill="#fff" opacity="${.35+r()*.6}"/>`;
+  const sx=night?20+r()*30:25+r()*110,sy=night?14+r()*8:S.mood==='day'?14+r()*8:52+r()*4;
+  s+=`<defs><radialGradient id="g"><stop offset="0" stop-color="${night?'#e8ecff':'#fff3d6'}" stop-opacity=".95"/><stop offset="1" stop-color="${night?'#9fb0ff':'#ffb36b'}" stop-opacity="0"/></radialGradient></defs><circle cx="${sx}" cy="${sy}" r="${night?14:20}" fill="url(#g)"/><circle cx="${sx}" cy="${sy}" r="${night?3:4}" fill="${night?'#f4f6ff':'#fff8e6'}"/>`;
+  $('#bd').innerHTML=`<svg viewBox="0 0 160 90" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${s}</svg>`;
+}
+
+/* ── placement: depth bands from category/name ─────────────── */
+const BANDS=[[/sky|cloud|sun|moon|star|light|ray|glow/,{y:.2,w:.36,z:1}],[/bird|gull|fly|butterfl|bat/,{y:.34,w:.2,z:3}],[/sea|wave|water|ocean|river|ripple|foam/,{y:.84,w:1,z:2}],[/char|person|people|cyclist|santa|animal|figure|man|woman/,{y:.68,w:.26,z:5}],[/.*/,{y:.62,w:.26,z:4}]];
+const band=g=>BANDS.find(([re])=>re.test(`${g.category} ${g.categoryLabel} ${g.name}`.toLowerCase()))[1];
+const sizeOf=d=>{const bb=d.bbox||{x:0,y:0,w:100,h:100},z=d.size||{width:1,height:1};return(bb.w*z.width)/(bb.h*z.height)||1};
+
+async function detail(id){
+  if(!S.cache.has(id))S.cache.set(id,J(`${IDX}groups/${encodeURIComponent(id)}.json`));
+  try{return await S.cache.get(id)}catch(e){S.cache.delete(id);throw e}
+}
+async function put(g,{solo=false}={}){
+  const d=await detail(g.id),bb=d.bbox||{x:0,y:0,w:100,h:100},b=band(g),r=rng(hash(g.id)+S.seed);
+  if(solo)S.items.forEach(i=>i.el.remove()),S.items=[];
+  const el=document.createElement('div');el.className='it';const nodes=[];
+  for(const m of d.members||[]){if(!m.available)continue;const w=document.createElement('div');w.className='ly';
+    Object.assign(w.style,{left:(m.box.x-bb.x)/bb.w*100+'%',top:(m.box.y-bb.y)/bb.h*100+'%',width:m.box.w/bb.w*100+'%',height:m.box.h/bb.h*100+'%',zIndex:Math.round(m.z||0),opacity:m.opacity??1});
+    const im=new Image();im.src=m.url;im.alt='';im.draggable=false;im.onerror=()=>w.style.display='none';w.append(im);el.append(w);nodes.push({w,o:m.opacity??1})}
+  const same=S.items.filter(i=>i.b===b).length;
+  const wf=solo?.6:Math.min(1,b.w*(b.w<1?.85+r()*.3:1));
+  const it={id:d.id,g,d,el,nodes,bb,asp:sizeOf(d),b,z:b.z,wf,cx:b.w>=1?.5:Math.max(.16,Math.min(.84,.2+((same*.31+r()*.2)%.62))),cy:solo?.5:Math.max(.16,Math.min(.88,b.y+(r()-.5)*.08)),motion:''};
+  const opts=(d.motions||[]).filter(m=>S.rec.has(m.id));it.opts=opts;it.motion=(opts.find(m=>m.id!=='hold')||opts[0]||{}).id||'hold';
+  el.addEventListener('pointerdown',e=>drag(e,it));$('#scene').append(el);S.items.push(it);layout();strip();return it;
+}
+function layout(){
+  const sc=$('#scene');S.W=sc.clientWidth;S.H=sc.clientHeight;
+  for(const it of S.items){let w=it.wf*S.W,h=w/it.asp;if(h>.7*S.H){h=.7*S.H;w=h*it.asp}
+    it.pw=w;it.ph=h;Object.assign(it.el.style,{width:w+'px',height:h+'px',left:it.cx*S.W-w/2+'px',top:it.cy*S.H-h/2+'px',zIndex:it.z})}
+  $('#empty').hidden=S.items.length>0;draw();
+}
+function drag(e,it){
+  if(e.button)return;const sc=$('#scene').getBoundingClientRect(),ox=e.clientX/sc.width-it.cx,oy=e.clientY/sc.height-it.cy;it.el.classList.add('drag');
+  const mv=ev=>{it.cx=Math.max(0,Math.min(1,ev.clientX/sc.width-ox));it.cy=Math.max(0,Math.min(1,ev.clientY/sc.height-oy));layout()};
+  const up=()=>{it.el.classList.remove('drag');removeEventListener('pointermove',mv);removeEventListener('pointerup',up)};
+  addEventListener('pointermove',mv);addEventListener('pointerup',up);
+}
+function strip(){
+  const s=$('#strip');s.innerHTML=S.items.map((it,i)=>`<span class="pill" style="--c:${esc(it.g.categoryColor||'')}"><i></i>${esc(it.g.name)}<button type="button" class="mo" data-m="${i}" title="Change motion">${esc((it.opts.find(o=>o.id===it.motion)||{}).label||'hold')}</button><button type="button" data-x="${i}" aria-label="Remove ${esc(it.g.name)}">×</button></span>`).join('');
+  $('#hint').textContent=S.items.length?'':'Scene is empty';$('#empty').hidden=S.items.length>0;
+}
+
+/* ── motion (same recipe maths as the library preview) ─────── */
+const key=(k,t)=>{if(!k||!k.length)return 0;const w=((t%1)+1)%1;for(let i=0;i<k.length-1;i++){const[a,f]=k[i],[b,o]=k[i+1];if(w>=a&&w<=b)return f+(o-f)*(.5-.5*Math.cos(Math.PI*(w-a)/((b-a)||1)))}return k[k.length-1][1]};
+function draw(){
+  for(const it of S.items){const rc=S.rec.get(it.motion)||S.rec.get('hold');if(!rc)continue;const k=rc.keys||{},D=Math.max(1,rc.duration||3000),base=rc.loop!==false?(S.t%D)/D:Math.min(1,S.t/D),n=it.nodes.length||1,bb=it.bb;
+    it.nodes.forEach((nd,i)=>{let ph=0,sg=1;if(rc.phase==='stagger')ph=i/n*.28;else if(rc.phase==='alternate'){ph=(i%2)*.5;sg=i%2?-1:1}
+      const t=base+ph,sc=key(k.s,t)||1;nd.w.style.transform=`translate3d(${key(k.dx,t)*sg*it.pw*100/(bb.w||100)}px,${key(k.dy,t)*sg*it.ph*100/(bb.h||100)}px,0) scale(${sc}) rotate(${key(k.rot,t)*sg}deg)`;
+      nd.w.style.opacity=Math.max(0,Math.min(1,nd.o*(k.a?key(k.a,t):1)))})}
+}
+function loop(now){if(S.playing){S.t+=Math.min(100,now-S.last)*S.speed;draw()}S.last=now;requestAnimationFrame(loop)}
+function setPlay(p){S.playing=p;$('#play').setAttribute('aria-label',p?'Pause':'Play');$('#play').innerHTML=p?'<svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg>':'<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/></svg>'}
+
+/* ── library navigator ─────────────────────────────────────── */
+const hay=g=>[g.name,g.category,g.categoryLabel,g.keywords||'',(g.tags||[]).join(' '),g.source.projectId,g.id].join(' ').toLowerCase();
+const stem=w=>w.length>3&&w.endsWith('s')?w.slice(0,-1):w;
+function find(terms,cat=''){
+  const T=terms.map(stem);
+  return S.idx.groups.map(g=>{const h=hay(g);if(cat&&g.category!==cat)return null;const hits=T.filter(t=>h.includes(t)).length;
+    if(T.length&&!hits)return null;return{g,s:hits*10+(g.preview&&(g.preview.card||g.preview.full)?3:0)+((g.motions||[]).some(m=>m.id!=='hold')?2:0)+Math.random()}}).filter(Boolean).sort((a,b)=>b.s-a.s).map(x=>x.g);
+}
+function renderLib(){
+  const list=find(S.q.toLowerCase().split(/\s+/).filter(Boolean),S.cat);
+  $('#libSub').textContent=`${list.length} of ${S.idx.groups.length} groups`;
+  $('#grid').innerHTML=list.slice(0,S.shown).map(g=>{const p=g.preview&&(g.preview.card||g.preview.full),mo=(g.motions||[]).find(m=>m.id!=='hold');
+    return`<article class="card" data-id="${esc(g.id)}"><div class="th">${p?`<img src="${esc(p)}" alt="" loading="lazy">`:esc(g.name[0]||'')}</div><b title="${esc(g.name)}">${esc(g.name)}</b><small>${g.layerCount} segments${mo?' · '+esc(mo.label):''}</small><div class="go"><button type="button" data-add="${esc(g.id)}">Add</button><button type="button" data-solo="${esc(g.id)}">Solo</button></div></article>`}).join('');
+  $('#libNote').innerHTML=list.length>S.shown?'<button class="more" type="button" id="more">Show more</button>':list.length?'':'<p class="note">No groups match. Clear the search or pick another category.</p>';
+}
+function renderCats(){
+  const n={};S.idx.groups.forEach(g=>{(n[g.category]??={l:g.categoryLabel,c:0}).c++});
+  $('#cats').innerHTML=`<button type="button" data-cat="" aria-pressed="${!S.cat}">All</button>`+Object.entries(n).sort((a,b)=>b[1].c-a[1].c).slice(0,12).map(([id,v])=>`<button type="button" data-cat="${esc(id)}" aria-pressed="${S.cat===id}">${esc(v.l)} ${v.c}</button>`).join('');
+}
+
+/* ── agent: interpret → compose → suggest ──────────────────── */
+const STOP=/\b(a|an|the|with|and|of|build|make|me|show|preview|open|add|scene|create|generate|some|in|at|over|on|it|please|dawn|dusk|night|day|morning|evening|sunset|sunrise|midnight|more|another|new)\b/g;
+async function run(text){
+  const t=text.toLowerCase().trim();if(!t)return;say(text,'u');
+  if(!S.idx){say('The library is not loaded yet. Run <b>npm run build:segments</b> and reload.','err');return}
+  try{
+    const mood=/midnight|moon|night/.test(t)?'night':/dawn|sunrise|morning/.test(t)?'dawn':/dusk|sunset|evening/.test(t)?'dusk':/\bday\b|noon|sunny|bright/.test(t)?'day':'';
+    if(mood){S.mood=mood;art()}
+    if(/\b(clear|reset|empty|start over)\b/.test(t)){clearScene();say('Cleared. Want a fresh start?',' ',['Surprise me','Build a seascape']);return}
+    if(/\bfaster\b/.test(t)){S.speed=Math.min(4,S.speed*1.5);say(`Speed ${S.speed.toFixed(1)}×.`);return}
+    if(/\bslower\b/.test(t)){S.speed=Math.max(.25,S.speed/1.5);say(`Speed ${S.speed.toFixed(1)}×.`);return}
+    if(/shuffle|re-?roll|again/.test(t)){S.seed=(S.seed*31+7)%9973;const keep=S.items.map(i=>i.g);clearScene();art();for(const g of keep)await put(g);say('Reshuffled the layout and the sky.',' ',next());return}
+    if(/download|save|export/.test(t)){save();return}
+    const terms=t.replace(STOP,' ').split(/[^a-z0-9]+/).filter(w=>w.length>2),solo=/^(show|preview|open)\b/.test(t),add=/^add\b|\bmore\b|\banother\b/.test(t);
+    if(!terms.length&&mood&&S.items.length){say(`Now it's <b>${mood}</b>. The sky was regenerated; your groups stay put.`,' ',next());return}
+    if(!terms.length&&!S.items.length){await surprise(mood);return}
+    const picked=[],seen=new Set();
+    for(const w of terms){const hit=find([w]).find(g=>!seen.has(g.id)&&!S.items.some(i=>i.id===g.id));if(hit){seen.add(hit.id);picked.push(hit)}}
+    if(!picked.length){say(`I couldn't find a group for “${esc(terms.join(' '))}”. These are the closest families:`,'err',topCats());return}
+    if(!add&&!solo)clearScene();
+    if(solo){await put(picked[0],{solo:true})}else{for(const g of picked.slice(0,6))await put(g);if(!add&&S.items.length<3)await fill(3)}
+    setPlay(true);
+    say(`${solo?'Showing':add?'Added':'Built a <b>'+S.mood+'</b> scene with'} ${S.items.slice(solo||add?-picked.length:0).map(i=>'<b>'+esc(i.g.name)+'</b>').join(', ')}.${S.items.some(i=>i.motion!=='hold')?' Motion is on; drag anything to reposition.':''}`,' ',next());
+  }catch(e){say(esc(e.message),'err')}
+}
+function clearScene(){S.items.forEach(i=>i.el.remove());S.items=[];strip();layout()}
+async function fill(n){ // top up with groups from categories the scene lacks, so a scene always has depth
+  const have=new Set(S.items.map(i=>i.g.category));
+  const pool=S.idx.groups.filter(g=>!have.has(g.category)&&g.preview&&(g.preview.card||g.preview.full)&&(g.motions||[]).some(m=>m.id!=='hold'));
+  const r=rng(S.seed+S.items.length);
+  while(S.items.length<n&&pool.length){const g=pool.splice(Math.floor(r()*pool.length),1)[0];if(have.has(g.category))continue;have.add(g.category);await put(g)}
+}
+async function surprise(mood){
+  const m=mood||Object.keys(MOODS)[Math.floor(Math.random()*4)];S.mood=m;S.seed=Math.floor(Math.random()*9000)+1;clearScene();art();await fill(4);setPlay(true);
+  say(`Here's a <b>${m}</b> starter: ${S.items.map(i=>'<b>'+esc(i.g.name)+'</b>').join(', ')}, each from a different family. Tell me what to change.`,' ',next());
+}
+function topCats(){const n={};S.idx.groups.forEach(g=>n[g.categoryLabel]=(n[g.categoryLabel]||0)+1);return Object.entries(n).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([l])=>'Add '+l.toLowerCase())}
+function next(){ // proactive next steps from what the scene is missing
+  const have=new Set(S.items.map(i=>i.g.category)),miss=[];const seen=new Set();
+  for(const g of S.idx.groups){if(!have.has(g.category)&&!seen.has(g.category)){seen.add(g.category);miss.push('Add '+g.categoryLabel.toLowerCase())}}
+  const m=Object.keys(MOODS).filter(x=>x!==S.mood);
+  return[...miss.slice(0,2),'Make it '+m[Math.floor(Math.random()*m.length)],'Shuffle','Download'];
+}
+function save(){
+  if(!S.items.length){toast('Add something first');return}
+  const doc={schema:'studio/scene-compose/1',mood:S.mood,seed:S.seed,aspect:'16:9',items:S.items.map(i=>({groupId:i.id,name:i.g.name,category:i.g.category,motion:i.motion,center:{x:+i.cx.toFixed(4),y:+i.cy.toFixed(4)},widthPct:+(i.wf*100).toFixed(2),z:i.z,agent:i.d.agent||null}))};
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(doc,null,2)],{type:'application/json'}));a.download='scene-compose.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500);toast('Scene JSON downloaded');
+}
+
+/* ── wiring ────────────────────────────────────────────────── */
+const drawer=(id,btn,cls)=>{const d=$(id),o=d.hidden;d.hidden=!o;$(btn).setAttribute('aria-expanded',String(o));document.body.classList.toggle(cls,o);setTimeout(layout,230)};
+$('#tLib').onclick=()=>drawer('#lib','#tLib','lo');$('#tAsk').onclick=()=>drawer('#chat','#tAsk','ro');$('#tSave').onclick=save;
+$('#tTheme').onclick=()=>{const d=document.documentElement,n=d.dataset.theme==='light'?'dark':'light';d.dataset.theme=n;try{localStorage.setItem('sa.theme',JSON.stringify(n))}catch{}};
+$('#play').onclick=()=>setPlay(!S.playing);
+$('#form').onsubmit=e=>{e.preventDefault();const v=$('#in').value;$('#in').value='';run(v)};
+$('#in').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('#form').requestSubmit()}};
+$('#log').onclick=e=>{const b=e.target.closest('[data-q]');if(b)run(b.dataset.q)};
+$('#cats').onclick=e=>{const b=e.target.closest('[data-cat]');if(!b)return;S.cat=b.dataset.cat;S.shown=40;renderCats();renderLib()};
+$('#q').oninput=e=>{S.q=e.target.value;S.shown=40;renderLib()};
+$('#libBody').onclick=async e=>{
+  if(e.target.id==='more'){S.shown+=40;renderLib();return}
+  const a=e.target.closest('[data-add]'),s=e.target.closest('[data-solo]'),c=e.target.closest('.card');
+  const id=(a&&a.dataset.add)||(s&&s.dataset.solo)||(c&&c.dataset.id);if(!id)return;
+  const g=S.idx.groups.find(x=>x.id===id);try{await put(g,{solo:!!s});setPlay(true);say(`${s?'Showing':'Added'} <b>${esc(g.name)}</b>.`,' ',next().slice(0,3))}catch(err){say(esc(err.message),'err')}
+};
+$('#strip').onclick=e=>{
+  const m=e.target.closest('[data-m]'),x=e.target.closest('[data-x]');
+  if(m){const it=S.items[+m.dataset.m],o=it.opts;if(o.length>1){it.motion=o[(o.findIndex(q=>q.id===it.motion)+1)%o.length].id;S.t=0;strip()}}
+  if(x){const [it]=S.items.splice(+x.dataset.x,1);it.el.remove();strip();layout()}
+};
+new ResizeObserver(layout).observe($('#scene'));
+
+(async function boot(){
+  art();setPlay(S.playing);requestAnimationFrame(loop);
+  if(innerWidth<1000){$('#lib').hidden=true;$('#tLib').setAttribute('aria-expanded','false');document.body.classList.remove('lo')}
+  say('Hi. I compose scenes from your segment library and can generate the sky behind them. One moment while I read the index…');
+  try{
+    const[idx,mo]=await Promise.all([J(IDX+'index.json'),J(IDX+'motions.json').catch(()=>({motions:[]}))]);
+    S.idx=idx;(mo.motions||[]).forEach(m=>S.rec.set(m.id,m));
+    if(!S.rec.has('hold'))S.rec.set('hold',{id:'hold',duration:3000,keys:{}});
+    renderCats();renderLib();
+    say(`The library has <b>${idx.groups.length}</b> groups in <b>${idx.categories.length}</b> families. I'll start you off with a scene.`);
+    await surprise('dusk');
+  }catch(e){
+    $('#libSub').textContent='Not available';
+    say(`${esc(e.message)}\nThe segment library may not be built yet. Run <b>npm run build:segments</b>, then reload.`,'err');
+  }
+})();
+</script>
+</body>
+</html>

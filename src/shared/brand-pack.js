@@ -559,7 +559,14 @@
     // Menus, venue hire and the content assets built from them
     // ---------------------------------------------------------------------
 
-    const MENU_KINDS = ['food', 'drinks', 'kids', 'functions', 'christmas', 'desserts', 'canapes', 'buffet', 'other'];
+    // Food and drink are the original catalogue kinds. A professional-services
+    // pack has no dishes, so `services`, `products` and `topics` let it carry a
+    // priced catalogue (partnership, speaking, care plans) without pretending
+    // it is a menu; `other` stays the catch-all.
+    const MENU_KINDS = [
+        'food', 'drinks', 'kids', 'functions', 'christmas', 'desserts', 'canapes', 'buffet',
+        'services', 'products', 'topics', 'other',
+    ];
     const DIETARY_MARKS = ['V', 'Ve', 'GFi', 'GF', 'DF', 'Vg'];
     const MAX_MENUS = 12;
     const MAX_MENU_SECTIONS = 16;
@@ -3902,10 +3909,14 @@
 
     function menuItems(brand) {
         const name = String(brand?.name || '').toLowerCase();
-        // A pack that carries a real menu uses it. The layout takes five
+        // A pack that carries a real catalogue uses it. The layout takes five
         // entries, so flatten the sections in reading order and stop at five;
-        // prices and descriptions travel with the dish they belong to.
-        const sections = brand?.content?.menu?.sections || [];
+        // prices and descriptions travel with the item they belong to. Prefer
+        // the full `menus` list (a services pack has no `food` menu) and fall
+        // back to the legacy `content.menu` projection only for old packs.
+        const menus = Array.isArray(brand?.content?.menus) ? brand.content.menus : [];
+        const primary = menus.find((menu) => menu.kind === 'food') || menus[0] || null;
+        const sections = primary?.sections || brand?.content?.menu?.sections || [];
         const fromContent = [];
         sections.forEach((section) => {
             (section.items || []).forEach((item) => {
@@ -3913,7 +3924,9 @@
                 fromContent.push([item.name, item.description || '', item.price || '']);
             });
         });
-        if (fromContent.length >= 3) {
+        // One real entry is better than another brand's invented dishes: a
+        // two-product podcast menu must print its own two products.
+        if (fromContent.length) {
             return fromContent.slice(0, 5);
         }
         if (/hatch/.test(name)) {

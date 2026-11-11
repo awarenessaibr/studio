@@ -1016,7 +1016,8 @@ form button {
    Timeline
    ========================================================================== */
 main {
-  --timeline-height: 178px;
+  --timeline-height: 400px;
+  --tl-name: 200px;
 }
 .tl {
   height: var(--timeline-height);
@@ -1033,6 +1034,8 @@ main {
   border-top: 1px solid var(--line);
 }
 .tl[data-collapsed="true"] .tlh,
+.tl[data-collapsed="true"] .tlh2,
+.tl[data-collapsed="true"] .tlkf,
 .tl[data-collapsed="true"] .tlb {
   display: none;
 }
@@ -1092,8 +1095,8 @@ main {
 }
 .tr {
   display: grid;
-  grid-template-columns: 116px 1fr;
-  height: 20px;
+  grid-template-columns: var(--tl-name) 1fr;
+  height: 22px;
   align-items: center;
 }
 .tr .n {
@@ -1149,6 +1152,156 @@ main {
   white-space: nowrap;
   overflow: hidden;
 }
+
+/* Layer tools + keyframe editor */
+.tlh2 {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--pan);
+  font-size: 11px;
+}
+.tlh2 input[type=search] {
+  width: 180px;
+  padding: 3px 7px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--rai);
+  color: var(--tx);
+  font: inherit;
+}
+.tlh2 input[type=search]:focus { outline: 1px solid var(--ac); outline-offset: 0; }
+.tlh2 button {
+  padding: 2px 7px;
+  font-size: 10.5px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--rai);
+  color: var(--tx);
+}
+.tlh2 button:hover { border-color: var(--ac); color: var(--ac); }
+.tl-check { display: inline-flex; align-items: center; gap: 4px; color: var(--mu); white-space: nowrap; }
+.tl-check input { accent-color: var(--ac); }
+.tl-stats { color: var(--mu); margin-left: auto; white-space: nowrap; }
+
+.tlkf {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 6px 9px;
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--pan) 88%, var(--ac) 4%);
+  font-size: 11px;
+  min-height: 53px;
+  overflow-x: auto;
+}
+.tlkf .kf-hint { color: var(--mu); align-self: center; }
+.tlkf .kf-title { align-self: center; color: var(--tx); font-weight: 600; max-width: 230px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tlkf .kf-title small { color: var(--mu); font-weight: 400; }
+.kf-field { display: grid; gap: 1px; }
+.kf-field > span { color: var(--mu); font-size: 9.5px; text-transform: uppercase; letter-spacing: .05em; }
+.kf-field input, .kf-field select {
+  width: 64px;
+  padding: 2px 4px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--rai);
+  color: var(--tx);
+  font: 11px/1.2 ui-monospace, Menlo, monospace;
+}
+.kf-field select { width: 94px; }
+.kf-field input[type=range] { width: 82px; accent-color: var(--ac); padding: 0; }
+.kf-field.wide input { width: 112px; }
+.tlkf button {
+  align-self: end;
+  padding: 4px 7px;
+  font-size: 10.5px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--rai);
+  color: var(--tx);
+}
+.tlkf button:hover:not(:disabled) { border-color: var(--ac); color: var(--ac); }
+.tlkf button.pri { background: var(--ac); border-color: var(--ac); color: #131317; font-weight: 700; }
+.tlkf button.danger { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
+
+/* Role groups */
+.tg {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 23px;
+  padding: 0 8px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--pan) 80%, var(--rai) 20%);
+  color: var(--mu);
+  font-size: 10.5px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.tg button { border: 0; background: transparent; color: inherit; padding: 1px 3px; font-size: 10.5px; }
+.tg button:hover { color: var(--ac); }
+.tg .tg-name { color: var(--tx); font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+.tg .tg-count { font-variant-numeric: tabular-nums; }
+.tg .tg-spacer { flex: 1; }
+.tg .tg-arrow { width: 12px; text-align: center; display: inline-block; }
+.tg[data-open="true"] .tg-arrow { transform: rotate(90deg); }
+.tr .n {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding-left: 20px;
+}
+.tr .n .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tr .n .role {
+  flex: none;
+  font-size: 8.5px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 0 3px;
+  color: var(--mu);
+}
+.tr .n .kfc { margin-left: auto; color: var(--ac); font-size: 9.5px; font-variant-numeric: tabular-nums; }
+.tr[data-s="1"] .n { background: color-mix(in srgb, var(--ac) 9%, transparent); }
+.tr[data-m="1"] .n { background: color-mix(in srgb, var(--ac) 5%, transparent); }
+.tr:hover .n { color: var(--tx); }
+.tl-empty { color: var(--mu); font-size: 11px; padding: 16px; text-align: center; }
+
+/* Keyframe / segment bars */
+.kfbar {
+  position: absolute;
+  top: 7px;
+  height: 8px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--ac) 30%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ac) 60%, transparent);
+  cursor: grab;
+  pointer-events: auto;
+  z-index: 1;
+}
+.kfbar.selected { outline: 2px solid var(--tx); outline-offset: 1px; }
+.kfseg {
+  position: absolute;
+  top: 16px;
+  height: 4px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--ac) 45%, transparent);
+  cursor: pointer;
+  pointer-events: auto;
+}
+.kfseg[data-k="opacity"] { background: color-mix(in srgb, #8fd3c1 55%, transparent); }
+.kfseg[data-k="move"] { background: color-mix(in srgb, #e7b46a 55%, transparent); }
+.kfseg[data-k="scale"] { background: color-mix(in srgb, #b4a5ff 50%, transparent); }
+
+
 .ph {
   position: absolute;
   top: 0;
@@ -1157,7 +1310,34 @@ main {
   background: #fff;
   pointer-events: none;
   z-index: 3;
-  left: calc(116px + (100% - 116px) * var(--p, 1));
+  left: calc(var(--tl-name) + (100% - var(--tl-name)) * var(--p, 1));
+}
+.kf {
+  position: absolute;
+  top: 4px;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  background: var(--pan);
+  border: 1.5px solid var(--ac);
+  transform: rotate(45deg);
+  cursor: ew-resize;
+  z-index: 2;
+}
+.kf:hover { background: var(--ac); }
+.kf[data-s="1"] {
+  background: var(--tx);
+  border-color: var(--tx);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ac) 55%, transparent);
+}
+.kf-label {
+  position: absolute;
+  top: 1px;
+  font-size: 8.5px;
+  color: var(--mu);
+  pointer-events: none;
+  padding-left: 2px;
+  white-space: nowrap;
 }
 .warn { color: var(--warn); }
 #gc { border-color: var(--hi); }
@@ -1796,6 +1976,14 @@ dialog.dlg:has(.json-editor) { width: min(94vw, 920px); }
       <input type="range" id="scrub" min="0" max="10000" step="50" value="10000" aria-label="Playhead">
         <output id="tt">10.00 / 10.00 s</output>
       </div>
+      <div class="tlh2">
+        <input id="tlFilter" type="search" placeholder="Filter layers…" aria-label="Filter timeline layers" autocomplete="off">
+        <label class="tl-check"><input type="checkbox" id="tlAnimated"> Animated only</label>
+        <button id="tlExpandGroups" type="button" title="Open every layer group">Expand groups</button>
+        <button id="tlCollapseGroups" type="button" title="Collapse every layer group">Collapse groups</button>
+        <span id="tlStats" class="tl-stats"></span>
+      </div>
+      <div class="tlkf" id="tlkf"></div>
       <div class="tlb" id="tlb"></div>
     </div>
   </main>
@@ -1861,7 +2049,7 @@ function initTheme(){
 initTheme();
 
 const PANEL={left:{min:200,max:420,def:270,prop:'--left-panel',cls:'l-collapsed'},right:{min:280,max:560,def:390,prop:'--right-panel',cls:'r-collapsed'}};
-const TIMELINE={min:84,max:260,def:178};
+const TIMELINE={min:160,max:700,def:400};
 const resizeState={active:null,startX:0,start:0,moved:false,pid:null};
 const timelineResizeState={active:false,startY:0,startH:0,moved:false};
 const lastW={left:270,right:390};
@@ -1883,7 +2071,7 @@ function setTimelineHeight(h,save=true){
    timelineHandle.dataset.collapsed='true';
    timelineHandle.setAttribute('aria-expanded','false');
    timelineHandle.title='Click to reopen the timeline';
-   if(save)LS.set('agentStudio.timeline.v1',0);
+   if(save)LS.set('agentStudio.timeline.v3',0);
    return;
  }
  timelineEl.style.height=v+'px';
@@ -1892,7 +2080,7 @@ function setTimelineHeight(h,save=true){
  delete timelineHandle.dataset.collapsed;
  timelineHandle.setAttribute('aria-expanded','true');
  timelineHandle.title='Drag to resize · drag upward to collapse';
- if(save)LS.set('agentStudio.timeline.v1',v);
+ if(save)LS.set('agentStudio.timeline.v3',v);
 }
 function onResizeHandleMove(e){
  if(!resizeState.active)return;const side=resizeState.active,P=PANEL[side],dx=e.clientX-resizeState.startX;
@@ -1919,7 +2107,7 @@ function bindResizeHandles(){
    const grow=(e.key==='ArrowRight')===(side==='left'),cur=handle.dataset.collapsed?0:panelW(side),P=PANEL[side];
    setPanel(side,grow?Math.max(P.min,cur+16):(cur-16<P.min?0:cur-16))})})}
 function bindTimelineResize(){
- try{const saved=LS.get('agentStudio.timeline.v1',TIMELINE.def);if(typeof saved==='number'){setTimelineHeight(saved<=0?0:saved,false)}}catch{}
+ try{const saved=LS.get('agentStudio.timeline.v3',TIMELINE.def);if(typeof saved==='number'){setTimelineHeight(saved<=0?0:saved,false)}}catch{}
  const drag=(e)=>{
   if(!timelineResizeState.active)return;const dy=e.clientY-timelineResizeState.startY;
   if(Math.abs(dy)>3)timelineResizeState.moved=true;if(!timelineResizeState.moved)return;
@@ -2009,7 +2197,7 @@ function setLayerSelection(ids,primary){
 }
 function clearLayerSelection(){setLayerSelection([],null)}
 const packCache=new Map(),IMG=new Map(),PXC=new Map(),TINT=new Map();
-const AS={tab:'brand',menuBranch:'',lib:{status:'idle',items:[],cls:'',verified:false,err:''},saved:{status:'idle',items:[],err:''},savedActive:null};
+const AS={tab:'brand',menuBranch:'',lib:{status:'idle',items:[],cls:'',verified:false,err:''},saved:{status:'idle',items:[],err:''},savedActive:null,compositionMeta:null};
 const templateFallback=[
  {id:'hero-flyer',label:'Hero flyer',summary:'Print-led hero composition',category:'Flyers',format:'A4 portrait'},
  {id:'social-post',label:'Social post',summary:'Square social layout',category:'Social',format:'Square'},
@@ -2200,7 +2388,19 @@ function run(sc,cmds){for(const c of cmds){const g=id=>sc.find(l=>l.id===id);
  else if(c.type==='swap-asset'){const l=g(c.layerId);if(l)l.tone=c.asset}
  else if(c.type==='variant'){const next=(FMT&&FMT.eng&&hasEngine())?engVariant(c.variant,sc):fitScene(buildScene(c.variant,sc));sc.splice(0,sc.length,...next)}
  else if(c.type==='set-animation'){const l=g(c.layerId);if(l){delete l.anims;delete l.kf;l.anim={preset:c.preset,start:c.startMs||0,duration:c.durationMs||900}}}
- else if(c.type==='clear-animation'){const l=g(c.layerId);if(l){delete l.anim;delete l.anims;delete l.kf}}}return sc}
+ else if(c.type==='clear-animation'){const l=g(c.layerId);if(l){delete l.anim;delete l.anims;delete l.kf}}
+ else if(c.type==='set-keyframes'){const l=g(c.layerId);if(l&&Array.isArray(c.keyframes))setLayerKeyframes(l,clone(c.keyframes))}
+ else if(c.type==='add-keyframe'){const l=g(c.layerId);if(l){const t=clamp(+c.time||T,0,DUR),keys=(layerKeyframes(l)||[]).slice();keys.push(captureKeyframe(l,t));keys.sort((a,b)=>a.time-b.time);setLayerKeyframes(l,keys)}}
+ else if(c.type==='shift-keyframes'){const l=g(c.layerId);if(l){const shift=+c.shiftMs||0;setLayerKeyframes(l,(layerKeyframes(l)||[]).map(k=>({...k,time:clamp(+k.time+shift,0,DUR)})))}}
+ else if(c.type==='fade-keyframes'){const l=g(c.layerId);if(l){
+  const start=clamp(+c.startMs||T,0,DUR),duration=clamp(+c.durationMs||600,100,DUR);
+  const base=layerState(l,start),rotation=+(base.rot-(+l.rotation||0)).toFixed(2);
+  const a={time:start,x:+base.x.toFixed(2),y:+base.y.toFixed(2),w:+base.w.toFixed(2),h:+base.h.toFixed(2),rotation,opacity:c.direction==='out'?1:0,easing:'easeOut'};
+  const b={...a,time:clamp(start+duration,0,DUR),opacity:c.direction==='out'?0:1};
+  const other=(layerKeyframes(l)||[]).filter(k=>k.time<start-20||k.time>start+duration+20);
+  setLayerKeyframes(l,[...other,a,b].sort((x,y)=>x.time-y.time));
+ }}
+ else if(c.type==='stagger-keyframes'){const step=+c.stepMs||120;(c.layerIds||[]).forEach((id,index)=>{const l=g(id);if(!l)return;const keys=layerKeyframes(l)||[];if(keys.length)setLayerKeyframes(l,keys.map(k=>({...k,time:clamp(+k.time+index*step,0,DUR)})))})}}return sc}
 function commit(cmds){hist.push(clone(scene));run(scene,cmds);selectedLayers=new Set([...selectedLayers].filter(id=>scene.some(l=>l.id===id)));if(sel&&!selectedLayers.has(sel))sel=[...selectedLayers].at(-1)||null;render();layers();if(cmds.some(c=>c.type==='set-animation'))setTimeout(()=>play(0),60)}
 
 /* ---------- render ---------- */
@@ -2525,11 +2725,26 @@ function list(){const w=$('#layers');w.innerHTML='';
   r.onkeydown=e=>{if(e.target!==r)return;if(e.key==='Enter'){e.preventDefault();clearTimeout(layerClickTimer);select(l.id);$('#layers').querySelector(`.lrow[data-id="${CSS.escape(l.id)}"]`)?.focus({preventScroll:true})}else if(e.key===' '){e.preventDefault();clearTimeout(layerClickTimer);toggleLayerSelection(l.id);$('#layers').querySelector(`.lrow[data-id="${CSS.escape(l.id)}"]`)?.focus({preventScroll:true})}};
   r.querySelector('button').onclick=e=>{e.stopPropagation();hist.push(clone(scene));l.hidden=!l.hidden;render();layers()};w.appendChild(r)})}
 let layerClickTimer=0,layerClickPending=null;
-function ctx(){const l=scene.find(q=>q.id===sel),count=selectedLayers.size;$('#ctx').innerHTML=l?`Context: <b>${esc(l.name)}</b> · ${l.type}${count>1?` · ${count} layers selected`:''} · x${l.x} y${l.y} <button id="cx" aria-label="Clear selection">✕</button>`:'Context: <b>whole design</b> · select a layer to focus me';
+function ctx(){const l=scene.find(q=>q.id===sel),count=selectedLayers.size;
+ const selected=scene.filter(layer=>selectedLayers.has(layer.id));
+ const timelineCount=scene.reduce((sum,layer)=>sum+(layerKeyframes(layer)||[]).length,0);
+ const selectedKeys=selected.reduce((sum,layer)=>sum+(layerKeyframes(layer)||[]).length,0);
+ const segmented=scene.filter(layer=>layer.meta&&layer.meta.segmentation);
+ const segGroups=[...new Set(segmented.map(layer=>layer.segmentGroup).filter(Boolean))];
+ const motion=count>1?`${count} layers · ${selectedKeys} keyframes`:(l?layerMotionLabel(l):`${scene.length} layers · ${timelineCount} keyframes${segmented.length?` · ${segmented.length} segmented parts in ${segGroups.length} groups`:''}`);
+ const srcStart=l&&l.meta&&Number.isFinite(+l.meta.start)?+l.meta.start:null;
+ const srcEnd=l&&l.meta&&l.meta.end!=null&&Number.isFinite(+l.meta.end)?+l.meta.end:null;
+ const source=l&&count<2?`${l.source&&l.source.selector?` · ${esc(l.source.selector)}`:''}${srcStart!=null?` · src ${srcStart.toFixed(2)}s–${srcEnd!=null?srcEnd.toFixed(2)+'s':'end'}`:''}`:'';
+ const seg=l&&l.meta&&l.meta.segmentation;
+ const segText=seg?` · ${esc(seg.objectGroup||'segment')} / ${esc(seg.objectLabel||seg.objectName||'part')} · parent ${esc(seg.parentLayerId)}${seg.objectDescription?` · ${esc(seg.objectDescription)}`:''}`:'';
+ const keyframe=timelineKfSel?(()=>{const keys=l?layerKeyframes(l):null;const k=keys&&keys[timelineKfSel.index];return k?{k,index:timelineKfSel.index,count:keys.length}:null})():null;
+ const position=count<2&&l?(keyframe?`key ${keyframe.index+1}/${keyframe.count} @ ${(keyframe.k.time/1000).toFixed(2)}s · x${keyframe.k.x} y${keyframe.k.y} · ${keyframe.k.easing||'easeInOut'} · `:`x${l.x} y${l.y} · `):'';
+ $('#ctx').innerHTML=l?`Context: <b>${esc(l.name)}</b> · ${l.type}${count>1?` · ${count} layers selected`:''} · ${position}${esc(motion)}${source}${segText} <button id="cx" aria-label="Clear selection">✕</button>`:`Context: <b>whole design</b> · ${esc(motion)} · select a layer to focus me`;
  if(l)$('#cx').onclick=()=>select(null);
- const q=l?(l.type==='text'?['Rewrite it','Make it stand out','Animate it']:l.type==='image'?['Crop ideas','Add a scrim','Animate it']:['Options','Animate it']):['Layout concepts','Fix hierarchy','Animate it'];
+ const q=l?(l.type==='text'?['Rewrite it','Make it stand out','Animate it','Timeline']:l.type==='image'?['Crop ideas','Add a scrim','Animate it','Timeline']:['Options','Animate it','Timeline']):['Layout concepts','Fix hierarchy','Animate it'];
+ if(l&&l.meta&&l.meta.segmentation)q.unshift('Segments');
  $('#qp').innerHTML='';q.forEach(t=>{const b=document.createElement('button');b.textContent=t;b.onclick=()=>ask(t);$('#qp').appendChild(b)})}
-function select(id){setLayerSelection(id?[id]:[],id);render();layers();if(id){const l=scene.find(q=>q.id===id);say('agent',`Looking at <b>${esc(l.name)}</b>. Here’s what I’d try:`,suggest(l,''))}}
+function select(id){if(timelineKfSel&&timelineKfSel.layerId!==id)timelineKfSel=null;if(timelineSelection&&timelineSelection.layerId!==id)timelineSelection=null;setLayerSelection(id?[id]:[],id);render();layers();if(id){const l=scene.find(q=>q.id===id);say('agent',`Looking at <b>${esc(l.name)}</b>. Here’s what I’d try:`,suggest(l,''))}}
 
 /* brand chrome */
 function chrome(){
@@ -2724,7 +2939,7 @@ function engApply(){
   if(B)saveScene();
   ENG.wired=true;AS.savedActive=null;Object.assign(ENG,{motif:'auto',motifOn:true,motifScale:1,motifX:0,motifY:0,textScale:1});
   FMT={id:`eng:${ENG.cat}:${ENG.tpl}:${ENG.size}`,group:engCatLabel(ENG.cat),n:`${engCatLabel(ENG.cat)} · ${size.n}`,w:size.w,h:size.h,eng:true};
-  hist=[];clearLayerSelection();seen=new Set();stopP();setDuration(DEFAULT_DUR);T=DUR;
+  hist=[];clearLayerSelection();seen=new Set();stopP();setDuration(DEFAULT_DUR);T=DUR;AS.compositionMeta=null;
   fitStage();sizeProbe();
   scene=engBuild();
   render();layers();assets();greet();remember();
@@ -2783,7 +2998,7 @@ function applyTemplateChoice(template){
  }else{
   FMT=target;
   fitStage();sizeProbe();
-  hist=[];clearLayerSelection();seen=new Set();stopP();setDuration(DEFAULT_DUR);T=DUR;
+  hist=[];clearLayerSelection();seen=new Set();stopP();setDuration(DEFAULT_DUR);T=DUR;AS.compositionMeta=null;
   scene=fitScene(buildScene('classic'));
   render();layers();greet();remember();
  }
@@ -2804,6 +3019,12 @@ function compositionLayer(l,i,textScale=1){
   w:+clamp(num(l.w,100),.5,100).toFixed(2),h:+clamp(num(l.h,10),.5,100).toFixed(2),
   z:num(l.z,i+1),opacity:+clamp(num(l.opacity,1),0,1).toFixed(2),hidden:l.visible===false,
   rotation:+num(l.rotation,0),shape,radius:+clamp(num(l.radius,0),0,50),
+  ...(l.role?{role:String(l.role)}:{}),
+  ...(l.meta&&typeof l.meta==='object'?{meta:l.meta}:{}),
+  ...(l.source&&typeof l.source==='object'?{source:l.source}:{}),
+  ...(l.parentId?{parentId:String(l.parentId)}:{}),
+  ...(l.groupId?{groupId:String(l.groupId)}:{}),
+  ...(l.segmentGroup?{segmentGroup:String(l.segmentGroup)}:{}),
   ...(l.assetId?{assetId:String(l.assetId)}:{})};
  if(l.type==='text'||(!l.type&&!url&&!videoUrl&&typeof l.text==='string')){
   const f=l.font||{};
@@ -2844,7 +3065,8 @@ function compositionKeys(l){
  const keys=source.map(k=>({time:Math.max(0,num(k.time,0)),
   x:num(k.x,num(l.x,0)),y:num(k.y,num(l.y,0)),w:num(k.w,num(l.w,100)),h:num(k.h,num(l.h,10)),
   rotation:num(k.rotation,0),
-  opacity:+clamp(num(k.opacity,num(l.opacity,1)),0,1).toFixed(3)}))
+  opacity:+clamp(num(k.opacity,num(l.opacity,1)),0,1).toFixed(3),
+  easing:['linear','easeIn','easeOut','easeInOut','easeInCubic','easeOutCubic','stepStart','stepEnd'].includes(k.easing)?k.easing:'linear'}))
   .sort((a,b)=>a.time-b.time);
  return keys[keys.length-1].time>keys[0].time?keys:null;
 }
@@ -3508,6 +3730,13 @@ const BASIC_MOTION=[
 ];
 const ALL_MOTION_PRESETS=[...BASIC_MOTION,...CLIP_PRESETS];
 function suggest(l,msg){const m=msg.toLowerCase(),o=[],id=l.id,add=(title,why,cmds)=>o.push({title,why,cmds}),CO=copyOptions();
+ const seg=l.meta&&l.meta.segmentation;
+ if(seg){
+  add('Segmented image part',`${seg.objectDescription||seg.objectLabel} It belongs to ${l.segmentGroup}, parent ${seg.parentLayerId}.` ,[]);
+  add('Explain the composition structure','Lists the four source images, their semantic groups and the part inventory.',[]);
+  o[o.length-1].ask='Segments';
+  return o;
+ }
  const col=Object.keys(PAL).find(n=>m.includes(n.toLowerCase())),has=w=>w.some(x=>m.includes(x));
  if(col&&l.type!=='image'&&l.type!=='logo')add(`Colour → ${col}`,`Brand palette value ${PAL[col]}.`,[S(id,{color:PAL[col]})]);
  if(has(['bigger','larger','increase']))add('Scale up 20%','Raises presence; I’d check the box still fits.',l.type==='text'?[S(id,{font:{sizePct:+(l.font.sizePct*1.2).toFixed(2)}})]:[S(id,{w:+(l.w*1.2).toFixed(1),h:+(l.h*1.2).toFixed(1)})]);
@@ -3526,6 +3755,21 @@ function suggest(l,msg){const m=msg.toLowerCase(),o=[],id=l.id,add=(title,why,cm
   const named=CLIP_PRESETS.find(p=>m.includes(p.id)||m.includes(p.label.toLowerCase()));
   if(named)list=[named,...list.filter(p=>p.id!==named.id)];
   list.slice(0,7).forEach(p=>add(`Animate · ${p.label}`,p.desc,[A(id,p.id,300,p.defaultDur)]));
+
+ }
+ const timelineIntent=has(['timeline','keyframe','keyframes','timing','segment','segments','ease','easing','stagger','retime','hold','fade','motion']);
+ if(timelineIntent){
+  const keys=layerKeyframes(l)||[];
+  add('Keyframe at playhead',`Capture x/y/w/h, rotation and opacity at ${(T/1000).toFixed(2)}s on this layer.`,[{type:'add-keyframe',layerId:id,time:T}]);
+  if(keys.length){
+   add('Fade in from here','Adds a 0.6s opacity entrance starting at the playhead.',[{type:'fade-keyframes',layerId:id,direction:'in',startMs:T,durationMs:600}]);
+   add('Fade out from here','Adds a 0.6s opacity exit starting at the playhead.',[{type:'fade-keyframes',layerId:id,direction:'out',startMs:T,durationMs:600}]);
+  }
+  if(selectedLayers.size>1){
+   add('Stagger selected layers',`Offset each selected layer by 120ms (${selectedLayers.size} layers).`,[{type:'stagger-keyframes',layerIds:[...selectedLayers],stepMs:120}]);
+   add('Fade selected layers in',`Create a 0.6s opacity entrance on all ${selectedLayers.size} selected layers.`,[...selectedLayers].map(layerId=>({type:'fade-keyframes',layerId,direction:'in',startMs:T,durationMs:600})));
+  }
+  if(keys.length)add('Clear motion','Removes the keyframe track from this layer.',[{type:'clear-animation',layerId:id}]);
  }
  if(has(['rewrite','alternative','copy','wording'])||msg==='Rewrite it')(CO[id]||[]).filter(t=>t!==l.text).slice(0,3).forEach(t=>add(`“${t.length>48?t.slice(0,47)+'…':t}”`,'Taken from this brand’s own fields; no new facts.',[S(id,{text:t,hidden:false})]));
  if(!o.length||has(['stand out','options','ideas','crop','scrim','what'])||['Make it stand out','Options','Crop ideas','Add a scrim'].includes(msg)){
@@ -3582,6 +3826,16 @@ function say(who,html,cards=[]){const m=document.createElement('div');m.classNam
   w.appendChild(d)});chat.appendChild(w)}
  chat.scrollTop=chat.scrollHeight}
 function ask(t){say('user',esc(t));const l=scene.find(q=>q.id===sel);setTimeout(()=>{
+ const segmented=scene.filter(layer=>layer.meta&&layer.meta.segmentation);
+ if(segmented.length&&/segment|segmentation|structure|parts|groups|how.*built|what.*in.*composition/i.test(t)){
+  const groups=[...new Set(segmented.map(layer=>layer.segmentGroup).filter(Boolean))];
+  const parents=[...new Set(segmented.map(layer=>layer.meta.segmentation.parentLayerId).filter(Boolean))];
+  const lines=groups.map(group=>{
+   const layers=segmented.filter(layer=>layer.segmentGroup===group);
+   return `<b>${esc(group)}</b> — ${layers.map(layer=>esc(layer.meta.segmentation.objectLabel||layer.name)).join(', ')}`;
+  });
+  say('agent',`I can see <b>${segmented.length} segmented image parts</b> in <b>${groups.length} semantic groups</b>, expanded from <b>${parents.length} source image layers</b>. Each child inherits its parent's keyframe timing, opacity and motion.${lines.map(line=>`<br>${line}`).join('')}<br>Select any part to see its parent, object description and keyframes; use <b>Select</b> on a timeline group to act on all of its parts.`);return;
+ }
  if(!l){
   const lm=t.toLowerCase();
   const preferred=getPreferredConcepts();
@@ -3594,14 +3848,14 @@ function ask(t){say('user',esc(t));const l=scene.find(q=>q.id===sel);setTimeout(
   else if(lm.includes('anim')||lm.includes('motion')||lm.includes('move'))cards=[getExperimentalConcepts().find(c=>c.title==='Motion First')||preferred[0]].filter(Boolean);
   else cards=preferred.slice(0,3);
   say('agent',isExperimental?'Here are a wider set of experimental directions. Each still respects the brand palette and guardrails:':isClip?'Here are motion treatments using clip-path reveals and geometric wipes:':lm.includes('hier')?'One structural issue I can see:':lm.includes('anim')?'A motion-led treatment for the whole design. Drag the bars in the timeline to retime it:':'Three directions for the whole design, built from this brand’s palette and type. Hover to preview each on the canvas:',cards)
- }else{const c=suggest(l,t);say('agent',c.length?`For <b>${esc(l.name)}</b>:`:`I can’t do that to <b>${esc(l.name)}</b> yet. Try “bigger”, “accent colour”, “animate it” or “move up”.`,c)}} ,300)}
+ }else{const c=suggest(l,t);say('agent',c.length?`For <b>${esc(l.name)}</b>:`:`I can’t do that to <b>${esc(l.name)}</b> yet. Try “bigger”, “accent colour”, “animate it”, “timeline” or “move up”.`,c)}} ,300)}
 function deleteSelection(){if(!selectedLayers.size&&sel)selectedLayers.add(sel);if(!selectedLayers.size)return;const removed=scene.filter(layer=>selectedLayers.has(layer.id));if(!removed.length)return;hist.push(clone(scene));removed.forEach(rememberSlot);scene=scene.filter(layer=>!selectedLayers.has(layer.id));clearLayerSelection();render();layers();$('#status').textContent=removed.length===1?`Deleted ${removed[0].name||'layer'}.`:`Deleted ${removed.length} layers.`;closeLayerMenu()}
 $('#f').onsubmit=e=>{e.preventDefault();const v=$('#in').value.trim();if(v){$('#in').value='';ask(v)}};
 $('#clearChat').onclick=()=>{chat.innerHTML='';$('#status').textContent='Chat cleared.'};
 document.addEventListener('keydown',(event)=>{const target=event.target;const editable=target&&((target.isContentEditable)||(target.tagName==='INPUT')||(target.tagName==='TEXTAREA')||(target.tagName==='SELECT'));if(editable)return;if((event.key==='Delete'||event.key==='Backspace')&&sel){event.preventDefault();deleteSelection()}});
 stage.addEventListener('contextmenu',e=>{const layer=e.target.closest('.L');if(!layer||!layer.dataset.id)return;openLayerMenu(e,layer.dataset.id)});
 $('#layers').addEventListener('contextmenu',e=>{const row=e.target.closest('.lrow');if(!row||!row.dataset.id)return;openLayerMenu(e,row.dataset.id)});
-function greet(){chat.innerHTML='';say('agent',`Hi, I’m the Studio agent. I can see the <b>${esc(B.name)}</b> ${esc(FMT.n.toLowerCase())}, built from its palette (${Object.keys(PAL).length} colours), type and imagery. <b>Select a layer</b> or <b>drag an asset onto the canvas</b> and I’ll propose options for that exact element. With nothing selected, here are directions for the whole design:`,concepts().slice(0,3))}
+function greet(){chat.innerHTML='';const segmented=scene.filter(layer=>layer.meta&&layer.meta.segmentation).length;say('agent',`Hi, I’m the Studio agent. I can see the <b>${esc(B.name)}</b> ${esc(FMT.n.toLowerCase())}, built from its palette (${Object.keys(PAL).length} colours), type and imagery. <b>Select a layer</b> or <b>drag an asset onto the canvas</b> and I’ll propose options for that exact element.${segmented?` This composition has <b>${segmented} segmented image parts</b>; ask <b>“segments”</b> for the structure.`:''} With nothing selected, here are directions for the whole design. The timeline groups layers ${segmented?'by source/object group':'by role'}; select a keyframe to edit motion, timing or position.`,concepts().slice(0,3))}
 
 /* ---------- guardrails ---------- */
 let cur=[],seen=new Set();
@@ -3645,13 +3899,96 @@ function flag(a,lead){const nm=id=>(scene.find(l=>l.id===id)||{name:id}).name,it
 /* ---------- timeline ---------- */
 const DEFAULT_DUR=10000;let DUR=DEFAULT_DUR,T=DUR,playing=false,raf=0;
 let timelineSelection=null,timelineClipboard=null,timelineId=0;
+let timelineKfSel=null,timelineFilter='',timelineAnimatedOnly=LS.get('agentStudio.tl.animated.v1',false);
+let timelineGroups=LS.get('agentStudio.tl.groups.v1',{});
 const newTimelineId=()=>`tl-${Date.now().toString(36)}-${(++timelineId).toString(36)}`;
 function timelineAnims(layer){
  if(Array.isArray(layer.anims))return layer.anims;
  return layer.anim?[{...layer.anim,id:'legacy',...(layer.kf?{keyframes:layer.kf}:{})}]:[];
 }
 function layerKeyframes(layer){const event=timelineAnims(layer).find(item=>Array.isArray(item.keyframes));return event?event.keyframes:layer.kf}
-function setLayerKeyframes(layer,frames){const event=Array.isArray(layer.anims)&&layer.anims.find(item=>Array.isArray(item.keyframes));if(event)event.keyframes=frames;else layer.kf=frames}
+function keyframeEvent(layer){return timelineAnims(layer).find(item=>Array.isArray(item.keyframes))||null}
+function ensureKeyframeEvent(layer,frames=[]){
+ if(!Array.isArray(layer.anims))layer.anims=timelineAnims(layer).map(event=>({...event}));
+ delete layer.anim;delete layer.kf;
+ let event=layer.anims.find(item=>Array.isArray(item.keyframes));
+ if(!event){event={id:newTimelineId(),preset:'keyframes',start:0,duration:0,keyframes:[]};layer.anims.push(event)}
+ event.keyframes=frames;
+ if(frames.length){
+  const times=frames.map(k=>+k.time||0);
+  event.start=Math.max(0,Math.min(...times));
+  event.duration=Math.max(0,Math.max(...times)-event.start);
+ }else{
+  layer.anims=layer.anims.filter(item=>item!==event);
+  if(!layer.anims.length)delete layer.anims;
+ }
+ return event;
+}
+function setLayerKeyframes(layer,frames){ensureKeyframeEvent(layer,frames)}
+function captureKeyframe(layer,t){
+ const st=layerState(layer,t),base=+layer.rotation||0;
+ const round=(v,d=2)=>+((+v||0).toFixed(d));
+ return {time:clamp(Math.round(t),0,DUR),x:round(st.x),y:round(st.y),w:round(st.w),h:round(st.h),
+  rotation:round(st.rot-base,2),opacity:+clamp(+st.opacity||0,0,1).toFixed(3),easing:'easeInOut'};
+}
+function timelineSegments(layer){
+ const ks=layerKeyframes(layer)||[],out=[];
+ for(let i=0;i<ks.length-1;i++){
+  const a=ks[i],b=ks[i+1],d=t=>Math.abs((+t||0))>0.0001;
+  const changed=[];
+  if(d((+b.x||0)-(+a.x||0))||d((+b.y||0)-(+a.y||0)))changed.push('move');
+  if(d((+b.w||0)-(+a.w||0))||d((+b.h||0)-(+a.h||0)))changed.push('scale');
+  const op=v=>Number.isFinite(+v)?+v:1;
+  if(d(op(b.opacity)-op(a.opacity)))changed.push('opacity');
+  if(d((+b.rotation||0)-(+a.rotation||0)))changed.push('rotate');
+  if(changed.length)out.push({start:a.time,end:b.time,changes:changed});
+ }
+ return out;
+}
+function timelineRole(layer){
+ if(layer.type==='text')return 'text';
+ if(layer.type==='logo')return 'logo';
+ const role=String(layer.role||'').toLowerCase();
+ if(role==='background'||role==='prop'||role==='props'||role==='foreground'||role==='character-part'||role==='character')return role==='props'?'prop':(role==='character-part'?'character':role);
+ if(layer.meta&&layer.meta.isBackground)return 'background';
+ if(layer.type==='image')return 'image';
+ if(layer.type==='fill'||layer.type==='gradient')return 'background';
+ return 'other';
+}
+function timelineGroup(layer){
+ const segmentGroup=String(layer.segmentGroup||'').trim();
+ if(segmentGroup){
+  return {key:'seg-'+segmentGroup.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,''),label:segmentGroup,order:-1};
+ }
+ const role=timelineRole(layer);
+ const labels={foreground:'Foreground',prop:'Props',background:'Background',character:'Characters',text:'Text',logo:'Logos',image:'Images',other:'Other'};
+ return {key:role,label:labels[role]||'Other',order:['foreground','prop','background','character','text','image','logo','other'].indexOf(role)};
+}
+function layerMotionLabel(layer){
+ const ks=layerKeyframes(layer)||[],segs=timelineSegments(layer);
+ if(!ks.length){
+  const events=timelineAnims(layer);
+  if(!events.length)return 'static';
+  const starts=events.map(event=>+event.start||0),ends=events.map(event=>(+event.start||0)+(+event.duration||0));
+  return `${events.length} motion event${events.length===1?'':'s'} · ${(Math.min(...starts)/1000).toFixed(2)}–${(Math.max(...ends)/1000).toFixed(2)}s`;
+ }
+ const changes=[...new Set(segs.flatMap(s=>s.changes))];
+ return `${ks.length} key${ks.length===1?'':'s'} · ${(ks[0].time/1000).toFixed(2)}–${(ks[ks.length-1].time/1000).toFixed(2)}s${changes.length?` · ${changes.join('/')}`:''}`;
+}
+function timelineLayerTitle(layer){
+ const bits=[layer.id,layer.role||'',layer.type||''];
+ const seg=layer.meta&&layer.meta.segmentation;
+ if(seg)bits.push(`parent ${seg.parentLayerId}`,`${seg.objectGroup||''} / ${seg.objectLabel||seg.objectName||''}`,seg.objectDescription||'');
+ else if(layer.meta&&layer.meta.path)bits.push('path '+layer.meta.path);
+ if(layer.source&&layer.source.selector)bits.push(layer.source.selector);
+ if(!seg&&layer.meta&&Number.isFinite(+layer.meta.start))bits.push('source '+(+layer.meta.start).toFixed(2)+'s–'+(layer.meta.end==null?'end':(+layer.meta.end).toFixed(2)+'s'));
+ return bits.filter(Boolean).join(' · ');
+}
+function setTimelineGroup(key,open){
+ timelineGroups=timelineGroups&&typeof timelineGroups==='object'?timelineGroups:{};
+ timelineGroups[key]=!!open;
+ LS.set('agentStudio.tl.groups.v1',timelineGroups);
+}
 function editableTimelineAnims(layer){
  if(!Array.isArray(layer.anims)){
   layer.anims=timelineAnims(layer).map(event=>({...event}));
@@ -3667,6 +4004,18 @@ function setDuration(ms){DUR=Math.max(1000,Math.min(60000,Math.round((+ms||DEFAU
  const sc=$('#scrub');if(sc){sc.max=DUR;if(T>DUR)T=DUR;sc.value=T}
  if($('#tt'))$('#tt').textContent=(T/1000).toFixed(2)+' / '+(DUR/1000).toFixed(2)+' s';if($('#tlb'))$('#tlb').style.setProperty('--p',T/DUR)}
 const easeSmooth=t=>t*t*(3-2*t);
+function kfEase(name,p){
+ const t=clamp(+p||0,0,1),n=String(name||'');
+ if(n==='linear')return t;
+ if(n==='stepStart')return 0;
+ if(n==='stepEnd')return 1;
+ if(n==='easeIn')return t*t;
+ if(n==='easeOut')return 1-(1-t)*(1-t);
+ if(n==='easeInOut')return t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+ if(n==='easeInCubic')return t*t*t;
+ if(n==='easeOutCubic')return 1-Math.pow(1-t,3);
+ return easeSmooth(t);
+}
 function applyKf(e,l,t,frames){const k=frames||l.kf;if(!k||!k.length)return;
  const num=(v,d)=>{const n=+v;return Number.isFinite(n)?n:d};
  const op=v=>clamp(num(v,1),0,1),base=op(l.opacity),extra=num(l.rotation,0);
@@ -3677,7 +4026,7 @@ function applyKf(e,l,t,frames){const k=frames||l.kf;if(!k||!k.length)return;
    opacity:+(op(a.opacity)*base).toFixed(3),transform:`rotate(${(num(a.rotation,0)+extra).toFixed(2)}deg)`});
   return;
  }
- const p=easeSmooth(Math.max(0,Math.min(1,(t-a.time)/(b.time-a.time))));
+ const p=kfEase(a.easing,Math.max(0,Math.min(1,(t-a.time)/(b.time-a.time))));
  const rot=num(a.rotation,0)+(num(b.rotation,num(a.rotation,0))-num(a.rotation,0))*p+extra;
  Object.assign(e.style,{left:(a.x+(b.x-a.x)*p)+'%',top:(a.y+(b.y-a.y)*p)+'%',
   width:(a.w+(b.w-a.w)*p)+'%',height:(a.h+(b.h-a.h)*p)+'%',
@@ -3690,7 +4039,7 @@ function stopP(){playing=false;cancelAnimationFrame(raf);$('#tpl').textContent='
 function play(from=T){stopP();if(from>=DUR)from=0;playing=true;$('#tpl').textContent='❚❚ Pause';const s=performance.now()-from;const f=n=>{seek(n-s);if(T<DUR&&playing)raf=requestAnimationFrame(f);else stopP()};raf=requestAnimationFrame(f)}
 $('#tpl').onclick=()=>playing?stopP():play();$('#scrub').oninput=e=>{stopP();seek(+e.target.value)};
 const pxb=(a,b)=>{b.style.left=a.start/DUR*100+'%';b.style.width=Math.max(.6,a.duration/DUR*100)+'%'};
-function bd(e,layer,event,b){e.stopPropagation();e.preventDefault();event=editableTimelineAnims(layer).find(item=>item.id===event.id)||event;timelineSelection={layerId:layer.id,eventId:event.id};tl();
+function bd(e,layer,event,b){e.stopPropagation();e.preventDefault();event=editableTimelineAnims(layer).find(item=>item.id===event.id)||event;timelineSelection={layerId:layer.id,eventId:event.id};timelineKfSel=null;b.classList.add('selected');
  const tk=b.parentNode.getBoundingClientRect(),edge=e.clientX>b.getBoundingClientRect().right-8,sx=e.clientX,s0=event.start,d0=event.duration,keys0=event.keyframes?clone(event.keyframes):null;let mv=false;
  const m=ev=>{if(!mv){hist.push(clone(scene));mv=true}const dt=Math.round((ev.clientX-sx)/tk.width*DUR/100)*100;
   if(edge){const d=Math.max(100,Math.min(DUR-s0,d0+dt));if(keys0)event.keyframes=keys0.map(k=>({...k,time:s0+(k.time-s0)*d/Math.max(1,d0)}));event.duration=d}
@@ -3704,20 +4053,294 @@ function bd(e,layer,event,b){e.stopPropagation();e.preventDefault();event=editab
    const row=document.elementFromPoint(ev.clientX,ev.clientY)?.closest('.tr[data-layer-id]'),target=row&&scene.find(item=>item.id===row.dataset.layerId);
    if(target&&target!==layer){editableTimelineAnims(layer).splice(editableTimelineAnims(layer).indexOf(event),1);editableTimelineAnims(target).push(event)}
    timelineSelection={layerId:target?target.id:layer.id,eventId:event.id};
-   tl();saveScene();
+   render();layers();
    say('agent',`${esc((target||layer).name)}: ${event.preset} starts at ${(event.start/1000).toFixed(1)}s and runs ${(event.duration/1000).toFixed(1)}s.`)
-  }};
+  }else{tl()}};
  addEventListener('pointermove',m);addEventListener('pointerup',u)}
-function tl(){const w=$('#tlb'),n=Math.max(2,Math.min(10,Math.round(DUR/1000))),fmt=ms=>`${+(ms/1000).toFixed(2)}s`;
- w.innerHTML=`<div class="tr"><div class="n"></div><div class="tk" style="cursor:pointer">${[...Array(n+1)].map((_,i)=>`<small style="position:absolute;left:${i/n*100}%;font-size:9px;color:var(--mu);padding-left:2px">${fmt(i/n*DUR)}</small>`).join('')}</div></div>`;
- const rul=w.querySelector('.tk'),go=ev=>{const r=rul.getBoundingClientRect();stopP();seek((ev.clientX-r.left)/r.width*DUR)};
- rul.onpointerdown=ev=>{go(ev);const u=()=>{removeEventListener('pointermove',go);removeEventListener('pointerup',u)};addEventListener('pointermove',go);addEventListener('pointerup',u)};
- scene.filter(l=>!l.hidden).sort((a,b)=>b.z-a.z).forEach(l=>{const r=document.createElement('div');r.className='tr';r.dataset.s=l.id===sel?1:0;r.dataset.layerId=l.id;r.innerHTML=`<div class="n">${esc(l.name)}</div><div class="tk"></div>`;r.querySelector('.n').onclick=()=>select(l.id);
-  timelineAnims(l).forEach((a,index)=>{if(!a.id)a.id=`legacy-${index}`;const b=document.createElement('div');b.className='bar'+(timelineSelection&&timelineSelection.layerId===l.id&&timelineSelection.eventId===a.id?' selected':'');b.dataset.animId=a.id;
-   const keys=a.keyframes?a.keyframes.slice(1,-1).map(k=>`<i style="left:${((k.time-a.start)/Math.max(1,a.duration)*100).toFixed(2)}%"></i>`).join(''):'';
-   b.innerHTML=`<span>${esc(a.preset)}</span>${keys}`;pxb(a,b);b.onclick=()=>{timelineSelection={layerId:l.id,eventId:a.id};tl()};b.onpointerdown=e=>bd(e,l,a,b);r.querySelector('.tk').appendChild(b)});w.appendChild(r)});
- const ph=document.createElement('div');ph.className='ph';w.appendChild(ph);seek(T)}
-
+function kfField(label,key,value,step,attrs=''){
+ return `<label class="kf-field"><span>${esc(label)}</span><input type="number" step="${step}" data-kf-field="${key}" value="${esc(value)}" ${attrs}></label>`;
+}
+function timelineGroupOpen(key,count){
+ const saved=timelineGroups&&Object.prototype.hasOwnProperty.call(timelineGroups,key)?timelineGroups[key]:null;
+ return typeof saved==='boolean'?saved:count<=6;
+}
+function selectedKeyframe(){
+ if(!timelineKfSel)return null;
+ const layer=scene.find(l=>l.id===timelineKfSel.layerId);
+ const keys=layer?layerKeyframes(layer):null;
+ const index=timelineKfSel.index;
+ if(!layer||!keys||!keys[index])return null;
+ return {layer,keys,index,k:keys[index]};
+}
+function renderKfEditor(){
+ const host=$('#tlkf');
+ if(!host)return;
+ host.innerHTML='';
+ const selected=selectedKeyframe();
+ if(!selected){
+  const target=scene.find(l=>l.id===sel);
+  const keys=target?layerKeyframes(target)||[]:[];
+  host.innerHTML=`<span class="kf-hint">Select a keyframe marker to edit time, geometry, opacity or easing — or add one at the playhead.</span>`
+   +(target?`<span class="kf-hint"><b>${esc(target.name)}</b> · ${keys.length} key${keys.length===1?'':'s'} · ${esc(timelineRole(target))}</span>`:'')
+   +`<button class="pri" type="button" data-kf-action="add" ${target?'':'disabled'}>+ Keyframe at playhead</button>`;
+  return;
+ }
+ const {layer,keys,index,k}=selected;
+ const segs=timelineSegments(layer);
+ const seg=segs.find(s=>s.start<=k.time&&s.end>k.time)||segs.find(s=>s.start===k.time);
+ const segText=seg?`Segment ${(seg.start/1000).toFixed(2)}–${(seg.end/1000).toFixed(2)}s · ${seg.changes.join('/')}`:'Hold / static keyframe';
+ const easing=['linear','easeIn','easeOut','easeInOut','easeInCubic','easeOutCubic','stepStart','stepEnd'];
+ host.innerHTML=
+  `<span class="kf-title" title="${esc(timelineLayerTitle(layer))}">${esc(layer.name)} <small>key ${index+1}/${keys.length} · ${esc(timelineRole(layer))}</small></span>`
+  +kfField('Time s','time',(k.time/1000).toFixed(2),0.05,`min="0" max="${(DUR/1000).toFixed(2)}"`)
+  +kfField('X %','x',k.x??layer.x,0.05,'min="-200" max="200"')
+  +kfField('Y %','y',k.y??layer.y,0.05,'min="-200" max="200"')
+  +kfField('W %','w',k.w??layer.w,0.05,'min="0.1" max="400"')
+  +kfField('H %','h',k.h??layer.h,0.05,'min="0.1" max="400"')
+  +kfField('Rot °','rotation',k.rotation??0,0.1,'min="-180" max="180"')
+  +kfField('Opacity','opacity',(+(k.opacity??1)).toFixed(2),0.01,'min="0" max="1"')
+  +`<label class="kf-field"><span>Easing</span><select data-kf-field="easing">${easing.map(name=>`<option value="${name}"${(k.easing||'easeInOut')===name?' selected':''}>${name}</option>`).join('')}</select></label>`
+  +`<button type="button" data-kf-action="seek">Seek</button>`
+  +`<button type="button" data-kf-action="prev" ${index<=0?'disabled':''}>◀</button>`
+  +`<button type="button" data-kf-action="next" ${index>=keys.length-1?'disabled':''}>▶</button>`
+  +`<button type="button" data-kf-action="add">+ Add at playhead</button>`
+  +`<button type="button" data-kf-action="duplicate">Duplicate</button>`
+  +`<button class="danger" type="button" data-kf-action="delete">Delete</button>`
+  +`<span class="kf-hint">${esc(segText)}</span>`;
+}
+function selectKeyframe(layerId,index,doSeek=true){
+ const layer=scene.find(l=>l.id===layerId);
+ const keys=layer?layerKeyframes(layer):null;
+ const k=keys&&keys[index];
+ if(!k)return;
+ setLayerSelection([layer.id],layer.id);
+ timelineKfSel={layerId:layer.id,index};
+ const event=keyframeEvent(layer);
+ timelineSelection=event?{layerId:layer.id,eventId:event.id}:null;
+ if(doSeek){stopP();seek(k.time)}
+ const status=$('#status');if(status)status.textContent=`${layer.name} · keyframe ${index+1}/${keys.length} at ${(k.time/1000).toFixed(2)}s`;
+ render();layers();
+ requestAnimationFrame(()=>{const row=document.querySelector(`.tr[data-layer-id="${CSS.escape(layer.id)}"]`);if(row)row.scrollIntoView({block:'nearest'})});
+}
+function refreshEventRange(layer){
+ const event=keyframeEvent(layer);
+ if(!event||!Array.isArray(event.keyframes)||!event.keyframes.length)return;
+ const times=event.keyframes.map(k=>+k.time||0);
+ event.start=Math.max(0,Math.min(...times));
+ event.duration=Math.max(0,Math.max(...times)-event.start);
+}
+function addKeyframeAtPlayhead(){
+ const layer=scene.find(l=>l.id===sel);
+ if(!layer){toast('Select a layer first, then add a keyframe at the playhead.',true);return}
+ stopP();
+ const t=clamp(Math.round(T/50)*50,0,DUR);
+ const keys=(layerKeyframes(layer)||[]).slice();
+ const existing=keys.findIndex(k=>Math.abs(+k.time-t)<25);
+ if(existing>=0){selectKeyframe(layer.id,existing,true);return}
+ hist.push(clone(scene));
+ const frame=captureKeyframe(layer,t);
+ keys.push(frame);keys.sort((a,b)=>a.time-b.time);
+ setLayerKeyframes(layer,keys);
+ const idx=keys.indexOf(frame);
+ timelineKfSel={layerId:layer.id,index:idx};
+ const event=keyframeEvent(layer);
+ timelineSelection=event?{layerId:layer.id,eventId:event.id}:null;
+ render();layers();seek(t);
+ say('agent',`Added a keyframe on <b>${esc(layer.name)}</b> at ${(t/1000).toFixed(2)}s. Drag its diamond in the timeline, or edit x/y/w/h, rotation, opacity and easing above.`);
+}
+function deleteSelectedKeyframe(){
+ const selected=selectedKeyframe();
+ if(!selected){toast('Select a keyframe first.',true);return}
+ const {layer,keys,index}=selected;
+ hist.push(clone(scene));
+ keys.splice(index,1);
+ setLayerKeyframes(layer,keys);
+ timelineKfSel=keys.length?{layerId:layer.id,index:Math.min(index,keys.length-1)}:null;
+ if(!keys.length)timelineSelection=null;
+ render();layers();
+ if(timelineKfSel)seek(keys[timelineKfSel.index].time);
+ toast(`Keyframe removed from ${layer.name}.`);
+}
+function duplicateSelectedKeyframe(){
+ const selected=selectedKeyframe();
+ if(!selected){toast('Select a keyframe first.',true);return}
+ const {layer,keys,index,k}=selected;
+ const copy=clone(k);
+ const forward=+k.time+250<=DUR;
+ let time=clamp(Math.round(((+k.time+(forward?250:-250)))/50)*50,0,DUR);
+ for(let guard=0;guard<8&&keys.some(item=>Math.abs(+item.time-time)<20);guard++)time=clamp(time+(forward?50:-50),0,DUR);
+ copy.time=time;copy.easing=k.easing||'easeInOut';
+ hist.push(clone(scene));
+ keys.push(copy);keys.sort((a,b)=>a.time-b.time);
+ setLayerKeyframes(layer,keys);
+ const idx=keys.indexOf(copy);
+ timelineKfSel={layerId:layer.id,index:idx};
+ render();layers();seek(time);
+ say('agent',`Duplicated the keyframe on <b>${esc(layer.name)}</b> at ${(time/1000).toFixed(2)}s.`);
+}
+function selectAdjacentKeyframe(delta){
+ const selected=selectedKeyframe();
+ if(!selected)return;
+ const index=clamp(selected.index+delta,0,selected.keys.length-1);
+ selectKeyframe(selected.layer.id,index,true);
+}
+function updateSelectedKeyframe(field,value){
+ const selected=selectedKeyframe();
+ if(!selected)return;
+ const {layer,keys,index,k}=selected;
+ if(field==='easing'){if(!String(value))return}
+ else if(field==='time'){
+  const seconds=+value;
+  if(!Number.isFinite(seconds))return;
+  k.time=clamp(Math.round(seconds*1000),0,DUR);
+  keys.sort((a,b)=>a.time-b.time);
+ }else{
+  const number=+value;
+  if(!Number.isFinite(number))return;
+  const limits={x:[-200,200],y:[-200,200],w:[.1,400],h:[.1,400],rotation:[-180,180],opacity:[0,1]};
+  const [min,max]=limits[field]||[0,100000];
+  k[field]=+clamp(number,min,max).toFixed(field==='opacity'?3:2);
+ }
+ hist.push(clone(scene));
+ setLayerKeyframes(layer,keys);
+ const nextIndex=keys.indexOf(k);
+ timelineKfSel={layerId:layer.id,index:nextIndex>=0?nextIndex:0};
+ stopP();
+ render();layers();
+ if(field==='time')seek(k.time);
+}
+function dragKeyframeMarker(ev,layer,index,el){
+ ev.preventDefault();ev.stopPropagation();
+ const keys=layerKeyframes(layer);
+ const k=keys&&keys[index];
+ if(!k)return;
+ stopP();
+ const tk=el.parentNode,rect=tk.getBoundingClientRect();
+ const sx=ev.clientX;let moved=false,pushed=false;
+ const move=e=>{
+  if(!moved&&Math.abs(e.clientX-sx)<3)return;
+  if(!moved){moved=true;hist.push(clone(scene));}
+  const time=clamp(Math.round((e.clientX-rect.left)/rect.width*DUR/50)*50,0,DUR);
+  k.time=time;keys.sort((a,b)=>a.time-b.time);
+  const markerIndex=keys.indexOf(k);timelineKfSel={layerId:layer.id,index:markerIndex};
+  const markers=[...tk.querySelectorAll('.kf')];
+  markers.forEach((marker,i)=>{const key=keys[i];if(!key)return;const pct=clamp(+key.time/DUR*100,0,100);marker.style.left=`max(5px, min(calc(100% - 5px), ${pct}%))`;marker.dataset.s=i===markerIndex?1:0;marker.title=`${(+key.time/1000).toFixed(2)}s · x${key.x} y${key.y} ${key.w}×${key.h} · opacity ${key.opacity}`});
+  timelineSelection=keyframeEvent(layer)?{layerId:layer.id,eventId:keyframeEvent(layer).id}:null;
+  refreshEventRange(layer);render();seek(time);renderKfEditor();
+ };
+ const up=()=>{
+  removeEventListener('pointermove',move);removeEventListener('pointerup',up);
+  if(!moved){selectKeyframe(layer.id,index,true);return}
+  setLayerKeyframes(layer,keys);
+  const idx=keys.indexOf(k);timelineKfSel={layerId:layer.id,index:idx>=0?idx:0};
+  render();layers();
+  say('agent',`Keyframe moved to ${(k.time/1000).toFixed(2)}s on <b>${esc(layer.name)}</b>.`);
+ };
+ addEventListener('pointermove',move);addEventListener('pointerup',up);
+}
+function tl(){
+ const w=$('#tlb');
+ if(!w)return;
+ if(timelineKfSel){
+  const layer=scene.find(l=>l.id===timelineKfSel.layerId);
+  const keys=layer?layerKeyframes(layer):null;
+  if(!layer||!keys||!keys[timelineKfSel.index])timelineKfSel=null;
+ }
+ const query=String(timelineFilter||'').trim().toLowerCase();
+ const all=scene.filter(l=>!l.hidden);
+ const animated=all.filter(l=>timelineAnims(l).length);
+ const rows=all.filter(l=>{
+  if(timelineAnimatedOnly&&!timelineAnims(l).length)return false;
+  if(!query)return true;
+  const hay=`${l.name||''} ${l.id||''} ${l.role||''} ${l.type||''} ${l.text||''} ${l.meta&&l.meta.path||''}`.toLowerCase();
+  return hay.includes(query);
+ });
+ const rowIds=new Set(rows.map(l=>l.id));
+ const groups=new Map();
+ for(const l of all){
+  const g=timelineGroup(l);
+  if(!groups.has(g.key))groups.set(g.key,{...g,all:[],rows:[]});
+  const entry=groups.get(g.key);entry.all.push(l);if(rowIds.has(l.id))entry.rows.push(l);
+ }
+ const list=[...groups.values()].sort((a,b)=>a.order-b.order);
+ w.innerHTML='';
+ const n=Math.max(2,Math.min(20,Math.round(DUR/1000))),fmt=ms=>`${+(ms/1000).toFixed(2)}s`;
+ const ruler=document.createElement('div');ruler.className='tr';ruler.innerHTML='<div class="n"></div><div class="tk"></div>';
+ const rtk=ruler.querySelector('.tk');
+ for(let i=0;i<=n;i++){const s=document.createElement('small');s.style.cssText=`position:absolute;left:${i/n*100}%;font-size:9px;color:var(--mu);padding-left:2px;pointer-events:none${i===n?';transform:translateX(-100%)':''}`;s.textContent=fmt(i/n*DUR);rtk.appendChild(s)}
+ const go=ev=>{const r=rtk.getBoundingClientRect();stopP();seek(clamp((ev.clientX-r.left)/r.width,0,1)*DUR)};
+ rtk.onpointerdown=ev=>{go(ev);const up=()=>{removeEventListener('pointermove',go);removeEventListener('pointerup',up)};addEventListener('pointermove',go);addEventListener('pointerup',up)};
+ w.appendChild(ruler);
+ const makeRow=layer=>{
+  const keys=layerKeyframes(layer)||[],events=timelineAnims(layer),role=timelineRole(layer);
+  const short={foreground:'FG',prop:'PROP',background:'BG',text:'TXT',image:'IMG',logo:'LOGO',other:'OTHER'}[role]||role;
+  const row=document.createElement('div');row.className='tr';row.dataset.s=selectedLayers.has(layer.id)?1:0;row.dataset.m=selectedLayers.has(layer.id)&&layer.id!==sel?1:0;row.dataset.layerId=layer.id;
+  const name=document.createElement('div');name.className='n';name.title=timelineLayerTitle(layer);
+  name.innerHTML=`<span class="role">${esc(short)}</span><span class="nm">${esc(layer.name||layer.id)}</span><span class="kfc">${keys.length?keys.length+'◆':''}</span>`;
+  name.onclick=()=>select(layer.id);
+  const tk=document.createElement('div');tk.className='tk';
+  tk.onpointerdown=ev=>{if(ev.target!==tk&&!ev.target.classList.contains('kfseg'))return;const r=tk.getBoundingClientRect();stopP();seek(clamp((ev.clientX-r.left)/r.width,0,1)*DUR)};
+  for(const seg of timelineSegments(layer)){
+   const el=document.createElement('div');el.className='kfseg';el.dataset.k=seg.changes[0]||'move';
+   el.style.left=(seg.start/DUR*100)+'%';el.style.width=Math.max(.6,(seg.end-seg.start)/DUR*100)+'%';
+   el.title=`${seg.changes.join('/')} · ${(seg.start/1000).toFixed(2)}–${(seg.end/1000).toFixed(2)}s`;
+   el.onpointerdown=e=>e.stopPropagation();
+   el.onclick=()=>{const list=layerKeyframes(layer)||[];const idx=list.findIndex(k=>Math.abs(+k.time-seg.start)<15);if(idx>=0)selectKeyframe(layer.id,idx,true)};
+   tk.appendChild(el);
+  }
+  events.forEach((event,index)=>{
+   if(!event.id)event.id=`legacy-${index}`;
+   const selected=timelineSelection&&timelineSelection.layerId===layer.id&&timelineSelection.eventId===event.id;
+   if(Array.isArray(event.keyframes)&&event.keyframes.length){
+    const first=event.keyframes[0],last=event.keyframes[event.keyframes.length-1];
+    const bar=document.createElement('div');bar.className='kfbar'+(selected?' selected':'');bar.dataset.animId=event.id;
+    bar.style.left=(+first.time/DUR*100)+'%';bar.style.width=Math.max(.6,((+last.time-+first.time)/DUR*100))+'%';
+    bar.title=`${event.keyframes.length} keyframes · ${(first.time/1000).toFixed(2)}–${(last.time/1000).toFixed(2)}s · drag to retime all`;
+    bar.onpointerdown=e=>bd(e,layer,event,bar);
+    bar.onclick=()=>{timelineSelection={layerId:layer.id,eventId:event.id};timelineKfSel=null;tl()};
+    tk.appendChild(bar);
+    event.keyframes.forEach((k,i)=>{
+     const marker=document.createElement('div');marker.className='kf';
+     marker.dataset.s=timelineKfSel&&timelineKfSel.layerId===layer.id&&timelineKfSel.index===i?1:0;
+     const pct=clamp(+k.time/DUR*100,0,100);marker.style.left=`max(5px, min(calc(100% - 5px), ${pct}%))`;
+     marker.title=`${(k.time/1000).toFixed(2)}s · x${k.x} y${k.y} ${k.w}×${k.h} · opacity ${k.opacity}`;
+     marker.tabIndex=0;marker.setAttribute('role','button');marker.setAttribute('aria-label',`Keyframe ${i+1} on ${layer.name} at ${(k.time/1000).toFixed(2)} seconds`);
+     marker.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();selectKeyframe(layer.id,i,true)}};
+     marker.onpointerdown=e=>dragKeyframeMarker(e,layer,i,marker);
+     tk.appendChild(marker);
+    });
+   }else{
+    const bar=document.createElement('div');bar.className='bar'+(selected?' selected':'');bar.dataset.animId=event.id;
+    bar.innerHTML=`<span>${esc(event.preset||'motion')}</span>`;pxb(event,bar);
+    bar.onclick=()=>{timelineSelection={layerId:layer.id,eventId:event.id};timelineKfSel=null;tl()};
+    bar.onpointerdown=e=>bd(e,layer,event,bar);
+    tk.appendChild(bar);
+   }
+  });
+  row.appendChild(name);row.appendChild(tk);return row;
+ };
+ for(const group of list){
+  if(!group.rows.length)continue;
+  const open=query?true:timelineGroupOpen(group.key,group.all.length);
+  const th=document.createElement('div');th.className='tg';th.dataset.open=String(open);th.dataset.group=group.key;
+  const animatedCount=group.all.filter(l=>timelineAnims(l).length).length;
+  th.innerHTML=`<button type="button" data-tg-toggle aria-expanded="${open}" title="${open?'Collapse':'Expand'} ${esc(group.label)}"><span class="tg-arrow">▶</span></button>`
+   +`<span class="tg-name">${esc(group.label)}</span>`
+   +`<span class="tg-count">${group.rows.length===group.all.length?group.all.length:`${group.rows.length}/${group.all.length}`} layer${group.all.length===1?'':'s'} · ${animatedCount} animated</span>`
+   +`<span class="tg-spacer"></span><button type="button" data-tg-select title="Select every visible layer in this group">Select</button>`;
+  th.querySelector('[data-tg-toggle]').onclick=()=>{setTimelineGroup(group.key,!open);tl()};
+  th.querySelector('.tg-name').onclick=()=>{setTimelineGroup(group.key,!open);tl()};
+  th.querySelector('[data-tg-select]').onclick=e=>{e.stopPropagation();setTimelineGroup(group.key,true);timelineKfSel=null;timelineSelection=null;setLayerSelection(group.rows.map(l=>l.id),group.rows[0]?.id);render();layers()};
+  w.appendChild(th);
+  if(open)group.rows.forEach(layer=>w.appendChild(makeRow(layer)));
+ }
+ if(!rows.length)w.insertAdjacentHTML('beforeend','<div class="tl-empty">No layers match this filter.</div>');
+ const ph=document.createElement('div');ph.className='ph';w.appendChild(ph);
+ const stats=$('#tlStats');
+ if(stats)stats.textContent=`${rows.length}/${all.length} layers · ${animated.length} animated · ${all.reduce((sum,l)=>sum+(layerKeyframes(l)||[]).length,0)} keys · ${list.length} groups`;
+ renderKfEditor();
+ seek(T);
+}
 function copyTimelineEvent(){const a=timelineSelection&&findTimelineEvent(timelineSelection.layerId,timelineSelection.eventId);if(!a){toast('Select an animation event first.');return}timelineClipboard=clone(a);$('#tlPaste').disabled=false;toast('Animation copied.')}
 function pasteTimelineEvent(duplicate){
  if(!timelineClipboard){toast('Copy an animation event first.');return}
@@ -3768,11 +4391,31 @@ if($('#tlImport'))$('#tlImport').onclick=()=>openJsonEditor('animation');
 $('#tlApply').onclick=applyTimelineAnimation;
 $('#tlDelete').onclick=deleteTimelineAnimation;
 $('#tlPaste').disabled=true;
+$('#tlFilter').addEventListener('input',e=>{timelineFilter=e.target.value;tl()});
+$('#tlAnimated').checked=!!timelineAnimatedOnly;
+$('#tlAnimated').addEventListener('change',e=>{timelineAnimatedOnly=e.target.checked;LS.set('agentStudio.tl.animated.v1',timelineAnimatedOnly);tl()});
+const timelineGroupKeys=()=>[...new Set(scene.map(l=>timelineGroup(l).key))];
+$('#tlExpandGroups').onclick=()=>{timelineGroupKeys().forEach(key=>setTimelineGroup(key,true));tl()};
+$('#tlCollapseGroups').onclick=()=>{timelineGroupKeys().forEach(key=>setTimelineGroup(key,false));tl()};
+$('#tlkf').addEventListener('click',e=>{
+ const button=e.target.closest('[data-kf-action]');if(!button)return;
+ const action=button.dataset.kfAction;
+ if(action==='add')addKeyframeAtPlayhead();
+ else if(action==='seek'){const selected=selectedKeyframe();if(selected){stopP();seek(selected.k.time)}}
+ else if(action==='prev')selectAdjacentKeyframe(-1);
+ else if(action==='next')selectAdjacentKeyframe(1);
+ else if(action==='duplicate')duplicateSelectedKeyframe();
+ else if(action==='delete')deleteSelectedKeyframe();
+});
+$('#tlkf').addEventListener('change',e=>{
+ const input=e.target.closest('[data-kf-field]');if(!input)return;
+ updateSelectedKeyframe(input.dataset.kfField,input.value);
+});
 loadTimelineLibrary();
 
 /* ---------- toolbar ---------- */
 $('#undo').onclick=()=>{if(hist.length){scene=hist.pop();selectedLayers=new Set([...selectedLayers].filter(id=>scene.some(l=>l.id===id)));if(sel&&!selectedLayers.has(sel))sel=[...selectedLayers].at(-1)||null;render();layers();$('#status').textContent='Undone.'}};
-$('#reset').onclick=()=>{hist.push(clone(scene));LS.del(sceneKey());resetSaveState();scene=fitScene(buildScene('classic'));clearLayerSelection();render();layers();toast('Scene reset to the brand defaults.')};
+$('#reset').onclick=()=>{hist.push(clone(scene));LS.del(sceneKey());resetSaveState();scene=fitScene(buildScene('classic'));clearLayerSelection();timelineKfSel=null;timelineSelection=null;AS.compositionMeta=null;render();layers();toast('Scene reset to the brand defaults.')};
 $('#play').onclick=()=>play(0);
 $('#sz').onchange=e=>$('#app').classList.toggle('safe',e.target.checked);
 addEventListener('pointerdown',e=>{if(cxMenu&&!cxMenu.hidden&&!cxMenu.contains(e.target))closeLayerMenu()},true);
@@ -3821,7 +4464,7 @@ function layerState(l,t){
    st.rot=num(a.rotation,0)+num(l.rotation,0);
    return st;
   }
-  const p=easeSmooth(clamp((t-a.time)/(b.time-a.time),0,1));
+  const p=kfEase(a.easing,clamp((t-a.time)/(b.time-a.time),0,1));
   st.x=a.x+(num(b.x,a.x)-num(a.x,0))*p;
   st.y=a.y+(num(b.y,a.y)-num(a.y,0))*p;
   st.w=num(a.w,st.w)+(num(b.w,a.w)-num(a.w,st.w))*p;
@@ -4337,6 +4980,30 @@ function templateArtwork(l){
 
 /* Inverse of compositionToScene(): turns the live stage scene into the
    composition document LayerStudio and the brand packs already understand. */
+function deriveSegmentationMeta(scope){
+ const layers=(scope||[]).filter(layer=>layer.meta&&layer.meta.segmentation);
+ if(!layers.length)return null;
+ const parents=new Map(),groups=new Map();
+ for(const layer of layers){
+  const seg=layer.meta.segmentation;
+  const parentId=seg.parentLayerId||layer.parentId;
+  if(!parentId)continue;
+  if(!parents.has(parentId))parents.set(parentId,{parentLayerId:parentId,parentName:seg.parentName||parentId,parentRole:seg.parentRole||'',parentZ:+(layer.z-(+seg.sourceZ||0)/1000).toFixed(3),parentFit:seg.parentFit||'fill',parentKeyframes:+seg.inheritedKeyframes||0,sourceFolder:seg.sourceFolder||'',sourceImage:seg.sourceImage||'',sourceWidth:+seg.sourceWidth||0,sourceHeight:+seg.sourceHeight||0,description:seg.sceneDescription||'',style:seg.sceneStyle||'',sceneObjects:0,groups:[],childCount:0});
+  const parent=parents.get(parentId);parent.childCount+=1;
+  if(seg.objectGroup&&!parent.groups.includes(seg.objectGroup))parent.groups.push(seg.objectGroup);
+  const groupLabel=layer.segmentGroup||`${parent.parentName} / ${seg.objectGroup||'Segments'}`;
+  if(!groups.has(groupLabel))groups.set(groupLabel,{id:layer.groupId||`${parentId}--group-${String(seg.objectGroup||'segments').toLowerCase().replace(/[^a-z0-9]+/g,'-')}`,label:groupLabel,shortLabel:seg.objectGroup||'Segments',parentLayerId:parentId,parentName:parent.parentName,sourceFolder:seg.sourceFolder||'',description:seg.sceneDescription||'',objectCount:0,parts:[]});
+  const group=groups.get(groupLabel);group.objectCount+=1;
+  group.parts.push({id:layer.id,name:layer.name,label:seg.objectLabel||layer.name,description:seg.objectDescription||'',role:layer.role,bbox:seg.localBox||null});
+ }
+ const parentList=[...parents.values()],groupList=[...groups.values()];
+ const counts={segmentedParents:parentList.length,childLayers:layers.length,groups:groupList.length,skippedParents:0};
+ return {schema:'studio/image-segmentation/1',version:1,projectId:'',composition:'',generatedAt:new Date().toISOString(),method:'restored-from-layers',parents:parentList,groups:groupList,counts,notes:['Reconstructed from per-layer segmentation metadata because the composition-level map was not in memory.'],warnings:[],indexFile:'images/segmentation/index.json',parentIds:parentList.map(parent=>parent.parentLayerId),skippedParents:[],mapping:{sourceSpace:'percent of source image',parentSpace:'percent of composition canvas',rule:'child = parentKeyframeBox + localSegmentationBox * parentKeyframeBox',animation:'child keyframes copy parent keyframe times, easing, rotation and opacity',z:'parent.z + source z / 1000'},agentAwareness:{summary:`${layers.length} segmented image parts across ${parentList.length} source images and ${groupList.length} groups.`,groups:groupList.map(group=>({id:group.id,label:group.label,parentLayerId:group.parentLayerId,description:group.description,objectCount:group.objectCount})),howItWorks:['A segmented child belongs to one parent image layer.','Child keyframes mirror the parent timing, opacity and motion.','Use segmentGroup to select all parts of one semantic group.'],instructions:['Read meta.segmentation before answering about a part.','Do not recolour or crop segmented art.'],queryHints:[]}};
+}
+function deriveAgentAwareness(meta){
+ if(!meta)return null;
+ return meta.agentAwareness||{summary:`${meta.counts.childLayers} segmented image parts across ${meta.counts.segmentedParents} source images.`,groups:(meta.groups||[]).map(group=>({id:group.id,label:group.label,parentLayerId:group.parentLayerId,description:group.description,objectCount:group.objectCount})),howItWorks:['Child layers inherit their parent keyframes.'],instructions:['Read meta.segmentation.'],queryHints:[]};
+}
 async function compositionFromScene(name){
  const title=String(name||designName());
  const ordered=scene.slice().sort((a,b)=>(a.z||0)-(b.z||0));
@@ -4364,6 +5031,12 @@ async function compositionFromScene(name){
    rotation:keyed?0:+rotationOffset.toFixed(2),
    shape:l.shape==='circle'?'circle':'rect',
    ...(l.radius?{radius:+clamp(+l.radius||0,0,50).toFixed(2)}:{}),
+   ...(l.role?{role:String(l.role)}:{}),
+   ...(l.meta&&typeof l.meta==='object'?{meta:l.meta}:{}),
+   ...(l.source&&typeof l.source==='object'?{source:l.source}:{}),
+   ...(l.parentId?{parentId:String(l.parentId)}:{}),
+   ...(l.groupId?{groupId:String(l.groupId)}:{}),
+   ...(l.segmentGroup?{segmentGroup:String(l.segmentGroup)}:{}),
   };
   if(l.type==='text'){
    const f=l.font||{};
@@ -4402,12 +5075,15 @@ async function compositionFromScene(name){
    layers[layers.length-1].keyframes=legacyKeys.slice().sort((a,b)=>a.time-b.time).map(k=>({
     time:+k.time||0,x:+k.x||0,y:+k.y||0,w:+k.w||0,h:+k.h||0,
     ...kRotation(k),
-    opacity:+clamp(k.opacity==null?1:+k.opacity,0,1).toFixed(3)}));
+    opacity:+clamp(k.opacity==null?1:+k.opacity,0,1).toFixed(3),
+    easing:k.easing||'linear'}));
   }
  }
  const brand=B||{};
  const kit=(window.StudioBrand&&StudioBrand.brandKitFor)?StudioBrand.brandKitFor(brand):null;
  const now=new Date().toISOString();
+ const segmentationMeta=AS.compositionMeta&&AS.compositionMeta.segmentation?AS.compositionMeta.segmentation:deriveSegmentationMeta(scene);
+ const agentAwareness=AS.compositionMeta&&AS.compositionMeta.agentAwareness?AS.compositionMeta.agentAwareness:deriveAgentAwareness(segmentationMeta);
  return {
   version:3,
   id:`agent-studio-${slugText(title)}`,
@@ -4434,6 +5110,8 @@ async function compositionFromScene(name){
    templateId:FMT.saved?String(FMT.id).replace(/^saved:/,''):FMT.id,
    formatLabel:FMT.n,
    createdAt:now,updatedAt:now,
+   ...(segmentationMeta?{segmentation:segmentationMeta}:{}),
+   ...(agentAwareness?{agentAwareness}:{}),
    agentScene:clone(scene),
   },
  };
@@ -4529,7 +5207,7 @@ function applyCompositionDocument(data){
  FMT={...FMT,w,h,n:String(composition.name||FMT.n)};
  setDuration(+(composition.duration)||DUR);
  T=next.some(layer=>timelineAnims(layer).length)?0:DUR;
- timelineSelection=null;clearLayerSelection();AS.savedActive=null;
+ timelineSelection=null;clearLayerSelection();AS.savedActive=null;AS.compositionMeta=composition.meta||null;
  fitStage();sizeProbe();
  scene=next;
  if(composition.name)SAVE.name=String(composition.name);
@@ -5276,7 +5954,7 @@ function animKeyframeGeometry(layer,frames,t){
  while(i<frames.length-1&&frames[i+1].time<=t)i++;
  const a=frames[i]||{},b=frames[i+1];
  if(!b||b.time<=a.time)return {x:num(a.x,layer.x),y:num(a.y,layer.y),w:num(a.w,layer.w),h:num(a.h,layer.h),opacity:clampOpacity(a.opacity)};
- const p=easeSmooth(clamp((t-a.time)/(b.time-a.time),0,1));
+ const p=kfEase(a.easing,clamp((t-a.time)/(b.time-a.time),0,1));
  return {
   x:a.x+(num(b.x,a.x)-num(a.x,0))*p,
   y:a.y+(num(b.y,a.y)-num(a.y,0))*p,
@@ -5590,14 +6268,17 @@ async function adoptComposition(composition,label,source){
  const h=Math.max(64,Math.round(+(composition.height||FMT.h)));
  saveScene();
  FMT={id:'saved:imported',group:'Imported',n:title,w,h,saved:true};
- AS.savedActive=null;hist=[];clearLayerSelection();seen=new Set();stopP();
+ AS.savedActive=null;hist=[];clearLayerSelection();timelineKfSel=null;timelineSelection=null;timelineFilter='';const tf=$('#tlFilter');if(tf)tf.value='';seen=new Set();stopP();
  setDuration(+(composition.duration)||DEFAULT_DUR);
  T=next.some(l=>timelineAnims(l).length)?0:DUR;
  fitStage();sizeProbe();
  scene=next;
  chrome();render();layers();assets();greet();remember();
  $('#status').textContent=`${title} · ${w}×${h}`;
- say('agent',`Imported <b>${esc(title)}</b> — ${next.length} editable layer${next.length===1?'':'s'} at ${w}×${h}px. Everything is on the canvas, the timeline and the layer panel.`);
+ AS.compositionMeta=composition.meta||null;
+ const animated=next.filter(layer=>timelineAnims(layer).length).length;
+ const segmented=next.filter(layer=>layer.meta&&layer.meta.segmentation).length;
+ say('agent',`Imported <b>${esc(title)}</b> — ${next.length} editable layer${next.length===1?'':'s'} at ${w}×${h}px, ${animated} animated${segmented?`, ${segmented} segmented image parts`:''}. The timeline groups them ${segmented?'by source/object group':'by role'}; expand a group, click a keyframe diamond, then edit its time, x/y/w/h, opacity or easing above.`);
  toast(`Imported ${title}`);
  return next.length;
 }
@@ -5740,14 +6421,14 @@ const remember=()=>{LS.set('agentStudio.last.v1',{packId:P&&P.id,brandId:B&&B.id
 
 /* ---------- selection flow ---------- */
 async function setFormat(id){
- const f=FMTS.find(x=>x.id===id)||FMTS[0];if(B)saveScene();FMT=f;AS.savedActive=null;resetSaveState();const kind=$('#fmtKind');if(kind)kind.value=fmtGroupFor(f.id);buildFormats();fitStage();sizeProbe();
+ const f=FMTS.find(x=>x.id===id)||FMTS[0];if(B)saveScene();FMT=f;AS.savedActive=null;AS.compositionMeta=null;resetSaveState();const kind=$('#fmtKind');if(kind)kind.value=fmtGroupFor(f.id);buildFormats();fitStage();sizeProbe();
  hist=[];clearLayerSelection();seen=new Set();
  if(B){const saved=loadScene();scene=saved||fitScene(buildScene('classic'));render();layers();assets();greet();remember()}}
 async function selectBrand(id){
  const b=(P.brands||[]).find(x=>x.id===id);if(!b)return;const tok=++selTok;
  if(B)saveScene();resetSaveState();
  $('#brands').querySelectorAll('button').forEach(x=>x.disabled=true);
- B=b;deriveTheme(b);BF=brandFonts(b);hist=[];clearLayerSelection();seen=new Set();stopP();setDuration(DEFAULT_DUR);T=DUR;
+ B=b;deriveTheme(b);BF=brandFonts(b);hist=[];clearLayerSelection();AS.compositionMeta=null;seen=new Set();stopP();setDuration(DEFAULT_DUR);T=DUR;
  await Promise.all([brandLogos(b),engMedia(b),document.fonts&&document.fonts.ready].filter(Boolean)).catch(()=>{});
  if(tok!==selTok)return;
  (b.photography||[]).slice(0,1).forEach(p=>ensurePx(p.url));
@@ -5786,7 +6467,14 @@ async function boot(){
   const fm=FMTS.find(f=>f.id===(q.get('format')||last.fmt));if(fm){FMT=fm;buildFormats()}
   P=await packFull(packId);buildGroupSelect();buildBrandPills();
   const lastMap=LS.get('agentStudio.lastBrands.v1',{}),want=[rb,last.packId===packId?last.brandId:null,lastMap[packId]].find(x=>x&&P.brands.some(b=>b.id===x))||P.brands[0].id;
-  await selectBrand(want);$('#boot').hidden=true}
+  await selectBrand(want);
+  const qProject=q.get('project'),qComp=q.get('composition');
+  if(qProject&&qComp){
+   try{const data=await jget(`${API}/projects/${encodeURIComponent(qProject)}/compositions/${encodeURIComponent(qComp)}`);
+    await adoptComposition(compositionPayload(data),data&&data.composition&&data.composition.name||qComp,{projectId:qProject,compositionId:qComp});
+   }catch(error){console.warn('Could not open project composition',error)}
+  }
+  $('#boot').hidden=true}
  catch(e){const m=String(e.message||e);
   bootMsg(`<b>Agent Studio could not load your brands.</b><br>${esc(/fetch|network|failed|load/i.test(m)?'Start the local studio server with `node server.js`, then reload.':m)}`,[['Reload',()=>location.reload()],['Open offline demo',()=>startDemo()],]);}}
 if(typeof ResizeObserver!=='undefined')new ResizeObserver(()=>{if(!FMT)return;fitStage();clearTimeout(wt);wt=setTimeout(()=>B&&watch(),60)}).observe(wrapEl);

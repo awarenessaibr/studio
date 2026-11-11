@@ -1,0 +1,46 @@
+[
+  {
+    "id": "business-breakthroughs-reels-and-posts-01",
+    "file": "data/library/sources/html/business-breakthroughs-reels-and-posts.html",
+    "stage": 0,
+    "width": 1080,
+    "height": 1920,
+    "duration": 16000,
+    "posterTime": 13.0,
+    "name": "Business Breakthroughs \u00b7 Guest Packages \u2014 Free vs \u00a349",
+    "brand": "Business Breakthroughs"
+  },
+  {
+    "id": "business-breakthroughs-reels-and-posts-02",
+    "file": "data/library/sources/html/business-breakthroughs-reels-and-posts.html",
+    "stage": 1,
+    "width": 1080,
+    "height": 1920,
+    "duration": 16000,
+    "posterTime": 15.8,
+    "name": "Business Breakthroughs \u00b7 Six Episode Topics",
+    "brand": "Business Breakthroughs"
+  },
+  {
+    "id": "business-breakthroughs-reels-and-posts-03",
+    "file": "data/library/sources/html/business-breakthroughs-reels-and-posts.html",
+    "stage": 2,
+    "width": 1080,
+    "height": 1350,
+    "duration": 10000,
+    "posterTime": 5.0,
+    "name": "Business Breakthroughs \u00b7 Amplify \u2014 \u00a349",
+    "brand": "Business Breakthroughs"
+  },
+  {
+    "id": "business-breakthroughs-reels-and-posts-04",
+    "file": "data/library/sources/html/business-breakthroughs-reels-and-posts.html",
+    "stage": 3,
+    "width": 1080,
+    "height": 1920,
+    "duration": 18000,
+    "posterTime": 17.5,
+    "name": "Business Breakthroughs \u00b7 AI \u2014 Five Phases",
+    "brand": "Business Breakthroughs"
+  }
+]

@@ -74,7 +74,7 @@ scoped to one or both branches.
 | Field | Meaning |
 |---|---|
 | `id` | stable, `[a-z0-9-]`, also used inside drag payloads |
-| `kind` | `food`, `drinks`, `kids`, `functions`, `christmas`, `desserts`, `canapes`, `buffet`, `other` |
+| `kind` | `food`, `drinks`, `kids`, `functions`, `christmas`, `desserts`, `canapes`, `buffet`, `services`, `products`, `topics`, `other` |
 | `branches` | location ids this menu may be used for; **empty means every branch** |
 | `validFrom` / `validTo` | `YYYY-MM` or `YYYY-MM-DD`; a dated menu, not a timeless one |
 | `source` | the document and page the menu was read from — never lose it |
@@ -135,6 +135,13 @@ Conditions state a £1,800 minimum spend while its 2026 brochure states there
 is no minimum spend. Both are in `minimumSpend`, `terms` and `notes`, and the
 hire FAQ repeats the conflict, because a designer quoting one of them silently
 would be wrong half the time. Confirm with the venue and then edit one line.
+
+A professional-services brand has no dishes. It uses the same shape with
+`kind: "services"`, `"products"` or `"topics"`: one menu per service family
+(property partnerships, speaking, care plans), one section per sub-offer, and
+one item per priced service. A service with no published price keeps an empty
+`price` and says "contact for pricing" in its `note`; the block prints without
+a price. See the Vincent Hovorka pack for a worked example.
 
 ### Branches, locations and documents
 
