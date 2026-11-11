@@ -140,6 +140,7 @@ studio-layers/
 │   │   ├── brand-docx.js   ← zero-dependency Word guide reader
 │   │   ├── studio-builder.js ← catalog validation, layout rules, agent actions
 │   │   ├── project-canvas.js ← project reader + validated agent turn
+│   │   ├── segmentation-wiring.js ← image-to-layers export → target project importer
 │   │   ├── crawler-service.js ← Python crawler runs, logs and limits
 │   │   ├── asset-store.js / asset-service.js ← asset index + Pillow sidecar
 │   │   ├── social-intel.js / social-store.js ← social normaliser + index
@@ -159,7 +160,7 @@ studio-layers/
 │       ├── voice/voice.js / .css
 │       └── admin/admin.js / .css
 │
-├── scripts/                ← Python crawler + asset-intel sidecar
+├── scripts/                ← Python crawler + asset-intel sidecar + segmentation/import scripts
 ├── docs/                   ← documentation; briefs in docs/briefs/
 ├── tests/                  ← Node suites + Chromium harnesses (menus.js covers the Menus tab)
 ├── tools/                  ← one-off asset/rig/preview pipelines
@@ -191,6 +192,7 @@ git; back it up like any other document folder.
 | [brand-packs.md](docs/brand-packs.md) | Brand-kit ZIP structure, what the importer reads, identity UI, templates, brand kits |
 | [crawler.md](docs/crawler.md) | Brand intake UI, combined website + social crawler, search/discovery, run jobs and output contract |
 | [asset-library.md](docs/asset-library.md) | Business Asset Intelligence: record schema, store, review library, usage rules and Asset Studio integration |
+| [composition-segmentation.md](docs/composition-segmentation.md) · [segmentation-automation.md](docs/segmentation-automation.md) | Wired image-segmentation packs (Giovannin, Borders Web) and the automatic image-to-layers `<project>-segmented` → Studio import |
 | [segment-library.md](docs/segment-library.md) | Segment groups: detection, index/group/motion schema, previews, API, agent insertion contract and rebuild |
 | [voice-studio.md](docs/voice-studio.md) | Local speech, the MLX-Audio lifecycle, the two-direction voice-design agent and audio library integration |
 | [social-intelligence.md](docs/social-intelligence.md) | Scraped social channels, reputation, themes, voice and the deterministic reading behind them |

@@ -301,7 +301,9 @@
             select.innerHTML = list.map((id) => {
                 const label = id.endsWith('.editable')
                     ? `${id.replace(/\.editable$/, '')} — Editable layers`
-                    : `${id} — Exact poster`;
+                    : /-segmented$/.test(id)
+                        ? `${id} — Segmented parts`
+                        : `${id} — Exact poster`;
                 return `<option value="${escape(id)}">${escape(label)}</option>`;
             }).join('');
             select.value = state.project.compositionId;

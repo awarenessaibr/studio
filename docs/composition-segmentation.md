@@ -1,6 +1,18 @@
 # Composition image segmentation
 
-The Giovannin reels 03 project now carries **nested image segmentation**
+This document has three worked examples:
+
+- **Giovannin reels 03** (sections 1–12) — four source images segmented into 34
+  children that inherit the parent animation inside one 55-layer composition.
+- **Borders Web — Where I Work, animated-02** (section 13) — one exact 6s poster
+  segmented into 63 parts in 10 groups and wired as a separate, static
+  composition, leaving the master poster and the editable frame archive untouched.
+- **Borders Web — Where I Work, animated-03** (section 14) — the same workflow,
+  now **automatic**: the image-to-layers `<target>-segmented` project is imported
+  in one command/API call and archived. See
+  [segmentation-automation.md](segmentation-automation.md).
+
+The Giovannin reels 03 project carries **nested image segmentation**
 inside its composition. Four source image layers were decomposed into
 semantic child layers; those children inherit the parent image's animation and
 are wired back into the same 1080×1920, 10-second composition.
@@ -284,6 +296,13 @@ the metadata makes the structure explicit.
 - `npm run test:segmentation-wire` — 6 Node checks over the parent/child
   inventory, keyframe timing, local-to-parent box mapping, fractional z,
   opacity inheritance, composition meta and the segmentation index.
+- `npm run test:borders-segmentation` — 6 Node checks over the single-poster
+  pack: 63 parts/10 groups, every URL and PNG aspect, z order, index agreement,
+  master/editable integrity and the project canvas manifest.
+- `npm run test:segmentation-autowire` — 8 Node checks over the automatic
+  importer: semantic z, rectangle mapping, the 55-part/8-group animated-03
+  import, URLs/aspects, pack/index agreement, master/editable integrity, project
+  canvas manifest and the archived source.
 - `npm run test:segmented-composition` — 14 Chromium checks over the 55-layer
   Studio import, timeline groups, selected-child context and the agent’s
   “segments” report.
@@ -303,3 +322,169 @@ the metadata makes the structure explicit.
   image.
 - The script assumes segmentation folder names end in `-png` and match the
   parent layer id. Rename the parent or folder consistently.
+
+---
+
+## 13. Borders Web — Where I Work (single-poster segmentation)
+
+A second, simpler case: the `borders-web-where-i-work-animated-02` project is an
+HTML poster design. Its master composition is one exact frame at 6s
+(`source-frame` → `images/poster.png`, 944×1130, 12s hold), and its editable
+frame archive is `compositions/borders-web-where-i-work-animated-02.editable.json`.
+The reference poster was segmented in `image-to-layers` and the export was
+delivered in a folder next to it:
+
+```
+images/borders-web-where-i-work-animated-02-segmented/
+```
+
+The export was reviewed, corrected, stored in the canonical segmentation layout
+and wired as a **separate composition**, so the exact-poster master and the
+editable archive are untouched.
+
+| | |
+|---|---|
+| Project | `data/projects/borders-web-where-i-work-animated-02/` |
+| Parent / reference | `images/poster.png` — 944×1130, the full canvas, the exact 6s poster |
+| Segmentation root | `images/segmentation/` |
+| Pack | `images/segmentation/poster-png/` |
+| Map/index | `images/segmentation/index.json` |
+| Human notes | `images/segmentation/README.md` |
+| Wired composition | `compositions/borders-web-where-i-work-animated-02-segmented.composition.json` |
+| Master (unchanged) | `compositions/borders-web-where-i-work-animated-02.composition.json` |
+| Editable archive (unchanged) | `compositions/borders-web-where-i-work-animated-02.editable.json` |
+| Source exports | `images/segmentation/_source/` |
+| Wiring script | `scripts/wire-borders-web-segmentation.js` |
+| Test | `npm run test:borders-segmentation` |
+| Open in the canvas | `/project-canvas?project=borders-web-where-i-work-animated-02&composition=borders-web-where-i-work-animated-02-segmented` |
+
+### What was wired
+
+The 6s poster (944×1130) into **63 exact cut-out parts** in **10 semantic
+groups**:
+
+| Group | Parts | What it is |
+|---|---:|---|
+| Background | 3 | Unassigned pixels, sea water, land mass |
+| Map Details | 3 | Road network, River Tweed line, small loch |
+| Routes | 1 | Route-line network |
+| Kelso | 5 | Building cluster, building illustration, central dot, orange marker, label |
+| Markers | 17 | Town marker dots |
+| Labels | 18 | Town and feature labels |
+| Icons | 5 | Castle, airport, car, bed and camping icons |
+| Compass | 3 | Rose, needle, north label |
+| Header | 6 | Borders Web header, logo, red dot, accent line, Where I Work title |
+| Footer | 2 | Attribution lines |
+
+Because the reference is the full canvas, the mapping is the identity: the
+local segmentation box is the composition box. Every child holds that box for
+the whole 12s:
+
+```jsonc
+{
+  "parentId": "poster",
+  "groupId": "poster--group-labels",
+  "segmentGroup": "Poster (6s) / Labels",
+  "url": "/data/projects/borders-web-where-i-work-animated-02/images/segmentation/poster-png/images/labels/hawick-label.png",
+  "keyframes": [
+    { "time": 0,    "x": 38.35, "y": 83.63, "w": 12.18, "h": 6.11, "opacity": 1 },
+    { "time": 12000, "x": 38.35, "y": 83.63, "w": 12.18, "h": 6.11, "opacity": 1 }
+  ],
+  "meta": { "segmentation": { "objectLabel": "Hawick Label", "objectGroup": "Labels", … } }
+}
+```
+
+The composition is **static** from 0 to 12s. The page's original motion is the
+source recording; the editable archive keeps the 11-frame extraction. This
+composition is the interaction surface: select a group or part in the project
+canvas and animate it with the agent. The master composition is unchanged.
+
+### Review and corrections
+
+The export had correct geometry but several integration errors, all fixed by the
+wiring script:
+
+| Issue | Correction |
+|---|---|
+| Every URL pointed at `/data/projects/borders-web-where-i-work-animated-02-segmented/…`, a project folder that does not exist, with numbered, case-sensitive file names. | Rewritten to the canonical pack URLs under `/data/projects/borders-web-where-i-work-animated-02/images/segmentation/poster-png/images/<group>/<part>.png`. |
+| Numeric prefixes and capitalised group folders (`Labels/018-kaitleast-label.png`) made the export unusable as project data. | Assets moved to lowercase group folders with slug file names (`labels/kaitleast-label.png`); the original file name is kept in `sourceFile`/`meta.segmentation.sourceFile`. |
+| z was the order layers were added: the background (`z 41–56`) sat above the labels (`z 5–40`). | Reordered semantically: Background 10 → Map Details 20 → Routes 30 → Kelso 40 → Markers 50 → Labels 60 → Icons 70 → Compass 80 → Header 90 → Footer 100 (fractional within a group). |
+| Duration was 3000ms. | Set to the project's 12000ms. |
+| The `reference` layer URL was missing. | Reference set to `images/poster.png`; it is hidden in the pack and excluded from the wired composition. |
+| No `parentId`, `groupId`, `segmentGroup` or `meta.segmentation`. | Added per child, matching the Giovannin convention. |
+| Group label `Map details`. | Normalised to `Map Details`. |
+| Slug labels (`footer-text-line2`, `main-title-where-i-work`). | Title-cased friendly labels and per-group descriptions for the agent. |
+| The editor composite PNG and unrelated exports (agent manifest, snapshot, a `vincent-hovorka` composition from another project) sat beside the cut-outs. | Archived under `images/segmentation/_source/` for provenance. The composite is pixel-identical to `poster.png` (bytes differ), so it is never used at runtime. |
+
+Two data facts worth keeping:
+
+- **The artwork spells the place "Kaitleast"** (the label PNG reads Kaitleast).
+  The earlier 55-layer `vincent-hovorka` export used "Kaitleat"; the artwork
+  spelling is kept and noted in the index warnings.
+- The composition key must not contain a dot. The first attempt used
+  `borders-web-where-i-work-animated-02.segmented`; project composition keys are
+  `[A-Za-z0-9_-]` (optionally `.editable`), so the wired id is
+  `borders-web-where-i-work-animated-02-segmented`.
+
+### Verification
+
+- 63 layers ↔ 63 PNG files; no missing or extra parts; every box aspect matches
+  its PNG within 2%.
+- The 63 parts composited in the new z order reproduce `poster.png` with
+  **0 differing pixels** (exact RGB match).
+- `images/html-bg.jpg` is the 900×1077 background photo of the editable frame
+  archive; the segmentation is in 944×1130 poster space and does not use it.
+- The project canvas reads the new composition through
+  `ProjectCanvas.readProject(projectId, '…-segmented')` and builds one parent,
+  10 groups and 63 entities. `npm run test:borders-segmentation` covers all of
+  this, plus the master/editable integrity.
+
+### Files
+
+```
+data/projects/borders-web-where-i-work-animated-02/
+├── compositions/
+│   ├── borders-web-where-i-work-animated-02.composition.json          (untouched master)
+│   ├── borders-web-where-i-work-animated-02.editable.json             (untouched archive)
+│   └── borders-web-where-i-work-animated-02-segmented.composition.json
+└── images/
+    ├── html-bg.jpg
+    ├── poster.png
+    └── segmentation/
+        ├── index.json
+        ├── README.md
+        ├── _source/                   (raw exports + archived composite)
+        └── poster-png/
+            ├── compositions/poster-png.composition.json
+            ├── layers.json
+            ├── scene.json
+            └── images/<group>/<part>.png
+```
+
+Rebuild with `npm run wire:borders-segmentation` (or
+`node scripts/wire-borders-web-segmentation.js`); verify without writing with
+`--check`. The script is idempotent: after the first ingestion it rebuilds from
+the canonical pack. Do not use the generic `npm run wire:segments` here: it
+expects a parent image layer inside a project composition and would skip this
+pack with warnings, because the parent is the master poster itself.
+
+---
+
+## 14. Automatic imports: Borders Web — Where I Work, animated-03
+
+The third case removes the manual pass. The image-to-layers app writes a full
+provisional project at `data/projects/<target>-segmented/`; Studio imports it
+into the real target in one step:
+
+```bash
+npm run wire:segmentation -- borders-web-where-i-work-animated-03-segmented
+```
+
+Reference run: **55 parts · 8 groups · source-frame-png**, parent
+`source-frame` ("Poster"), 928×1143, 13s. The 55 parts reproduce
+`poster.png` with **0 differing pixels**. The provisional project is archived
+under `images/segmentation/_source/` and removed from the project list; the
+master poster and editable archive are untouched.
+
+The automatic contract, CLI/API, mapping, z policy, app selector and limits are
+documented in [segmentation-automation.md](segmentation-automation.md).

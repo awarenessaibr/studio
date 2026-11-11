@@ -619,7 +619,7 @@ function applyMenuOverrides(baseComp,overrides){
 }
 async function persistMenuAnimation(data){
   const store=LS.get('sa.anims',{}); (store[cur.id]=store[cur.id]||[]).push(data); LS.set('sa.anims',store);
-  if(cur.fromLib){ try{ await fetch('api/library/animations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({designId:cur.id,animation:data})}); }catch{} }
+  if(cur.fromLib){ try{ await fetch('/api/library/animations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({designId:cur.id,animation:data})}); }catch{} }
 }
 async function createMenuVariation(item){
   const mapping=menuDesign(cur); if(!mapping) return;
@@ -640,7 +640,7 @@ function deleteMenuVariation(event,item){
   if(!confirm(`Delete “${item.data.name}”?`)) return;
   cur.anims=cur.anims.filter(a=>a!==item);
   const store=LS.get('sa.anims',{}); if(store[cur.id]){store[cur.id]=store[cur.id].filter(a=>a.id!==item.data.id);LS.set('sa.anims',store);}
-  if(cur.fromLib) fetch('api/library/animations/'+encodeURIComponent(item.data.id)+'?designId='+encodeURIComponent(cur.id),{method:'DELETE'}).catch(()=>{});
+  if(cur.fromLib) fetch('/api/library/animations/'+encodeURIComponent(item.data.id)+'?designId='+encodeURIComponent(cur.id),{method:'DELETE'}).catch(()=>{});
   if(curAnim===item.data){cancelAnimationFrame(raf);playing=false;curAnim=null;cur.comp=cur.baseComp||cur.comp;$('#replay').disabled=true;showSource(true,false);syncPlaybackButton();if(!audioEl.hidden)renderAudio();renderPanel();paintMain();}
   else renderPanel();
   toast('Menu variation deleted.');
@@ -668,7 +668,7 @@ async function setMenuImage(file){
     curAnim.menu.overrides=overrides; curAnim.menu.image=dataUrl;
     cur.comp=applyMenuOverrides(cur.baseComp||cur.comp,overrides);
     const store=LS.get('sa.anims',{}); const list=store[cur.id]||[]; const hit=list.find(a=>a.id===curAnim.id); if(hit){hit.menu=curAnim.menu;LS.set('sa.anims',store);}
-    if(cur.fromLib){ try{ const payload=clone(curAnim); delete payload.byId; await fetch('api/library/animations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({designId:cur.id,animation:payload})}); }catch{} }
+    if(cur.fromLib){ try{ const payload=clone(curAnim); delete payload.byId; await fetch('/api/library/animations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({designId:cur.id,animation:payload})}); }catch{} }
     paintMain(); renderPanel(); toast('Product image added to this menu variation.');
   }catch(error){ toast(error.message||'Could not use that image.','err'); }
 }
@@ -794,7 +794,7 @@ function ctxWithLib(){ const c=context(); c.format={id:fmt,label:(FORMATS.find(f
   if(CLIPS) c.clips=[...CLIPS.filter(k=>k.origin==='preset'),...CLIPS.filter(k=>k.origin!=='preset').slice(0,25)].map(k=>({id:k.id,effect:k.effect,direction:k.direction,duration:k.duration,mode:k.mode})); return c; }
 async function composeSteps(out){
   if(!cur.fromLib) return say('Composing from clips needs the library server. Ask for a new animation instead.','err');
-  try{ const r=await fetch('api/library/compose',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({designId:cur.id,name:out.name||(out.animation&&out.animation.name)||'Composed animation',steps:out.steps,save:true})});
+  try{ const r=await fetch('/api/library/compose',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({designId:cur.id,name:out.name||(out.animation&&out.animation.name)||'Composed animation',steps:out.steps,save:true})});
     const j=await r.json(); if(!r.ok) throw new Error(j.error||r.status);
     const data=Object.assign(j.animation,{_saved:true}); const item={id:data.id,data:prep(data),saved:true}; item.data.id=data.id; cur.anims.push(item);
     say(`Saved “${data.name}”. Find it under Animations for this design (stored in the library).`,'ok'); toast('Animation saved'); selectAnim(item); if(panel.hidden) openPanel(true);
@@ -1584,7 +1584,7 @@ async function callLLM(msgs){
   // keeps API keys server-side and discovers Ollama models.
   let proxyStatus=0, proxyError='';
   try{
-    const response=await fetch('api/agent-first/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:prov,model:c.model,messages:clean})});
+    const response=await fetch('/api/agent-first/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:prov,model:c.model,messages:clean})});
     proxyStatus=response.status;
     if(response.ok){ const payload=await response.json(); if(payload && typeof payload.content==='string') return payload.content; }
     proxyError=(await response.text().catch(()=>'')).slice(0,180);
@@ -1730,7 +1730,7 @@ async function saveAnimation(raw,requestedDuration=null){
   const animationName=displayNameFor(raw.name,cur.comp.name);
   const data={schema:'agent-studio/animation/2',kind:'studio-animation',id,compositionId:cur.id,origin:'llm',name:animationName,createdAt:new Date().toISOString(),duration:Math.min(15000,Math.max(3000,duration)),fps:25,source:{app:'studio-agent',design:cur.comp.name,layerCount:cur.comp.layers.length},tracks};
   let synced=false;
-  if(cur.fromLib){ try{ const r=await fetch('api/library/animations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({designId:cur.id,animation:data})}); const j=await r.json().catch(()=>({})); if(r.status===400) return say('That animation does not fit this design, so it was not saved: '+(j.error||'validation failed'),'err'); synced=r.ok; }catch{} }
+  if(cur.fromLib){ try{ const r=await fetch('/api/library/animations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({designId:cur.id,animation:data})}); const j=await r.json().catch(()=>({})); if(r.status===400) return say('That animation does not fit this design, so it was not saved: '+(j.error||'validation failed'),'err'); synced=r.ok; }catch{} }
   const store=LS.get('sa.anims',{}); (store[cur.id]=store[cur.id]||[]).push(data); const ok=LS.set('sa.anims',store);
   const item={id,data:Object.assign(prep(data),{}),saved:true}; item.data.id=id; cur.anims.push(item);
   if(!ok&&!synced) return say('The animation was created but could not be saved: browser storage is full. Free some space and ask again.','err');

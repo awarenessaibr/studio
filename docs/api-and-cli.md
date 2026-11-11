@@ -70,6 +70,20 @@ creates one layer per image plus a locked reference layer, and saves the
 composition. Limits: 220 MB ZIP, 60 MB reference, 500 layers, reference
 ≤ 10000 px.
 
+### Segmentation imports
+
+An image-to-layers `<project>-segmented` export is imported, not rendered.
+
+| Method | Path | Body / result |
+|---|---|---|
+| `GET` | `/api/segmentation/exports` | `{ exports: [{ id, targetProjectId, parts, groups, width, height }] }` — provisional exports still waiting |
+| `POST` | `/api/segmentation/wire` | `{ segmentedProjectId, targetProjectId?, imagePath?, layerId?, keepSource?, check? }` → the import report (parts, groups, z, pack, composition, archivedTo, urls) |
+
+`check: true` validates and returns the plan without writing or moving
+anything. The same contract is available as
+`npm run wire:segmentation -- <project>-segmented`; see
+[segmentation-automation.md](segmentation-automation.md).
+
 Repository compositions can point their layers at their own files with
 `/api/projects/:project/assets/<path>`. The route resolves under
 `data/projects/<project>/assets/`, passes through `safeRelativePath()`, and

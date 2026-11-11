@@ -1422,7 +1422,7 @@
     async function transcodeVideoBlob(blob) {
         if (!blob || !blob.size || typeof fetch !== 'function') return null;
         try {
-            const response = await fetch('api/video/transcode', {
+            const response = await fetch('/api/video/transcode', {
                 method: 'POST',
                 headers: { 'Content-Type': blob.type || 'application/octet-stream' },
                 body: blob,

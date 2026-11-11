@@ -220,6 +220,41 @@ twelve 9:16 layouts and [Story reels](asset-studio.md#story-reels--6-designs)
 for the six collaboration stories. The Agent Studio **Menus** tab links each menu straight
 into it.
 
+### Agent-First Studio — **Menu item** on a design
+
+`/afs.html` opens a design with a **Menu item** card when the design is listed
+in `data/library/menu-designs.json`:
+
+```
+data/library/menu-catalog.json   brands → menus → sections → items (with prices)
+data/library/menu-designs.json   design → slots (layer id + template), allowedMenus,
+                                 allowedItems, pick offsets, currentItemId
+```
+
+**Change item** opens a picker over the brand's confirmed menu and creates a
+*Menu variation* — a new animation saved against the design. The source
+**Original motion** is untouched.
+
+Templates use `{name}`, `{description}`, `{price}`, `{price1}`, `{price2}`,
+`{dietary}` and `{note}`. Three details make prose-free reuse possible:
+
+- **`allowedMenus`** limits the picker to one menu (a dish cannot be dropped
+  into a drink design).
+- **`allowedItems`** limits it to specific items — used where the surrounding
+  copy only reads correctly for those items.
+- **`pick`** makes a slot take a *neighbour* in the same section: `0` is the
+  chosen item, `1` the next one, wrapping at the end. That is how a two-up
+  feature card or a six-step list stays coherent when the item changes.
+
+Rebuild the catalogue after changing a brand's content:
+
+```bash
+node scripts/build-menu-catalog.js
+```
+
+Reviewed wiring for the three Vincent Hovorka businesses (33 designs, 16 that
+mention menu content, 3 wired): `deliverables/vincent-hovorka-menus/menu-wiring.md`.
+
 ### Business asset library
 
 `/library.html` indexes the PDFs as `business-document` / role `menu`, with the

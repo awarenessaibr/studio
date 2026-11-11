@@ -132,6 +132,12 @@ const index = readJson(indexFile, { schema: 'agent-studio/library/1', designs: [
 const byId = new Map((index.designs || []).map((design) => [design.id, design]));
 installed.forEach((entry) => byId.set(entry.id, entry));
 index.designs = [...byId.values()];
+for (const design of index.designs) {
+    const editable = path.join(ROOT, 'data', 'projects', design.id, 'compositions', `${design.id}.editable.json`);
+    if (fs.existsSync(editable)) {
+        design.editableComposition = `/data/projects/${design.id}/compositions/${design.id}.editable.json`;
+    }
+}
 index.generatedAt = new Date().toISOString();
 index.counts = {
     ...(index.counts || {}),

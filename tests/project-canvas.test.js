@@ -560,7 +560,7 @@ test('the project canvas prefers the editable composition and its native canvas'
     assert.equal(opened.composition.width, 928);
     assert.equal(opened.composition.height, 1143);
     assert.equal(opened.composition.duration, 13000);
-    assert.equal(opened.composition.layers.length, 2);
+    assert.ok(opened.composition.layers.length >= 12);
     assert.match(opened.composition.name, /Woven Linen/);
 
     const client = fs.readFileSync(path.join(ROOT, 'src', 'client', 'project-canvas', 'project-canvas.js'), 'utf8');
@@ -575,7 +575,7 @@ test('the studio project catalogue offers the editable composition', async () =>
     const composition = (project.compositions || []).find((entry) => entry.id === 'borders-web-where-i-work-cinematic-minimal-03');
     assert.ok(composition);
     assert.equal(composition.editable, true);
-    assert.equal(composition.layerCount, 2);
+    assert.ok(composition.layerCount >= 12);
     assert.equal(composition.width, 928);
     assert.equal(composition.height, 1143);
     assert.equal(composition.duration, 13000);

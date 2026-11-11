@@ -69,15 +69,64 @@ async function readDesign(libraryDir, designId) {
     return detail;
 }
 
-async function readComposition(detail, projectsDir) {
-    const raw = String(detail.composition || '');
-    const match = raw.match(/^\/data\/projects\/([A-Za-z0-9_-]{1,130})\/(compositions\/[A-Za-z0-9_.-]{1,160}\.composition\.json)$/);
-    if (!match) throw new Error('The design has no safe composition path.');
+// Both the rasterised poster (`<id>.composition.json`) and the layered extraction
+// (`<id>.editable.json`) live under compositions/, so the guard has to accept any
+// .json there rather than pinning the `.composition.json` suffix.
+const COMPOSITION_PATH = /^\/data\/projects\/([A-Za-z0-9_-]{1,130})\/(compositions\/[A-Za-z0-9_.-]{1,160}\.json)$/;
+
+async function readCompositionFile(projectsDir, rawPath) {
+    const match = String(rawPath || '').match(COMPOSITION_PATH);
+    if (!match) return null;
     const target = path.resolve(projectsDir, match[1], match[2]);
-    if (!target.startsWith(path.resolve(projectsDir) + path.sep)) throw new Error('Composition path escaped the project root.');
+    if (!target.startsWith(path.resolve(projectsDir) + path.sep)) return null;
     const composition = await readJson(target);
-    if (!composition || !Array.isArray(composition.layers)) throw new Error('The design composition is missing layers.');
-    return composition;
+    if (!composition || !Array.isArray(composition.layers)) return null;
+    return { path: `/data/projects/${match[1]}/${match[2]}`, composition };
+}
+
+/**
+ * Every composition a design can legitimately be rendered from.
+ *
+ * A design has a canonical composition and, when the importer archived the layered
+ * extraction, a second one. Animations are authored against whichever existed when
+ * they were made, and the browser renders the layered one when it is published — so
+ * "the design's composition" is not a single answer and both must be considered.
+ *
+ * Order is the browser's preference: layered first, canonical last.
+ */
+async function compositionCandidates(detail, projectsDir) {
+    const canonical = await readCompositionFile(projectsDir, detail && detail.composition);
+    if (!canonical) throw new Error('The design has no safe composition path.');
+    const candidates = [];
+    const add = (entry) => {
+        if (entry && !candidates.some((item) => item.path === entry.path)) candidates.push(entry);
+    };
+    add(await readCompositionFile(projectsDir, detail.editableComposition));
+    const archive = canonical.composition.meta && canonical.composition.meta.editableArchive;
+    if (archive) {
+        const match = String(detail.composition).match(COMPOSITION_PATH);
+        const rel = String(archive).replace(/^\/?(?:data\/projects\/[^/]+\/)?/, '');
+        add(await readCompositionFile(projectsDir, `/data/projects/${match[1]}/${rel}`));
+    }
+    add(canonical);
+    return candidates;
+}
+
+/** The composition whose layers actually contain this animation's tracks. */
+function resolveComposition(candidates, animation) {
+    const wanted = new Set(((animation && animation.tracks) || [])
+        .map((track) => String((track && track.layerId) || '')));
+    if (!wanted.size) return candidates[0];
+    for (const candidate of candidates) {
+        const have = new Set((candidate.composition.layers || []).map((layer) => String(layer.id)));
+        if ([...wanted].every((id) => have.has(id))) return candidate;
+    }
+    return candidates[0];
+}
+
+async function readComposition(detail, projectsDir) {
+    const candidates = await compositionCandidates(detail, projectsDir);
+    return candidates[0].composition;
 }
 
 function validateAnimation(detail, composition, animation) {
@@ -176,11 +225,37 @@ function normaliseAnimation(detail, animation) {
     };
 }
 
+/**
+ * The entries an index item should publish after a write.
+ *
+ * The design detail is authoritative for what it lists, but the index can carry
+ * entries the detail never did (the importer publishes the layered "editable" motion
+ * only there). Rebuilding the list from the detail alone silently dropped them, which
+ * is how a saved animation could make another one disappear from the UI.
+ */
+function publishedAnimations(detail, existing) {
+    const described = (detail.animations || []).map((a) => ({
+        id: a.id, name: a.name, origin: a.origin, file: a.file, duration: a.duration,
+        status: a.status, composition: a.composition,
+    }));
+    const known = new Set(described.map((a) => a.id));
+    return [...described, ...((existing || []).filter((a) => a && a.id && !known.has(a.id)))];
+}
+
 async function saveAnimation({ libraryDir, projectsDir, designId, animation }) {
     const detail = await readDesign(libraryDir, designId);
-    const composition = await readComposition(detail, projectsDir);
+    const candidates = await compositionCandidates(detail, projectsDir);
     const normalised = normaliseAnimation(detail, animation);
-    const validation = validateAnimation(detail, composition, normalised);
+    // Re-saving a generated file must not relabel it: the player shows the source video
+    // for `original` motion and plays the tracks for anything else.
+    const previousEntry = (detail.animations || []).find((item) => item.id === normalised.id);
+    if (!(animation && typeof animation.origin === 'string' && animation.origin) && previousEntry && previousEntry.origin) {
+        normalised.origin = previousEntry.origin;
+    }
+    // Validate against the composition this animation actually belongs to, which is
+    // the one the browser will render it over — not blindly the rasterised poster.
+    const target = resolveComposition(candidates, normalised);
+    const validation = validateAnimation(detail, target.composition, normalised);
     if (validation.status === 'broken') {
         const error = new Error(validation.issues.slice(0, 4).join(' '));
         error.statusCode = 400;
@@ -189,7 +264,12 @@ async function saveAnimation({ libraryDir, projectsDir, designId, animation }) {
     }
     const targetDir = path.join(libraryDir, 'animations', detail.id);
     await fsp.mkdir(targetDir, { recursive: true });
-    const filename = `${slug(normalised.id, 90)}.animation.json`;
+    // Re-save over the file the entry already points at, so the id does not spawn a
+    // second copy beside it (entries are named by slug, files by the importer).
+    const previousFile = previousEntry && typeof previousEntry.file === 'string'
+        && previousEntry.file.startsWith(`/data/library/animations/${detail.id}/`)
+        ? path.basename(previousEntry.file) : '';
+    const filename = previousFile || `${slug(normalised.id, 90)}.animation.json`;
     await fsp.writeFile(path.join(targetDir, filename), JSON.stringify(normalised, null, 2));
     const entry = {
         id: normalised.id,
@@ -198,19 +278,16 @@ async function saveAnimation({ libraryDir, projectsDir, designId, animation }) {
         file: `/data/library/animations/${detail.id}/${filename}`,
         duration: normalised.duration,
         tracks: normalised.tracks.length,
+        composition: target.path,
         ...validation,
     };
     detail.animations = [entry, ...(detail.animations || []).filter((item) => item.id !== entry.id)];
     await fsp.writeFile(path.join(libraryDir, 'designs', `${detail.id}.json`), JSON.stringify(detail, null, 2));
     const index = await readIndex(libraryDir);
     const item = index.designs.find((design) => design.id === detail.id);
-    if (item) {
-        item.animations = detail.animations.map((a) => ({
-            id: a.id, name: a.name, origin: a.origin, file: a.file, duration: a.duration, status: a.status,
-        }));
-    }
+    if (item) item.animations = publishedAnimations(detail, item.animations);
     await fsp.writeFile(path.join(libraryDir, 'index.json'), JSON.stringify(index, null, 2));
-    return { ok: true, animation: normalised, ...validation, file: entry.file };
+    return { ok: true, animation: normalised, composition: target.path, ...validation, file: entry.file };
 }
 
 async function deleteAnimation({ libraryDir, designId, animationId }) {
@@ -230,18 +307,17 @@ async function deleteAnimation({ libraryDir, designId, animationId }) {
     }
     const index = await readIndex(libraryDir);
     const item = index.designs.find((design) => design.id === detail.id);
-    if (item) {
-        item.animations = detail.animations.map((a) => ({
-            id: a.id, name: a.name, origin: a.origin, file: a.file, duration: a.duration, status: a.status,
-        }));
-    }
+    if (item) item.animations = publishedAnimations(detail, item.animations).filter((a) => a.id !== id);
     await fsp.writeFile(path.join(libraryDir, 'index.json'), JSON.stringify(index, null, 2));
     return { ok: true, id };
 }
 
 async function composeAnimation({ libraryDir, projectsDir, designId, name, steps, save = false }) {
     const detail = await readDesign(libraryDir, designId);
-    const composition = await readComposition(detail, projectsDir);
+    const candidates = await compositionCandidates(detail, projectsDir);
+    // Compose against the layered composition: groups and clips address the layers
+    // the design is edited as, not the rasterised poster frame.
+    const composition = candidates[0].composition;
     const clipsFile = await readJson(path.join(libraryDir, 'clips.json'), { clips: [] });
     const clips = new Map((clipsFile.clips || []).map((clip) => [clip.id, clip]));
     const layers = new Map((composition.layers || []).map((layer) => [String(layer.id), layer]));
@@ -291,7 +367,8 @@ async function composeAnimation({ libraryDir, projectsDir, designId, name, steps
         source: { app: 'agent-library', design: detail.name, layerCount: byLayer.size },
         tracks: [...byLayer.values()],
     };
-    const validation = validateAnimation(detail, composition, animation);
+    const target = resolveComposition(candidates, animation);
+    const validation = validateAnimation(detail, target.composition, animation);
     if (validation.status === 'broken') {
         const error = new Error(validation.issues.slice(0, 4).join(' '));
         error.statusCode = 400;
@@ -302,7 +379,7 @@ async function composeAnimation({ libraryDir, projectsDir, designId, name, steps
         const saved = await saveAnimation({ libraryDir, projectsDir, designId, animation });
         return { ok: true, ...saved };
     }
-    return { ok: true, animation, ...validation };
+    return { ok: true, animation, composition: target.path, ...validation };
 }
 
 module.exports = {
@@ -312,6 +389,8 @@ module.exports = {
     readIndex,
     readDesign,
     readComposition,
+    compositionCandidates,
+    resolveComposition,
     validateAnimation,
     normaliseAnimation,
     saveAnimation,

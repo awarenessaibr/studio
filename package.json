@@ -24,7 +24,7 @@
     "test:fill": "node tests/fill-holes.js",
     "test:visual": "node tests/visual.js",
     "test:visual:report": "node tests/visual.js --report",
-    "test:all": "npm test && npm run test:smoke && npm run test:studio-builder && npm run test:studio-timeline && npm run test:scene-library && npm run test:scene-studio && npm run test:project-canvas && npm run test:segmentation-wire && npm run test:segmented-composition && npm run test:asset-studio && npm run test:animation-roundtrip && npm run test:text-overflow && npm run test:fill && npm run test:visual",
+    "test:all": "npm test && npm run test:smoke && npm run test:studio-builder && npm run test:studio-timeline && npm run test:scene-library && npm run test:scene-studio && npm run test:project-canvas && npm run test:segmentation-wire && npm run test:borders-segmentation && npm run test:segmentation-autowire && npm run test:segmented-composition && npm run test:asset-studio && npm run test:animation-roundtrip && npm run test:text-overflow && npm run test:fill && npm run test:visual",
     "crawl": ".venv/bin/python scripts/crawler-combined.py",
     "publish:templates": "node scripts/publish-brand-templates.js",
     "test:crawler": "node --test tests/crawler.test.js",
@@ -33,8 +33,12 @@
     "build:segments": ".venv/bin/python scripts/build-segment-library.py",
     "build:scene-library": ".venv/bin/python scripts/build-scene-library.py",
     "wire:segments": "node scripts/wire-segmented-layers.js",
+    "wire:segmentation": "node scripts/wire-segmentation-project.js",
+    "wire:borders-segmentation": "node scripts/wire-borders-web-segmentation.js",
     "restore:segments": "node scripts/wire-segmented-layers.js --restore",
     "test:segmentation-wire": "node --test tests/segmented-composition.test.js",
+    "test:borders-segmentation": "node --test tests/segmentation-borders.test.js",
+    "test:segmentation-autowire": "node --test tests/segmentation-autowire.test.js",
     "test:segmented-composition": "node tests/segmented-composition.js",
     "test:segments": "node --test tests/segment-library.test.js"
   }

@@ -50,3 +50,19 @@ test('Borders Web cinematic/minimal: deck and map JPGs are archived', () => {
         assert.ok(fs.existsSync(path.join(LIB, 'sources', 'html', image)), image);
     }
 });
+
+test('Borders Web cinematic/minimal: editable effect compositions and AFS animations', () => {
+    const index = read(path.join(LIB, 'index.json'));
+    for (const design of read(path.join(LIB, 'sources', 'borders-web-cinematic.json')).designs) {
+        const entry = index.designs.find((item) => item.id === design.id);
+        assert.ok(entry.editableComposition, `${design.id} has an explicit editable composition`);
+        const composition = read(path.join(ROOT, entry.editableComposition.replace(/^\//, '')));
+        assert.ok(composition.layers.length >= 12, `${design.id} has effect layers`);
+        assert.equal(composition.width, design.width);
+        assert.equal(composition.duration, design.duration);
+        const editableAnim = entry.animations.find((animation) => animation.origin === 'extracted');
+        assert.ok(editableAnim, `${design.id} has an editable animation`);
+        const animation = read(path.join(ROOT, editableAnim.file.replace(/^\//, '')));
+        assert.equal(animation.tracks.length, composition.layers.length);
+    }
+});

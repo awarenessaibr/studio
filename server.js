@@ -39,6 +39,7 @@ const SceneLibrary = require('./src/server/scene-library.js');
 const AgentFirstPrompt = require('./src/server/agent-first-prompt.js');
 const StudioBuilder = require('./src/server/studio-builder.js');
 const ProjectCanvas = require('./src/server/project-canvas.js');
+const SegmentationWiring = require('./src/server/segmentation-wiring.js');
 
 // Load local API keys (SERPAPI_KEY, GOOGLE_PLACES_API_KEY, …) from .env.
 // The crawler children inherit process.env, so this is the only place keys
@@ -5947,6 +5948,33 @@ async function handleApi(req, res, pathname) {
         return;
     }
 
+    // Segmentation import: an image-to-layers <project>-segmented project is
+    // validated, wired into the target project and archived.
+    if (pathname === '/api/segmentation/exports' && req.method === 'GET') {
+        sendJson(res, 200, { exports: SegmentationWiring.listSegmentationExports() });
+        return;
+    }
+
+    if (pathname === '/api/segmentation/wire' && req.method === 'POST') {
+        const body = await readBody(req, 2 * 1024 * 1024);
+        let payload;
+        try {
+            payload = JSON.parse(body.toString('utf8'));
+        } catch {
+            throw httpError(400, 'The segmentation import request must be valid JSON.');
+        }
+        const segmentedProjectId = String((payload && payload.segmentedProjectId) || '').trim();
+        if (!segmentedProjectId) throw httpError(400, 'Choose a <project>-segmented export to import.');
+        sendJson(res, 200, SegmentationWiring.wireSegmentationExport(segmentedProjectId, {
+            targetProjectId: payload.targetProjectId,
+            imagePath: payload.imagePath,
+            layerId: payload.layerId,
+            keepSource: payload.keepSource === true,
+            check: payload.check === true,
+        }));
+        return;
+    }
+
     if (pathname === '/api/project-canvas/agent' && req.method === 'POST') {
         const body = await readBody(req, 10 * 1024 * 1024);
         let payload;
@@ -7691,11 +7719,14 @@ function serveStatic(req, res, pathname) {
         return;
     }
     // Never serve local state, secrets or test/dev material as static files.
-    const privatePath = pathname === '/.env'
+    // Library and project content are public design data used by the studio
+    // surfaces (afs.html reads /data/library and /data/projects directly).
+    const publicData = pathname.startsWith('/data/library/') || pathname.startsWith('/data/projects/');
+    const privatePath = !publicData && (pathname === '/.env'
         || pathname === '/server.js'
         || pathname.startsWith('/.')
         || ['/data', '/_dev', '/tests', '/tools', '/scripts', '/.git']
-            .some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+            .some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)));
     if (privatePath) {
         sendText(res, 404, 'File not found.');
         return;
@@ -7836,6 +7867,7 @@ if (require.main === module) {
 module.exports = {
     PAGE_ROUTES,
     ProjectCanvas,
+    SegmentationWiring,
     readZipEntries,
     extractZipEntry,
     detectImageFormat,
