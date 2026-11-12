@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Review matrix — Studio Layers</title>
+<style>
+:root{color-scheme:dark;--bg:#141318;--pan:#1b1a21;--line:#2e2c36;--ink:#ece8e1;--mu:#9b97a7;--ac:#8fd3c1;--ok:#3fbf8a;--bad:#e06060;--warn:#d9a53a;--field:#211f28}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.45 "Avenir Next","Segoe UI",system-ui,sans-serif}
+a{color:var(--ac)}
+header{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;padding:14px 20px;background:#141318f2;border-bottom:1px solid var(--line);backdrop-filter:blur(8px)}
+header h1{font-size:15px;margin:0;letter-spacing:.02em}
+header p{margin:0;color:var(--mu);font-size:11px}
+header .links{margin-left:auto;display:flex;gap:12px;font-size:11px}
+.wrap{padding:16px 20px 60px;max-width:1500px;margin:0 auto}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 14px}
+.filters label{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--mu)}
+select,input[type=search]{background:var(--field);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px 8px;font:inherit;font-size:12px}
+input[type=search]{min-width:230px}
+.counts{margin-left:auto;color:var(--mu);font-size:11px;display:flex;gap:12px;flex-wrap:wrap}
+.counts b{color:var(--ink)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;color:var(--mu);font-size:11px;margin:0 0 12px}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:4px;vertical-align:middle}
+.section{margin:22px 0 6px;display:flex;align-items:baseline;gap:10px}
+.section h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--mu);margin:0}
+.section span{font-size:11px;color:var(--mu)}
+table{width:100%;border-collapse:collapse;background:var(--pan);border:1px solid var(--line);border-radius:9px;overflow:hidden}
+thead th{position:static;background:#1b1a21;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--mu);text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);z-index:4;white-space:nowrap}
+td,th{padding:6px 10px;border-bottom:1px solid #24222b;vertical-align:middle}
+tbody tr:hover{background:#201e28}
+.name{min-width:280px}
+.namewrap{display:flex;gap:9px;align-items:flex-start}
+.nametext{min-width:0}
+.name b{display:block;font-size:12px}
+.name small{display:block;color:var(--mu);font-size:10px;margin-top:1px}
+.name .exp{background:none;border:0;color:var(--ac);cursor:pointer;font-size:10px;padding:0 4px}
+.cover{position:relative;flex:0 0 auto;width:42px;height:52px;border-radius:6px;overflow:hidden;border:1px solid #35323f;background:#24222c;display:grid;place-items:center}
+.cover img{width:100%;height:100%;object-fit:cover;display:block}
+.cover .ini{font-size:9px;font-weight:600;letter-spacing:.05em;color:#8d8898;text-transform:uppercase}
+a.cover:hover{border-color:var(--ac);background:#2b2934}
+.cover.small{width:27px;height:34px;border-radius:4px}
+.cover.small .ini{font-size:7px}
+.cover .play{position:absolute;right:2px;bottom:2px;width:12px;height:12px;border-radius:50%;background:#0b0a0ecc;border:1px solid #ffffff3d;color:#fff;font-size:5.5px;line-height:1;display:grid;place-items:center;pointer-events:none}
+.cell{display:inline-flex;align-items:center;justify-content:center;min-width:86px;padding:3px 6px;border-radius:6px;border:1px solid var(--line);background:#211f29;color:var(--mu);font:inherit;font-size:10.5px;cursor:pointer;white-space:nowrap}
+.cell:hover{border-color:currentColor}
+.cell.works{color:var(--ok);border-color:#3fbf8a66;background:#3fbf8a14}
+.cell.broken{color:var(--bad);border-color:#e0606066;background:#e0606014}
+.cell.review{color:var(--warn);border-color:#d9a53a66;background:#d9a53a14}
+.cell.unmarked{opacity:.65}
+.auto{display:block;font-size:9px;color:var(--mu);margin-top:2px;opacity:.75}
+.animrow td{background:#181720;font-size:11px}
+.animrow .name{padding-left:18px}
+.animrow .name b{font-size:11px;font-weight:500}
+.empty{color:var(--mu);padding:18px;text-align:center;font-size:12px}
+.notecell{min-width:190px;max-width:300px}
+.notebtn{max-width:100%;display:block;text-align:left;background:none;border:1px dashed #ffffff2b;color:var(--mu);border-radius:6px;padding:3px 6px;font:inherit;font-size:10.5px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.notebtn.has{color:var(--ink);border-style:solid;border-color:#ffffff33;white-space:normal}
+.notebtn:hover{border-color:var(--ac)}
+.noteedit{display:flex;flex-direction:column;gap:4px}
+.noteedit textarea{width:100%;min-height:52px;resize:vertical;background:var(--field);color:var(--ink);border:1px solid var(--ac);border-radius:6px;padding:5px;font:inherit;font-size:11px}
+.noteedit .rowbtns{display:flex;gap:4px}
+.noteedit button{font:inherit;font-size:10px;padding:3px 7px;border-radius:5px;border:1px solid var(--line);background:#211f29;color:var(--ink);cursor:pointer}
+.cellrow{display:flex;align-items:center;gap:4px}
+.openlink{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:5px;border:1px solid #ffffff2b;color:var(--ac);text-decoration:none;font-size:11px;opacity:.7}
+.openlink:hover{opacity:1;border-color:var(--ac);background:#8fd3c116}
+footer{margin-top:26px;color:var(--mu);font-size:10.5px}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Review matrix</h1>
+    <p>Manual marks per surface. The same composition keeps one row across AFS, Studio Agent, Project canvas and Studio.</p>
+  </div>
+  <nav class="links">
+    <a href="/afs.html">AFS</a>
+    <a href="/studio-agent.html?clean=1">Studio Agent</a>
+    <a href="/project-canvas">Project canvas</a>
+    <a href="/studio.html">Studio</a>
+  </nav>
+</header>
+<main class="wrap">
+  <div class="filters">
+    <input id="search" type="search" placeholder="Search designs, animations, projects, templates" autocomplete="off">
+    <label>Brand <select id="brand"><option value="">All brands</option></select></label>
+    <label>Surface <select id="surface">
+      <option value="afs">AFS</option>
+      <option value="studio-agent">Studio Agent</option>
+      <option value="project-canvas">Project canvas</option>
+      <option value="studio">Studio</option>
+    </select></label>
+    <label>Status <select id="status">
+      <option value="all">Any</option>
+      <option value="unmarked">Unmarked</option>
+      <option value="works">Works</option>
+      <option value="broken">Doesn't work</option>
+      <option value="review">Needs review</option>
+    </select></label>
+    <div class="counts" id="counts"></div>
+  </div>
+  <div class="legend">
+    <span><i style="background:var(--ok)"></i>Works</span>
+    <span><i style="background:var(--bad)"></i>Doesn't work</span>
+    <span><i style="background:var(--warn)"></i>Needs review</span>
+    <span><i style="background:#6f6a7b"></i>Unmarked (auto status shown)</span>
+    <span>Click a cell to cycle: unmarked → works → doesn't work → needs review → unmarked.</span>
+  </div>
+  <div id="app"><p class="empty">Loading the library…</p></div>
+  <footer>Marks are stored in <code>data/settings/reviews.json</code> through <code>POST /api/reviews</code>. Automatic statuses come from the library and the project/composition load; they are hints, not gates. Covers are the design's final image or composition reference, resized and cached as JPEG by <code>GET /api/thumbnail</code>; click one to open it in the selected surface.</footer>
+</main>
+<script src="/src/client/shared/reviews.js"></script>
+<script>
+'use strict';
+(() => {
+  const $ = (s, r = document) => r.querySelector(s);
+  const STATUS_LABEL = { works: 'Works', broken: "Doesn't work", review: 'Needs review' };
+  const STATUS_ORDER = [null, 'works', 'broken', 'review'];
+  const SURFACES = ['afs', 'studio-agent', 'project-canvas', 'studio'];
+  const SURFACE_LABEL = { afs: 'AFS', 'studio-agent': 'Studio Agent', 'project-canvas': 'Project canvas', studio: 'Studio' };
+  const state = { designs: [], projects: [], templates: [], expanded: new Set(), filter: { search: '', brand: '', surface: 'afs', status: 'all' } };
+  const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const get = async (url, fallback = null) => { try { const r = await fetch(url, { cache: 'no-store' }); if (!r.ok) return fallback; return await r.json(); } catch { return fallback; } };
+  const brandName = (id) => String(id || '').replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+  // Covers: the matrix shows the final image of each design/composition at a
+  // glance. /api/thumbnail resizes and caches the local original as WebP, so
+  // the page never downloads print/reel-sized references.
+  const COVER_RASTER = /\.(?:png|jpe?g|webp)$/i;
+  const coverSource = (value) => {
+    let text = String(value || '').trim();
+    if (!text) return null;
+    if (/^https?:\/\//i.test(text)) {
+      try { text = new URL(text, location.origin).pathname; } catch { return null; }
+    }
+    text = text.split('#')[0].split('?')[0];
+    if (!text.startsWith('/')) return null;
+    return COVER_RASTER.test(text) ? text : null;
+  };
+  const coverUrl = (value, width) => {
+    const source = coverSource(value);
+    return source ? `/api/thumbnail?src=${encodeURIComponent(source)}&w=${width}` : null;
+  };
+  const initials = (name) => {
+    const words = String(name || '').replace(/[^A-Za-z0-9]+/g, ' ').trim().split(/\s+/).filter(Boolean);
+    if (!words.length) return '·';
+    const first = words[0][0] || '';
+    const last = words.length > 1 ? words[words.length - 1][0] : (words[0][1] || '');
+    return (first + last).toUpperCase();
+  };
+  const compositionCover = (composition) => {
+    if (!composition) return null;
+    const layers = Array.isArray(composition.layers) ? composition.layers : [];
+    const candidates = layers.map((layer) => {
+      const box = layer && (layer.box || layer.rect);
+      return {
+        layer,
+        url: layer ? coverSource(layer.url) : null,
+        area: box ? (Number(box.w) || 0) * (Number(box.h) || 0) : 0,
+      };
+    }).filter((item) => item.url).sort((a, b) => b.area - a.area);
+    if (!candidates.length) return null;
+    const reference = composition.referenceLayerId
+      ? candidates.find((item) => item.layer.id === composition.referenceLayerId)
+      : null;
+    return reference ? reference.url : candidates[0].url;
+  };
+  const designCover = (design) => (design && coverSource(design.thumbnail)) || null;
+
+  const designIds = (design) => ({ designId: design.id, compositionId: design.compositionId || design.id });
+  const animationIds = (animation) => ({ animationId: animation.id });
+  const projectIds = (project) => ({ projectId: project.id, compositionId: project.compositionId || project.id });
+  const templateIds = (template) => ({ templateId: template.id, ...(template.compositionId ? { compositionId: template.compositionId } : {}) });
+
+  const autoFor = (item) => {
+    if (item.auto) return item.auto;
+    if (item.status === 'blocked' && (item.animations || []).length) return 'playable';
+    return item.status || '';
+  };
+  const markFor = (ids, surface) => StudioReviews.statusFor(ids, surface);
+
+  function cycle(status) {
+    const index = STATUS_ORDER.indexOf(status || null);
+    return STATUS_ORDER[(index + 1) % STATUS_ORDER.length];
+  }
+
+  function cell(ids, surface, meta) {
+    const status = markFor(ids, surface);
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `cell ${status || 'unmarked'}`;
+    button.textContent = status ? STATUS_LABEL[status] : '—';
+    const auto = meta.auto ? `Auto: ${meta.auto}` : 'No automatic status';
+    button.title = `${SURFACE_LABEL[surface]} · ${status ? STATUS_LABEL[status] : 'Unmarked'} · ${auto}. Click to cycle.`;
+    button.onclick = async () => {
+      const next = cycle(markFor(ids, surface));
+      await StudioReviews.setMark(ids, surface, next, { name: meta.name, kind: meta.kind, auto: meta.auto });
+      const updated = markFor(ids, surface);
+      button.className = `cell ${updated || 'unmarked'}`;
+      button.textContent = updated ? STATUS_LABEL[updated] : '—';
+      button.title = `${SURFACE_LABEL[surface]} · ${updated ? STATUS_LABEL[updated] : 'Unmarked'} · ${meta.auto ? `Auto: ${meta.auto}` : 'No automatic status'}. Click to cycle.`;
+      const hint = button.nextElementSibling;
+      if (hint) hint.textContent = updated ? (meta.auto ? `auto ${meta.auto}` : '') : (meta.auto ? `auto: ${meta.auto}` : '');
+    };
+    return button;
+  }
+
+  function matchesFilter(ids, auto, wording = '') {
+    const { search, brand, surface, status } = state.filter;
+    if (search) {
+      const hay = `${wording} ${ids.designId || ''} ${ids.compositionId || ''} ${ids.animationId || ''} ${ids.projectId || ''} ${ids.templateId || ''} ${StudioReviews.noteFor(ids)}`.toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    if (brand && ids.brandId !== brand) return false;
+    if (status !== 'all') {
+      const mark = markFor(ids, surface);
+      if (status === 'unmarked' && mark) return false;
+      if (status !== 'unmarked' && mark !== status) return false;
+    }
+    return true;
+  }
+
+  function compositionFromPath(value) {
+    const match = String(value || '').match(/^\/data\/projects\/([^/]+)\/compositions\/(.+)\.json$/);
+    return match ? { projectId: match[1], compositionId: match[2].replace(/\.(?:composition|editable)$/, ''), path: value } : null;
+  }
+
+  function projectOfDesign(design) {
+    if (!design) return null;
+    const direct = state.projects.find((project) => project.id === design.id || project.compositionId === design.id);
+    if (direct) return direct;
+    const fromPath = compositionFromPath(design.composition);
+    if (!fromPath) return null;
+    return state.projects.find((project) => project.id === fromPath.projectId && project.compositionId === fromPath.compositionId)
+      || state.projects.find((project) => project.id === fromPath.projectId)
+      || null;
+  }
+
+  function designForComposition(value) {
+    if (!value) return null;
+    return state.designs.find((design) => design.id === value || designIds(design).compositionId === value) || null;
+  }
+
+  function designForName(name) {
+    const wanted = String(name || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    if (wanted.length < 10) return null;
+    return state.designs.find((design) => {
+      const candidate = String(design.name || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      return candidate === wanted || candidate.endsWith(' ' + wanted) || wanted.endsWith(' ' + candidate);
+    }) || null;
+  }
+
+  function pageUrl(surface, options) {
+    const { design, animation, project, template } = options;
+    if (animation && animation.status === 'broken' && !animation.sourceVideo) return null;
+    const withAnim = (base, target) => animation
+      ? `${base}${base.includes('?') ? '&' : '?'}animation=${encodeURIComponent(animation.id)}`
+      : base;
+    if (surface === 'afs') {
+      if (design) return withAnim(`/afs.html?design=${encodeURIComponent(design.id)}`);
+      if (project) {
+        const match = designForComposition(project.compositionId) || designForComposition(project.id);
+        if (match) return withAnim(`/afs.html?design=${encodeURIComponent(match.id)}`);
+      }
+      if (template) {
+        const match = state.designs.find((item) => item.id === template.id) || designForName(template.name);
+        if (match) return `/afs.html?design=${encodeURIComponent(match.id)}`;
+      }
+      return null;
+    }
+    if (surface === 'studio-agent') {
+      if (design) return withAnim(`/studio-agent.html?clean=1&library=${encodeURIComponent(design.id)}`);
+      if (project) {
+        const match = designForComposition(project.compositionId) || designForComposition(project.id);
+        if (match) return withAnim(`/studio-agent.html?clean=1&library=${encodeURIComponent(match.id)}`);
+      }
+      if (template) {
+        const match = state.designs.find((item) => item.id === template.id) || designForName(template.name);
+        if (match) return `/studio-agent.html?clean=1&library=${encodeURIComponent(match.id)}`;
+      }
+      return null;
+    }
+    if (animation) {
+      const target = design ? projectOfDesign(design) : null;
+      if (!target) return null;
+      if (surface === 'project-canvas') {
+        return `/project-canvas?project=${encodeURIComponent(target.id)}&composition=${encodeURIComponent(animation.name || animation.id)}`;
+      }
+      if (surface === 'studio') {
+        return `/studio.html?project=${encodeURIComponent(target.id)}&composition=${encodeURIComponent(animation.name || animation.id)}`;
+      }
+      return null;
+    }
+    if (surface === 'project-canvas') {
+      const target = project || projectOfDesign(design);
+      if (!target) return null;
+      return `/project-canvas?project=${encodeURIComponent(target.id)}&composition=${encodeURIComponent(target.compositionId || target.id)}`;
+    }
+    if (surface === 'studio') {
+      if (template && template.packId) {
+        return `/studio.html?pack=${encodeURIComponent(template.packId)}&brand=${encodeURIComponent(template.brandId || '')}&template=${encodeURIComponent(template.id)}`;
+      }
+      const target = project || projectOfDesign(design);
+      if (!target) return null;
+      return `/studio.html?project=${encodeURIComponent(target.id)}&composition=${encodeURIComponent(target.compositionId || target.id)}`;
+    }
+    return null;
+  }
+
+  function noteCell(ids, meta) {
+    const td = document.createElement('td');
+    td.className = 'notecell';
+    const paint = () => {
+      td.replaceChildren();
+      const note = StudioReviews.noteFor(ids);
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `notebtn${note ? ' has' : ''}`;
+      button.textContent = note || '+ note';
+      button.title = note || 'Add a note for this item';
+      button.onclick = () => {
+        const editor = document.createElement('div');
+        editor.className = 'noteedit';
+        const input = document.createElement('textarea');
+        input.value = note;
+        input.placeholder = 'Note for this design / motion / project / template';
+        const rowButtons = document.createElement('div');
+        rowButtons.className = 'rowbtns';
+        const save = document.createElement('button');
+        save.type = 'button'; save.textContent = 'Save';
+        const cancel = document.createElement('button');
+        cancel.type = 'button'; cancel.textContent = 'Cancel';
+        save.onclick = async () => {
+          await StudioReviews.setNote(ids, input.value, { name: meta.name, kind: meta.kind, auto: meta.auto });
+          paint();
+        };
+        cancel.onclick = paint;
+        input.addEventListener('keydown', (event) => {
+          if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') save.click();
+          if (event.key === 'Escape') cancel.click();
+        });
+        rowButtons.append(save, cancel);
+        editor.append(input, rowButtons);
+        td.replaceChildren(editor);
+        input.focus();
+      };
+      td.appendChild(button);
+    };
+    paint();
+    return td;
+  }
+
+  /**
+   * The cover links to the item in the currently selected surface (falling
+   * back to the first surface that can open it), so a thumbnail is a shortcut,
+   * not just decoration.
+   */
+  function coverLink(options) {
+    const order = [state.filter.surface, 'afs', 'studio-agent', 'project-canvas', 'studio'];
+    const tried = new Set();
+    for (const surface of order) {
+      if (tried.has(surface)) continue;
+      tried.add(surface);
+      const url = pageUrl(surface, options);
+      if (url) return { url, surface };
+    }
+    return null;
+  }
+
+  function coverTile(source, options) {
+    const { name, small, motion } = options;
+    const link = options.link;
+    const tile = document.createElement(link ? 'a' : 'span');
+    tile.className = `cover${small ? ' small' : ''}`;
+    if (link) {
+      tile.href = link.url;
+      tile.target = '_blank';
+      tile.rel = 'noopener';
+      tile.title = `Open ${name} in ${SURFACE_LABEL[link.surface]}`;
+      tile.setAttribute('aria-label', tile.title);
+    } else {
+      tile.setAttribute('aria-hidden', 'true');
+    }
+    const fallback = () => {
+      tile.classList.add('empty');
+      if (!tile.querySelector('.ini')) {
+        const label = document.createElement('span');
+        label.className = 'ini';
+        label.textContent = initials(name);
+        tile.appendChild(label);
+      }
+    };
+    const url = coverUrl(source, small ? 72 : 160);
+    if (!url) {
+      fallback();
+      return tile;
+    }
+    const image = document.createElement('img');
+    image.alt = '';
+    image.loading = 'lazy';
+    image.decoding = 'async';
+    image.addEventListener('error', () => {
+      image.remove();
+      fallback();
+    }, { once: true });
+    image.src = url;
+    tile.appendChild(image);
+    if (motion) {
+      const play = document.createElement('span');
+      play.className = 'play';
+      play.textContent = '▶';
+      tile.appendChild(play);
+    }
+    return tile;
+  }
+
+  function row(item, options) {
+    const { ids, name, sub, kind, auto, actions } = options;
+    const tr = document.createElement('tr');
+    if (options.anim) tr.className = 'animrow';
+    const tdName = document.createElement('td');
+    tdName.className = 'name';
+    const wrap = document.createElement('div');
+    wrap.className = 'namewrap';
+    wrap.appendChild(coverTile(options.cover, {
+      name,
+      small: Boolean(options.anim),
+      motion: Boolean(options.anim),
+      link: coverLink(options),
+    }));
+    const text = document.createElement('div');
+    text.className = 'nametext';
+    const b = document.createElement('b');
+    b.textContent = name;
+    text.appendChild(b);
+    if (sub) {
+      const small = document.createElement('small');
+      small.textContent = sub;
+      text.appendChild(small);
+    }
+    if (actions) actions.forEach((action) => text.appendChild(action));
+    wrap.appendChild(text);
+    tdName.appendChild(wrap);
+    tr.appendChild(tdName);
+    tr.appendChild(noteCell(ids, { name, kind, auto }));
+    SURFACES.forEach((surface) => {
+      const td = document.createElement('td');
+      const line = document.createElement('div');
+      line.className = 'cellrow';
+      line.appendChild(cell(ids, surface, { name, kind, auto }));
+      const url = pageUrl(surface, options);
+      if (url) {
+        const link = document.createElement('a');
+        link.className = 'openlink';
+        link.href = url;
+        link.target = '_blank';
+        link.rel = 'noopener';
+        link.textContent = '↗';
+        link.title = `Open in ${SURFACE_LABEL[surface]}`;
+        line.appendChild(link);
+      }
+      td.appendChild(line);
+      const hint = document.createElement('span');
+      hint.className = 'auto';
+      const mark = markFor(ids, surface);
+      hint.textContent = mark ? (auto ? `auto ${auto}` : '') : (auto ? `auto: ${auto}` : '');
+      td.appendChild(hint);
+      tr.appendChild(td);
+    });
+    return tr;
+  }
+
+  function render() {
+    const app = $('#app');
+    app.replaceChildren();
+    const visible = { designs: [], projects: [], templates: [] };
+    state.designs.forEach((design) => {
+      const ids = designIds(design);
+      const item = { ...ids, brandId: design.brandId, status: design.status };
+      if (!matchesFilter(item, design.status, `${design.name} ${brandName(design.brandId)}`)) return;
+      visible.designs.push(design);
+    });
+    state.projects.forEach((project) => {
+      const ids = projectIds(project);
+      if (!matchesFilter({ ...ids, brandId: project.brandId }, 'playable', `${project.name} ${project.id}`)) return;
+      visible.projects.push(project);
+    });
+    state.templates.forEach((template) => {
+      const ids = templateIds(template);
+      if (!matchesFilter({ ...ids, brandId: template.brandId }, 'published', `${template.name} ${brandName(template.brandId)}`)) return;
+      visible.templates.push(template);
+    });
+
+    const counts = $('#counts');
+    const countMarked = state.designs.filter((d) => SURFACES.some((s) => markFor(designIds(d), s))).length;
+    counts.innerHTML = `designs <b>${visible.designs.length}</b> / ${state.designs.length} · projects <b>${visible.projects.length}</b> · templates <b>${visible.templates.length}</b> · marked designs <b>${countMarked}</b>`;
+
+    const section = (title, count, rows) => {
+      if (!rows.length) return;
+      const head = document.createElement('div');
+      head.className = 'section';
+      const h = document.createElement('h2'); h.textContent = title;
+      const n = document.createElement('span'); n.textContent = `${rows.length}${count ? ` / ${count}` : ''}`;
+      head.append(h, n);
+      app.appendChild(head);
+      const table = document.createElement('table');
+      const thead = document.createElement('thead');
+      const htr = document.createElement('tr');
+      const th0 = document.createElement('th'); th0.textContent = 'Design / motion';
+      htr.appendChild(th0);
+      const thNote = document.createElement('th'); thNote.textContent = 'Note';
+      htr.appendChild(thNote);
+      SURFACES.forEach((surface) => { const th = document.createElement('th'); th.textContent = SURFACE_LABEL[surface]; htr.appendChild(th); });
+      thead.appendChild(htr);
+      table.appendChild(thead);
+      const tbody = document.createElement('tbody');
+      rows.forEach((rowFn) => tbody.appendChild(rowFn()));
+      table.appendChild(tbody);
+      app.appendChild(table);
+    };
+
+    section('Library designs', state.designs.length, visible.designs.map((design) => {
+      const animations = Array.isArray(design.animations) ? design.animations : [];
+      const expand = document.createElement('button');
+      expand.type = 'button';
+      expand.className = 'exp';
+      expand.textContent = state.expanded.has(design.id) ? `▾ ${animations.length} motions` : `▸ ${animations.length} motions`;
+      expand.disabled = !animations.length;
+      expand.onclick = () => {
+        if (state.expanded.has(design.id)) state.expanded.delete(design.id); else state.expanded.add(design.id);
+        render();
+      };
+      return () => {
+        const tr = row(design, {
+          ids: designIds(design),
+          name: design.name,
+          sub: `${brandName(design.brandId)} · library ${design.status || ''} · ${(design.animations || []).length} motions`,
+          kind: 'design',
+          auto: autoFor(design),
+          design,
+          cover: designCover(design),
+          actions: [expand],
+        });
+        if (!state.expanded.has(design.id)) return tr;
+        const fragment = document.createDocumentFragment();
+        fragment.appendChild(tr);
+        animations.forEach((animation) => fragment.appendChild(row(animation, {
+          ids: animationIds(animation),
+          name: animation.name || animation.id,
+          sub: `${animation.origin || 'library'} · ${animation.status || ''} · ${((animation.duration || 0) / 1000).toFixed(1)}s`,
+          kind: 'animation',
+          auto: animation.status || '',
+          anim: true,
+          design,
+          cover: designCover(design),
+          animation,
+        })));
+        return fragment;
+      };
+    }));
+
+    section('Project compositions', state.projects.length, visible.projects.map((project) => () => row(project, {
+      ids: projectIds(project),
+      name: project.name,
+      sub: `${project.id} · ${project.width || '?'}×${project.height || '?'} · ${((project.duration || 0) / 1000).toFixed(1)}s`,
+      kind: 'project',
+      auto: 'loaded',
+      project,
+      cover: project.thumbnail || designCover(designForComposition(project.compositionId) || designForComposition(project.id)),
+    })));
+
+    section('Brand templates', state.templates.length, visible.templates.map((template) => () => row(template, {
+      ids: templateIds(template),
+      name: template.name,
+      sub: `${template.brandName || brandName(template.brandId)} · ${template.id}`,
+      kind: 'template',
+      auto: 'published',
+      template,
+      cover: compositionCover(template.composition) || template.brandCover,
+    })));
+
+    if (!visible.designs.length && !visible.projects.length && !visible.templates.length) {
+      const empty = document.createElement('p');
+      empty.className = 'empty';
+      empty.textContent = 'Nothing matches these filters.';
+      app.appendChild(empty);
+    }
+  }
+
+  function buildBrandFilter() {
+    const select = $('#brand');
+    const brands = new Map();
+    state.designs.forEach((design) => { if (design.brandId) brands.set(design.brandId, brandName(design.brandId)); });
+    state.templates.forEach((template) => { if (template.brandId) brands.set(template.brandId, template.brandName || brandName(template.brandId)); });
+    [...brands.entries()].sort((a, b) => a[1].localeCompare(b[1])).forEach(([id, name]) => {
+      const option = document.createElement('option');
+      option.value = id; option.textContent = name;
+      select.appendChild(option);
+    });
+  }
+
+  async function loadTemplates() {
+    const data = await get('/api/brand-packs');
+    const packs = (data && data.packs) || [];
+    const templates = [];
+    await Promise.all(packs.map(async (pack) => {
+      await Promise.all((pack.brands || []).map(async (brand) => {
+        const result = await get(`/api/brand-packs/${encodeURIComponent(pack.id)}/templates?brandId=${encodeURIComponent(brand.id)}`);
+        ((result && result.templates) || []).forEach((template) => {
+          templates.push({
+            id: template.id,
+            name: template.name || template.id,
+            brandId: brand.id,
+            brandName: brand.name,
+            packId: pack.id,
+            brandCover: brand.cover || null,
+            composition: template.composition || null,
+            compositionId: template.composition && template.composition.id,
+          });
+        });
+      }));
+    }));
+    return templates;
+  }
+
+  async function boot() {
+    const [library, projects, templates] = await Promise.all([
+      get('/api/library'),
+      get('/api/project-canvas/projects'),
+      loadTemplates().catch(() => []),
+    ]);
+    await StudioReviews.load(true);
+    state.designs = (library && library.designs) || [];
+    state.projects = (projects && projects.projects) || [];
+    state.templates = templates || [];
+    buildBrandFilter();
+    render();
+    $('#search').oninput = (event) => { state.filter.search = event.target.value.trim().toLowerCase(); render(); };
+    $('#brand').onchange = (event) => { state.filter.brand = event.target.value; render(); };
+    $('#surface').onchange = (event) => { state.filter.surface = event.target.value; render(); };
+    $('#status').onchange = (event) => { state.filter.status = event.target.value; render(); };
+  }
+
+  boot().catch((error) => {
+    $('#app').innerHTML = `<p class="empty">Could not load the review data: ${esc(error.message)}</p>`;
+  });
+})();
+</script>
+</body>
+</html>

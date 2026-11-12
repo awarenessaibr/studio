@@ -34,12 +34,14 @@ const SocialStore = require('./src/server/social-store.js');
 const { generateSegmentTexture } = require('./src/server/segment-texture.js');
 const AgentLibrary = require('./src/server/agent-library.js');
 const LibraryService = require('./src/server/library-service.js');
+const ReviewStore = require('./src/server/review-store.js');
 const SegmentLibrary = require('./src/server/segment-library.js');
 const SceneLibrary = require('./src/server/scene-library.js');
 const AgentFirstPrompt = require('./src/server/agent-first-prompt.js');
 const StudioBuilder = require('./src/server/studio-builder.js');
 const ProjectCanvas = require('./src/server/project-canvas.js');
 const SegmentationWiring = require('./src/server/segmentation-wiring.js');
+const Thumbnails = require('./src/server/thumbnail-service.js');
 
 // Load local API keys (SERPAPI_KEY, GOOGLE_PLACES_API_KEY, …) from .env.
 // The crawler children inherit process.env, so this is the only place keys
@@ -63,6 +65,8 @@ const STUDIO_ANIMATION_LIBRARY_FILE = path.join(SETTINGS_DIR, 'studio-animation-
 const AGENT_CANVAS_ANIMATIONS_FILE = path.join(SETTINGS_DIR, 'agent-canvas-animations.json');
 const AGENT_LIBRARY_FILE = path.join(SETTINGS_DIR, 'agent-library.json');
 const LIBRARY_DIR = path.join(DATA_DIR, 'library');
+const THUMBNAIL_CACHE_DIR = path.join(DATA_DIR, 'cache', 'thumbnails');
+const REVIEWS_FILE = path.join(SETTINGS_DIR, 'reviews.json');
 const STUDIO_BUILDER_DIR = path.join(DATA_DIR, 'studio-builder');
 const STUDIO_BUILDER_PAGES_DIR = path.join(STUDIO_BUILDER_DIR, 'pages');
 const STUDIO_PROJECT_ARCHIVE_FILE = path.join(SETTINGS_DIR, 'studio-project-archive.json');
@@ -7285,6 +7289,45 @@ async function handleApi(req, res, pathname) {
         return;
     }
 
+    // One small cover per local image, generated once and cached on disk.
+    // The review matrix and any catalogue can use it without shipping a
+    // print-sized reference into a 40 px tile.
+    if (pathname === '/api/thumbnail' && (req.method === 'GET' || req.method === 'HEAD')) {
+        const query = new URL(req.url, 'http://127.0.0.1').searchParams;
+        const source = query.get('src') || '';
+        const sourceFile = thumbnailSourceFile(source);
+        if (!sourceFile) {
+            throw httpError(400, 'The thumbnail source must be a local PNG, JPEG or WebP image.');
+        }
+        const thumbnail = await Thumbnails.ensureThumbnail({
+            sourceFile,
+            sourceKey: source,
+            width: query.get('w'),
+            cacheDir: THUMBNAIL_CACHE_DIR,
+        });
+        sendCachedImage(req, res, thumbnail.file, thumbnail.etag);
+        return;
+    }
+
+    if (pathname === '/api/reviews' && req.method === 'GET') {
+        sendJson(res, 200, await ReviewStore.readState(REVIEWS_FILE));
+        return;
+    }
+
+    if (pathname === '/api/reviews' && req.method === 'POST') {
+        const body = await readBody(req, 64 * 1024);
+        let payload;
+        try { payload = JSON.parse(body.toString('utf8')); }
+        catch { throw httpError(400, 'The review request must be valid JSON.'); }
+        try {
+            const result = await ReviewStore.setMark(REVIEWS_FILE, payload);
+            sendJson(res, 200, { ok: true, item: result.item, state: result.state });
+        } catch (error) {
+            throw httpError(error.statusCode || 400, error.message);
+        }
+        return;
+    }
+
     const libraryDesignMatch = pathname.match(/^\/api\/library\/designs\/([A-Za-z0-9_-]{1,140})$/);
     if (libraryDesignMatch && req.method === 'GET') {
         sendJson(res, 200, await LibraryService.readDesign(LIBRARY_DIR, libraryDesignMatch[1]));
@@ -7392,27 +7435,29 @@ async function handleApi(req, res, pathname) {
         return;
     }
 
-    const projectCompositionMatch = pathname.match(/^\/api\/projects\/([A-Za-z0-9_-]{1,80})\/compositions\/([A-Za-z0-9_.-]{1,100})$/);
+    const projectCompositionMatch = pathname.match(/^\/api\/projects\/([A-Za-z0-9_-]{1,80})\/compositions\/([^/]{1,180})$/);
     if (projectCompositionMatch && req.method === 'GET') {
         const projectId = projectCompositionMatch[1];
         const projectDirId = projectId.startsWith('repo-') ? projectId.slice(5) : projectId;
-        const compositionId = projectCompositionMatch[2].replace(/\.json$/, '').replace(/\.editable$/, '');
-        const dir = path.join(PROJECTS_DIR, projectDirId, 'compositions');
-        const editable = path.join(dir, `${compositionId}.editable.json`);
-        const poster = path.join(dir, `${compositionId}.composition.json`);
-        const file = await fsp.access(editable).then(() => editable, () => poster);
-        let composition;
+        const compositionId = decodeURIComponent(projectCompositionMatch[2]).replace(/\.json$/, '');
+        // One reader for both compositions/*.json and animations/*.json: Studio
+        // and the review matrix can open a motion by id or by its display name.
         try {
-            composition = JSON.parse(await fsp.readFile(file, 'utf8'));
+            const result = await ProjectCanvas.readProject(projectDirId, compositionId);
+            sendJson(res, 200, {
+                composition: result.composition,
+                editable: String(result.project.compositionId || '').endsWith('.editable'),
+                project: {
+                    id: projectId,
+                    compositionId: result.project.compositionId,
+                    baseCompositionId: result.project.baseCompositionId,
+                    name: result.project.name,
+                    motion: result.project.motion,
+                },
+            });
         } catch (error) {
-            if (error.code === 'ENOENT') throw httpError(404, `Project "${projectId}" has no composition "${compositionId}".`);
-            throw httpError(500, `The composition could not be read: ${error.message}`);
+            throw httpError(error.status || error.statusCode || 500, error.message);
         }
-        sendJson(res, 200, {
-            composition,
-            editable: file === editable,
-            project: { id: projectId, compositionId, name: composition.name || projectId },
-        });
         return;
     }
 
@@ -7598,6 +7643,9 @@ const PAGE_ROUTES = {
     '/segments-canvas': 'segments-canvas.html',
     '/segments-canvas/': 'segments-canvas.html',
     '/segments-canvas.html': 'segments-canvas.html',
+    '/reviews': 'reviews.html',
+    '/reviews/': 'reviews.html',
+    '/reviews.html': 'reviews.html',
     '/project-canvas': 'project-canvas.html',
     '/project-canvas/': 'project-canvas.html',
     '/project-canvas.html': 'project-canvas.html',
@@ -7690,6 +7738,46 @@ function libraryPublicFile(pathname) {
     return target.startsWith(root + path.sep) ? target : null;
 }
 
+const THUMBNAIL_SOURCE_EXT = /\.(?:png|jpe?g|webp)$/i;
+
+/**
+ * Resolve a public image URL to its file on disk so `/api/thumbnail` can
+ * generate a small cover. Every branch reuses an existing public-file resolver,
+ * so the endpoint inherits exactly the same path rules as the static server:
+ * import/project raster media, library sources, project assets, brand-pack
+ * files and saved template files. SVG (and every non-raster) is rejected
+ * because ffmpeg cannot rasterise it reliably here.
+ */
+function thumbnailSourceFile(value) {
+    const pathname = localUrlPath(value).split('#')[0].split('?')[0];
+    if (!pathname || !THUMBNAIL_SOURCE_EXT.test(pathname)) return null;
+    let target = projectPublicFile(pathname)
+        || importPublicFile(pathname)
+        || libraryPublicFile(pathname);
+    if (!target) {
+        const assetMatch = pathname.match(/^\/api\/projects\/([A-Za-z0-9_-]{1,80})\/assets\/(.+)$/);
+        if (assetMatch) target = resolveProjectAssetPath(assetMatch[1], assetMatch[2]);
+    }
+    if (!target) {
+        const templateMatch = pathname.match(/^\/api\/brand-packs\/([A-Za-z0-9_-]{1,80})\/templates\/([A-Za-z0-9_-]{1,80})\/([A-Za-z0-9_-]{1,100})\/files\/(.+)$/);
+        if (templateMatch) {
+            target = savedTemplateAssetPath(templateMatch[1], templateMatch[2], templateMatch[3], templateMatch[4]);
+        }
+    }
+    if (!target) {
+        const packFileMatch = pathname.match(/^\/api\/brand-packs\/([A-Za-z0-9_-]{1,80})\/files\/(.+)$/);
+        if (packFileMatch) {
+            const relative = safeRelativePath(packFileMatch[2]);
+            if (relative) {
+                const root = path.join(BRAND_PACKS_DIR, packFileMatch[1], 'files');
+                const candidate = path.resolve(root, ...relative.split('/'));
+                if (candidate.startsWith(path.resolve(root) + path.sep)) target = candidate;
+            }
+        }
+    }
+    return target && THUMBNAIL_SOURCE_EXT.test(target) ? target : null;
+}
+
 function serveStatic(req, res, pathname) {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
         sendText(res, 405, 'Method not allowed.');
@@ -7778,6 +7866,36 @@ function sendFile(req, res, target) {
             'Content-Length': stat.size,
             'Cache-Control': 'no-store',
         };
+        res.writeHead(200, headers);
+        if (req.method === 'HEAD') {
+            res.end();
+            return;
+        }
+        const stream = fs.createReadStream(target);
+        stream.on('error', () => res.destroy());
+        stream.pipe(res);
+    });
+}
+
+/** Stream a generated JPEG cover with a long, revalidatable browser cache. */
+function sendCachedImage(req, res, target, etag) {
+    fs.stat(target, (error, stat) => {
+        if (error || !stat.isFile()) {
+            sendText(res, 404, 'File not found.');
+            return;
+        }
+        const tag = `"${etag}"`;
+        const headers = {
+            'Content-Type': 'image/jpeg',
+            'Content-Length': stat.size,
+            'Cache-Control': 'public, max-age=86400',
+            ETag: tag,
+        };
+        if (req.headers['if-none-match'] === tag) {
+            res.writeHead(304, { 'Cache-Control': headers['Cache-Control'], ETag: tag });
+            res.end();
+            return;
+        }
         res.writeHead(200, headers);
         if (req.method === 'HEAD') {
             res.end();

@@ -369,6 +369,8 @@ dialog button.p{background:var(--ac);color:var(--onac);border:0;font-weight:600}
   </form>
 </dialog>
 
+<script src="/src/shared/animation-normalize.js"></script>
+<script src="/src/client/shared/reviews.js"></script>
 <script>
 (() => {
 'use strict';
@@ -397,6 +399,7 @@ const toast = (m,err) => { const t=$('#toast'); t.textContent=m; t.className=err
 let LIBIDX = null, CLIPS = null, SEL = new Set();
 let ADMIN = LS.get('agentLibrary.admin', false);
 let DESIGNS = [], cur = null, curAnim = null, fmt = 'orig', fmtOpen = false, T = 0, playing = false, tStart = 0, raf = 0;
+let REVIEW_FILTER = 'all';
 const BRANDS = new Map();
 let BRAND = LS.get('sa.brand', '');
 let SRC = false, SRC_VIDEO = '', SRC_POSTER = '', SRC_KEY = '';
@@ -443,8 +446,9 @@ function prep(data){ // normalise frames once, index tracks by layer
   (a.tracks||[]).forEach(tr => { (tr.segments||[]).forEach(s => { s.frames = (s.frames||[]).map(nf).sort((p,q)=>p.t-q.t); s.start=s.start||0; }); if(tr.segments&&tr.segments.length) a.byId[tr.layerId]=tr; });
   return a;
 }
-function compMotion(comp){ // composition keyframes → animation tracks
-  return {schema:'agent-studio/animation/2',kind:'studio-animation',name:comp.name,duration:comp.duration||10000,fps:25,tracks:comp.layers.filter(l=>l.animation&&(l.animation.keyframes||[]).length).map(l=>({layerId:l.id,layerName:l.name,segments:[{preset:'keyframes',label:'Keyframes',start:0,duration:l.animation.duration||comp.duration,loop:false,frames:l.animation.keyframes.map(k=>({t:k.time,dx:(k.x-l.x)/100,dy:(k.y-l.y)/100,sx:l.w?k.w/l.w:1,sy:l.h?k.h/l.h:1,a:k.opacity}))}]}))};
+function compMotion(comp){ // composition keyframes → animation tracks (both schemas)
+  const derived = window.StudioAnimationNormalize.tracksFromComposition(comp);
+  return {schema:'agent-studio/animation/2',kind:'studio-animation',name:comp.name,duration:derived.duration||comp.duration||10000,fps:25,tracks:derived.tracks};
 }
 // Does this composition contain every layer the animation drives?
 function compCovers(comp,anim){
@@ -460,13 +464,31 @@ function compForAnim(d,anim){
   return null;
 }
 const dTitle = d => d.comp.name.split(' — ').slice(-2).join(' — ');
-const animLabel = (a,d) => ((a.name||'Animation').replace(d.comp.name,'').replace(/^[\s—–-]+/,'').replace(/^\d+$/,'')||'Original motion');
+const animLabel = (a,d) => {
+  const base=(d&&((d.baseComp||d.comp)&&(d.baseComp||d.comp).name))||'';
+  return ((a.name||'Animation').replace(base,'').replace(/^[\s—–-]+/,'').replace(/^\d+$/,'')||'Original motion');
+};
 
 /* ============ feed ============ */
 const brandKeyOf = value => String(value||'').toLowerCase().replace(/&/g,' and ').replace(/\b(?:the|and)\b/g,' ').replace(/[^a-z0-9]+/g,'');
 function addDesign(id,comp,src,anims,meta={}){
-  let d = DESIGNS.find(x=>x.id===id);
+  // The same composition can arrive as both a library design and a published
+  // brand template. Keep one card: the library record owns the motion, the
+  // published record only adds a flag, instead of duplicating the design.
+  const compId = comp && comp.id ? String(comp.id) : '';
+  const compName = String(comp && comp.name || '').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  const sameName = value => {
+    const name = String(value || '').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+    if (!name || !compName || name.length < 10 || compName.length < 10) return false;
+    return name === compName || name.endsWith(' ' + compName) || compName.endsWith(' ' + name);
+  };
+  let d = DESIGNS.find(x=>x.id===id)
+    || DESIGNS.find(x=>compId && x.comp && String(x.comp.id)===compId)
+    || DESIGNS.find(x=>x.comp && sameName(x.comp.name))
+    || null;
   if(!d){ d = {id,comp,src,anims:[],brandId:'',brandName:'',brandKey:'',packId:''}; DESIGNS.push(d); }
+  if(d.id!==id){ d.knownIds=[...new Set([...(d.knownIds||[]),id])]; }
+  if(src==='Published') d.published = true;
   if(!d.baseComp) d.baseComp = comp;
   Object.assign(d,meta);
   if(!d.brandKey) d.brandKey = brandKeyOf(d.brandName || d.brandId);
@@ -475,7 +497,18 @@ function addDesign(id,comp,src,anims,meta={}){
   return d;
 }
 const titleCase = value => String(value||'').replace(/[-_]+/g,' ').replace(/\b\w/g,ch=>ch.toUpperCase());
-const visibleDesigns = () => BRAND ? DESIGNS.filter(d=>d.brandKey===BRAND) : DESIGNS;
+const designIds = d => ({ designId: d.id, compositionId: (d.baseComp || d.comp || {}).id || d.id });
+const animIds = (d, a) => ({
+  // Motion is its own review item: do not include designId, or a design mark
+  // would be inherited by every animation of that design.
+  compositionId: (a.data && a.data._composition && a.data._composition.id) || (a.data && a.data.id) || a.id,
+  animationId: (a.data && a.data.id) || a.id,
+});
+const designAuto = d => d.autoStatus || d.status || (d.playable === false ? 'blocked' : 'library');
+const visibleDesigns = () => {
+  const list = BRAND ? DESIGNS.filter(d=>d.brandKey===BRAND) : DESIGNS;
+  return list.filter(d => !window.StudioReviews || window.StudioReviews.filterMatch(designIds(d), 'afs', REVIEW_FILTER));
+};
 async function loadFeed(){
   try{ [MENU_CATALOG,MENU_DESIGNS] = await Promise.all([jget(MENU_CATALOG_URL).catch(()=>null),jget(MENU_DESIGNS_URL).catch(()=>null)]); }catch{}
   try{ // library first: only designs marked ready, only animations that validated ok
@@ -489,8 +522,28 @@ async function loadFeed(){
         // so selectAnim can pick the one the chosen animation actually fits.
         const altUrl = String(e.composition || '');
         const altComp = altUrl && altUrl !== compUrl ? await jget(altUrl).catch(()=>null) : null;
-        const anims = (await Promise.all((e.animations||[]).filter(a=>ADMIN?true:a.status!=='broken').map(a=>jget(a.file).then(x=>Object.assign(x,{_saved:x.origin!=='original',_status:a.status,_issues:a.issues,_entry:a,sourceVideo:a.sourceVideo||x.sourceVideo||'',sourcePoster:a.sourcePoster||x.sourcePoster||'',sourceDuration:a.sourceDuration||x.sourceDuration||0,narration:a.narration||x.narration||null})).catch(()=>null)))).filter(Boolean);
-        const d = addDesign(e.id,comp,'Library',anims,{brandId:e.brandId,brandName:titleCase(e.brandId),brandKey:brandKeyOf(e.brandId),sourceVideo:e.sourceVideo||'',sourcePoster:e.sourcePoster||'',sourceWidth:e.sourceWidth||0,sourceHeight:e.sourceHeight||0,sourceDuration:e.sourceDuration||0}); d.comps=[comp,altComp].filter(Boolean); d.detail=e.detail; d.audioUrl=e.audio||''; d.fromLib=true; d.status=e.status; d.issues=e.issues;
+        // Load every animation file. Statuses are advisory: a "broken" label can
+        // be stale, and composition-style motion (layer keyframes) is valid even
+        // though it has no `tracks` array. Keep whatever can actually play.
+        const anims = (await Promise.all((e.animations||[]).map(async a => {
+          try {
+            const payload = await jget(a.file);
+            const normal = window.StudioAnimationNormalize.normalize(payload, a);
+            const sourceVideo = a.sourceVideo || payload.sourceVideo || '';
+            if (!normal.tracks.length && !sourceVideo) return null;
+            const playableStatus = (normal.tracks.length || sourceVideo) ? 'ok' : a.status;
+            return Object.assign(normal.animation, {
+              _saved: normal.animation.origin !== 'original',
+              _status: playableStatus, _libraryStatus: a.status, _issues: a.issues, _entry: a,
+              _kind: normal.kind, _composition: normal.composition || null,
+              sourceVideo,
+              sourcePoster: a.sourcePoster || payload.sourcePoster || '',
+              sourceDuration: a.sourceDuration || payload.sourceDuration || 0,
+              narration: a.narration || payload.narration || null,
+            });
+          } catch { return null; }
+        }))).filter(Boolean);
+        const d = addDesign(e.id,comp,'Library',anims,{brandId:e.brandId,brandName:titleCase(e.brandId),brandKey:brandKeyOf(e.brandId),sourceVideo:e.sourceVideo||'',sourcePoster:e.sourcePoster||'',sourceWidth:e.sourceWidth||0,sourceHeight:e.sourceHeight||0,sourceDuration:e.sourceDuration||0}); d.comps=[comp,altComp].filter(Boolean); d.detail=e.detail; d.audioUrl=e.audio||''; d.fromLib=true; d.status=e.status; d.issues=e.issues; d.playable=anims.length>0||!!e.sourceVideo; d.autoStatus=d.status==='blocked'&&d.playable?'playable':d.status;
       }catch(err){ console.warn('library item failed',e.id,err); }
     }
   }catch(e){ console.warn('library unavailable',e.message); }
@@ -873,7 +926,7 @@ function renderPanel(){
   $('#tAdmin').setAttribute('aria-pressed', String(ADMIN));
   $('#tAdmin').title = ADMIN ? 'Admin view: showing broken animations too' : 'Admin: include broken animations';
   if(!cur){
-    panel.append(mk('div',{className:'dh'},mk('h2',{},'Designs')));
+    panel.append(mk('div',{className:'dh'},mk('h2',{},'Designs'),mk('a',{href:'/reviews',target:'_blank',rel:'noopener',className:'lnk',style:'margin-left:auto',title:'Open the cross-surface review matrix'},'Review matrix')));
     const body = mk('div',{className:'db'}); panel.append(body);
     const brandBar = mk('label',{className:'brandbar'},mk('span',{},'Brand'));
     const brandSelect = mk('select',{id:'brandSel','aria-label':'Filter designs by brand'},
@@ -881,22 +934,41 @@ function renderPanel(){
       [...BRANDS.entries()].sort((a,b)=>a[1].localeCompare(b[1])).map(([id,name])=>mk('option',{value:id},name)));
     brandSelect.value = BRANDS.has(BRAND) ? BRAND : '';
     brandSelect.onchange = () => { BRAND = brandSelect.value; LS.set('sa.brand',BRAND); renderPanel(); };
-    brandBar.append(brandSelect); body.append(brandBar);
+    const reviewSelect = mk('select',{id:'reviewFilter','aria-label':'Filter designs by review mark'},
+      [['all','All marks'],['works','Works'],['broken',"Doesn't work"],['review','Needs review'],['marked','Any marked'],['unmarked','Unmarked']]
+        .map(([value,label])=>mk('option',{value},label)));
+    reviewSelect.value = REVIEW_FILTER;
+    reviewSelect.onchange = () => { REVIEW_FILTER = reviewSelect.value; renderPanel(); };
+    const reviewBar = mk('label',{className:'brandbar'},mk('span',{},'Review'),reviewSelect);
+    brandBar.append(brandSelect); body.append(brandBar, reviewBar);
     const list = visibleDesigns();
     if(!list.length){ body.append(mk('p',{style:'color:var(--mu)'},'No designs for this brand. Choose another brand or publish a template.')); return; }
     const g = mk('div',{className:'grid'}); body.append(g);
     list.forEach(d => { const c = d.sourcePoster ? mk('img',{className:'poster',src:d.sourcePoster,alt:'',loading:'lazy'}) : mk('canvas',{width:300,height:300}); if(c.dataset)c.dataset.did=d.id;
-      g.append(mk('button',{className:'card',onclick:()=>selectDesign(d)},c,mk('b',{},dTitle(d)),mk('small',{},`${d.src}${d.status&&d.status!=='ready'?' · '+d.status:''} · ${d.anims.length} animation${d.anims.length===1?'':'s'}`))); });
+      const badge = window.StudioReviews ? window.StudioReviews.badge({surface:'afs',ids:designIds(d),auto:designAuto(d),title:'Reviewed in AFS · click the design to mark it'}) : null;
+      g.append(mk('button',{className:'card',onclick:()=>selectDesign(d)},c,mk('b',{},dTitle(d)),mk('small',{},`${d.src} · ${d.anims.length} animation${d.anims.length===1?'':'s'}${d.playable===false?' · no motion':''}`),badge)); });
     paintThumbs(); return;
   }
-  panel.append(mk('div',{className:'dh'},mk('div',{},mk('h2',{},dTitle(cur)),mk('small',{},cur.comp.name.split(' — ')[0])),mk('button',{className:'lnk',onclick:()=>{cur=null;curAnim=null;SRC=false;SRC_VIDEO='';SRC_POSTER='';SRC_KEY='';stopAudioMix();$('#srcVideo').classList.remove('on');$('#srcVideo').pause();$('#srcPoster').classList.remove('on');$('#srcPoster').hidden=true;$('#cv').hidden=false;cancelAnimationFrame(raf);playing=false;fmtOpen=false;ctxLbl();paintMain();$('#replay').disabled=true;syncPlaybackButton();$('#tExport').disabled=true;$('#tAudio').disabled=true;openAudio(false);markAudioHas(false);renderPanel();}},'← Designs')));
+  panel.append(mk('div',{className:'dh'},mk('div',{},mk('h2',{},dTitle(cur)),mk('small',{},cur.comp.name.split(' — ')[0])),mk('a',{href:'/reviews',target:'_blank',rel:'noopener',className:'lnk',title:'Open the cross-surface review matrix'},'Matrix'),mk('button',{className:'lnk',onclick:()=>{cur=null;curAnim=null;SRC=false;SRC_VIDEO='';SRC_POSTER='';SRC_KEY='';stopAudioMix();$('#srcVideo').classList.remove('on');$('#srcVideo').pause();$('#srcPoster').classList.remove('on');$('#srcPoster').hidden=true;$('#cv').hidden=false;cancelAnimationFrame(raf);playing=false;fmtOpen=false;ctxLbl();paintMain();$('#replay').disabled=true;syncPlaybackButton();$('#tExport').disabled=true;$('#tAudio').disabled=true;openAudio(false);markAudioHas(false);renderPanel();}},'← Designs')));
   const body = mk('div',{className:'db'}); panel.append(body);
   const fm = FORMATS.find(f=>f.id===fmt);
   if(!fmtOpen){
     body.append(mk('div',{className:'sec',style:'margin-top:0'},'Animations'));
-    cur.anims.forEach(a => body.append(mk('button',{className:'row',onclick:()=>selectAnim(a)},mk('span',{},animLabel(a.data,cur),mk('br'),mk('small',{},((a.data.duration||0)/1000).toFixed(1)+' s')),mk('span',{},...(a.saved?[mk('span',{className:'tag'},'Saved')]:[]),...(a.data.origin==='menu'?[mk('span',{className:'tag',style:'margin-left:4px'},'Menu')]:[]),...(a.data.origin==='menu'?[mk('button',{type:'button',className:'tag',style:'margin-left:4px;padding:0 5px',title:'Delete this menu variation',onclick:ev=>deleteMenuVariation(ev,a)},'×')]:[]),...(ADMIN&&a.data._status&&a.data._status!=='ok'?[mk('span',{className:'tag',style:'margin-left:4px'},a.data._status)]:[])))));
+    cur.anims.forEach(a => {
+      const badge = window.StudioReviews ? window.StudioReviews.badge({surface:'afs',ids:animIds(cur,a),auto:a.data._status||''}) : null;
+      body.append(mk('button',{className:'row',onclick:()=>selectAnim(a)},mk('span',{},animLabel(a.data,cur),mk('br'),mk('small',{},((a.data.duration||0)/1000).toFixed(1)+' s')),mk('span',{},badge,...(a.saved?[mk('span',{className:'tag'},'Saved')]:[]),...(a.data.origin==='menu'?[mk('span',{className:'tag',style:'margin-left:4px'},'Menu')]:[]),...(a.data.origin==='menu'?[mk('button',{type:'button',className:'tag',style:'margin-left:4px;padding:0 5px',title:'Delete this menu variation',onclick:ev=>deleteMenuVariation(ev,a)},'×')]:[]),...(ADMIN&&a.data._status&&a.data._status!=='ok'?[mk('span',{className:'tag',style:'margin-left:4px'},a.data._status)]:[]))));
+    });
     body.querySelectorAll('.row').forEach((r,i)=>r.setAttribute('aria-current',!!cur.anims[i]&&cur.anims[i].data===curAnim));
     if(!cur.anims.length) body.append(mk('p',{style:'color:var(--mu)'},'No animations yet. Ask the assistant to create one.'));
+    if(window.StudioReviews){
+      body.append(mk('div',{className:'sec'},'Review in AFS'));
+      body.append(window.StudioReviews.control({surface:'afs',ids:designIds(cur),name:(cur.baseComp||cur.comp).name||dTitle(cur),kind:'design',auto:designAuto(cur)}));
+      const selected = curAnim ? cur.anims.find(a=>a.data===curAnim) : null;
+      if(selected){
+        body.append(mk('div',{className:'sec'},'Review this motion'));
+        body.append(window.StudioReviews.control({surface:'afs',ids:animIds(cur,selected),name:animLabel(selected.data,cur),kind:'animation',auto:selected.data._status||''}));
+      }
+    }
     const mapping=menuDesign(cur);
     if(mapping){
       const brand=menuBrand(cur.brandId);
@@ -952,10 +1024,19 @@ function showSource(on, playIt=false, source=null){
 }
 function selectDesign(d){ cancelAnimationFrame(raf); playing=false; SEL=new Set(); cur=d; cur.comp=d.baseComp||d.comp; curAnim=null; fmt='orig'; fmtOpen=false; T=0; $('#replay').disabled=true; $('#tExport').disabled=false; $('#tAudio').disabled=false; showSource(true,false); syncPlaybackButton(); fontFor(d.comp); d.comp.layers.forEach(l=>l.url&&getImg(l.url)); ctxLbl(); paintMain(); renderPanel(); renderGroups(); loadLib(d); loadSavedAnims(d); markAudioHas(false); if(!audioEl.hidden) renderAudio(); else narrationFor(d.id).then(narration=>{ if(cur&&cur.id===d.id) markAudioHas(!!narration); }).catch(()=>{}); }
 function selectAnim(a){ if(!a.data.byId) a.data=prep(a.data); curAnim=a.data;
-  // Play the animation over the composition it was authored for; the design may
-  // also carry a rasterised poster that its tracks do not exist in.
-  const fit=compForAnim(cur,a.data); if(fit){ if(fit!==(cur.baseComp||cur.comp)){ fontFor(fit); fit.layers.forEach(l=>l.url&&getImg(l.url)); } cur.baseComp=fit; }
-  cur.comp=a.data.menu&&a.data.menu.overrides?applyMenuOverrides(cur.baseComp||cur.comp,a.data.menu.overrides):(cur.baseComp||cur.comp); $('#replay').disabled=false; renderPanel(); const source=a.data.sourceVideo?{video:a.data.sourceVideo,poster:a.data.sourcePoster||cur.sourcePoster,key:a.data.id||('anim-'+cur.id)}:null; if(source) showSource(true,true,source); else if(a.data.origin==='original') showSource(true,true); else { showSource(false); play(); } loadAudioMix().then(()=>syncAudioMix(true)).catch(()=>{}); if(!audioEl.hidden) renderAudio(); showTip(); if(innerWidth-Math.min(innerWidth,innerHeight)<2*346) openPanel(false); }
+  if(a.data._composition){
+    // Composition-style motion: the file is the scene itself, and its tracks are
+    // deltas for that scene's own layer ids.
+    const scene=a.data._composition;
+    if(scene!==cur.comp){ fontFor(scene); scene.layers.forEach(l=>l.url&&getImg(l.url)); }
+    cur.comp=scene;
+  } else {
+    // Play the animation over the composition it was authored for; the design may
+    // also carry a rasterised poster that its tracks do not exist in.
+    const fit=compForAnim(cur,a.data); if(fit){ if(fit!==(cur.baseComp||cur.comp)){ fontFor(fit); fit.layers.forEach(l=>l.url&&getImg(l.url)); } cur.baseComp=fit; }
+    cur.comp=a.data.menu&&a.data.menu.overrides?applyMenuOverrides(cur.baseComp||cur.comp,a.data.menu.overrides):(cur.baseComp||cur.comp);
+  }
+  $('#replay').disabled=false; renderPanel(); const source=a.data.sourceVideo?{video:a.data.sourceVideo,poster:a.data.sourcePoster||cur.sourcePoster,key:a.data.id||('anim-'+cur.id)}:null; if(source) showSource(true,true,source); else if(a.data.origin==='original') showSource(true,true); else { showSource(false); play(); } loadAudioMix().then(()=>syncAudioMix(true)).catch(()=>{}); if(!audioEl.hidden) renderAudio(); showTip(); if(innerWidth-Math.min(innerWidth,innerHeight)<2*346) openPanel(false); }
 
 /* ============ library: groups + clips ============ */
 async function loadLib(d){ if(!d.detail||d.lib) return; try{ d.lib=await jget(d.detail); if(!CLIPS) CLIPS=(await jget(LIBIDX.files.clips)).clips; }catch(e){ console.warn(e); } if(cur===d) renderGroups(); }
@@ -2290,9 +2371,37 @@ window.__agentFirstQA = {
     return out.toDataURL('image/png');
   },
 };
+function applyDeepLink(){
+  const q=new URLSearchParams(location.search);
+  const brand=q.get('brand');
+  if(brand){
+    const key=brandKeyOf(brand);
+    if(BRANDS.has(key)){ BRAND=key; LS.set('sa.brand',BRAND); }
+  }
+  const designId=q.get('design');
+  if(!designId) return;
+  const design=DESIGNS.find(d=>d.id===designId)
+    || DESIGNS.find(d=>String(d.comp&&d.comp.id)===designId)
+    || DESIGNS.find(d=>d.knownIds&&d.knownIds.includes(designId));
+  if(!design) return;
+  selectDesign(design);
+  const animationId=q.get('animation');
+  if(animationId){
+    const anim=design.anims.find(a=>(a.id===animationId)||(a.data&&a.data.id===animationId));
+    if(anim) selectAnim(anim);
+  }
+  if(panel.hidden) openPanel(true);
+}
 (async()=>{ paintMain(); try{ const f=await jget(API+'/fonts'); for(const x of f.fonts||[]) if(x.family&&x.url){ try{ const ff=new FontFace(x.family,`url("${x.url}")`,{weight:'100 1000'}); await ff.load(); document.fonts.add(ff);}catch{} } }catch{}
   await loadProviderCatalog();
-  await loadFeed(); say('Pick a design, choose an animation, then ask me for a new animation, a change, or a review. You can attach images or video as visual references.'); })();
+  await loadFeed();
+  if(window.StudioReviews){
+    await window.StudioReviews.load();
+    window.StudioReviews.subscribe((event)=>{ if(!cur && (event.type==='load'||event.type==='update')) renderPanel(); });
+  }
+  applyDeepLink();
+  renderPanel();
+  say('Pick a design, choose an animation, then ask me for a new animation, a change, or a review. You can attach images or video as visual references.'); })();
 })();
 </script>
 </body>

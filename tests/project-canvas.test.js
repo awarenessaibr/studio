@@ -272,6 +272,7 @@ test('the server reads the real project and rejects unsafe ids', { skip: !HAS_PR
     assert.equal(entry.width, 1080);
     assert.equal(entry.segmented, true);
     assert.deepEqual(entry.compositions, [PROJECT_ID]);
+    assert.ok(entry.thumbnail && entry.thumbnail.startsWith(`/data/projects/${PROJECT_ID}/images/`), 'the list exposes a cover for the review matrix');
 });
 
 test('a model reply is validated, clamped and stripped of unknown ids', { skip: !HAS_PROJECT && 'the reference project is not on disk' }, async () => {
@@ -579,4 +580,32 @@ test('the studio project catalogue offers the editable composition', async () =>
     assert.equal(composition.width, 928);
     assert.equal(composition.height, 1143);
     assert.equal(composition.duration, 13000);
+});
+
+test('project canvas discovers project motions and flat semantic groups', { skip: !fs.existsSync(path.join(ROOT, 'data', 'projects', 'Butterfly-The-Stairs', 'compositions', 'Butterfly-The-Stairs.composition.json')) && 'the flat reference project is not on disk' }, async () => {
+    const base = await ProjectCanvas.readProject('Butterfly-The-Stairs');
+    assert.equal(base.project.compositionId, 'Butterfly-The-Stairs');
+    assert.equal(base.project.segmented, true, 'a flat segmented project is still segmented');
+    assert.equal(base.manifest.groups.length, 8, 'segmentGroup labels become semantic groups');
+    assert.equal(base.manifest.parents.length, 0, 'there are no parented image sources');
+    assert.ok(base.project.compositions.includes('Butterfly-Stairs-A-gallery-reveal'));
+    assert.equal(base.project.animations.length, 3, 'the three motions are offered');
+    assert.ok(base.project.compositionLabels['Butterfly-Stairs-A-gallery-reveal']);
+
+    const gallery = await ProjectCanvas.readProject('Butterfly-The-Stairs', 'Butterfly-Stairs-A-gallery-reveal');
+    assert.equal(gallery.project.compositionId, 'Butterfly-Stairs-A-gallery-reveal');
+    assert.equal(gallery.project.duration, 8000);
+    assert.equal(gallery.project.layerCount, 85);
+    assert.ok(gallery.manifest.events.length > 100, 'the motion keyframes become timeline events');
+    assert.equal(gallery.manifest.groups.length, 8);
+
+    const byName = await ProjectCanvas.readProject('Butterfly-The-Stairs', 'Butterfly-The-Stairs — gallery wall reveal');
+    assert.equal(byName.project.compositionId, 'Butterfly-Stairs-A-gallery-reveal', 'a motion can be opened by its display name');
+
+    const list = await ProjectCanvas.listProjects();
+    const entry = list.projects.find((project) => project.id === 'Butterfly-The-Stairs');
+    assert.equal(entry.segmented, true);
+    assert.equal(entry.animationCount, 3);
+    assert.ok(entry.compositions.includes('Butterfly-Stairs-A-gallery-reveal'));
+    assert.equal(entry.thumbnail, '/data/projects/Butterfly-The-Stairs/images/reference.jpeg', 'the reference layer is the project cover');
 });

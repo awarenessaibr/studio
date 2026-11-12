@@ -174,6 +174,7 @@
 
     async function boot() {
         wire();
+        if (window.StudioReviews) await window.StudioReviews.load().catch(() => {});
         loadProvider();
         requestAnimationFrame(tick);
         $('#projectSelect').innerHTML = '<option>Loading projects…</option>';
@@ -248,6 +249,7 @@
             state.projectId = data.project.id;
             state.project = data.project;
             state.orig = data.composition;
+            renderReview(data.composition, data.project);
             const sourceLink = $('#sourceVideo');
             const sourceVideo = data.composition && data.composition.meta && data.composition.meta.sourceVideo;
             if (sourceLink) {
@@ -280,16 +282,32 @@
             applyDefaultWindow();
             setPlaying(true);
             const counts = Manifest.summary(state.manifest);
-            say(`Opened “${data.project.name}” — ${data.project.width}×${data.project.height}, ${(data.project.duration / 1000).toFixed(1)}s, ${counts.layers} layers: ${counts.sources} segmented image sources, ${counts.texts} text layers and ${counts.unsegmented} single images. The original animation plays underneath your edits; switch to Blank to keep every element as a static asset.`, 'is-agent');
+            say(`Opened “${data.project.name}”${data.project.motion ? ` · ${data.project.motion.name}` : ''} — ${data.project.width}×${data.project.height}, ${(data.project.duration / 1000).toFixed(1)}s, ${counts.layers} layers: ${counts.sources} segmented image sources, ${counts.groups} semantic groups, ${counts.texts} text layers and ${counts.unsegmented} single images. The original animation plays underneath your edits; switch to Blank to keep every element as a static asset.`, 'is-agent');
             say('Select a group or part on the canvas or in the panel, then describe the change. Alt-click picks one part; Shift-click adds to the selection.', 'is-note');
             if (state.providerAvailable === false && state.agentNote) say(state.agentNote, 'is-note');
             updateSuggestions();
-            status(`${data.project.name} · ${data.project.width}×${data.project.height} · ${(data.project.duration / 1000).toFixed(1)}s · ${counts.layers} layers loaded.`);
+            const compositionName = data.composition && data.composition.name;
+            const motionSuffix = compositionName && compositionName !== data.project.name ? ` · ${compositionName}` : '';
+            status(`${data.project.name}${motionSuffix} · ${data.project.width}×${data.project.height} · ${(data.project.duration / 1000).toFixed(1)}s · ${counts.layers} layers loaded.`);
         } catch (error) {
             status(`Could not open the project: ${error.message}`, true);
             say(`Could not open that project: ${error.message}`, 'is-warn');
             if (state.comp) setPlaying(true);
         }
+    }
+
+    function renderReview(composition, project) {
+        const host = $('#pcanReview');
+        if (!host) return;
+        host.replaceChildren();
+        if (!window.StudioReviews || !composition) return;
+        host.append(window.StudioReviews.control({
+            surface: 'project-canvas',
+            ids: { compositionId: composition.id, projectId: project && project.id },
+            name: composition.name || (project && project.name) || 'Composition',
+            kind: 'composition',
+            auto: 'playable',
+        }));
     }
 
     function renderCompositionOptions() {
@@ -298,12 +316,13 @@
         const list = (state.project && Array.isArray(state.project.compositions)) ? state.project.compositions : [];
         if (list.length > 1) {
             field.hidden = false;
+            const labels = (state.project && state.project.compositionLabels) || {};
             select.innerHTML = list.map((id) => {
-                const label = id.endsWith('.editable')
+                const label = labels[id] || (id.endsWith('.editable')
                     ? `${id.replace(/\.editable$/, '')} — Editable layers`
                     : /-segmented$/.test(id)
                         ? `${id} — Segmented parts`
-                        : `${id} — Exact poster`;
+                        : `${id} — Exact poster`);
                 return `<option value="${escape(id)}">${escape(label)}</option>`;
             }).join('');
             select.value = state.project.compositionId;

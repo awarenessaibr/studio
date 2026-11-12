@@ -596,3 +596,9 @@
     .pcan-stage-col { height: 54vh; min-height: 340px; }
     .pcan-stage-meta { flex-direction: column; gap: 2px; }
 }
+
+/* Manual review mark for the open composition (shared across surfaces). */
+.pcan-review { display: inline-flex; align-items: center; }
+.pcan-review .srv-control { padding: 4px 6px; border-color: #ffffff26; }
+.pcan-review .srv-label { font-size: 9px; }
+.pcan-review .srv-btn { font-size: 9px; }

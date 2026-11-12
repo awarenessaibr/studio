@@ -90,37 +90,166 @@ async function compositionFiles(id, dir) {
  * Read one project's master composition plus its segmentation index and build the
  * manifest. The master file is never written: callers work on ProjectManifest.start().
  */
+const ANIMATION_FILE = /^([A-Za-z0-9_-]{1,120})(?:\.animation)?\.json$/;
+
+function displayName(id) {
+    return String(id || '').replace(/[-_]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+/**
+ * Motion files live next to the compositions, in data/projects/<id>/animations.
+ * Project Canvas used to ignore them completely, which is why a project could
+ * have three working motions in Studio Agent and zero in the canvas. A motion
+ * is either a complete composition (layers with keyframes) or a track file
+ * (`tracks`) that is composed onto the project's base layers.
+ */
+async function animationEntries(id, dir) {
+    let entries;
+    try {
+        entries = await fsp.readdir(path.join(dir, 'animations'), { withFileTypes: true });
+    } catch (error) {
+        if (error.code === 'ENOENT') return [];
+        throw error;
+    }
+    const motions = [];
+    for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name, 'en'))) {
+        if (!entry.isFile() || !ANIMATION_FILE.test(entry.name)) continue;
+        const motionId = entry.name.match(ANIMATION_FILE)[1];
+        let data;
+        try { data = JSON.parse(await fsp.readFile(path.join(dir, 'animations', entry.name), 'utf8')); }
+        catch { continue; }
+        const hasTracks = Array.isArray(data.tracks) && data.tracks.length > 0;
+        const hasLayers = Array.isArray(data.layers) && data.layers.length > 0;
+        if (!hasTracks && !hasLayers) continue; // cue/type-only legacy files
+        motions.push({
+            id: motionId,
+            filename: entry.name,
+            folder: 'animations',
+            name: String(data.name || displayName(motionId)),
+            duration: finite(data.duration, 0),
+            kind: hasTracks ? 'tracks' : 'composition',
+            data,
+        });
+    }
+    return motions;
+}
+
+/** Compose a track-style animation onto the project's base layers. */
+function compositionFromTracks(base, animation) {
+    if (!base || !Array.isArray(base.layers)) return null;
+    const layers = JSON.parse(JSON.stringify(base.layers));
+    const byId = new Map(layers.map((layer) => [String(layer.id), layer]));
+    let applied = 0;
+    for (const track of animation.tracks || []) {
+        const layer = byId.get(String(track && track.layerId || ''));
+        if (!layer) continue;
+        const frames = [];
+        for (const segment of track.segments || []) {
+            const start = finite(segment && segment.start, 0);
+            for (const frame of (segment && segment.frames) || []) {
+                const time = Math.round(start + finite(frame.t, 0));
+                frames.push({
+                    time,
+                    x: round(finite(layer.x, 0) + finite(frame.dx, 0) * 100),
+                    y: round(finite(layer.y, 0) + finite(frame.dy, 0) * 100),
+                    w: round(finite(layer.w, 100) * (finite(frame.sx, 1) || 1)),
+                    h: round(finite(layer.h, 100) * (finite(frame.sy, 1) || 1)),
+                    rotation: round(finite(layer.rotation, 0) + finite(frame.r, 0)),
+                    opacity: clamp(finite(layer.opacity, 1) * finite(frame.a, 1), 0, 1),
+                    easing: 'linear',
+                });
+            }
+        }
+        if (!frames.length) continue;
+        frames.sort((a, b) => a.time - b.time);
+        layer.keyframes = frames;
+        applied += 1;
+    }
+    if (!applied) return null;
+    const latest = layers.reduce((max, layer) => Math.max(max, ...(layer.keyframes || []).map((frame) => finite(frame.time, 0))), 0);
+    return {
+        ...base,
+        id: animation.id || base.id,
+        name: animation.name || base.name,
+        duration: Math.max(finite(animation.duration, 0), latest, finite(base.duration, 0)),
+        layers,
+        meta: { ...(base.meta || {}), sourceAnimation: animation.filename },
+    };
+}
+
+/**
+ * Read one project's master composition plus its segmentation index and build the
+ * manifest. The master file is never written: callers work on ProjectManifest.start().
+ *
+ * `compositionId` may name a compositions/*.json file or an animations/*.json
+ * motion. Motion compositions are returned as-is; track motions are composed
+ * onto the base layers so the canvas can play and inspect them.
+ */
 async function readProject(projectId, compositionId) {
     const { id, dir } = projectDir(projectId);
     const files = await compositionFiles(id, dir);
     if (!files.length) throw fail(404, `Project "${id}" has no composition JSON.`);
-    let file = null;
+    const animations = await animationEntries(id, dir);
+    const baseFile = files
+        .filter((entry) => entry.baseId === id)
+        .sort((a, b) => Number(b.editable) - Number(a.editable))[0] || files[0];
+
+    const readCompositionFile = async (entry) => {
+        try {
+            return JSON.parse(await fsp.readFile(path.join(dir, 'compositions', entry.filename), 'utf8'));
+        } catch (error) {
+            if (error.code === 'ENOENT') throw fail(404, `Project "${id}" has no composition "${entry.compositionId}".`);
+            throw fail(500, `The composition could not be read: ${error.message}`);
+        }
+    };
+
+    const baseComposition = await readCompositionFile(baseFile);
+    let selected = baseFile;
+    let composition = baseComposition;
+    let motion = null;
+
     if (compositionId) {
         const wanted = String(compositionId).trim().replace(/\.json$/, '');
-        if (!COMPOSITION_KEY.test(wanted)) throw fail(400, 'The composition id is invalid.');
-        file = files.find((entry) => entry.compositionId === wanted || entry.filename === wanted) || null;
-        if (!file) {
-            const base = wanted.replace(/\.editable$/, '');
-            file = files
-                .filter((entry) => entry.baseId === base)
-                .sort((a, b) => Number(b.editable) - Number(a.editable))[0] || null;
+        const nameKey = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+        // Motions can be addressed by id, filename, or their display name. The
+        // name form is what the review matrix uses: a library motion and the
+        // project's own animation file share a name even when their ids differ.
+        motion = animations.find((entry) => entry.id === wanted
+            || entry.filename === `${wanted}.json`
+            || entry.filename === `${wanted}.animation.json`
+            || entry.id === wanted.replace(/\.(?:animation|composition)$/, '')
+            || nameKey(entry.name) === nameKey(wanted)) || null;
+        if (!motion && !COMPOSITION_KEY.test(wanted) && !/^[A-Za-z0-9_-]{1,120}$/.test(wanted)) {
+            throw fail(400, 'The composition id is invalid.');
         }
-        if (!file) throw fail(404, `Project "${id}" has no composition "${compositionId}".`);
-    } else {
-        file = files
-            .filter((entry) => entry.baseId === id)
-            .sort((a, b) => Number(b.editable) - Number(a.editable))[0] || files[0];
+        if (motion) {
+            selected = {
+                compositionId: motion.id,
+                filename: motion.filename,
+                baseId: motion.id,
+                editable: false,
+                animation: true,
+            };
+            composition = motion.kind === 'tracks'
+                ? compositionFromTracks(baseComposition, motion)
+                : motion.data;
+            if (!composition) throw fail(422, `The motion "${motion.name}" has no tracks that fit this project.`);
+        } else {
+            let file = files.find((entry) => entry.compositionId === wanted || entry.filename === wanted) || null;
+            if (!file) {
+                const base = wanted.replace(/\.editable$/, '');
+                file = files
+                    .filter((entry) => entry.baseId === base)
+                    .sort((a, b) => Number(b.editable) - Number(a.editable))[0] || null;
+            }
+            if (!file) throw fail(404, `Project "${id}" has no composition "${compositionId}".`);
+            selected = file;
+            composition = await readCompositionFile(file);
+        }
     }
 
-    let composition;
-    try {
-        composition = JSON.parse(await fsp.readFile(path.join(dir, 'compositions', file.filename), 'utf8'));
-    } catch (error) {
-        if (error.code === 'ENOENT') throw fail(404, `Project "${id}" has no composition "${file.compositionId}".`);
-        throw fail(500, `The composition could not be read: ${error.message}`);
-    }
     if (!composition || !Array.isArray(composition.layers) || !(Number(composition.width) > 0) || !(Number(composition.height) > 0)) {
-        throw fail(500, `Composition "${file.compositionId}" is missing its canvas or layers.`);
+        throw fail(500, `Composition "${selected.compositionId}" is missing its canvas or layers.`);
     }
 
     let index = null;
@@ -129,20 +258,42 @@ async function readProject(projectId, compositionId) {
     } catch (error) {
         if (error.code !== 'ENOENT') console.warn(`[studio] could not read the segmentation index for ${id}:`, error.message);
     }
+    const hasFlatGroups = (composition.layers || []).some((layer) => layer.segmentGroup
+        || (layer.meta && layer.meta.segmentation && layer.meta.segmentation.parentLayerId));
+    const hasLayerIndex = await fsp.access(path.join(dir, 'layers.json')).then(() => true, () => false);
 
     const manifest = ProjectManifest.build(composition, index);
     const latest = (composition.layers || []).reduce((max, layer) => Math.max(max, ...(layer.keyframes || []).map((frame) => finite(frame.time, 0))), 0);
+    const compositionLabels = {};
+    files.forEach((entry) => {
+        compositionLabels[entry.compositionId] = entry.editable
+            ? `${entry.baseId} — Editable layers`
+            : (entry.compositionId === id ? 'Original composition' : `${entry.compositionId} — Exact poster`);
+    });
+    animations.forEach((entry) => {
+        compositionLabels[entry.id] = entry.name;
+    });
     return {
         project: {
             id,
-            compositionId: file.compositionId,
-            name: String(composition.name || id),
+            compositionId: selected.compositionId,
+            baseCompositionId: baseFile.compositionId,
+            name: String(baseComposition.name || id),
+            compositionName: String(composition.name || selected.compositionId),
             width: Number(composition.width),
             height: Number(composition.height),
             duration: Math.max(finite(composition.duration, 0), latest),
             layerCount: composition.layers.length,
-            compositions: files.map((entry) => entry.compositionId),
-            segmented: Boolean(index),
+            compositions: [...files.map((entry) => entry.compositionId), ...animations.map((entry) => entry.id)],
+            compositionLabels,
+            animations: animations.map((entry) => ({
+                id: entry.id,
+                name: entry.name,
+                duration: Math.max(finite(entry.duration, 0), 0),
+                kind: entry.kind,
+            })),
+            motion: motion ? { id: motion.id, name: motion.name, kind: motion.kind } : null,
+            segmented: Boolean(index) || hasFlatGroups || hasLayerIndex,
         },
         composition,
         index,
@@ -150,10 +301,64 @@ async function readProject(projectId, compositionId) {
     };
 }
 
+
+const COVER_IMAGE = /\.(?:png|jpe?g|webp)$/i;
+
+function localImagePath(value) {
+    let text = String(value || '').trim();
+    if (!text) return null;
+    if (/^https?:\/\//i.test(text)) {
+        try {
+            text = new URL(text).pathname;
+        } catch {
+            return null;
+        }
+    }
+    text = text.split('#')[0].split('?')[0];
+    if (!text.startsWith('/data/') && !text.startsWith('/api/')) return null;
+    return COVER_IMAGE.test(text) ? text : null;
+}
+
+/**
+ * The two URLs a project row can use as a cover: the composition's reference
+ * layer (the assembled final image) and its largest raster artwork layer.
+ * The browser asks /api/thumbnail to resize whichever one wins.
+ */
+function compositionCovers(composition) {
+    const layers = Array.isArray(composition.layers) ? composition.layers : [];
+    const images = layers
+        .map((layer) => {
+            const box = layer && (layer.box || layer.rect);
+            return {
+                layer,
+                url: layer ? localImagePath(layer.url) : null,
+                area: box ? (Number(box.w) || 0) * (Number(box.h) || 0) : 0,
+            };
+        })
+        .filter((item) => item.url)
+        .sort((a, b) => b.area - a.area);
+    const reference = composition.referenceLayerId
+        ? images.find((item) => item.layer.id === composition.referenceLayerId)
+        : null;
+    return {
+        reference: reference ? reference.url : null,
+        artwork: images.length ? images[0].url : null,
+    };
+}
+
+/** A rendered frame saved next to a project's images, when one exists. */
+async function projectPoster(dir, id) {
+    for (const name of ['poster.png', 'poster.jpg', 'poster.jpeg', 'poster.webp']) {
+        const exists = await fsp.access(path.join(dir, 'images', name)).then(() => true, () => false);
+        if (exists) return `/data/projects/${id}/images/${name}`;
+    }
+    return null;
+}
+
 /**
  * Every project the canvas can open. Only projects with at least one
  * compositions/*.composition.json are listed; the first composition is parsed for
- * the display name and canvas, the rest are offered by id.
+ * the display name and canvas, the rest are offered by id, plus a cover URL.
  */
 async function listProjects() {
     let entries;
@@ -180,17 +385,24 @@ async function listProjects() {
         try {
             const composition = JSON.parse(await fsp.readFile(path.join(dir, 'compositions', first.filename), 'utf8'));
             if (!composition || !Array.isArray(composition.layers)) continue;
-            const segmented = await fsp.access(path.join(dir, 'images', 'segmentation', 'index.json')).then(() => true, () => false);
+            const animations = await animationEntries(entry.name, dir);
+            const segmentedIndex = await fsp.access(path.join(dir, 'images', 'segmentation', 'index.json')).then(() => true, () => false);
+            const hasLayerIndex = await fsp.access(path.join(dir, 'layers.json')).then(() => true, () => false);
+            const flatGroups = (composition.layers || []).some((layer) => layer.segmentGroup
+                || (layer.meta && layer.meta.segmentation && layer.meta.segmentation.parentLayerId));
+            const covers = compositionCovers(composition);
             projects.push({
-                segmented,
+                segmented: segmentedIndex || flatGroups || hasLayerIndex,
                 id: entry.name,
                 name: String(composition.name || entry.name),
                 compositionId: first.compositionId,
-                compositions: files.map((file) => file.compositionId),
+                compositions: [...files.map((file) => file.compositionId), ...animations.map((motion) => motion.id)],
+                animationCount: animations.length,
                 width: Number(composition.width) || 0,
                 height: Number(composition.height) || 0,
                 duration: finite(composition.duration, 0),
                 layerCount: composition.layers.length,
+                thumbnail: covers.reference || await projectPoster(dir, entry.name) || covers.artwork,
             });
         } catch (error) {
             console.warn(`[studio] could not read project ${entry.name}:`, error.message);

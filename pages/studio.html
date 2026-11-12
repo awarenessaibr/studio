@@ -1889,6 +1889,11 @@ dialog.dlg:has(.json-editor) { width: min(94vw, 920px); }
     padding: 8px 12px;
   }
 }
+
+.studio-review{display:inline-flex;align-items:center}
+.studio-review .srv-control{padding:3px 6px;border-color:var(--line)}
+.studio-review .srv-btn{font-size:9px}
+.studio-review .srv-label{font-size:9px}
 </style>
 <script src="/src/client/asset-studio/vendor/qrcode.min.js"></script>
 <script src="/src/shared/brand-pack.js"></script>
@@ -1928,6 +1933,7 @@ dialog.dlg:has(.json-editor) { width: min(94vw, 920px); }
     <a id="lnkAsset" href="asset-studio.html" title="Open this brand in Asset Studio">Asset Studio</a>
     <a id="lnkLib" href="library.html" title="Open this brand's asset library">Library</a>
     <a href="crawler.html" title="Search and crawl a new business">Brand intake</a>
+    <a href="/reviews" target="_blank" rel="noopener" title="Cross-surface review matrix">Review matrix</a>
     <a href="studio-v2.html" title="Layer studio">Studio V2</a>
     <button id="undo">↶ Undo</button>
     <button id="reset">Reset scene</button>
@@ -1958,6 +1964,7 @@ dialog.dlg:has(.json-editor) { width: min(94vw, 920px); }
       <label><input type="checkbox" id="sz"> Safe zone</label>
       <button id="gc" title="Run guardrail report">Checking…</button>
       <span class="sp"></span>
+      <div id="studioReview" class="studio-review"></div>
       <span style="color:var(--mu)" id="status">Click a layer, or drag an asset in.</span>
     </div>
     <div class="wrap" id="wrap" aria-label="Canvas workspace. Drag from empty space around the canvas to select layers in a region."><div class="stage" id="stage"></div></div>
@@ -2006,6 +2013,7 @@ dialog.dlg:has(.json-editor) { width: min(94vw, 920px); }
     </form>
   </section>
 </div>
+<script src="/src/client/shared/reviews.js"></script>
 <script>const DEMO_PHOTO="__PHOTO__";</script>
 <script>
 (function(){
@@ -2197,7 +2205,7 @@ function setLayerSelection(ids,primary){
 }
 function clearLayerSelection(){setLayerSelection([],null)}
 const packCache=new Map(),IMG=new Map(),PXC=new Map(),TINT=new Map();
-const AS={tab:'brand',menuBranch:'',lib:{status:'idle',items:[],cls:'',verified:false,err:''},saved:{status:'idle',items:[],err:''},savedActive:null,compositionMeta:null};
+const AS={tab:'brand',menuBranch:'',lib:{status:'idle',items:[],cls:'',verified:false,err:''},saved:{status:'idle',items:[],err:''},savedActive:null,compositionMeta:null,compositionId:''};
 const templateFallback=[
  {id:'hero-flyer',label:'Hero flyer',summary:'Print-led hero composition',category:'Flyers',format:'A4 portrait'},
  {id:'social-post',label:'Social post',summary:'Square social layout',category:'Social',format:'Square'},
@@ -2461,7 +2469,31 @@ function render(sc=scene,tgt=stage){tgt.innerHTML='';
   e.onpointerdown=ev=>down(ev,l.id);tgt.appendChild(e)}
  // Menus are measured after they are in the DOM: shrink the block until it
  // fits the layer it was dropped on, the same fit paintMenuBlock applies.
- tgt.querySelectorAll('[data-menu]').forEach(fitMenuLayer)}
+ tgt.querySelectorAll('[data-menu]').forEach(fitMenuLayer);
+ if(sc===scene&&tgt===stage)refreshStudioReview()}
+let studioReviewKey='';
+function studioReviewTarget(){
+ const ids={};
+ if(SAVE.projectId)ids.projectId=SAVE.projectId;
+ if(SAVE.template&&SAVE.template.templateId)ids.templateId=SAVE.template.templateId;
+ const meta=AS.compositionMeta||{};
+ if(AS.compositionId)ids.compositionId=String(AS.compositionId);
+ else if(meta.id)ids.compositionId=String(meta.id);
+ else if(meta.compositionId)ids.compositionId=String(meta.compositionId);
+ if(!Object.keys(ids).length&&B)ids.compositionId='studio-scene:'+B.id;
+ return {ids,name:SAVE.name||meta.name||(B?B.name+' · '+FMT.n:'Studio scene')};
+}
+function refreshStudioReview(){
+ const host=document.querySelector('#studioReview');
+ if(!host||!window.StudioReviews)return;
+ const target=studioReviewTarget();
+ const key=JSON.stringify(target.ids)+'|'+target.name;
+ if(key===studioReviewKey)return;
+ studioReviewKey=key;
+ host.replaceChildren(window.StudioReviews.control({
+  surface:'studio',ids:target.ids,name:target.name,kind:'composition',auto:'loaded',
+ }));
+}
 function down(ev,id){if(ev.button)return;const l=scene.find(q=>q.id===id);if(!l||l.type==='fill')return;ev.preventDefault();if(!selectedLayers.has(id))select(id);
  const moving=[...selectedLayers].map(layerId=>scene.find(layer=>layer.id===layerId)).filter(layer=>layer&&layer.type!=='fill'&&!layer.hidden);
  const r=stage.getBoundingClientRect(),sx=ev.clientX,sy=ev.clientY,originals=new Map(moving.map(layer=>[layer.id,{x:layer.x,y:layer.y}]));let moved=false;
@@ -3093,6 +3125,11 @@ function compositionToScene(record){
    // only a user offset. The imported base value is the same rotation again, so
    // reset it here rather than applying it twice.
    if((compositionKeyframeSource(l)||[]).some(k=>Number.isFinite(+k.rotation)))layer.rotation=0;
+   // Imported keyframes are absolute poses. The layer-level opacity is the
+   // value at frame 0 (often 0 for a reveal); keeping it as a multiplier makes
+   // every later opacity 0 * 1 = 0, so the artwork never appears. The keyframes
+   // already carry the real opacity, so the base must be neutral.
+   layer.opacity=1;
    layer.kf=keys;layer.anim={preset:'keyframes',start:keys[0].time,duration:keys[keys.length-1].time-keys[0].time};
   }
   return layer;
@@ -3128,7 +3165,7 @@ async function applyBrandTemplate(entry){
   const composition=window.StudioBrand.createTemplateComposition({packId:P.id,packName:P.name,portfolio:P.portfolio,brand:B,templateId:entry.id});
   const title=`${B.name} · ${entry.label||entry.id}`;
   composition.name=title;
-  await adoptComposition(composition,title);
+  await adoptComposition(composition,title,{template:{packId:P.id,brandId:B.id,templateId:entry.id}});
  }catch(error){toast('Could not load brand template: '+error.message,true)}
 }
 async function savedThumb(cv,tpl){
@@ -5207,7 +5244,7 @@ function applyCompositionDocument(data){
  FMT={...FMT,w,h,n:String(composition.name||FMT.n)};
  setDuration(+(composition.duration)||DUR);
  T=next.some(layer=>timelineAnims(layer).length)?0:DUR;
- timelineSelection=null;clearLayerSelection();AS.savedActive=null;AS.compositionMeta=composition.meta||null;
+ timelineSelection=null;clearLayerSelection();AS.savedActive=null;AS.compositionMeta=composition.meta||null;AS.compositionId=String(composition.id||'');
  fitStage();sizeProbe();
  scene=next;
  if(composition.name)SAVE.name=String(composition.name);
@@ -6260,6 +6297,14 @@ function importedScene(composition){
 
 async function adoptComposition(composition,label,source){
  if(!composition||!Array.isArray(composition.layers)||!composition.layers.length)throw new Error('That composition has no layers to load.');
+ // Project compositions are cut-outs with transparent holes: at frame 0 the
+ // holes expose the stage. Project canvas and Studio Agent use a dark stage;
+ // Studio used to inherit a white canvas, which read as white "missing art"
+ // until the reveal keyframes ran. Use the same neutral stage for project
+ // scenes, and keep the template's own paper for brand templates.
+ const fromProject=Boolean(source&&(source.projectId||source.repositorySource||source.compositionId));
+ stage.style.background=fromProject?'#111111':'';
+ AS.compositionId=String(composition.id||'');
  const next=importedScene(composition);
  if(!next.length)throw new Error('That composition has no layers to load.');
  const title=String(composition.name||label||'Imported composition');
@@ -6474,6 +6519,14 @@ async function boot(){
     await adoptComposition(compositionPayload(data),data&&data.composition&&data.composition.name||qComp,{projectId:qProject,compositionId:qComp});
    }catch(error){console.warn('Could not open project composition',error)}
   }
+  const qTemplate=q.get('template');
+  if(qTemplate){
+   try{
+    const entry=(brandTemplateEntries(B)||[]).find(item=>String(item.id)===String(qTemplate));
+    if(entry)await applyBrandTemplate(entry);else await applySavedTemplate(qTemplate);
+   }catch(error){console.warn('Could not open template',error)}
+  }
+  if(window.StudioReviews){await window.StudioReviews.load().catch(()=>{});studioReviewKey='';refreshStudioReview()}
   $('#boot').hidden=true}
  catch(e){const m=String(e.message||e);
   bootMsg(`<b>Agent Studio could not load your brands.</b><br>${esc(/fetch|network|failed|load/i.test(m)?'Start the local studio server with `node server.js`, then reload.':m)}`,[['Reload',()=>location.reload()],['Open offline demo',()=>startDemo()],]);}}

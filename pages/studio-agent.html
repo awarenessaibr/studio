@@ -216,7 +216,11 @@
         .clean-library-selected-view { display:grid; gap:8px; }
         .clean-library-back { justify-self:end; border:0; background:transparent; color:#9b96a6; padding:2px 0 2px 8px; font-size:10px; }
         .clean-library-back:hover { color:#fff; }
-        .clean-selected-card { display:flex; align-items:center; gap:10px; min-width:0; padding:7px; border:1px solid #ffffff16; border-radius:9px; background:#1b1b23; }
+        .clean-selected-card { display:flex; flex-wrap:wrap; align-items:center; gap:10px; min-width:0; padding:7px; border:1px solid #ffffff16; border-radius:9px; background:#1b1b23; }
+        .clean-selected-card .clean-selected-card-copy { flex:1 1 120px; }
+        .clean-selected-card .srv-control { flex:1 1 100%; }
+        .clean-anim > span:not(.srv-badge) { min-width:0; flex:1; }
+        .clean-anim .srv-badge { flex:none; }
         .clean-selected-card img { width:48px; height:62px; flex:none; object-fit:cover; border-radius:5px; background:#101015; }
         .clean-selected-card-copy { min-width:0; }
         .clean-selected-card strong { display:block; font-size:11.5px; font-weight:600; line-height:1.3; }
@@ -559,6 +563,7 @@
 
         <aside id="cleanDrawer" class="clean-drawer" aria-label="Designs and animations" hidden>
             <header class="clean-drawer-head">
+                <a class="clean-close" href="/reviews" target="_blank" rel="noopener" aria-label="Review matrix" title="Cross-surface review matrix">R</a>
                 <button type="button" class="clean-close" id="cleanAdminBtn" aria-pressed="false" aria-label="Admin library view" title="Admin: show all library designs">A</button>
                 <button type="button" class="clean-close" id="cleanDrawerClose" aria-label="Close designs">×</button>
             </header>
@@ -572,6 +577,14 @@
                     <div id="cleanDesignContent">
                         <p id="cleanBrandLine">Saved and published templates</p>
                         <select id="cleanBrandSelect" class="clean-provider" aria-label="Brand"></select>
+                        <select id="cleanReviewFilter" class="clean-provider" aria-label="Filter by manual review mark">
+                            <option value="all">All review marks</option>
+                            <option value="works">Works</option>
+                            <option value="broken">Doesn't work</option>
+                            <option value="review">Needs review</option>
+                            <option value="marked">Any marked</option>
+                            <option value="unmarked">Unmarked</option>
+                        </select>
                         <div id="cleanDesignGrid" class="clean-design-grid"></div>
                     </div>
                 </section>
@@ -654,6 +667,8 @@
     <script src="/src/client/asset-studio/vendor/qrcode.min.js"></script>
     <script src="/src/shared/asset-intel.js"></script>
     <script src="/src/shared/studio-core.js"></script>
+    <script src="/src/shared/animation-normalize.js"></script>
+    <script src="/src/client/shared/reviews.js"></script>
     <script src="/src/shared/brand-pack.js"></script>
     <script src="/src/client/asset-studio/engine.js"></script>
     <script src="/src/client/asset-studio/categories.js"></script>
@@ -3469,11 +3484,24 @@
             els.animMeta.textContent = 'loading…';
             els.animList.innerHTML = '<div class="clean-empty">Loading library motion…</div>';
             const entries = (CLEAN_LIBRARY_ENTRY && Array.isArray(CLEAN_LIBRARY_ENTRY.animations) ? CLEAN_LIBRARY_ENTRY.animations : [])
-                .filter((entry) => entry && entry.file && (CLEAN_ADMIN ? entry.status !== 'broken' : entry.status === 'ok'));
+                .filter((entry) => entry && entry.file);
             const loaded = await Promise.all(entries.map(async (entry) => {
                 try {
                     const payload = await jget(entry.file);
-                    return { id: entry.id, kind: 'library-file', name: entry.name || payload.name || 'Library motion', note: `${entry.origin || 'library'} · ${entry.status || 'ok'}`, payload, entry };
+                    const normal = window.StudioAnimationNormalize
+                        ? window.StudioAnimationNormalize.normalize(payload, entry)
+                        : { tracks: payload.tracks || [], animation: payload };
+                    const sourceVideo = entry.sourceVideo || payload.sourceVideo || '';
+                    if (!normal.tracks.length && !sourceVideo) return null;
+                    const status = normal.tracks.length || sourceVideo ? 'ok' : (entry.status || 'ok');
+                    return {
+                        id: entry.id,
+                        kind: 'library-file',
+                        name: entry.name || payload.name || 'Library motion',
+                        note: `${entry.origin || 'library'} · ${status}`,
+                        payload: normal.animation,
+                        entry: { ...entry, status, _composition: normal.composition || null },
+                    };
                 } catch { return null; }
             }));
             if (token !== CLEAN_ANIM_TOKEN) return;
@@ -3541,9 +3569,18 @@
             };
         }
 
+        const cleanReviewIds = (entry) => ({ designId: entry && entry.id, compositionId: (entry && (entry.compositionId || entry.id)) });
+        const cleanDesignAuto = (entry) => (entry && entry.status === 'blocked' && ((entry.animations || []).length || entry.sourceVideo) ? 'playable' : (entry && entry.status) || '');
+        function cleanReviewFilterValue() {
+            const select = document.querySelector('#cleanReviewFilter');
+            return select ? select.value : 'all';
+        }
         function cleanLibraryDesigns() {
             const designs = (CLEAN_LIBRARY_INDEX && Array.isArray(CLEAN_LIBRARY_INDEX.designs)) ? CLEAN_LIBRARY_INDEX.designs : [];
-            return designs.filter((entry) => CLEAN_ADMIN || entry.status === 'ready');
+            // Statuses are advisory. Every library design stays visible; the
+            // review mark (or the auto status) tells you whether it works here.
+            return designs.filter((entry) => !window.StudioReviews
+                || window.StudioReviews.filterMatch(cleanReviewIds(entry), 'studio-agent', cleanReviewFilterValue()));
         }
         function cleanUpdateDrawerView() {
             const template = S && tplOf(S);
@@ -3571,9 +3608,18 @@
             name.textContent = CLEAN_LIBRARY_ENTRY.name || CLEAN_LIBRARY_DESIGN.name || 'Library design';
             const meta = document.createElement('small');
             const motions = (CLEAN_LIBRARY_ENTRY.animations || []).length;
-            meta.textContent = `${CLEAN_LIBRARY_ENTRY.status || 'library'} · ${CLEAN_LIBRARY_ENTRY.kind || 'design'} · ${motions} motion${motions === 1 ? '' : 's'}`;
+            meta.textContent = `${CLEAN_LIBRARY_ENTRY.kind || 'design'} · ${motions} motion${motions === 1 ? '' : 's'}`;
             copy.append(name, meta);
             card.append(copy);
+            if (window.StudioReviews) {
+                card.append(window.StudioReviews.control({
+                    surface: 'studio-agent',
+                    ids: cleanReviewIds(CLEAN_LIBRARY_ENTRY),
+                    name: CLEAN_LIBRARY_ENTRY.name,
+                    kind: 'design',
+                    auto: cleanDesignAuto(CLEAN_LIBRARY_ENTRY),
+                }));
+            }
         }
         function cleanRenderLibraryCards(force = false) {
             const grid = $('#cleanLibraryGrid'), meta = $('#cleanLibraryMeta'), admin = $('#cleanAdminBtn');
@@ -3582,14 +3628,14 @@
             const designs = cleanLibraryDesigns();
             if (meta) {
                 const all = CLEAN_LIBRARY_INDEX && Array.isArray(CLEAN_LIBRARY_INDEX.designs) ? CLEAN_LIBRARY_INDEX.designs.length : 0;
-                meta.textContent = CLEAN_ADMIN ? `all ${all}` : `${designs.length} ready`;
+                meta.textContent = designs.length === all ? `${all} designs` : `${designs.length} of ${all}`;
             }
             const key = `${CLEAN_ADMIN}:${designs.map((entry) => entry.id + ':' + entry.status).join('|')}`;
             if (force || key !== CLEAN_LIBRARY_KEY) {
                 CLEAN_LIBRARY_KEY = key;
                 grid.innerHTML = '';
                 if (!designs.length) {
-                    grid.innerHTML = '<div class="clean-empty">No library designs are marked ready.</div>';
+                    grid.innerHTML = '<div class="clean-empty">No library designs match this review filter.</div>';
                 }
                 designs.forEach((entry) => {
                     const card = document.createElement('button');
@@ -3611,8 +3657,11 @@
                     const name = document.createElement('strong');
                     name.textContent = entry.name;
                     const small = document.createElement('small');
-                    small.textContent = `${entry.status || 'library'} · ${entry.kind || 'design'} · ${(entry.animations || []).length} motion${(entry.animations || []).length === 1 ? '' : 's'}`;
-                    card.append(name, small);
+                    small.textContent = `${entry.kind || 'design'} · ${(entry.animations || []).length} motion${(entry.animations || []).length === 1 ? '' : 's'}${CLEAN_ADMIN && entry.status ? ` · library ${entry.status}` : ''}`;
+                    const badge = window.StudioReviews
+                        ? window.StudioReviews.badge({ surface: 'studio-agent', ids: cleanReviewIds(entry), auto: cleanDesignAuto(entry) })
+                        : null;
+                    card.append(name, small, ...(badge ? [badge] : []));
                     card.onclick = () => cleanOpenLibraryDesign(entry).catch((error) => toast(`Could not open that library design: ${error.message}`, true));
                     grid.append(card);
                 });
@@ -3668,7 +3717,7 @@
             if (listIndex < 0) { list.push(template); listIndex = list.length - 1; } else list[listIndex] = template;
             const designIndex = categoryDesigns(cat).findIndex((item) => item.id === template.id);
             if (designIndex < 0) throw new Error('The library design could not be added to the current category.');
-            CLEAN_LIBRARY_ENTRY = entry;
+            CLEAN_LIBRARY_ENTRY = { ...entry, compositionId: (composition && composition.id) || entry.compositionId || entry.id };
             CLEAN_LIBRARY_DESIGN = detail;
             CLEAN_LIBRARY_TEMPLATE_ID = template.id;
             CLEAN_LIBRARY_DETAIL_VIEW = true;
@@ -3735,8 +3784,27 @@
                     button.append(remove);
                 }
                 button.onclick = () => cleanApplyChoice(choice);
+                if (window.StudioReviews && choice.kind === 'library-file' && CLEAN_LIBRARY_ENTRY) {
+                    button.append(window.StudioReviews.badge({
+                        surface: 'studio-agent',
+                        ids: { compositionId: (choice.entry && choice.entry._composition && choice.entry._composition.id) || choice.id, animationId: choice.id },
+                        auto: choice.entry && choice.entry.status,
+                    }));
+                }
                 els.animList.append(button);
             });
+            if (window.StudioReviews && CLEAN_LIBRARY_ENTRY) {
+                const selected = CLEAN_CHOICES.find((choice) => choice.kind === 'library-file' && CLEAN_SELECTED && CLEAN_SELECTED.id === choice.id);
+                if (selected) {
+                    els.animList.append(window.StudioReviews.control({
+                        surface: 'studio-agent',
+                        ids: { compositionId: (selected.entry && selected.entry._composition && selected.entry._composition.id) || selected.id, animationId: selected.id },
+                        name: selected.name,
+                        kind: 'animation',
+                        auto: selected.entry && selected.entry.status,
+                    }));
+                }
+            }
         }
         async function cleanUpdateAnimations(force = false) {
             if (!CLEAN || !S || !B) return;
@@ -4079,6 +4147,25 @@
                 select.innerHTML = '<option value="">Auto provider</option>';
             }
         }
+        async function cleanApplyDeepLink() {
+            const query = new URLSearchParams(location.search);
+            const designId = query.get('library') || query.get('design');
+            if (!designId || !CLEAN_LIBRARY_INDEX) return;
+            const entry = (CLEAN_LIBRARY_INDEX.designs || []).find((item) => item.id === designId);
+            if (!entry) return;
+            const drawer = document.querySelector('#cleanDrawer');
+            if (drawer) drawer.hidden = false;
+            const designsButton = document.querySelector('#cleanDesignsBtn');
+            if (designsButton) designsButton.setAttribute('aria-expanded', 'true');
+            await cleanOpenLibraryDesign(entry);
+            const animationId = query.get('animation');
+            if (!animationId) return;
+            await cleanUpdateAnimations(true);
+            const choice = CLEAN_CHOICES.find((item) => item.id === animationId)
+                || CLEAN_CHOICES.find((item) => item.id && item.id.endsWith(animationId));
+            if (choice) await cleanApplyChoice(choice);
+        }
+
         function cleanInit() {
             if (!CLEAN || CLEAN_INIT) return;
             CLEAN_INIT = true;
@@ -4119,7 +4206,7 @@
                 CLEAN_CHOICES_TEMPLATE = '';
                 cleanRenderLibraryCards(true);
                 cleanUpdateAnimations(true);
-                toast(CLEAN_ADMIN ? 'Admin view: showing every library design.' : 'Showing ready library designs.');
+                toast(CLEAN_ADMIN ? 'Library status detail on.' : 'Library status detail off.');
             };
             els.ask.onclick = () => setAgent(els.agent.hidden);
             $('#cleanAgentClose').onclick = () => setAgent(false);
@@ -4153,8 +4240,22 @@
                 button.onclick = () => { els.prompt.value = button.dataset.cleanPrompt; cleanSendPrompt(els.prompt.value); };
             });
             $('#cleanAdminBtn').setAttribute('aria-pressed', String(CLEAN_ADMIN));
+            const reviewFilter = document.querySelector('#cleanReviewFilter');
+            if (reviewFilter) reviewFilter.onchange = () => { CLEAN_LIBRARY_KEY = ''; cleanRenderLibraryCards(true); };
             cleanLoadProviders();
-            cleanLoadLibrary().catch(() => {});
+            cleanLoadLibrary().then(() => cleanApplyDeepLink().catch(() => {})).catch(() => {});
+            if (window.StudioReviews) {
+                window.StudioReviews.load().then(() => {
+                    CLEAN_LIBRARY_KEY = '';
+                    cleanRenderLibraryCards(true);
+                    cleanRenderChoices();
+                }).catch(() => {});
+                window.StudioReviews.subscribe((event) => {
+                    if (event.type !== 'update' && event.type !== 'load') return;
+                    CLEAN_LIBRARY_KEY = '';
+                    if (CLEAN_INIT) { cleanRenderLibraryCards(true); cleanRenderChoices(); }
+                });
+            }
             cleanUpdate(true);
             // The canvas should replay the selected motion at the start.
             if (hasAnim()) seek(0);

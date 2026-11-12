@@ -23,6 +23,7 @@ another project loads with the same page and the same agent contract.
 /project-canvas                      → the last project used in this browser
 /project-canvas?project=<id>         → that project, first composition
 /project-canvas?project=<id>&composition=<cid>
+/project-canvas?project=<id>&composition=<motion id or display name>
 ```
 
 The project picker is filled from `GET /api/project-canvas/projects`, which lists
@@ -31,8 +32,21 @@ composition is served through the existing read-only project window
 (`/data/projects/<id>/compositions/…`, `…/images/…`), so the page needs no upload
 and no server-side rendering.
 
-A project with several compositions shows a second picker. The master
-composition is never changed: the page always builds a variant with
+A project with several compositions **and motions** shows a second picker. The
+picker contains the base/editable compositions **and** every playable file under
+`data/projects/<id>/animations/`:
+
+- a **composition-style** motion (layers with `keyframes`) is opened as its own
+  composition, with its own duration, layers and timeline;
+- a **track-style** motion (`tracks`) is composed onto the project's base layers
+  into a new in-memory composition;
+- cue/type-only legacy files (no layers, no tracks) are skipped.
+
+`composition` may be the motion's file id, its filename, or its display name —
+the review matrix links use the display name so a library motion and the
+project's own animation file resolve even when their ids differ.
+
+The master composition is never changed: the page always builds a variant with
 `ProjectManifest.start()`.
 
 ## What the canvas shows
@@ -43,8 +57,9 @@ composition is never changed: the page always builds a variant with
 | Playback | `keyframes` | Play/pause, scrub, loop and speed. Space toggles playback; arrow keys step 100 ms. |
 | Text | `text`, `font`, `color` | Rendered as text with the project's font loaded from Google Fonts on demand. `font.sizePct` is resolved against the basis the files imply (see below). |
 | Image layers | `url` | Parent images and every segmented child PNG/SVG, positioned by its box; missing files are outlined instead of silently vanishing. |
-| Selection | click | Whole semantic group by default, `Alt`-click for one part, `Shift`-click to add. The panel lists image sources, groups, every part and every text layer. |
+| Selection | click | Whole semantic group by default, `Alt`-click for one part, `Shift`-click to add. The panel lists image sources, groups, every part and every text layer. Flat extracted projects get their semantic groups from `segmentGroup` even when they have no parented image sources. |
 | Start mode | toolbar | **Original animation** keeps all keyframes. **Blank** keeps every element as a static asset at its first visible pose. Either way the work goes into a new variant. |
+| Motion picker | `animations/*.json` | Base/editable compositions plus every playable project motion; selecting one reopens the manifest against that composition. |
 | Variant | toolbar | Undo (30 steps) and *Download variant* write `<project>--<mode>.composition.json`. The master file is not touched. |
 | Agent context | panel | The text the agent receives with every message, including the selection, the layers you added and your drawings. Copyable, and it updates with the selection, start mode, drawings and annotation window. |
 | Drawings | canvas overlay | Freehand paths drawn over the stage, each with a green start dot, a purple end dot and an arrowhead. They are attached to your messages with the annotation window. |
@@ -63,7 +78,7 @@ a text layer took, so single-line copy does not wrap and multi-line copy does.
 
 - `entities` — one per layer: id, label (`meta.segmentation.objectLabel`), description, box, z, url, text, colour, font, visibility windows from the opacity keyframes, keyframe count.
 - `parents` — the segmented image sources, their children, source size and the scene description from the index.
-- `groups` — the semantic groups (`segmentGroup` / `groupId`), their union box and combined visibility window.
+- `groups` — the semantic groups (`segmentGroup` / `groupId`), their union box and combined visibility window. Parented segmentation groups come from the segmentation index; a flat project's groups are derived from the layer `segmentGroup` labels so it is still navigable as Architecture, Wall Art, Props, etc.
 - `events` — the original animation, clustered per subject and time window, so 13 limbs moving together is one line: `2.3s→2.67s BOO! moves dx12 dy1.69 dw-24`.
 - `notes` — facts the agent must plan around, derived from the files: children inherit parent keyframes, which images are not segmented, whether the project has any video/sprite frames, and where background parts stack above a subject.
 - `textBasis` — `width` or `height`, inferred from the measured text boxes.

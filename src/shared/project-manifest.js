@@ -15,6 +15,7 @@
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   const r2 = n => Math.round(n * 100) / 100;
   const stem = w => (w.length > 3 && w.endsWith('s') ? w.slice(0, -1) : w);
+  const slug = value => String(value || 'group').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'group';
   const tok = s => String(s || '').toLowerCase().split(/[^a-z0-9£%]+/).filter(w => w.length > 1).map(stem);
   const kf = l => (l.keyframes || []).slice().sort((a, b) => a.time - b.time);
   const sec = ms => r2(ms / 1000) + 's';
@@ -93,9 +94,17 @@
         p.children.push(e.id); parents.set(e.parent, p);
         const g = groups.get(e.groupId) || { id: e.groupId, label: e.group, parent: e.parent, members: [] };
         g.members.push(e.id); groups.set(e.groupId, g);
+      } else if (e.group) {
+        // A flat extracted project has no parented image source, but it does
+        // carry a semantic group on every layer. Keep those groups so the panel,
+        // selection and agent can work with "Wall Art", "Props", etc.
+        const gid = e.groupId || `group:${slug(e.group)}`;
+        const g = groups.get(gid) || { id: gid, label: e.group, parent: null, members: [] };
+        g.members.push(e.id); groups.set(gid, g);
+        e.groupId = gid;
       }
       // events, clustered by (subject, time window) so 13 limbs moving together = one event
-      const subj = e.parent ? (parents.get(e.parent).name || e.parent) : e.name;
+      const subj = e.parent ? (parents.get(e.parent).name || e.parent) : (e.group || e.name);
       for (const v of layerEvents(k)) {
         const key = [e.parent || e.id, v.kind === 'appears' || v.kind === 'disappears' ? v.kind : 'change', v.t, v.t2].join('|');
         let c = evMap.get(key);
@@ -119,8 +128,10 @@
     const events = [...evMap.values()].sort((a, b) => a.t - b.t || (a.t2 || 0) - (b.t2 || 0));
     const notes = []; // generic observations the agent needs to plan honestly
     if (ents.some(e => e.segmented)) notes.push('Segmented children inherit their parent image keyframes: moving a whole subject means writing the same transform to every member (or adding a group node).');
-    const flat = ents.filter(e => e.type === 'image' && !e.segmented);
+    const flat = ents.filter(e => e.type === 'image' && !e.segmented && !e.groupId);
     if (flat.length) notes.push('Not segmented (single image): ' + flat.map(e => e.name + ' ' + e.id).join(', ') + '.');
+    const flatGroups = [...groups.values()].filter(g => !g.parent);
+    if (flatGroups.length) notes.push(`Flat semantic groups from the layer labels: ${flatGroups.map(g => `${g.label} (${g.members.length})`).join(', ')}.`);
     if (comp.meta && comp.meta.sourceVideo) {
       notes.push(`Source recording: ${comp.meta.sourceVideo}. The editable layers are a still reconstruction; play the recording for the original motion.`);
     } else if (!ents.some(e => e.type === 'image' && /video|gif|sprite/.test(e.url || ''))) {
@@ -161,7 +172,7 @@
     for (const g of m.groups) L.push(`- ${g.id} | ${g.label} | ${g.members.map(i => m._by.get(i).label).join(', ')} | ${JSON.stringify(g.box)} | ${g.live.map(w => sec(w[0]) + '-' + sec(w[1])).join(',')}`);
     L.push('TEXT LAYERS:');
     for (const e of m.entities.filter(e => e.text)) L.push(`- ${e.id} "${e.text}" ${e.color} ${e.font} ${e.live.map(w => sec(w[0]) + '-' + sec(w[1])).join(',')}`);
-    L.push('OTHER LAYERS: ' + m.entities.filter(e => e.type === 'image' && !e.segmented).map(e => `${e.id} (${e.name})`).join(', '));
+    L.push('OTHER LAYERS: ' + m.entities.filter(e => e.type === 'image' && !e.segmented && !e.groupId).map(e => `${e.id} (${e.name})`).join(', '));
     if (m.textBasis) L.push(`TEXT SIZING: font.sizePct is % of the canvas ${m.textBasis} (inferred from the measured text boxes).`);
     L.push(`EVENTS (${mode === 'original' ? 'original animation' : 'cleared — the elements are static assets'}):`);
     const events = mode === 'original' ? m.events : [];
@@ -208,7 +219,7 @@
       layers: m.entities.length, sources: m.parents.length, groups: m.groups.length,
       texts: m.entities.filter(e => e.text).length,
       segmented: m.entities.filter(e => e.segmented).length,
-      unsegmented: m.entities.filter(e => e.type === 'image' && !e.segmented).length,
+      unsegmented: m.entities.filter(e => e.type === 'image' && !e.segmented && !e.groupId).length,
       events: m.events.length, notes: m.notes.length
     };
   }

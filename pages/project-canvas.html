@@ -26,6 +26,7 @@
             <a class="is-current" href="/project-canvas">Project canvas</a>
         </nav>
         <div class="seg-top-actions">
+            <a class="button small" href="/reviews" target="_blank" rel="noopener">Review matrix</a>
             <span class="pcan-provider" id="provider">Agent · checking</span>
             <a class="button small" href="/segments#scene">Scene studio</a>
         </div>
@@ -55,6 +56,7 @@
                 <button class="button pcan-mode" id="modeBlank" type="button" aria-pressed="false">Blank · keep elements</button>
             </div>
             <div class="pcan-bar-actions">
+                <div id="pcanReview" class="pcan-review"></div>
                 <button class="button" id="addImageBtn" type="button">＋ Add image</button>
                 <input id="imageInput" type="file" accept="image/*" hidden>
                 <button class="button" id="undoBtn" type="button" disabled>Undo</button>
@@ -171,6 +173,7 @@
 
     <script src="/src/shared/project-manifest.js"></script>
     <script src="/src/shared/project-timeline.js"></script>
+    <script src="/src/client/shared/reviews.js"></script>
     <script src="/src/client/project-canvas/project-canvas.js" defer></script>
 </body>
 
